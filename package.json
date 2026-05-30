@@ -1,0 +1,16 @@
+{
+  "name": "nykaa-blog-engine",
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "node dist/server/entry.mjs",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
+    "@astrojs/node": "^8.3.0",
+    "astro": "^4.16.0"
+  }
+}
