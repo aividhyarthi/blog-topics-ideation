@@ -130,22 +130,18 @@ async function crawl(url: string): Promise<{ url: string; ok: boolean; title: st
 // ---- route ------------------------------------------------------------------
 
 export const POST: APIRoute = async ({ request }) => {
-  let body: { urls?: string; keywords?: string; prompts?: string; brand?: string; apiKey?: string };
+  let body: { urls?: string; keywords?: string; prompts?: string; brand?: string };
   try {
     body = await request.json();
   } catch {
     return json({ error: 'Invalid request body.' }, 400);
   }
 
-  // Prefer a server-side env var; otherwise fall back to a key supplied from
-  // the UI (stored only in the user's browser). This lets the tool work with
-  // zero Railway configuration.
-  const apiKey =
-    process.env.ANTHROPIC_API_KEY ||
-    import.meta.env.ANTHROPIC_API_KEY ||
-    (body.apiKey && body.apiKey.trim());
+  // The Claude key is configured server-side only (set ANTHROPIC_API_KEY in
+  // Railway). It is never accepted from or exposed to the browser.
+  const apiKey = process.env.ANTHROPIC_API_KEY || import.meta.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return json({ error: 'No Anthropic API key found. Add one in the "API key" box at the top of the tool (or set ANTHROPIC_API_KEY in Railway).' }, 400);
+    return json({ error: 'Server is not configured with an Anthropic API key. Set ANTHROPIC_API_KEY in Railway.' }, 500);
   }
 
   const brand = (body.brand && body.brand.trim()) || 'Nykaa';
@@ -194,10 +190,11 @@ ${keywordBlock}
 === 3) SEMrush / LLM PROMPTS & QUESTIONS to target ===
 ${promptBlock}
 
-━━━ HOW TO THINK ━━━
+━━━ HOW TO THINK (AEO, NOT SEO) ━━━
+- Optimise every topic for Answer Engine Optimization and LLM citation — being the source an AI assistant quotes when it answers a question. Do NOT optimise for traditional Google keyword ranking or keyword density.
 - Treat each page's content and review signals as the product/category truth. Map topics to real shopper intent — concerns, comparisons, how-to, ingredient questions, "best X for Y", routines, dupes, occasions.
-- AEO wins on questions, not just keywords. For every topic, define the exact natural-language question a user would type/speak into an LLM that this blog should answer directly and concisely.
-- Prefer topics with clear, answerable intent that an LLM can quote (definitions, steps, comparisons, recommendations) and that naturally lead to a ${brand} product or category.
+- AEO wins on questions and entities, not keywords. For every topic, define the exact natural-language question a user would type/speak into an LLM that this blog should answer directly and concisely.
+- Prefer topics with clear, answerable intent that an LLM can quote verbatim (definitions, step lists, head-to-head comparisons, specific recommendations) and that name concrete entities (products, ingredients, skin types) so the answer is easy to attribute and cite back to a ${brand} product or category.
 - Cover a spread of clusters across the inputs — do not produce 15 variations of one topic.
 - Titles must sound human and specific, NOT like AI filler. Never use: "Unlock the secrets", "Ultimate guide", "Dive into", "Game-changing", "Everything you need to know", "In today's world".
 
@@ -208,7 +205,7 @@ Return ONLY valid JSON, no markdown, no commentary, in EXACTLY this shape:
     {
       "category": "Topic cluster / Nykaa category, e.g. 'Skincare > Sunscreen'",
       "blogTitle": "Specific, human, click-worthy blog headline (under ~70 chars)",
-      "focusKeyword": "Primary SEO keyword for this blog",
+      "focusKeyword": "The core entity, concept, or natural-language query the answer should own so AI engines cite it (an AEO focus — an entity or question, NOT an SEO keyword phrase)",
       "targetPrompt": "The exact natural-language question/prompt a user would ask an LLM that this blog should be the cited answer for",
       "searchIntent": "informational | commercial | comparison | transactional | how-to (pick the best single fit)",
       "whyRanks": "1-2 sentences: why this topic is likely to be surfaced/cited in LLM & AEO answers, and how it ties back to a ${brand} page"
