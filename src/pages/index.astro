@@ -11,7 +11,9 @@ const brand = 'Nykaa';
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>AEO Blog Topic Engine — {brand}</title>
     <meta name="description" content="Turn category URLs, keywords and SEMrush prompts into blog topics built to rank in LLMs and answer engines." />
-    <style>
+    <!-- is:global so styles also apply to the table rows injected at runtime
+         via innerHTML (Astro's scoped styles only match build-time elements). -->
+    <style is:global>
       :root {
         --pink: #fc2779;
         --pink-dark: #d81b66;
