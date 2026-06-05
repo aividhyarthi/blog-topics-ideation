@@ -280,7 +280,8 @@ const brand = 'Nykaa';
         } catch (e) {
           showErr('Network error: ' + (e && e.message ? e.message : e));
         } finally {
-          hideAlerts();
+          // Clear only the progress/info message — keep any error visible.
+          $('info').style.display = 'none';
           btn.disabled = false;
           btn.textContent = 'Audit AEO score';
         }
