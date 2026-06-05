@@ -1,7 +1,6 @@
 ---
-// AEO Auditor — scores an article/page for LLM answer-engine citability.
-// Brand-neutral: works for any site (the brand is auto-derived from the URL or
-// typed in by the user).
+// AEO Auditor — newsroom copilot. Scores an article's likelihood of being
+// cited by LLM answer engines, with category-specific weighting.
 ---
 
 <!doctype html>
@@ -11,16 +10,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>AEO Auditor — score any article for LLM citability</title>
-    <meta name="description" content="Score any article or blog for Answer Engine Optimization — how likely it is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews." />
+    <meta name="description" content="Newsroom AEO copilot — score any article for how likely it is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews, with category-specific weighting." />
     <!-- is:global so styles also apply to the results DOM injected at runtime
-         via innerHTML (Astro's default scoped styles only match build-time
-         elements, leaving JS-injected nodes unstyled). -->
+         via innerHTML (Astro's scoped styles only match build-time elements). -->
     <style is:global>
       :root {
         --pink: #fc2779; --pink-dark: #d81b66; --ink: #1d1f2b; --muted: #6b6f80;
         --line: #e7e8ef; --bg: #f4f5fb; --card: #ffffff;
         --ok: #15a06a; --ok-bg: #e7f6ef; --warn: #c98a00; --warn-bg: #fdf3dd;
-        --bad: #d63a3a; --bad-bg: #fdecec; --na: #9aa0ad;
+        --bad: #d63a3a; --bad-bg: #fdecec; --na: #9aa0ad; --indigo: #5b46c9;
       }
       * { box-sizing: border-box; }
       body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
@@ -38,11 +36,12 @@
       .tab { padding: 9px 15px; border-radius: 10px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); }
       .tab.active { border-color: var(--pink); color: var(--pink); background: #fff5f9; }
       label.fld { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin: 12px 0 5px; }
-      input[type=text], input[type=url], textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; color: var(--ink); background: #fcfcfe; outline: none; font-family: inherit; }
-      textarea { min-height: 220px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-      input:focus, textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(252,39,121,0.12); }
+      input[type=text], input[type=url], textarea, select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; color: var(--ink); background: #fcfcfe; outline: none; font-family: inherit; }
+      textarea { min-height: 200px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+      input:focus, textarea:focus, select:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(252,39,121,0.12); }
       .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-      @media (max-width: 720px) { .two { grid-template-columns: 1fr; } }
+      .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+      @media (max-width: 720px) { .two, .three { grid-template-columns: 1fr; } }
       .row { display: flex; align-items: center; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
       button.primary { background: var(--pink); color: #fff; border: none; border-radius: 11px; padding: 13px 24px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 10px rgba(252,39,121,0.35); }
       button.primary:hover { background: var(--pink-dark); }
@@ -54,70 +53,89 @@
       .alert.info { background: var(--warn-bg); color: #8a5d00; border: 1px solid #f3e0b0; }
       #results { margin-top: 24px; display: none; }
 
-      /* ---- hero scorecard ---- */
       .hero { display: flex; gap: 26px; align-items: center; flex-wrap: wrap; }
-      .donut { --val: 0; --ring: var(--ok); width: 150px; height: 150px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--ring) calc(var(--val) * 1%), #e9ebf3 0); flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03); }
+      .donut { --val: 0; --ring: var(--ok); width: 150px; height: 150px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--ring) calc(var(--val) * 1%), #e9ebf3 0); flex-shrink: 0; }
       .donut .inner { width: 116px; height: 116px; border-radius: 50%; background: #fff; display: grid; place-items: center; text-align: center; box-shadow: 0 1px 4px rgba(20,20,40,0.06); }
       .donut .num { font-size: 40px; font-weight: 800; line-height: 1; }
       .donut .grd { font-size: 13px; color: var(--muted); font-weight: 700; margin-top: 3px; }
       .verdict { flex: 1; min-width: 260px; }
-      .verdict .vtitle { font-size: 22px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.01em; }
-      .verdict .vsub { color: var(--muted); font-size: 13.5px; margin: 0 0 10px; word-break: break-word; }
+      .verdict .vtitle { font-size: 22px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.01em; }
+      .gate { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 800; padding: 5px 12px; border-radius: 999px; margin-bottom: 8px; }
+      .gate.block { background: var(--bad-bg); color: var(--bad); }
+      .gate.warn { background: var(--warn-bg); color: var(--warn); }
+      .gate.strong { background: var(--ok-bg); color: var(--ok); }
+      .gate.optimized { background: #e9e6fb; color: var(--indigo); }
+      .verdict .vsub { color: var(--muted); font-size: 13.5px; margin: 2px 0 10px; word-break: break-word; }
       .chips { display: flex; gap: 7px; flex-wrap: wrap; }
       .chip { font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #eef0f7; color: #4a5060; }
-      .chip.intent { background: #f0eefc; color: #5b46c9; }
+      .chip.intent { background: #f0eefc; color: var(--indigo); }
+      .chip.band-High { background: var(--ok-bg); color: var(--ok); }
+      .chip.band-Medium { background: var(--warn-bg); color: var(--warn); }
+      .chip.band-Low { background: var(--bad-bg); color: var(--bad); }
       .note-warn { color: var(--warn); font-size: 12.5px; margin-top: 8px; }
       .note-bad { color: var(--bad); font-size: 12.5px; margin-top: 8px; }
+      .suggest { margin-top: 10px; font-size: 12.5px; background: #eef0f7; border-radius: 9px; padding: 8px 11px; color: #3a4a6b; }
+      .suggest a { color: var(--pink-dark); font-weight: 700; cursor: pointer; text-decoration: underline; }
 
       .sectitle { font-size: 15px; font-weight: 800; margin: 26px 0 12px; display: flex; align-items: center; gap: 8px; }
+      .sectitle .sub { font-weight: 500; color: var(--muted); font-size: 12.5px; }
 
-      /* ---- pillar gauges grid ---- */
       .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
       @media (max-width: 760px) { .gauges { grid-template-columns: 1fr 1fr; } }
       @media (max-width: 460px) { .gauges { grid-template-columns: 1fr; } }
       .gauge { border: 1px solid var(--line); border-radius: 13px; padding: 13px 14px; background: #fff; border-left: 4px solid var(--g); }
       .gauge .gtop { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
       .gauge .gname { font-size: 12.5px; font-weight: 700; line-height: 1.25; }
-      .gauge .gscore { font-size: 24px; font-weight: 800; color: var(--g); }
-      .gauge .gweight { font-size: 10.5px; color: var(--muted); font-weight: 600; margin-top: 1px; }
+      .gauge .gpts { font-size: 22px; font-weight: 800; color: var(--g); white-space: nowrap; }
+      .gauge .gpts small { font-size: 12px; color: var(--muted); font-weight: 700; }
+      .gauge .gpurpose { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
       .gbar { height: 7px; border-radius: 999px; background: #edeef4; overflow: hidden; margin-top: 9px; }
       .gbar > i { display: block; height: 100%; border-radius: 999px; background: var(--g); }
       .gcounts { display: flex; gap: 9px; margin-top: 9px; font-size: 11px; font-weight: 700; }
-      .gcounts span { display: inline-flex; align-items: center; gap: 3px; }
       .gcounts .cok { color: var(--ok); } .gcounts .cwarn { color: var(--warn); } .gcounts .cbad { color: var(--bad); }
 
-      /* ---- top fixes ---- */
+      .domain { border: 1px dashed var(--line); border-radius: 13px; padding: 14px 16px; background: #fbfbfe; }
+      .domain .dhead { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
+      .domain .dnote { font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
+      .drow { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
+      .drow:first-of-type { border-top: none; }
+      .drow .dscore { font-weight: 800; font-size: 13px; padding: 3px 9px; border-radius: 8px; min-width: 42px; text-align: center; flex-shrink: 0; }
+      .drow .dbody .dname { font-weight: 600; font-size: 13px; }
+      .drow .dbody .ddetail { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+      .prompts { display: grid; gap: 7px; }
+      .prow { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; background: #fff; font-size: 13px; }
+      .prow .pmark { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
+      .prow .pmark.yes { background: var(--ok-bg); color: var(--ok); }
+      .prow .pmark.no { background: var(--bad-bg); color: var(--bad); }
+
       .fixlist { display: grid; gap: 9px; }
       .fixrow { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; border-left: 4px solid var(--fc); }
       .fixrow .fnum { font-weight: 800; color: var(--fc); font-size: 14px; min-width: 18px; }
       .fixrow .ftext { font-size: 13px; flex: 1; }
       .fixrow .ftext b { display: block; margin-bottom: 2px; font-size: 13.5px; }
       .fixrow .sev { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; }
-      .sev.fail { background: var(--bad-bg); color: var(--bad); }
-      .sev.warn { background: var(--warn-bg); color: var(--warn); }
+      .sev.fail { background: var(--bad-bg); color: var(--bad); } .sev.warn { background: var(--warn-bg); color: var(--warn); }
 
-      /* ---- detailed breakdown ---- */
       .pillar { border: 1px solid var(--line); border-radius: 13px; overflow: hidden; background: #fff; margin-bottom: 10px; border-left: 4px solid var(--p); }
       .pillar > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
       .pillar > summary::-webkit-details-marker { display: none; }
       .pillar .caret { color: var(--muted); font-size: 12px; transition: transform 0.15s; }
       .pillar[open] .caret { transform: rotate(90deg); }
       .pname { font-weight: 700; font-size: 14.5px; flex: 1; }
-      .pweight { font-size: 11px; color: var(--muted); background: #f1f2f8; padding: 2px 9px; border-radius: 999px; font-weight: 600; }
-      .pbar { height: 8px; border-radius: 999px; background: #edeef4; width: 150px; overflow: hidden; }
+      .ppts { font-size: 11px; color: var(--muted); background: #f1f2f8; padding: 2px 9px; border-radius: 999px; font-weight: 700; }
+      .pbar { height: 8px; border-radius: 999px; background: #edeef4; width: 130px; overflow: hidden; }
       .pbar > i { display: block; height: 100%; border-radius: 999px; background: var(--p); }
-      @media (max-width: 720px) { .pbar { width: 70px; } .pweight { display: none; } }
+      @media (max-width: 720px) { .pbar { width: 60px; } }
       .pscore { font-weight: 800; font-size: 18px; min-width: 40px; text-align: right; color: var(--p); }
       .signals { padding: 2px 16px 12px; }
       .signal { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); align-items: flex-start; }
       .schip { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 13px; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
-      .schip.pass { background: var(--ok-bg); color: var(--ok); }
-      .schip.warn { background: var(--warn-bg); color: var(--warn); }
-      .schip.fail { background: var(--bad-bg); color: var(--bad); }
-      .schip.na { background: #eef0f5; color: var(--na); }
+      .schip.pass { background: var(--ok-bg); color: var(--ok); } .schip.warn { background: var(--warn-bg); color: var(--warn); }
+      .schip.fail { background: var(--bad-bg); color: var(--bad); } .schip.na { background: #eef0f5; color: var(--na); }
       .sbody { flex: 1; min-width: 0; }
       .sname { font-weight: 600; font-size: 13.5px; }
-      .sname .tag { font-size: 9.5px; font-weight: 800; color: #5b46c9; background: #f0eefc; border-radius: 5px; padding: 1px 5px; margin-left: 7px; vertical-align: 1px; letter-spacing: 0.03em; }
+      .sname .tag { font-size: 9.5px; font-weight: 800; color: var(--indigo); background: #f0eefc; border-radius: 5px; padding: 1px 5px; margin-left: 7px; vertical-align: 1px; letter-spacing: 0.03em; }
       .sdetail { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
       .sfix { font-size: 12.5px; color: #5c4a14; margin-top: 6px; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 6px 10px; border-radius: 0 7px 7px 0; }
       .sscore { font-weight: 800; font-size: 13px; padding: 3px 9px; border-radius: 8px; min-width: 42px; text-align: center; flex-shrink: 0; }
@@ -130,9 +148,9 @@
   <body>
     <header>
       <div class="wrap">
-        <span class="badge">🔎 AEO Auditor</span>
-        <h1>Is your article AEO-friendly?</h1>
-        <p>Score any blog or page for <b>Answer Engine Optimization</b> — how likely it is to be cited when people ask ChatGPT, Perplexity, Gemini or Google AI Overviews. Audit a live URL or paste the article.</p>
+        <span class="badge">🔎 AEO Auditor · newsroom copilot</span>
+        <h1>Will this article get cited by AI?</h1>
+        <p>Score any article for <b>Answer Engine Optimization</b> — extractability, trust and answerability — across ChatGPT, Perplexity, Gemini and Google AI Overviews. Pick a category for the right weighting.</p>
         <nav class="top">
           <a href="/">Topic Engine</a>
           <a href="/audit" class="active">AEO Auditor</a>
@@ -157,18 +175,29 @@
             <textarea id="html" placeholder="Paste the full article HTML (best — keeps headings, schema, links) or plain text…"></textarea>
           </div>
 
-          <div class="two">
+          <div class="three">
+            <div>
+              <label class="fld" for="category">Category <span style="font-weight:400">(sets the weighting)</span></label>
+              <select id="category">
+                <option value="general">General</option>
+                <option value="entertainment">Entertainment</option>
+                <option value="health">Health</option>
+                <option value="news">Breaking News</option>
+                <option value="lifestyle">Lifestyle</option>
+                <option value="commerce">Beauty / Commerce</option>
+              </select>
+            </div>
             <div>
               <label class="fld" for="brand">Brand / site <span style="font-weight:400">(optional)</span></label>
-              <input id="brand" type="text" placeholder="Leave blank to use the site's domain" />
+              <input id="brand" type="text" placeholder="Leave blank to use the domain" />
             </div>
             <div>
               <label class="fld" for="topic">Topic <span style="font-weight:400">(optional)</span></label>
-              <input id="topic" type="text" placeholder="e.g. sunscreen for oily skin" />
+              <input id="topic" type="text" placeholder="e.g. Virat Kohli retirement" />
             </div>
           </div>
           <label class="fld" for="target">Target question this page should be the cited answer to <span style="font-weight:400">(optional)</span></label>
-          <input id="target" type="text" placeholder="e.g. which sunscreen is best for acne-prone oily skin?" />
+          <input id="target" type="text" placeholder="e.g. why did Virat Kohli retire?" />
 
           <div class="row">
             <button class="primary" id="go">Audit AEO score</button>
@@ -182,11 +211,12 @@
       </div>
     </main>
 
-    <footer>AEO citability audit · weights are evidence-based (Princeton GEO, Ahrefs studies), not a guarantee</footer>
+    <footer>AEO citability audit · category-weighted, evidence-based (Princeton GEO, Ahrefs studies) · predicts citability, not a guarantee</footer>
 
     <script>
       const $ = (id) => document.getElementById(id);
       let mode = 'url';
+      const CAT_LABEL = { general: 'General', entertainment: 'Entertainment', health: 'Health', news: 'Breaking News', lifestyle: 'Lifestyle', commerce: 'Beauty / Commerce' };
 
       function setMode(m) {
         mode = m;
@@ -198,86 +228,64 @@
       $('tab-url').addEventListener('click', () => setMode('url'));
       $('tab-paste').addEventListener('click', () => setMode('paste'));
 
-      function esc(s) {
-        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      }
+      function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
       function showErr(msg) { const e = $('err'); e.textContent = msg; e.style.display = 'block'; }
       function hideAlerts() { $('err').style.display = 'none'; $('info').style.display = 'none'; }
 
-      // status -> color hex
-      function hexFor(score) {
-        if (score == null) return '#9aa0ad';
-        if (score >= 75) return '#15a06a';
-        if (score >= 45) return '#c98a00';
-        return '#d63a3a';
-      }
-      function statusOf(score) {
-        if (score == null) return 'na';
-        if (score >= 75) return 'pass';
-        if (score >= 45) return 'warn';
-        return 'fail';
-      }
-      function tintFor(score) {
-        const s = statusOf(score);
-        return s === 'pass' ? 'background:var(--ok-bg);color:var(--ok)'
-          : s === 'warn' ? 'background:var(--warn-bg);color:var(--warn)'
-          : s === 'fail' ? 'background:var(--bad-bg);color:var(--bad)'
-          : 'background:#eef0f5;color:var(--na)';
-      }
+      function hexFor(s) { if (s == null) return '#9aa0ad'; if (s >= 75) return '#15a06a'; if (s >= 45) return '#c98a00'; return '#d63a3a'; }
+      function statusOf(s) { if (s == null) return 'na'; if (s >= 75) return 'pass'; if (s >= 45) return 'warn'; return 'fail'; }
+      function tintFor(s) { const st = statusOf(s); return st === 'pass' ? 'background:var(--ok-bg);color:var(--ok)' : st === 'warn' ? 'background:var(--warn-bg);color:var(--warn)' : st === 'fail' ? 'background:var(--bad-bg);color:var(--bad)' : 'background:#eef0f5;color:var(--na)'; }
       const ICON = { pass: '✓', warn: '!', fail: '✕', na: '–' };
-
-      function verdictFor(score) {
-        if (score >= 80) return { t: 'Strong — likely to be cited', c: '#15a06a' };
-        if (score >= 65) return { t: 'Good, with room to improve', c: '#15a06a' };
-        if (score >= 50) return { t: 'Moderate — needs work to get cited', c: '#c98a00' };
-        if (score >= 35) return { t: 'Weak — unlikely to be cited as-is', c: '#d63a3a' };
+      function verdictFor(s) {
+        if (s >= 80) return { t: 'Strong — likely to be cited', c: '#15a06a' };
+        if (s >= 65) return { t: 'Good, with room to improve', c: '#15a06a' };
+        if (s >= 50) return { t: 'Moderate — needs work to get cited', c: '#c98a00' };
+        if (s >= 35) return { t: 'Weak — unlikely to be cited as-is', c: '#d63a3a' };
         return { t: 'Poor — major gaps for AEO', c: '#d63a3a' };
       }
 
       function render(data) {
-        const r = data.report;
-        const m = data.meta || {};
-        const root = $('results');
+        const r = data.report, m = data.meta || {}, root = $('results');
         const v = verdictFor(r.overall);
 
-        // hero
         const chips = [
+          `<span class="chip band-${r.citationBand}">${r.citationBand} citation likelihood</span>`,
           `<span class="chip">${m.wordCount} words</span>`,
           m.detectedIntent ? `<span class="chip intent">${esc(m.detectedIntent)}</span>` : '',
           m.brand ? `<span class="chip">brand: ${esc(m.brand)}</span>` : (m.host ? `<span class="chip">site: ${esc(m.host)}</span>` : ''),
         ].filter(Boolean).join('');
 
+        let suggest = '';
+        if (m.suggestedCategory && m.suggestedCategory !== m.category) {
+          suggest = `<div class="suggest">💡 This reads more like <b>${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)}</b> than ${esc(m.categoryLabel)}. <a id="recat" data-cat="${esc(m.suggestedCategory)}">Re-audit as ${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)}</a></div>`;
+        }
+
         const hero = `
           <div class="card">
             <div class="hero">
               <div class="donut" style="--val:${r.overall};--ring:${v.c}">
-                <div class="inner">
-                  <div class="num" style="color:${v.c}">${r.overall}</div>
-                  <div class="grd">Grade ${esc(r.grade)}</div>
-                </div>
+                <div class="inner"><div class="num" style="color:${v.c}">${r.overall}</div><div class="grd">Grade ${esc(r.grade)}</div></div>
               </div>
               <div class="verdict">
+                <span class="gate ${r.gate.level}">${r.gate.level === 'block' ? '⛔' : r.gate.level === 'warn' ? '⚠️' : r.gate.level === 'optimized' ? '🏆' : '✅'} ${esc(r.gate.label)}</span>
                 <div class="vtitle" style="color:${v.c}">${v.t}</div>
-                <div class="vsub">${esc(m.mode === 'url' ? (m.url || 'Audited URL') : 'Pasted article')}</div>
+                <div class="vsub">${esc(m.mode === 'url' ? (m.url || 'Audited URL') : 'Pasted article')} · weighted for <b>${esc(m.categoryLabel)}</b></div>
                 <div class="chips">${chips}</div>
+                ${suggest}
                 ${m.fetchNote ? `<div class="note-warn">⚠ ${esc(m.fetchNote)}</div>` : ''}
                 ${m.aiError ? `<div class="note-bad">⚠ AI-judged signals unavailable — they default to 50. (${esc(m.aiError)})</div>` : ''}
               </div>
             </div>
           </div>`;
 
-        // pillar gauges
         const gauges = r.pillars.map((p) => {
           const col = hexFor(p.score);
-          const counts = p.signals.reduce((a, s) => {
-            const st = s.score == null ? 'na' : statusOf(s.score);
-            a[st] = (a[st] || 0) + 1; return a;
-          }, {});
+          const counts = p.signals.reduce((a, s) => { const st = s.score == null ? 'na' : statusOf(s.score); a[st] = (a[st] || 0) + 1; return a; }, {});
           return `
             <div class="gauge" style="--g:${col}">
               <div class="gtop">
-                <div><div class="gname">${esc(p.label)}</div><div class="gweight">${Math.round(p.weight * 100)}% of score</div></div>
-                <div class="gscore">${p.score}</div>
+                <div><div class="gname">${esc(p.label)}</div><div class="gpurpose">${esc(p.purpose)}</div></div>
+                <div class="gpts">${p.points}<small>/${p.weight}</small></div>
               </div>
               <div class="gbar"><i style="width:${p.score}%"></i></div>
               <div class="gcounts">
@@ -288,59 +296,52 @@
             </div>`;
         }).join('');
 
-        // top fixes
+        // domain context (off-page, not in score)
+        const dc = (r.domainContext || []).map((s) => `
+          <div class="drow">
+            <span class="dscore" style="${tintFor(s.score)}">${s.score == null ? 'n/a' : s.score}</span>
+            <div class="dbody"><div class="dname">${esc(s.label)}</div><div class="ddetail">${esc(s.detail)}</div></div>
+          </div>`).join('');
+        const domainPanel = dc ? `
+          <div class="sectitle">🌐 Domain context <span class="sub">— off-page, NOT counted in the score (an editor can't change it per article)</span></div>
+          <div class="domain"><div class="dnote">Claude's estimate from training data, not a live measurement. Verify with Ahrefs/Semrush.</div>${dc}</div>` : '';
+
+        // prompt coverage
+        const pc = (r.promptCoverage || []);
+        const covered = pc.filter((p) => p.covered).length;
+        const promptPanel = pc.length ? `
+          <div class="sectitle">💬 Prompt coverage <span class="sub">— answers ${covered}/${pc.length} of the likely AI questions for this story</span></div>
+          <div class="prompts">${pc.map((p) => `<div class="prow"><span class="pmark ${p.covered ? 'yes' : 'no'}">${p.covered ? '✓' : '✕'}</span><div>${esc(p.q)}</div></div>`).join('')}</div>` : '';
+
         const fixesHtml = (r.topFixes || []).map((fx, i) => {
           const col = fx.severity === 'fail' ? '#d63a3a' : '#c98a00';
-          return `
-            <div class="fixrow" style="--fc:${col}">
-              <span class="fnum">${i + 1}</span>
-              <div class="ftext"><b>${esc(fx.label)}</b>${esc(fx.fix)}</div>
-              <span class="sev ${fx.severity}">${fx.severity}</span>
-            </div>`;
+          return `<div class="fixrow" style="--fc:${col}"><span class="fnum">${i + 1}</span><div class="ftext"><b>${esc(fx.label)}</b>${esc(fx.fix)}</div><span class="sev ${fx.severity}">${fx.severity}</span></div>`;
         }).join('');
 
-        // detailed breakdown
         const breakdown = r.pillars.map((p) => {
           const col = hexFor(p.score);
           const sigs = p.signals.map((s) => {
             const st = s.score == null ? 'na' : statusOf(s.score);
-            const scoreTxt = s.score == null ? 'n/a' : s.score;
             const tag = s.source === 'ai' ? '<span class="tag">AI</span>' : '';
-            return `
-              <div class="signal">
-                <span class="schip ${st}">${ICON[st]}</span>
-                <div class="sbody">
-                  <div class="sname">${esc(s.label)}${tag}</div>
-                  <div class="sdetail">${esc(s.detail)}</div>
-                  ${s.fix ? `<div class="sfix">💡 ${esc(s.fix)}</div>` : ''}
-                </div>
-                <span class="sscore" style="${tintFor(s.score)}">${scoreTxt}</span>
-              </div>`;
+            return `<div class="signal"><span class="schip ${st}">${ICON[st]}</span><div class="sbody"><div class="sname">${esc(s.label)}${tag}</div><div class="sdetail">${esc(s.detail)}</div>${s.fix ? `<div class="sfix">💡 ${esc(s.fix)}</div>` : ''}</div><span class="sscore" style="${tintFor(s.score)}">${s.score == null ? 'n/a' : s.score}</span></div>`;
           }).join('');
           const open = p.score < 70 ? ' open' : '';
-          return `
-            <details class="pillar" style="--p:${col}"${open}>
-              <summary>
-                <span class="caret">▶</span>
-                <span class="pname">${esc(p.label)}</span>
-                <span class="pweight">${Math.round(p.weight * 100)}% weight</span>
-                <span class="pbar"><i style="width:${p.score}%"></i></span>
-                <span class="pscore">${p.score}</span>
-              </summary>
-              <div class="signals">${sigs}</div>
-            </details>`;
+          return `<details class="pillar" style="--p:${col}"${open}><summary><span class="caret">▶</span><span class="pname">${esc(p.label)}</span><span class="ppts">${p.points}/${p.weight} pts</span><span class="pbar"><i style="width:${p.score}%"></i></span><span class="pscore">${p.score}</span></summary><div class="signals">${sigs}</div></details>`;
         }).join('');
 
         root.innerHTML = `
           ${hero}
-          <div class="sectitle">📊 Pillar scores at a glance</div>
+          <div class="sectitle">📊 Pillar scores <span class="sub">— points shown out of each pillar's category weight</span></div>
           <div class="gauges">${gauges}</div>
+          ${promptPanel}
           ${fixesHtml ? `<div class="sectitle">🔧 Top fixes, ranked by impact</div><div class="fixlist">${fixesHtml}</div>` : ''}
+          ${domainPanel}
           <div class="sectitle">🔬 Full breakdown</div>
           ${breakdown}
-          <div class="caveat">
-            <b>How to read this:</b> the score predicts <i>page-level citability</i> from on-page signals plus an AI estimate of off-page brand authority. Off-page signals (marked <b>AI</b>) are Claude's estimate from training data, not a live measurement of brand mentions or backlinks — verify with a tool like Ahrefs/Semrush. Citation behaviour also varies a lot between engines (ChatGPT favours Wikipedia, Perplexity favours Reddit), so treat this as one composite signal, not a guarantee.
-          </div>`;
+          <div class="caveat"><b>How to read this:</b> the score grades only what an editor can change before publishing. Off-page brand authority is the strongest real driver of citation but is shown separately as <b>domain context</b> because it's the same for every article on your site. Signals marked <b>AI</b> are Claude's judgement/estimate. Citation behaviour varies between engines (ChatGPT favours Wikipedia, Perplexity favours Reddit), so treat this as one composite signal, not a guarantee.</div>`;
+
+        const recat = $('recat');
+        if (recat) recat.addEventListener('click', () => { $('category').value = recat.dataset.cat; run(); });
 
         root.style.display = 'block';
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -348,38 +349,24 @@
 
       async function run() {
         hideAlerts();
-        const payload = {
-          brand: $('brand').value.trim(),
-          topic: $('topic').value.trim(),
-          target: $('target').value.trim(),
-        };
-        if (mode === 'url') {
-          payload.url = $('url').value.trim();
-          if (!payload.url) { showErr('Enter a page URL to audit.'); return; }
-        } else {
-          payload.html = $('html').value.trim();
-          if (!payload.html) { showErr('Paste the article HTML or text to audit.'); return; }
-        }
+        const payload = { brand: $('brand').value.trim(), topic: $('topic').value.trim(), target: $('target').value.trim(), category: $('category').value };
+        if (mode === 'url') { payload.url = $('url').value.trim(); if (!payload.url) { showErr('Enter a page URL to audit.'); return; } }
+        else { payload.html = $('html').value.trim(); if (!payload.html) { showErr('Paste the article HTML or text to audit.'); return; } }
 
         const btn = $('go');
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner"></span>Auditing…';
-        $('info').textContent = mode === 'url' ? 'Fetching the page and scoring it. This can take 10–25 seconds.' : 'Scoring the article. This can take 10–25 seconds.';
+        $('info').textContent = mode === 'url' ? 'Fetching the page and scoring it. This can take 15–30 seconds.' : 'Scoring the article. This can take 15–30 seconds.';
         $('info').style.display = 'block';
 
         try {
-          const res = await fetch('/api/aeo-audit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
+          const res = await fetch('/api/aeo-audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           const data = await res.json();
           if (!res.ok) showErr(data.error || 'Something went wrong. Please try again.');
           else render(data);
         } catch (e) {
           showErr('Network error: ' + (e && e.message ? e.message : e));
         } finally {
-          // Clear only the progress/info message — keep any error visible.
           $('info').style.display = 'none';
           btn.disabled = false;
           btn.textContent = 'Audit AEO score';

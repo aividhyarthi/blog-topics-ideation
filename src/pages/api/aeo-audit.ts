@@ -1,23 +1,16 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  analyzeHtml,
-  deterministicSignals,
-  llmSignals,
-  buildReport,
-  type LlmScores,
-  type PageFacts,
+  analyzeHtml, deterministicSignals, llmSignals, buildReport,
+  CATEGORY_WEIGHTS, CATEGORY_LABEL,
+  type LlmScores, type PageFacts, type Category, type PromptCoverage,
 } from '../../lib/aeo';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
-// Escape unescaped control characters inside JSON string values so a slightly
-// malformed model response can still be parsed.
 function repairJson(raw: string): string {
-  let result = '';
-  let inString = false;
-  let escaped = false;
+  let result = '', inString = false, escaped = false;
   for (let i = 0; i < raw.length; i++) {
     const ch = raw[i];
     if (escaped) { result += ch; escaped = false; continue; }
@@ -39,173 +32,141 @@ async function fetchText(url: string, timeoutMs: number): Promise<{ ok: boolean;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
-      signal: controller.signal,
-      redirect: 'follow',
+      signal: controller.signal, redirect: 'follow',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9',
       },
     });
-    const body = await res.text();
-    return { ok: res.ok, status: res.status, body };
-  } catch {
-    return { ok: false, status: 0, body: '' };
-  } finally {
-    clearTimeout(timer);
-  }
+    return { ok: res.ok, status: res.status, body: await res.text() };
+  } catch { return { ok: false, status: 0, body: '' }; }
+  finally { clearTimeout(timer); }
 }
 
-function buildLlmPrompt(f: PageFacts, target: string): string {
-  const headingOutline = f.headings.slice(0, 40).map((h) => `${'  '.repeat(Math.max(0, h.level - 1))}H${h.level}: ${h.text}`).join('\n');
-  return `You are an Answer Engine Optimization (AEO) auditor. You judge how likely a web article is to be EXTRACTED and CITED by LLM answer engines (ChatGPT, Perplexity, Google AI Overviews, Gemini, Copilot).
+const CATEGORIES: Category[] = ['general', 'entertainment', 'health', 'news', 'lifestyle', 'commerce'];
 
-Score each dimension 0-100 (0 = terrible, 100 = excellent for AEO). Be critical and calibrated — do not give everything 70-80. Reserve 90+ for genuinely excellent, and use sub-40 for real failures.
+function buildLlmPrompt(f: PageFacts, target: string): string {
+  const outline = f.headings.slice(0, 40).map((h) => `${'  '.repeat(Math.max(0, h.level - 1))}H${h.level}: ${h.text}`).join('\n');
+  return `You are an Answer Engine Optimization (AEO) auditor for a newsroom CMS. You judge how likely an article is to be EXTRACTED and CITED by LLM answer engines (ChatGPT, Perplexity, Google AI Overviews, Gemini, Copilot).
+
+Score each dimension 0-100 (0 = terrible, 100 = excellent for AEO). Be critical and calibrated — do NOT cluster everything at 70-80. Reserve 90+ for genuinely excellent and use sub-40 for real failures.
 
 CONTEXT
-- Brand/site: ${f.brand || (f.host ? f.host : 'unknown')}
+- Category: ${CATEGORY_LABEL[f.category]}
+- Brand/site: ${f.brand || (f.host || 'unknown')}
 - Topic (if given): ${f.topic || '(infer from content)'}
-- Target question to answer (if given): ${target || '(none — judge overall answer completeness instead)'}
+- Target question (if given): ${target || '(none — judge overall answer completeness)'}
+- Headline/title: ${f.title || '(none)'}
+- Lead text (first words): ${f.firstWords || '(none)'}
 
 HEADING OUTLINE
-${headingOutline || '(no headings detected)'}
+${outline || '(no headings)'}
 
 ARTICLE TEXT (may be truncated)
 """
-${f.text || '(no readable body text extracted)'}
+${f.text || '(no readable body text)'}
 """
+
+For "prompts": generate 8-14 realistic natural-language questions a user would ask an AI about THIS story (the ways this article should be the cited answer), and mark covered:true only if the article actually answers that question well.
 
 Return ONLY valid JSON in EXACTLY this shape (no markdown):
 {
-  "directAnswer": 0-100,        // Does each section give a concise, quotable answer up front (question -> immediate answer -> elaboration)?
-  "selfContained": 0-100,       // Can individual passages/sections be understood and quoted in isolation?
-  "answersTarget": 0-100,       // How completely & directly does the page answer the target question? (If no target given, judge overall answer completeness.)
-  "topicalDepth": 0-100,        // Coverage of the related sub-questions/angles a reader and an LLM would expect.
-  "entityCoverage": 0-100,      // Are the concrete, relevant entities (products, ingredients, brands, places, specs) named?
-  "clearIntent": 0-100,         // Is there one clear, coherent intent (info/comparison/how-to/transactional), not a muddle?
-  "originalInfo": 0-100,        // Original analysis, first-party data, expert quotes — vs. generic rehashed content.
-  "brandAuthority": 0-100,      // ESTIMATE from your training knowledge: how well-known/authoritative is this brand/site on this topic? (Unknown/new brand = low.)
-  "offpageCorroboration": 0-100,// ESTIMATE: how likely is this brand/topic to be corroborated on consensus sources LLMs trust (Wikipedia, Reddit, YouTube, reputable roundups)?
+  "headlineClarity": 0-100,      // headline names the subject + action, no curiosity-gap ("this actress…")
+  "leadCompleteness": 0-100,     // first sentence self-contained (who/what/when/where for news; a direct answer for evergreen)
+  "answerAboveFold": 0-100,      // the answer appears in the first paragraph / summary, not buried
+  "directAnswer": 0-100,         // each section leads with a concise, quotable answer
+  "entityDensity": 0-100,        // concrete named entities are present (people, products, places, institutions)
+  "entityConsistency": 0-100,    // one canonical name per entity, not a sprawl of variants
+  "sourceAttribution": 0-100,    // named sources vs vague "experts say"
+  "claimAttribution": 0-100,     // major claims attributed to who said them
+  "intentMatch": 0-100,          // mirrors how people phrase questions to AI
+  "longTailIntent": 0-100,       // covers comparison/status/definition/timeline intents
+  "answersTarget": 0-100,        // completeness vs the target question (or overall completeness if none)
+  "promptCoverageScore": 0-100,  // overall how well it covers the prompts below
+  "brandAuthority": 0-100,       // ESTIMATE from training knowledge: how authoritative is this brand/site on this topic? (off-page; unknown brand = low)
+  "offpageCorroboration": 0-100, // ESTIMATE: how corroborated on Wikipedia/Reddit/YouTube/reputable roundups?
   "detectedIntent": "informational | commercial | comparison | transactional | how-to",
-  "notes": {                    // one short, specific sentence per dimension explaining the score
-    "direct_answer": "...", "self_contained": "...", "answers_target": "...",
-    "topical_depth": "...", "entity_coverage": "...", "clear_intent": "...",
-    "original_info": "...", "brand_authority": "...", "offpage_corroboration": "..."
-  },
-  "fixes": [ { "signal": "short label", "recommendation": "specific, actionable fix", "severity": "fail | warn" } ]
+  "suggestedCategory": "one of: ${CATEGORIES.join(' | ')}",
+  "prompts": [ { "q": "a likely AI question", "covered": true|false } ],
+  "notes": {
+    "headline_clarity":"...","lead_completeness":"...","answer_above_fold":"...","direct_answer":"...",
+    "entity_density":"...","entity_consistency":"...","source_attribution":"...","claim_attribution":"...",
+    "intent_match":"...","long_tail_intent":"...","brand_authority":"...","offpage_corroboration":"..."
+  }
 }
-
-Be honest about brandAuthority/offpageCorroboration: these are ESTIMATES from your training data, not live measurements. If you don't recognise the brand, score it low and say so in the note.`;
+brandAuthority/offpageCorroboration are ESTIMATES, not live measurements — if you don't recognise the brand, score low and say so.`;
 }
 
 export const POST: APIRoute = async ({ request }) => {
-  let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: 'Invalid request body.' }, 400);
-  }
+  let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string };
+  try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
   const apiKey = process.env.ANTHROPIC_API_KEY || import.meta.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return json({ error: 'Server is not configured with an Anthropic API key. Set ANTHROPIC_API_KEY in Railway.' }, 500);
-  }
+  if (!apiKey) return json({ error: 'Server is not configured with an Anthropic API key. Set ANTHROPIC_API_KEY in Railway.' }, 500);
 
   const inputUrl = (body.url || '').trim();
   const pasted = (body.html || '').trim();
   const brand = (body.brand || '').trim();
   const topic = (body.topic || '').trim();
   const target = (body.target || '').trim();
+  const category = (CATEGORIES.includes(body.category as Category) ? body.category : 'general') as Category;
 
-  let html = '';
-  let host = '';
-  let isUrl = false;
-  let robotsTxt: string | null = null;
-  let llmsTxt: boolean | null = null;
-  let fetchNote: string | undefined;
+  let html = '', host = '', isUrl = false, robotsTxt: string | null = null, fetchNote: string | undefined;
 
   if (inputUrl) {
     if (!/^https?:\/\//i.test(inputUrl)) return json({ error: 'URL must start with http:// or https://' }, 400);
     isUrl = true;
-    try {
-      host = new URL(inputUrl).host;
-    } catch {
-      return json({ error: 'Could not parse that URL.' }, 400);
-    }
+    try { host = new URL(inputUrl).host; } catch { return json({ error: 'Could not parse that URL.' }, 400); }
     const page = await fetchText(inputUrl, 15000);
     if (!page.ok || page.body.length < 50) {
-      return json(
-        { error: `Could not read that URL${page.status ? ` (HTTP ${page.status})` : ''}. The page may be bot-blocked or JS-rendered — paste the article HTML/text instead.` },
-        502,
-      );
+      return json({ error: `Could not read that URL${page.status ? ` (HTTP ${page.status})` : ''}. The page may be bot-blocked or JS-rendered — paste the article HTML/text instead.` }, 502);
     }
     html = page.body;
-    // Best-effort robots.txt + llms.txt (informational) — never fatal.
     const origin = (() => { try { return new URL(inputUrl).origin; } catch { return ''; } })();
-    if (origin) {
-      const [robots, llms] = await Promise.all([
-        fetchText(`${origin}/robots.txt`, 6000),
-        fetchText(`${origin}/llms.txt`, 6000),
-      ]);
-      robotsTxt = robots.ok ? robots.body : null;
-      llmsTxt = llms.ok && /\S/.test(llms.body);
-    }
+    if (origin) { const robots = await fetchText(`${origin}/robots.txt`, 6000); robotsTxt = robots.ok ? robots.body : null; }
   } else if (pasted) {
-    // Treat pasted input as HTML if it contains tags, otherwise wrap plain text
-    // so the analyzer still sees paragraphs.
-    if (/<\w+[\s>]/.test(pasted)) {
-      html = pasted;
-    } else {
+    if (/<\w+[\s>]/.test(pasted)) html = pasted;
+    else {
       const paras = pasted.split(/\n{2,}/).map((p) => `<p>${p.replace(/\n/g, ' ').trim()}</p>`).join('\n');
       html = `<article>${paras}</article>`;
-      fetchNote = 'Plain text detected — structural/HTML signals (schema, headings, meta) will score low because there is no markup to inspect.';
+      fetchNote = 'Plain text detected — HTML signals (schema, headings, meta) score low because there is no markup to inspect.';
     }
   } else {
     return json({ error: 'Provide a URL or paste the article HTML/text.' }, 400);
   }
 
-  const facts = analyzeHtml(html, { isUrl, host, brand, topic, robotsTxt, llmsTxt });
+  const facts = analyzeHtml(html, { isUrl, host, brand, topic, category, robotsTxt });
   const auto = deterministicSignals(facts);
 
-  // Claude pass for judged + estimated signals.
   let llmScores: LlmScores = {};
   let aiError: string | undefined;
   try {
     const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
+      model: 'claude-sonnet-4-6', max_tokens: 2600,
       messages: [{ role: 'user', content: buildLlmPrompt(facts, target) }],
     });
     const raw = message.content[0]?.type === 'text' ? message.content[0].text : '';
     const m = raw.match(/\{[\s\S]*\}/);
-    if (m) {
-      try {
-        llmScores = JSON.parse(m[0]);
-      } catch {
-        llmScores = JSON.parse(repairJson(m[0]));
-      }
-    }
+    if (m) { try { llmScores = JSON.parse(m[0]); } catch { llmScores = JSON.parse(repairJson(m[0])); } }
   } catch (err: unknown) {
     aiError = err instanceof Error ? err.message : String(err);
   }
 
+  const prompts: PromptCoverage[] = Array.isArray(llmScores.prompts)
+    ? llmScores.prompts.filter((p) => p && typeof p.q === 'string').slice(0, 16).map((p) => ({ q: p.q, covered: Boolean(p.covered) }))
+    : [];
   const ai = llmSignals(llmScores, Boolean(target));
-  const report = buildReport(auto, ai);
+  const report = buildReport(auto, ai, category, prompts);
 
   return json({
     report,
     meta: {
-      mode: isUrl ? 'url' : 'pasted',
-      url: inputUrl || null,
-      host: host || null,
-      brand: brand || null,
-      wordCount: facts.wordCount,
-      schemaTypes: facts.schemaTypes,
-      hasLlmsTxt: facts.hasLlmsTxt,
-      detectedIntent: llmScores.detectedIntent || null,
-      fetchNote,
-      aiError,
+      mode: isUrl ? 'url' : 'pasted', url: inputUrl || null, host: host || null, brand: brand || null,
+      category, categoryLabel: CATEGORY_LABEL[category], categoryWeights: CATEGORY_WEIGHTS[category],
+      wordCount: facts.wordCount, schemaTypes: facts.schemaTypes,
+      detectedIntent: llmScores.detectedIntent || null, suggestedCategory: llmScores.suggestedCategory || null,
+      fetchNote, aiError,
     },
   });
 };
