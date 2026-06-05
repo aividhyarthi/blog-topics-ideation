@@ -12,7 +12,10 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>AEO Auditor — score any article for LLM citability</title>
     <meta name="description" content="Score any article or blog for Answer Engine Optimization — how likely it is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews." />
-    <style>
+    <!-- is:global so styles also apply to the results DOM injected at runtime
+         via innerHTML (Astro's default scoped styles only match build-time
+         elements, leaving JS-injected nodes unstyled). -->
+    <style is:global>
       :root {
         --pink: #fc2779; --pink-dark: #d81b66; --ink: #1d1f2b; --muted: #6b6f80;
         --line: #e7e8ef; --bg: #f4f5fb; --card: #ffffff;
