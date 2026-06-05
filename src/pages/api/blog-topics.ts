@@ -71,7 +71,7 @@ function pickMeta(html: string, name: string): string {
 }
 
 // Best-effort: fetch a URL with a browser-like UA and pull out the readable
-// signal (title, meta, headings, and a chunk of visible text). Nykaa is
+// signal (title, meta, headings, and a chunk of visible text). Some sites are
 // JS-heavy and may block or under-serve bots — we degrade gracefully.
 async function crawl(url: string): Promise<{ url: string; ok: boolean; title: string; description: string; text: string; note?: string }> {
   try {
@@ -144,7 +144,7 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: 'Server is not configured with an Anthropic API key. Set ANTHROPIC_API_KEY in Railway.' }, 500);
   }
 
-  const brand = (body.brand && body.brand.trim()) || 'Nykaa';
+  const brand = (body.brand && body.brand.trim()) || 'the brand';
   const urls = toLines(body.urls).filter((u) => /^https?:\/\//i.test(u)).slice(0, 25);
   const keywords = toLines(body.keywords).slice(0, 200);
   const prompts = toLines(body.prompts).slice(0, 200);
@@ -177,7 +177,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   const prompt = `You are a senior content strategist specialising in Answer Engine Optimization (AEO) and getting brand content cited inside LLM answers (ChatGPT, Gemini, Perplexity, Google AI Overviews).
 
-Your client is the beauty & personal-care e-commerce brand "${brand}". The goal is to plan BLOG TOPICS so that when a shopper asks an AI assistant (or an answer engine) a related question, the ${brand} blog is the source that gets surfaced and cited.
+Your client is "${brand}". The goal is to plan BLOG TOPICS so that when someone asks an AI assistant (or an answer engine) a related question, the "${brand}" blog is the source that gets surfaced and cited.
 
 You are given three kinds of input:
 
@@ -194,7 +194,7 @@ ${promptBlock}
 - Optimise every topic for Answer Engine Optimization and LLM citation — being the source an AI assistant quotes when it answers a question. Do NOT optimise for traditional Google keyword ranking or keyword density.
 - Treat each page's content and review signals as the product/category truth. Map topics to real shopper intent — concerns, comparisons, how-to, ingredient questions, "best X for Y", routines, dupes, occasions.
 - AEO wins on questions and entities, not keywords. For every topic, define the exact natural-language question a user would type/speak into an LLM that this blog should answer directly and concisely.
-- Prefer topics with clear, answerable intent that an LLM can quote verbatim (definitions, step lists, head-to-head comparisons, specific recommendations) and that name concrete entities (products, ingredients, skin types) so the answer is easy to attribute and cite back to a ${brand} product or category.
+- Prefer topics with clear, answerable intent that an LLM can quote verbatim (definitions, step lists, head-to-head comparisons, specific recommendations) and that name concrete entities (products, services, people, places, concepts) so the answer is easy to attribute and cite back to a "${brand}" page or category.
 - Cover a spread of clusters across the inputs — do not produce 15 variations of one topic.
 - Titles must sound human and specific, NOT like AI filler. Never use: "Unlock the secrets", "Ultimate guide", "Dive into", "Game-changing", "Everything you need to know", "In today's world".
 
@@ -203,7 +203,7 @@ Return ONLY valid JSON, no markdown, no commentary, in EXACTLY this shape:
 {
   "topics": [
     {
-      "category": "Topic cluster / Nykaa category, e.g. 'Skincare > Sunscreen'",
+      "category": "Topic cluster / site category, e.g. 'Skincare > Sunscreen'",
       "blogTitle": "Specific, human, click-worthy blog headline (under ~70 chars)",
       "focusKeyword": "The core entity, concept, or natural-language query the answer should own so AI engines cite it (an AEO focus — an entity or question, NOT an SEO keyword phrase)",
       "targetPrompt": "The exact natural-language question/prompt a user would ask an LLM that this blog should be the cited answer for",

@@ -1,6 +1,5 @@
 ---
-// Nykaa AEO Blog Topic Engine — single-page tool.
-const brand = 'Nykaa';
+// AEO Blog Topic Engine — single-page tool. Brand-neutral; brand is set in the UI.
 ---
 
 <!doctype html>
@@ -9,14 +8,14 @@ const brand = 'Nykaa';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>AEO Blog Topic Engine — {brand}</title>
+    <title>AEO Blog Topic Engine</title>
     <meta name="description" content="Turn category URLs, keywords and SEMrush prompts into blog topics built to rank in LLMs and answer engines." />
     <!-- is:global so styles also apply to the table rows injected at runtime
          via innerHTML (Astro's scoped styles only match build-time elements). -->
     <style is:global>
       :root {
-        --pink: #fc2779;
-        --pink-dark: #d81b66;
+        --pink: #6366f1;
+        --pink-dark: #4f46e5;
         --ink: #1d1f2b;
         --muted: #6b6f80;
         --line: #e7e8ef;
@@ -34,7 +33,7 @@ const brand = 'Nykaa';
         line-height: 1.5;
       }
       header {
-        background: linear-gradient(120deg, #fc2779 0%, #ff6aa2 100%);
+        background: linear-gradient(120deg, #6366f1 0%, #8b5cf6 100%);
         color: #fff;
         padding: 30px 20px 34px;
       }
@@ -62,7 +61,7 @@ const brand = 'Nykaa';
         padding: 11px 12px; font-size: 13.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         color: var(--ink); background: #fcfcfe; outline: none;
       }
-      textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(252,39,121,0.12); }
+      textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
       .count { font-size: 11.5px; color: var(--muted); margin-top: 6px; text-align: right; }
       .row { display: flex; align-items: center; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
       .field { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); }
@@ -120,7 +119,7 @@ const brand = 'Nykaa';
   <body>
     <header>
       <div class="wrap">
-        <span class="badge">AEO &amp; LLM ranking · {brand}</span>
+        <span class="badge">✦ AEO &amp; LLM ranking</span>
         <h1>Blog Topic Engine</h1>
         <p>
           Paste your category &amp; product page URLs, your seed keywords, and your SEMrush / LLM prompts.
@@ -139,8 +138,8 @@ const brand = 'Nykaa';
           <div class="card">
             <h3>🔗 Category &amp; Product URLs</h3>
             <p class="hint">Category pages and PDPs you write content around. One URL per line.</p>
-            <textarea id="urls" placeholder="https://www.nykaa.com/skin/sunscreen/c/8377
-https://www.nykaa.com/brand-x-spf-50-sunscreen/p/123456"></textarea>
+            <textarea id="urls" placeholder="https://example.com/category/sunscreen
+https://example.com/products/spf-50-sunscreen"></textarea>
             <div class="count" id="urls-count">0 URLs</div>
           </div>
 
@@ -166,7 +165,7 @@ how to choose a sunscreen that doesn't leave white cast"></textarea>
         <div class="row">
           <div class="field">
             <label for="brand">Brand</label>
-            <input id="brand" type="text" value="Nykaa" />
+            <input id="brand" type="text" placeholder="Your brand" />
           </div>
           <button class="primary" id="go">Generate blog topics</button>
         </div>
@@ -203,7 +202,7 @@ how to choose a sunscreen that doesn't leave white cast"></textarea>
       </div>
     </main>
 
-    <footer>Built for {brand} content strategy · AEO + LLM citation planning</footer>
+    <footer>AEO + LLM blog topic planning</footer>
     <div class="toast" id="toast"></div>
 
     <script>
@@ -287,7 +286,7 @@ how to choose a sunscreen that doesn't leave white cast"></textarea>
         const urls = $('urls').value;
         const keywords = $('keywords').value;
         const prompts = $('prompts').value;
-        const brand = $('brand').value.trim() || 'Nykaa';
+        const brand = $('brand').value.trim();
 
         if (!countLines(urls) && !countLines(keywords) && !countLines(prompts)) {
           showErr('Add at least one URL, keyword, or prompt to get started.');
@@ -342,7 +341,7 @@ how to choose a sunscreen that doesn't leave white cast"></textarea>
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         const stamp = new Date().toISOString().slice(0, 10);
-        a.download = `nykaa-blog-topics-${stamp}.csv`;
+        a.download = `blog-topics-${stamp}.csv`;
         a.click();
         URL.revokeObjectURL(a.href);
         showToast('CSV downloaded — open it in Excel');
