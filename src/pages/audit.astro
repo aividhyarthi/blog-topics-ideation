@@ -9,8 +9,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>AEO Auditor — score any article for LLM citability</title>
-    <meta name="description" content="Newsroom AEO copilot — score any article for how likely it is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews, with category-specific weighting." />
+    <title>CiteRank — will AI cite your content?</title>
+    <meta name="description" content="CiteRank by Rudra Kasturi Inc — score any article for how likely it is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews, with category-specific weighting." />
     <!-- is:global so styles also apply to the results DOM injected at runtime
          via innerHTML (Astro's scoped styles only match build-time elements). -->
     <style is:global>
@@ -76,6 +76,38 @@
       .note-bad { color: var(--bad); font-size: 12.5px; margin-top: 8px; }
       .suggest { margin-top: 10px; font-size: 12.5px; background: #eef0f7; border-radius: 9px; padding: 8px 11px; color: #3a4a6b; }
       .suggest a { color: var(--pink-dark); font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+      /* brand bar */
+      .brandbar { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; flex-wrap: wrap; }
+      .brandbar .logo { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
+      .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+      .brandbar .by { font-size: 11.5px; font-weight: 600; opacity: 0.9; }
+      .brandbar .aipill { margin-left: auto; font-size: 11.5px; font-weight: 700; padding: 4px 11px; border-radius: 999px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4); }
+
+      /* AI executive summary */
+      .summary { margin-top: 16px; display: flex; gap: 12px; background: linear-gradient(120deg, #f3f1ff, #eef4ff); border: 1px solid #e2def8; border-radius: 13px; padding: 13px 15px; }
+      .summary .sicon { font-size: 18px; line-height: 1.4; }
+      .summary .sbody b { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--indigo); margin-bottom: 2px; }
+      .summary .sbody p { margin: 0; font-size: 13.5px; color: #2c3142; }
+
+      /* copy/share */
+      .resbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: -8px; }
+      .ghostbtn { background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 7px 13px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+      .ghostbtn:hover { border-color: var(--pink); color: var(--pink); }
+
+      /* coverage meter */
+      .covbar { height: 10px; border-radius: 999px; background: #edeef4; overflow: hidden; margin: 4px 0 12px; }
+      .covbar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--indigo), #8b5cf6); }
+
+      /* fix impact badge + tag */
+      .fixrow .fmeta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+      .gain { font-size: 12px; font-weight: 800; color: var(--ok); white-space: nowrap; }
+      .ftag { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; }
+      .ftag.high { background: #e9e6fb; color: var(--indigo); }
+      .ftag.quick { background: var(--ok-bg); color: var(--ok); }
+      .ftag.offpage { background: #eef0f7; color: #4a5060; }
+      .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13.5px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+      .toast.show { opacity: 1; }
 
       .sectitle { font-size: 15px; font-weight: 800; margin: 26px 0 12px; display: flex; align-items: center; gap: 8px; }
       .sectitle .sub { font-weight: 500; color: var(--muted); font-size: 12.5px; }
@@ -148,12 +180,17 @@
   <body>
     <header>
       <div class="wrap">
-        <span class="badge">🔎 AEO Auditor · newsroom copilot</span>
-        <h1>Will this article get cited by AI?</h1>
-        <p>Score any article for <b>Answer Engine Optimization</b> — extractability, trust and answerability — across ChatGPT, Perplexity, Gemini and Google AI Overviews. Pick a category for the right weighting.</p>
+        <div class="brandbar">
+          <span class="logo">◆</span>
+          <span class="wordmark">CiteRank</span>
+          <span class="by">By Rudra Kasturi Inc</span>
+          <span class="aipill">✨ AI-powered</span>
+        </div>
+        <h1>Will AI cite your content?</h1>
+        <p>CiteRank scores any article for how likely ChatGPT, Perplexity, Gemini and Google AI Overviews are to quote it — then tells you exactly what to fix. Pick a category for the right weighting.</p>
         <nav class="top">
-          <a href="/">Topic Engine</a>
-          <a href="/audit" class="active">AEO Auditor</a>
+          <a href="/">✍️ Topic Engine</a>
+          <a href="/audit" class="active">🔎 AEO Auditor</a>
         </nav>
       </div>
     </header>
@@ -211,7 +248,8 @@
       </div>
     </main>
 
-    <footer>AEO citability audit · category-weighted, evidence-based (Princeton GEO, Ahrefs studies) · predicts citability, not a guarantee</footer>
+    <footer><b>CiteRank</b> · By Rudra Kasturi Inc · category-weighted &amp; evidence-based (Princeton GEO, Ahrefs studies) · predicts citability, not a guarantee</footer>
+    <div class="toast" id="toast"></div>
 
     <script>
       const $ = (id) => document.getElementById(id);
@@ -250,6 +288,7 @@
 
         const chips = [
           `<span class="chip band-${r.citationBand}">${r.citationBand} citation likelihood</span>`,
+          r.benchmark ? `<span class="chip">${esc(r.benchmark)}</span>` : '',
           `<span class="chip">${m.wordCount} words</span>`,
           m.detectedIntent ? `<span class="chip intent">${esc(m.detectedIntent)}</span>` : '',
           m.brand ? `<span class="chip">brand: ${esc(m.brand)}</span>` : (m.host ? `<span class="chip">site: ${esc(m.host)}</span>` : ''),
@@ -276,6 +315,7 @@
                 ${m.aiError ? `<div class="note-bad">⚠ AI-judged signals unavailable — they default to 50. (${esc(m.aiError)})</div>` : ''}
               </div>
             </div>
+            ${r.summary ? `<div class="summary"><span class="sicon">🤖</span><div class="sbody"><b>AI verdict</b><p>${esc(r.summary)}</p></div></div>` : ''}
           </div>`;
 
         const gauges = r.pillars.map((p) => {
@@ -309,13 +349,17 @@
         // prompt coverage
         const pc = (r.promptCoverage || []);
         const covered = pc.filter((p) => p.covered).length;
+        const covPct = pc.length ? Math.round((covered / pc.length) * 100) : 0;
         const promptPanel = pc.length ? `
-          <div class="sectitle">💬 Prompt coverage <span class="sub">— answers ${covered}/${pc.length} of the likely AI questions for this story</span></div>
+          <div class="sectitle">💬 Prompt coverage <span class="sub">— answers ${covered} of ${pc.length} likely AI questions (${covPct}%)</span></div>
+          <div class="covbar"><i style="width:${covPct}%"></i></div>
           <div class="prompts">${pc.map((p) => `<div class="prow"><span class="pmark ${p.covered ? 'yes' : 'no'}">${p.covered ? '✓' : '✕'}</span><div>${esc(p.q)}</div></div>`).join('')}</div>` : '';
 
+        const TAGLBL = { high: 'High impact', quick: 'Quick win', offpage: 'Off-page' };
         const fixesHtml = (r.topFixes || []).map((fx, i) => {
           const col = fx.severity === 'fail' ? '#d63a3a' : '#c98a00';
-          return `<div class="fixrow" style="--fc:${col}"><span class="fnum">${i + 1}</span><div class="ftext"><b>${esc(fx.label)}</b>${esc(fx.fix)}</div><span class="sev ${fx.severity}">${fx.severity}</span></div>`;
+          const gain = fx.gain >= 0.5 ? `<span class="gain">+${fx.gain} pts</span>` : '';
+          return `<div class="fixrow" style="--fc:${col}"><span class="fnum">${i + 1}</span><div class="ftext"><b>${esc(fx.label)}</b>${esc(fx.fix)}</div><div class="fmeta">${gain}<span class="ftag ${fx.tag}">${TAGLBL[fx.tag] || fx.tag}</span></div></div>`;
         }).join('');
 
         const breakdown = r.pillars.map((p) => {
@@ -331,6 +375,7 @@
 
         root.innerHTML = `
           ${hero}
+          <div class="resbar"><button class="ghostbtn" id="copyreport">📋 Copy report</button></div>
           <div class="sectitle">📊 Pillar scores <span class="sub">— points shown out of each pillar's category weight</span></div>
           <div class="gauges">${gauges}</div>
           ${promptPanel}
@@ -343,8 +388,38 @@
         const recat = $('recat');
         if (recat) recat.addEventListener('click', () => { $('category').value = recat.dataset.cat; run(); });
 
+        const copyBtn = $('copyreport');
+        if (copyBtn) copyBtn.addEventListener('click', () => copyReport(r, m));
+
         root.style.display = 'block';
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function showToast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1900); }
+      async function copyReport(r, m) {
+        const L = [];
+        L.push('CiteRank — AEO audit · By Rudra Kasturi Inc');
+        L.push(m.mode === 'url' ? (m.url || '') : 'Pasted article');
+        L.push(`Category: ${m.categoryLabel}`);
+        L.push(`Score: ${r.overall}/100 (Grade ${r.grade}) — ${r.citationBand} citation likelihood — ${r.gate.label}`);
+        if (r.benchmark) L.push(r.benchmark);
+        L.push('');
+        L.push(`AI verdict: ${r.summary}`);
+        L.push('');
+        L.push('Pillar scores:');
+        r.pillars.forEach((p) => L.push(`  - ${p.label}: ${p.points}/${p.weight}`));
+        if (r.promptCoverage && r.promptCoverage.length) {
+          const cov = r.promptCoverage.filter((p) => p.covered).length;
+          L.push(''); L.push(`Prompt coverage: ${cov}/${r.promptCoverage.length}`);
+          r.promptCoverage.forEach((p) => L.push(`  [${p.covered ? 'x' : ' '}] ${p.q}`));
+        }
+        if (r.topFixes && r.topFixes.length) {
+          L.push(''); L.push('Top fixes (ranked by impact):');
+          r.topFixes.forEach((f, i) => L.push(`  ${i + 1}. ${f.label}${f.gain >= 0.5 ? ` (+${f.gain} pts)` : ''} — ${f.fix}`));
+        }
+        L.push(''); L.push('Generated by CiteRank · By Rudra Kasturi Inc');
+        try { await navigator.clipboard.writeText(L.join('\n')); showToast('Report copied to clipboard'); }
+        catch { showToast('Copy failed — select & copy manually'); }
       }
 
       async function run() {

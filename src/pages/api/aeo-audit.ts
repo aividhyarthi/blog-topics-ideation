@@ -85,6 +85,7 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown):
   "promptCoverageScore": 0-100,  // overall how well it covers the prompts below
   "brandAuthority": 0-100,       // ESTIMATE from training knowledge: how authoritative is this brand/site on this topic? (off-page; unknown brand = low)
   "offpageCorroboration": 0-100, // ESTIMATE: how corroborated on Wikipedia/Reddit/YouTube/reputable roundups?
+  "summary": "2-3 sentence plain-English verdict for an editor: how likely AI answer engines are to cite this, the 1-2 biggest reasons, and what to fix first. Conversational and specific, no jargon.",
   "detectedIntent": "informational | commercial | comparison | transactional | how-to",
   "suggestedCategory": "one of: ${CATEGORIES.join(' | ')}",
   "prompts": [ { "q": "a likely AI question", "covered": true|false } ],
@@ -157,7 +158,7 @@ export const POST: APIRoute = async ({ request }) => {
     ? llmScores.prompts.filter((p) => p && typeof p.q === 'string').slice(0, 16).map((p) => ({ q: p.q, covered: Boolean(p.covered) }))
     : [];
   const ai = llmSignals(llmScores, Boolean(target));
-  const report = buildReport(auto, ai, category, prompts);
+  const report = buildReport(auto, ai, category, prompts, llmScores.summary);
 
   return json({
     report,

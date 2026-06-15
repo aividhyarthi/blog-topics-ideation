@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>AEO Blog Topic Engine</title>
+    <title>CiteRank — AEO Topic Engine</title>
     <meta name="description" content="Turn category URLs, keywords and SEMrush prompts into blog topics built to rank in LLMs and answer engines." />
     <!-- is:global so styles also apply to the table rows injected at runtime
          via innerHTML (Astro's scoped styles only match build-time elements). -->
@@ -43,6 +43,11 @@
       nav.top { margin-top: 14px; display: flex; gap: 10px; }
       nav.top a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; }
       nav.top a.active { background: #fff; color: var(--pink-dark); }
+      .brandbar { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; flex-wrap: wrap; }
+      .brandbar .logo { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
+      .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+      .brandbar .by { font-size: 11.5px; font-weight: 600; opacity: 0.9; }
+      .brandbar .aipill { margin-left: auto; font-size: 11.5px; font-weight: 700; padding: 4px 11px; border-radius: 999px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4); }
       .badge {
         display: inline-block; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35);
         padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 12px;
@@ -119,15 +124,20 @@
   <body>
     <header>
       <div class="wrap">
-        <span class="badge">✦ AEO &amp; LLM ranking</span>
-        <h1>Blog Topic Engine</h1>
+        <div class="brandbar">
+          <span class="logo">◆</span>
+          <span class="wordmark">CiteRank</span>
+          <span class="by">By Rudra Kasturi Inc</span>
+          <span class="aipill">✨ AI-powered</span>
+        </div>
+        <h1>AEO Topic Engine</h1>
         <p>
-          Paste your category &amp; product page URLs, your seed keywords, and your SEMrush / LLM prompts.
-          The tool reads the pages and generates blog topics built to be cited when people ask AI assistants and answer engines.
+          Paste your page URLs, seed keywords and SEMrush / LLM prompts, and CiteRank generates
+          blog topics built to be the answer AI assistants cite when people ask a related question.
         </p>
         <nav class="top">
-          <a href="/" class="active">Topic Engine</a>
-          <a href="/audit">AEO Auditor</a>
+          <a href="/" class="active">✍️ Topic Engine</a>
+          <a href="/audit">🔎 AEO Auditor</a>
         </nav>
       </div>
     </header>
@@ -202,7 +212,7 @@ how to choose a sunscreen that doesn't leave white cast"></textarea>
       </div>
     </main>
 
-    <footer>AEO + LLM blog topic planning</footer>
+    <footer><b>CiteRank</b> · By Rudra Kasturi Inc · AEO + LLM blog topic planning</footer>
     <div class="toast" id="toast"></div>
 
     <script>
