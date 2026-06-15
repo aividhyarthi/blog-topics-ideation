@@ -53,12 +53,14 @@ export interface AeoReport {
   overall: number;
   grade: string;
   category: Category;
+  summary: string; // plain-English AI verdict for the editor
+  benchmark: string; // qualitative benchmark vs typical articles
   citationBand: 'Low' | 'Medium' | 'High';
   gate: { label: string; level: 'block' | 'warn' | 'strong' | 'optimized' };
   pillars: PillarResult[];
   domainContext: Signal[]; // off-page, NOT in the score
   promptCoverage: PromptCoverage[];
-  topFixes: { label: string; severity: SignalStatus; fix: string; pillar: PillarId | 'domain' }[];
+  topFixes: { label: string; severity: SignalStatus; fix: string; pillar: PillarId | 'domain'; gain: number; tag: 'quick' | 'high' | 'offpage' }[];
 }
 
 export const PILLAR_META: { id: PillarId; label: string; purpose: string }[] = [
@@ -340,6 +342,7 @@ export interface LlmScores {
   intentMatch?: number; longTailIntent?: number; answersTarget?: number; promptCoverageScore?: number;
   brandAuthority?: number; offpageCorroboration?: number;
   detectedIntent?: string; suggestedCategory?: Category;
+  summary?: string;
   prompts?: PromptCoverage[];
   notes?: Partial<Record<string, string>>;
 }
@@ -400,14 +403,26 @@ function gateFor(n: number): AeoReport['gate'] {
   return { label: 'Below threshold — fix before publishing', level: 'block' };
 }
 
-export function buildReport(deterministic: Signal[], llm: Signal[], category: Category, prompts: PromptCoverage[]): AeoReport {
+function benchmarkFor(n: number): string {
+  if (n >= 80) return 'Top tier vs typical articles';
+  if (n >= 65) return 'Above average vs typical articles';
+  if (n >= 50) return 'About average vs typical articles';
+  if (n >= 35) return 'Below average vs typical articles';
+  return 'Needs major work vs typical articles';
+}
+
+export function buildReport(
+  deterministic: Signal[], llm: Signal[], category: Category, prompts: PromptCoverage[], aiSummary?: string,
+): AeoReport {
   const all = [...deterministic, ...llm];
   const weights = CATEGORY_WEIGHTS[category] || CATEGORY_WEIGHTS.general;
+  const wsumByPillar: Partial<Record<PillarId, number>> = {};
 
   const pillars: PillarResult[] = PILLAR_META.map((p) => {
     const signals = all.filter((s) => s.pillar === p.id);
     const scored = signals.filter((s) => s.score != null && s.weight > 0);
     const wsum = scored.reduce((a, s) => a + s.weight, 0) || 1;
+    wsumByPillar[p.id] = wsum;
     const score = Math.round(scored.reduce((a, s) => a + (s.score as number) * s.weight, 0) / wsum);
     const weight = weights[p.id];
     return { id: p.id, label: LABEL[p.id], purpose: PURPOSE[p.id], weight, score, points: Math.round((score / 100) * weight), signals };
@@ -416,18 +431,39 @@ export function buildReport(deterministic: Signal[], llm: Signal[], category: Ca
   const overall = Math.round(pillars.reduce((a, p) => a + p.score * (p.weight / 100), 0));
   const domainContext = all.filter((s) => s.pillar === 'domain');
 
+  // Estimated point gain (on the 0-100 overall scale) if each signal were lifted to 100.
+  const gainOf = (s: Signal): number => {
+    if (s.pillar === 'domain' || s.score == null) return 0;
+    const pw = weights[s.pillar as PillarId] ?? 0;
+    const wsum = wsumByPillar[s.pillar as PillarId] ?? 1;
+    return ((100 - s.score) / 100) * (s.weight / wsum) * pw;
+  };
+
   const topFixes = all
     .filter((s) => s.fix && s.score != null && (s.status === 'fail' || s.status === 'warn'))
-    .map((s) => {
-      const pw = s.pillar === 'domain' ? 0.05 : (weights[s.pillar as PillarId] ?? 0) / 100;
-      return { s, impact: (100 - (s.score as number)) * s.weight * pw };
-    })
-    .sort((a, b) => b.impact - a.impact).slice(0, 8)
-    .map(({ s }) => ({ label: s.label, severity: s.status, fix: s.fix as string, pillar: s.pillar }));
+    .map((s) => ({ s, gain: gainOf(s) }))
+    .sort((a, b) => b.gain - a.gain)
+    .slice(0, 8)
+    .map(({ s, gain }) => ({
+      label: s.label, severity: s.status, fix: s.fix as string, pillar: s.pillar,
+      gain: Math.round(gain * 10) / 10,
+      tag: (s.pillar === 'domain' ? 'offpage' : gain >= 3 ? 'high' : 'quick') as 'quick' | 'high' | 'offpage',
+    }));
+
+  const sortedP = [...pillars].sort((a, b) => a.score - b.score);
+  const weakest = sortedP[0], strongest = sortedP[sortedP.length - 1];
+  const band = overall >= 70 ? 'High' : overall >= 45 ? 'Medium' : 'Low';
+  const lead = band === 'High' ? 'is well-placed to be cited' : band === 'Medium' ? 'has a moderate chance of being cited' : 'is unlikely to be cited as-is';
+  const fallbackSummary =
+    `This article ${lead} by AI answer engines (score ${overall}/100). ` +
+    `Strongest area is ${strongest.label} (${strongest.score}); the weakest is ${weakest.label} (${weakest.score}). ` +
+    (topFixes[0] ? `Start with "${topFixes[0].label}" for the biggest lift.` : '');
 
   return {
     overall, grade: gradeFor(overall), category,
-    citationBand: overall >= 70 ? 'High' : overall >= 45 ? 'Medium' : 'Low',
+    summary: (aiSummary && aiSummary.trim()) || fallbackSummary,
+    benchmark: benchmarkFor(overall),
+    citationBand: band,
     gate: gateFor(overall), pillars, domainContext, promptCoverage: prompts, topFixes,
   };
 }
