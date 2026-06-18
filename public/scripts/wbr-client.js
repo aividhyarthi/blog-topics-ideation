@@ -318,6 +318,18 @@ function activateTab(which) {
 $('tabSemrush').addEventListener('click', () => { if (lastReport) activateTab('semrush'); });
 $('tabTracking').addEventListener('click', () => { if (lastTracking) activateTab('tracking'); });
 
+// Metric toggle inside the Weekly Tracking tab (Mentions / Source Domains / Source URLs)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.mt');
+  if (!btn) return;
+  const pane = btn.closest('#reportTracking');
+  if (!pane) return;
+  pane.querySelectorAll('.mt').forEach((b) => b.classList.toggle('active', b === btn));
+  pane.querySelectorAll('.metric-block').forEach((blk) => {
+    blk.style.display = blk.dataset.metric === btn.dataset.metric ? 'block' : 'none';
+  });
+});
+
 // title/sub may contain caller-escaped dynamic parts, so they are NOT re-escaped
 // here; `note` is plain data, so it is escaped.
 function section(title, sub, table, note) {
@@ -466,53 +478,66 @@ async function parseTracker(file, vertical) {
   return { sheetName, brands, groups };
 }
 
+const METRICS = [['mentions', 'Mentions'], ['sd', 'Source Domains'], ['su', 'Source URLs']];
+
 function renderTracking(t) {
   const brands = t.brands;
-  const parts = [];
   const allThemes = t.groups.flatMap((g2) => g2.themes);
-  const totM = (b) => allThemes.reduce((s, th) => s + (th.perBrand[b]?.mentions ?? 0), 0);
-  const totSU = (b) => allThemes.reduce((s, th) => s + (th.perBrand[b]?.su ?? 0), 0);
+  const tot = (b, k) => allThemes.reduce((s, th) => s + (th.perBrand[b]?.[k] ?? 0), 0);
+  const parts = [];
 
-  // Header KPIs: total mentions per brand
-  parts.push(`<div class="kpis">${brands.map((b) =>
-    `<div class="kpi"><div class="v">${fmt(totM(b))}</div><div class="l">${esc(b)} — total mentions</div></div>`).join('')}</div>`);
+  // Brand "hero" cards with a bar per brand (visual at-a-glance) — total mentions.
+  const maxM = Math.max(1, ...brands.map((b) => tot(b, 'mentions')));
+  parts.push(`<div class="brandcards">${brands.map((b) => {
+    const m = tot(b, 'mentions'); const win = m === maxM;
+    return `<div class="brandcard${win ? ' win' : ''}">
+      <div class="bc-name">${esc(b)}${win ? ' 🏆' : ''}</div>
+      <div class="bc-num">${fmt(m)}</div><div class="bc-cap">brand mentions</div>
+      <div class="bar"><span style="width:${Math.round((m / maxM) * 100)}%"></span></div>
+      <div class="bc-sub">Src Domains ${fmt(tot(b, 'sd'))} · Src URLs ${fmt(tot(b, 'su'))}</div>
+    </div>`;
+  }).join('')}</div>`);
 
-  // Call-out: how Nykaa stacks up
-  const ranked = [...brands].sort((a, b) => totM(b) - totM(a));
-  const nykRank = ranked.indexOf('Nykaa') + 1;
-  const lead = ranked[0];
+  // Key call-out
+  const ranked = [...brands].sort((a, b) => tot(b, 'mentions') - tot(a, 'mentions'));
+  const nykRank = ranked.indexOf('Nykaa') + 1; const lead = ranked[0];
   parts.push(`<div class="sec highlights"><h3>Cross-Brand Comparison — key call-out</h3><ul class="hl">
-    <li>Across ${allThemes.length} tracked beauty topics, Nykaa has ${fmt(totM('Nykaa'))} brand mentions vs ${brands.filter((b) => b !== 'Nykaa').map((b) => `${esc(b)} ${fmt(totM(b))}`).join(', ')}.</li>
-    <li>Nykaa ranks <strong>#${nykRank || '-'} of ${brands.length}</strong> on total mentions${lead === 'Nykaa' ? ' — category leader.' : ` (leader: ${esc(lead)}).`}</li>
-    <li>Source URLs (pages AI cites): ${brands.map((b) => `${esc(b)} ${fmt(totSU(b))}`).join(', ')}.</li>
+    <li>Across ${allThemes.length} tracked beauty topics, Nykaa has <strong>${fmt(tot('Nykaa', 'mentions'))}</strong> brand mentions vs ${brands.filter((b) => b !== 'Nykaa').map((b) => `${esc(b)} ${fmt(tot(b, 'mentions'))}`).join(', ')}.</li>
+    <li>Nykaa ranks <strong>#${nykRank || '-'} of ${brands.length}</strong> on mentions${lead === 'Nykaa' ? ' — leader.' : ` (leader: ${esc(lead)}).`} On Source URLs: ${brands.map((b) => `${esc(b)} ${fmt(tot(b, 'su'))}`).join(', ')}.</li>
   </ul></div>`);
 
-  // Per-category mentions tables (Topic | Nykaa | Amazon | Myntra | Tira) + subtotal
+  // Metric toggle (Mentions / Source Domains / Source URLs) + one block per metric.
+  parts.push(`<div class="metric-toggle">${METRICS.map(([k, l], i) =>
+    `<button class="mt${i === 0 ? ' active' : ''}" data-metric="${k}">${l}</button>`).join('')}
+    <span class="mt-hint">Switch metric — same cross-brand view for each</span></div>`);
+  parts.push(METRICS.map(([k, l], i) =>
+    `<div class="metric-block" data-metric="${k}"${i ? ' style="display:none"' : ''}>${renderMetricTables(t, k, l)}</div>`).join(''));
+
+  return parts.join('');
+}
+
+// Per-category Topic × Brand tables for one metric, with subtotals + grand total.
+function renderMetricTables(t, key, label) {
+  const brands = t.brands; const parts = [];
+  const num = brands.map((_, i) => i + 1);
   for (const g2 of t.groups) {
     const rows = g2.themes.map((th) => {
-      const vals = brands.map((b) => th.perBrand[b]?.mentions ?? 0);
+      const vals = brands.map((b) => th.perBrand[b]?.[key] ?? 0);
       const max = Math.max(...vals);
-      return [esc(th.theme), ...brands.map((b, i) => {
-        const v = th.perBrand[b]?.mentions ?? 0;
-        return (v === max && max > 0) ? `<strong>${fmt(v)}</strong>` : fmt(v);
+      return [esc(th.theme), ...brands.map((b) => {
+        const v = th.perBrand[b]?.[key] ?? 0;
+        return (v === max && max > 0) ? `<span class="win">${fmt(v)}</span>` : fmt(v);
       })];
     });
-    const subtotal = ['SUBTOTAL', ...brands.map((b) => `<strong>${fmt(g2.themes.reduce((s, th) => s + (th.perBrand[b]?.mentions ?? 0), 0))}</strong>`)];
-    rows.push(subtotal);
-    parts.push(section(`${esc(g2.category)} (${g2.themes.length} topics)`, 'Brand mentions in AI answers per topic. Bold = topic leader.',
-      tbl(['Topic', ...brands], rows, { numCols: brands.map((_, i) => i + 1) })));
+    const sub = ['SUBTOTAL', ...brands.map((b) => fmt(g2.themes.reduce((s, th) => s + (th.perBrand[b]?.[key] ?? 0), 0)))];
+    sub._cls = 'subtotal-row';
+    rows.push(sub);
+    parts.push(section(`${esc(g2.category)} — ${label} (${g2.themes.length} topics)`, '',
+      tbl(['Topic', ...brands], rows, { numCols: num })));
   }
-
-  // Grand total + Source URLs by category
-  parts.push(section('Grand Total — all tracked topics', 'Total AI brand mentions across every tracked topic.',
-    tbl(['Metric', ...brands], [['Total mentions', ...brands.map((b) => `<strong>${fmt(totM(b))}</strong>`)]], { numCols: brands.map((_, i) => i + 1) })));
-
-  const suRows = t.groups.map((g2) => [esc(g2.category), ...brands.map((b) => fmt(g2.themes.reduce((s, th) => s + (th.perBrand[b]?.su ?? 0), 0)))]);
-  suRows.push(['Grand Total', ...brands.map((b) => `<strong>${fmt(totSU(b))}</strong>`)]);
-  parts.push(section('Source URLs — pages AI cites, by category', 'Individual pages AI cites per brand across the tracked topics. More indexed pages now tends to mean more mentions later.',
-    tbl(['Category', ...brands], suRows, { numCols: brands.map((_, i) => i + 1) }),
-    `${(() => { const r = [...brands].sort((a, b) => totSU(b) - totSU(a)); return `${esc(r[0])} has the most AI-cited pages (${fmt(totSU(r[0]))}); Nykaa has ${fmt(totSU('Nykaa'))}.`; })()}`));
-
+  const gt = [`GRAND TOTAL — ${esc(label)}`, ...brands.map((b) => fmt(t.groups.flatMap((g2) => g2.themes).reduce((s, th) => s + (th.perBrand[b]?.[key] ?? 0), 0)))];
+  gt._cls = 'grand-row';
+  parts.push(tbl(['Total', ...brands], [gt], { numCols: num }));
   return parts.join('');
 }
 
@@ -577,6 +602,12 @@ $('xlsxTrackBtn').addEventListener('click', () => {
   }
   mRows.push(['GRAND TOTAL', '', ...brands.map((b) => gTot[b])]);
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(mRows), 'Brand Mentions');
+
+  // Source Domains sheet
+  const sdRows = [['Category', 'Topic', ...brands]];
+  for (const g2 of t.groups) for (const th of g2.themes)
+    sdRows.push([g2.category, th.theme, ...brands.map((b) => th.perBrand[b]?.sd ?? 0)]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sdRows), 'Source Domains');
 
   // Source URLs sheet
   const sRows = [['Category', 'Topic', ...brands]];
