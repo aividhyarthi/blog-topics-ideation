@@ -88,6 +88,9 @@ export interface WbrReport {
   sourceAnalysis: SourceTypeRow[];
   reviewQueue: { brand: string; topic: string; category: string }[]; // unmatched
   brandsPresent: string[];
+  // Internal: compact per-topic metrics for the primary brand, used to build the
+  // week-over-week snapshot. Stripped before sending to the browser.
+  _primaryTopics?: { name: string; v: number; m: number; vol: number; cat: string }[];
 }
 
 function round1(n: number): number {
@@ -302,6 +305,7 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
     sourceAnalysis,
     reviewQueue,
     brandsPresent: brandOrder,
+    _primaryTopics: primaryTopics.map((t) => ({ name: t.name, v: t.visibility, m: t.mentions, vol: t.volume, cat: t.category })),
   };
 }
 

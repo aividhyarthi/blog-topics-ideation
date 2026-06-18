@@ -58,8 +58,13 @@ drop.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
 
 // ---- generate ----
 let lastReport = null;
+let lastTrends = null;
 let lastGlossary = [];
 let lastLabel = '';
+
+// default the week date to today
+const _today = new Date().toISOString().slice(0, 10);
+if ($('weekKey')) $('weekKey').value = _today;
 
 $('genBtn').addEventListener('click', async () => {
   const err = $('errBox'), info = $('infoBox');
@@ -72,6 +77,9 @@ $('genBtn').addEventListener('click', async () => {
     const fd = new FormData();
     fd.set('vertical', $('vertical').value);
     fd.set('useClaude', $('useClaude').checked ? 'true' : 'false');
+    fd.set('saveToHistory', $('saveToHistory').checked ? 'true' : 'false');
+    if ($('weekKey').value) fd.set('weekKey', $('weekKey').value);
+    fd.set('label', $('reportLabel').value.trim());
     for (const [, f] of files) fd.append('files', f);
 
     const res = await fetch('/api/wbr', { method: 'POST', body: fd });
@@ -79,6 +87,7 @@ $('genBtn').addEventListener('click', async () => {
     if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
 
     lastReport = data.report;
+    lastTrends = data.trends || null;
     lastGlossary = data.glossary || [];
     lastLabel = $('reportLabel').value.trim() ||
       `Nykaa ${cap(data.report.vertical)} · AI Visibility`;
@@ -87,7 +96,11 @@ $('genBtn').addEventListener('click', async () => {
     $('results').scrollIntoView({ behavior: 'smooth' });
 
     const m = data.meta;
-    let note = `Parsed ${m.filesParsed.length} files.`;
+    let note = `Parsed ${m.filesParsed.length} files for week ${m.weekKey}.`;
+    if (data.trends) note += ` Compared against ${data.trends.prevWeekKey}.`;
+    else note += ' No earlier week saved yet — this becomes your baseline.';
+    if (m.savedToHistory) note += ' Saved to history.';
+    if (m.historyError) note += ` ⚠ History not saved: ${m.historyError}`;
     if ($('useClaude').checked) {
       note += m.claudeAvailable
         ? ` Claude classified ${m.claudeClassified} leftover topics.`
@@ -141,6 +154,9 @@ function renderReport(rep, meta) {
     out.push(`<div class="sec highlights"><h3>Key Highlights — what the numbers say</h3>
       <ul class="hl">${rep.highlights.map((h) => `<li>${h}</li>`).join('')}</ul></div>`);
   }
+
+  // Week-over-week trends
+  if (lastTrends) out.push(renderTrends(lastTrends));
 
   // Summary scorecard
   out.push(section('Summary — AI Visibility at a Glance', 'One row per brand, this vertical only (noise excluded).',
@@ -227,6 +243,83 @@ function renderReport(rep, meta) {
 function section(title, sub, table) {
   return `<div class="sec"><h3>${title}</h3><p class="sub">${sub}</p>${table}</div>`;
 }
+
+function deltaCell(d, isFloat) {
+  const v = isFloat ? d.toFixed(1) : fmt(Math.round(d));
+  const cls = d > 0 ? 'st-ok' : d < 0 ? 'st-bad' : '';
+  const arrow = d > 0 ? '▲ ' : d < 0 ? '▼ ' : '';
+  return `<span class="${cls}">${arrow}${d > 0 ? '+' : ''}${v}</span>`;
+}
+
+function renderTrends(t) {
+  const parts = [];
+  parts.push(`<div class="sec highlights"><h3>What Changed This Week — vs ${t.prevLabel || t.prevWeekKey}</h3>
+    <ul class="hl">${t.narrative.map((n) => `<li>${n}</li>`).join('')}</ul></div>`);
+
+  // Headline movement
+  parts.push(section('Week-over-Week — Nykaa headline metrics', `This week (${t.currWeekKey}) vs last (${t.prevWeekKey}).`,
+    tbl(['Metric', 'Last week', 'This week', 'Change'],
+      t.summaryDeltas.map((d) => {
+        const isFloat = d.label.toLowerCase().includes('visibility') && !d.label.includes('Topics');
+        return [d.label, isFloat ? d.prev.toFixed(1) : fmt(d.prev), isFloat ? d.curr.toFixed(1) : fmt(d.curr), deltaCell(d.delta, isFloat)];
+      }), { numCols: [1, 2, 3] })));
+
+  // Category movement
+  const moved = t.categoryDeltas.filter((d) => d.delta !== 0);
+  if (moved.length) {
+    parts.push(section('Week-over-Week — Mentions by category', 'Where Nykaa mentions grew or fell.',
+      tbl(['Category', 'Last week', 'This week', 'Change'],
+        moved.map((d) => [d.label, fmt(d.prev), fmt(d.curr), deltaCell(d.delta, false)]),
+        { numCols: [1, 2, 3] })));
+  }
+
+  // Movers
+  if (t.visibilityGainers.length || t.visibilityLosers.length) {
+    const rows = [];
+    t.visibilityGainers.forEach((m) => rows.push(['▲ Gainer', m.topic, m.prev, m.curr, deltaCell(m.delta, false)]));
+    t.visibilityLosers.forEach((m) => rows.push(['▼ Loser', m.topic, m.prev, m.curr, deltaCell(m.delta, false)]));
+    parts.push(section('Week-over-Week — Topic visibility movers', 'Topics that gained or lost the most AI visibility.',
+      tbl(['Move', 'Topic', 'Last', 'This', 'Change'], rows, { numCols: [2, 3, 4] })));
+  }
+
+  // Gap & roster changes
+  const lists = [];
+  if (t.closedGaps.length) lists.push(`<p class="sub"><strong class="st-ok">Closed gaps (${t.closedGaps.length}):</strong> ${t.closedGaps.slice(0, 20).join(', ')}</p>`);
+  if (t.newGaps.length) lists.push(`<p class="sub"><strong class="st-bad">New gaps (${t.newGaps.length}):</strong> ${t.newGaps.slice(0, 20).join(', ')}</p>`);
+  if (t.newTopics.length) lists.push(`<p class="sub"><strong>New topics this week (${t.newTopics.length}):</strong> ${t.newTopics.slice(0, 20).join(', ')}</p>`);
+  if (t.droppedTopics.length) lists.push(`<p class="sub"><strong>Dropped topics (${t.droppedTopics.length}):</strong> ${t.droppedTopics.slice(0, 20).join(', ')}</p>`);
+  if (lists.length) parts.push(`<div class="sec"><h3>Week-over-Week — Gap &amp; topic roster changes</h3>${lists.join('')}</div>`);
+
+  return parts.join('');
+}
+
+// ---- history panel ----
+$('histBtn').addEventListener('click', async () => {
+  const panel = $('histPanel');
+  if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  panel.innerHTML = 'Loading…';
+  const v = $('vertical').value;
+  try {
+    const res = await fetch(`/api/wbr-history?vertical=${v}`);
+    const data = await res.json();
+    if (!data.history || !data.history.length) {
+      panel.innerHTML = `<p class="hint">No saved weeks for ${cap(v)} yet${data.error ? ' (' + data.error + ')' : ''}.</p>`;
+      return;
+    }
+    panel.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Week</th><th>Label</th><th>Saved</th><th></th></tr></thead><tbody>${
+      data.history.map((h) => `<tr><td>${h.weekKey}</td><td>${h.label || '-'}</td><td>${(h.savedAt || '').slice(0, 10)}</td>
+        <td><button class="ghost" data-del="${h.weekKey}" style="padding:3px 9px">Delete</button></td></tr>`).join('')
+    }</tbody></table></div>`;
+    panel.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm(`Delete saved week ${b.dataset.del}?`)) return;
+      await fetch(`/api/wbr-history?vertical=${v}&weekKey=${b.dataset.del}`, { method: 'DELETE' });
+      $('histBtn').click(); $('histBtn').click(); // refresh
+    }));
+  } catch (e) {
+    panel.innerHTML = `<p class="hint">Couldn't load history: ${e.message}</p>`;
+  }
+});
 function g(rep, brand) {
   return rep.summary.find((s) => s.brand === brand) || { topicsInVertical: 0, avgVisibility: 0, totalMentions: 0, totalVolume: 0, topics60: 0, topics80: 0 };
 }
@@ -242,6 +335,17 @@ $('xlsxBtn').addEventListener('click', () => {
 
   if (rep.highlights && rep.highlights.length)
     add('Highlights', [['Key highlights — what the numbers say'], ...rep.highlights.map((h) => [h])]);
+  if (lastTrends) {
+    const t = lastTrends;
+    add('WoW Highlights', [[`What changed vs ${t.prevWeekKey}`], ...t.narrative.map((n) => [n])]);
+    add('WoW Headline', [['Metric', 'Last week', 'This week', 'Change'],
+      ...t.summaryDeltas.map((d) => [d.label, d.prev, d.curr, d.delta])]);
+    add('WoW Category', [['Category', 'Last week', 'This week', 'Change'],
+      ...t.categoryDeltas.map((d) => [d.label, d.prev, d.curr, d.delta])]);
+    add('WoW Movers', [['Move', 'Topic', 'Last', 'This', 'Change'],
+      ...t.visibilityGainers.map((m) => ['Gainer', m.topic, m.prev, m.curr, m.delta]),
+      ...t.visibilityLosers.map((m) => ['Loser', m.topic, m.prev, m.curr, m.delta])]);
+  }
   add('Summary', [
     ['Metric', ...B],
     ['Topics in their 1K', ...brands.map((b) => g(rep, b).topicsInVertical)],

@@ -146,10 +146,18 @@
               <label class="field">Report label
                 <input type="text" id="reportLabel" placeholder="e.g. Nykaa Beauty · Wk 24" />
               </label>
+              <label class="field">Week date
+                <input type="date" id="weekKey" />
+              </label>
+              <label class="field" title="Remember this week so next week can show week-over-week change.">
+                <input type="checkbox" id="saveToHistory" checked /> Save to history
+              </label>
             </div>
             <div class="row">
               <button class="primary" id="genBtn">Generate report</button>
+              <button class="ghost" id="histBtn" type="button">View saved weeks</button>
             </div>
+            <div id="histPanel" style="display:none;margin-top:14px"></div>
             <div class="alert err" id="errBox"></div>
             <div class="alert info" id="infoBox"></div>
           </div>

@@ -100,6 +100,19 @@ or screenshot auditing.
 - **Review queue** — topics the rules couldn't confidently place (excluded from
   totals until reviewed).
 
+### Week-over-week trends (history)
+
+Each generated week is saved as a compact JSON snapshot in `WBR_DATA_DIR`, so the
+next week is **automatically diffed** against the previous one — you only upload
+the new week's CSVs. The report then shows a **"What changed this week"** section:
+headline deltas, mentions movement by category, top visibility gainers/losers,
+and new vs closed gaps. Manage saved weeks (and delete mistakes) from the
+**View saved weeks** panel, or via `GET`/`DELETE /api/wbr-history`.
+
+On Railway, mount a **Volume** and set `WBR_DATA_DIR` to its path (e.g. `/data`)
+so history persists across redeploys. The history lives behind the same
+`SITE_PASSWORD` gate as the rest of the site.
+
 ### Categorization (the manual "auditing", automated)
 
 Topics are classified into a vertical (`beauty | fashion | noise`) and a category
@@ -127,6 +140,7 @@ Run it against a local folder of CSVs with
 | `SITE_PASSWORD`      | strongly recommended | Locks the WHOLE site behind HTTP Basic Auth. When unset, the site is open (local dev only). Set it in production — the WBR data is internal. |
 | `SITE_USER`          | no       | Username for the password gate. Defaults to `nykaa`. |
 | `ANTHROPIC_API_KEY`  | for AI features | Server-side Claude key. Needed for the AEO Auditor's AI signals and the WBR Claude fallback. Never exposed to the browser. |
+| `WBR_DATA_DIR`       | for WoW trends | Folder where the WBR saves each week's snapshot so it can show week-over-week change. Point it at a **Railway Volume** mount (e.g. `/data`) so history survives redeploys. Defaults to `./.wbr-data` (lost on redeploy). |
 | `PORT`               | no       | Defaults to `4321` (set by Railway).   |
 
 ## Run locally

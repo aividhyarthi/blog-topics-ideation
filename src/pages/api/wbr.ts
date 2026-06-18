@@ -7,6 +7,8 @@ import { parseFile, type ParsedFile } from '../../lib/wbr/parse';
 import { buildReport } from '../../lib/wbr/report';
 import { GLOSSARY } from '../../lib/wbr/report';
 import { classifyTopic, BEAUTY_CATEGORIES, FASHION_CATEGORIES, type Vertical } from '../../lib/wbr/categorize';
+import { saveSnapshot, previousSnapshot, listSnapshots } from '../../lib/wbr/store';
+import { snapshotFromReport, computeTrends } from '../../lib/wbr/trends';
 
 export const prerender = false;
 
@@ -56,6 +58,10 @@ export const POST: APIRoute = async ({ request }) => {
     const form = await request.formData();
     const vertical = (form.get('vertical') as string) === 'fashion' ? 'fashion' : 'beauty';
     const useClaude = form.get('useClaude') === 'true';
+    const saveToHistory = form.get('saveToHistory') !== 'false'; // default on
+    const rawWeek = (form.get('weekKey') as string) || '';
+    const weekKey = /^\d{4}-\d{2}-\d{2}$/.test(rawWeek) ? rawWeek : new Date().toISOString().slice(0, 10);
+    const label = (form.get('label') as string) || '';
 
     const parsed: ParsedFile[] = [];
     for (const entry of form.getAll('files')) {
@@ -84,10 +90,34 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const report = buildReport(parsed, { vertical, overrides });
+
+    // Week-over-week: diff against the previous saved week, then (optionally)
+    // remember this week so next week can diff against it.
+    const snap = snapshotFromReport(report, weekKey, label);
+    let trends = null;
+    let historyError: string | null = null;
+    try {
+      const prev = previousSnapshot(vertical, weekKey);
+      if (prev) trends = computeTrends(snap, prev);
+      if (saveToHistory) saveSnapshot(snap);
+    } catch (e: any) {
+      historyError = e?.message ?? 'History store unavailable (set WBR_DATA_DIR / Railway Volume).';
+    }
+
+    delete report._primaryTopics; // internal only — don't ship to the browser
+
+    let history: { weekKey: string; savedAt: string; label?: string }[] = [];
+    try { history = listSnapshots(vertical); } catch { /* ignore */ }
+
     return json({
       report,
+      trends,
       glossary: GLOSSARY,
       meta: {
+        weekKey,
+        savedToHistory: saveToHistory && !historyError,
+        historyError,
+        history,
         filesParsed: parsed.map((f) => ({ name: f.fileName, brand: f.brand, type: f.type, rows: f.topics?.length ?? f.sources?.length ?? 0 })),
         claudeClassified: claudeCount,
         claudeAvailable: Boolean(import.meta.env.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_API_KEY),

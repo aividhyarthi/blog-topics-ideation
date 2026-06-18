@@ -34,8 +34,14 @@ tools will be live on that one project's URL.
      is Nykaa-internal. (Optional companion: `SITE_USER`, defaults to `nykaa`.)
    - `ANTHROPIC_API_KEY` → your Anthropic key (`sk-ant-...`). Needed for the
      AEO Auditor's AI signals and the WBR's optional Claude fallback.
+   - `WBR_DATA_DIR` → `/data`. This is where the WBR remembers each week so it can
+     show week-over-week change. Pair it with a Volume (next step) so it survives
+     redeploys.
    - **Do NOT add a `PORT` variable** — Railway sets that automatically.
-7. Railway builds and deploys. When it's done, open **Settings → Networking →
+7. **Add a Volume for the weekly history** (so saved weeks aren't lost on redeploy):
+   open the service → **Variables/Settings → Volumes → New Volume**, and set the
+   **mount path** to `/data` (matching `WBR_DATA_DIR`). One-time setup.
+8. Railway builds and deploys. When it's done, open **Settings → Networking →
    Generate Domain** to get a public URL.
 
 That's it. Visit (you'll be asked for the password once):
@@ -55,8 +61,12 @@ Railway **redeploys automatically** — you don't have to do anything.
 
 - **The site is password-locked** when `SITE_PASSWORD` is set — every page and the
   upload endpoint require it. Always set it on Railway.
-- **Nothing is stored.** Uploaded CSVs are processed in memory and the report is
-  sent back to your browser. There's no database and no saved files on the server.
+- **Only weekly summaries are stored, behind the password.** To show week-over-week
+  change, the tool saves a small JSON summary per week (headline numbers, per-topic
+  visibility/mentions) in the `WBR_DATA_DIR` Volume. The raw uploaded CSV files are
+  **not** kept — they're processed in memory and discarded. You can delete any saved
+  week from the **View saved weeks** panel. Untick **Save to history** to generate a
+  report without storing anything.
 - **Railway gives you HTTPS** automatically, so uploads are encrypted in transit.
 - **Claude fallback:** only if you tick that box, the *topic names* the rules
   couldn't categorize are sent to Anthropic's API to be classified (Anthropic does
