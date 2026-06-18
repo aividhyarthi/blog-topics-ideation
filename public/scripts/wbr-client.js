@@ -193,9 +193,20 @@ function renderReport(rep, meta) {
     </div>`);
   }
 
-  // Key highlights (auto-written, data-derived narrative)
+  // Executive summary — the Nykaa story and the competitor story
+  if (rep.nykaaStory || rep.competitorStory) {
+    out.push(`<div class="sec stories">
+      <h3>Executive Summary</h3>
+      <div class="storygrid">
+        <div class="story story-nykaa"><div class="story-h">📈 The Nykaa story</div><p>${esc(rep.nykaaStory)}</p></div>
+        <div class="story story-comp"><div class="story-h">🎯 The competitor story</div><p>${esc(rep.competitorStory)}</p></div>
+      </div>
+    </div>`);
+  }
+
+  // Key highlights (supporting bullets)
   if (rep.highlights && rep.highlights.length) {
-    out.push(`<div class="sec highlights"><h3>Key Highlights — what the numbers say</h3>
+    out.push(`<div class="sec highlights"><h3>Key Highlights</h3>
       <ul class="hl">${rep.highlights.map((h) => `<li>${esc(h)}</li>`).join('')}</ul></div>`);
   }
 
@@ -625,8 +636,12 @@ $('xlsxBtn').addEventListener('click', () => {
   const wb = XLSX.utils.book_new();
   const add = (name, aoa) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name.slice(0, 31));
 
+  add('Executive Summary', [
+    ['The Nykaa story'], [rep.nykaaStory || ''], [''],
+    ['The competitor story'], [rep.competitorStory || ''],
+  ]);
   if (rep.highlights && rep.highlights.length)
-    add('Highlights', [['Key highlights — what the numbers say'], ...rep.highlights.map((h) => [h])]);
+    add('Highlights', [['Key highlights'], ...rep.highlights.map((h) => [h])]);
   if (lastTrends) {
     const t = lastTrends;
     add('WoW Highlights', [[`What changed vs ${t.prevWeekKey}`], ...t.narrative.map((n) => [n])]);
