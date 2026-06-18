@@ -124,7 +124,9 @@ Run it against a local folder of CSVs with
 
 | Variable             | Required | Notes                                  |
 | -------------------- | -------- | -------------------------------------- |
-| `ANTHROPIC_API_KEY`  | yes      | Server-side Claude key. Never exposed to the browser. |
+| `SITE_PASSWORD`      | strongly recommended | Locks the WHOLE site behind HTTP Basic Auth. When unset, the site is open (local dev only). Set it in production — the WBR data is internal. |
+| `SITE_USER`          | no       | Username for the password gate. Defaults to `nykaa`. |
+| `ANTHROPIC_API_KEY`  | for AI features | Server-side Claude key. Needed for the AEO Auditor's AI signals and the WBR Claude fallback. Never exposed to the browser. |
 | `PORT`               | no       | Defaults to `4321` (set by Railway).   |
 
 ## Run locally
