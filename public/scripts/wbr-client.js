@@ -103,7 +103,8 @@ $('genBtn').addEventListener('click', async () => {
     if (trackerFile) {
       try {
         lastTracking = await parseTracker(trackerFile, vertical);
-        notes.push(`Weekly tracker: ${lastTracking.themes.length} themes across ${lastTracking.weeks.length} weeks (${lastTracking.sheetName}).`);
+        const nThemes = lastTracking.groups.reduce((s, g2) => s + g2.themes.length, 0);
+        notes.push(`Cross-brand tracker: ${nThemes} topics × ${lastTracking.brands.length} brands (${lastTracking.sheetName}).`);
       } catch (e) {
         notes.push(`⚠ Couldn't read the tracker: ${e.message}`);
       }
@@ -201,6 +202,8 @@ function renderReport(rep, meta) {
   // Week-over-week trends
   if (lastTrends) out.push(renderTrends(lastTrends));
 
+  const N = rep.tableNotes || {};
+
   // Summary scorecard
   out.push(section('Summary — AI Visibility at a Glance', 'One row per brand, this vertical only (noise excluded).',
     tbl(['Metric', ...brands.map(cap)],
@@ -212,7 +215,7 @@ function renderReport(rep, meta) {
         ['Topics ≥ 60 visibility', ...brands.map((b) => fmt(g(rep, b).topics60))],
         ['Topics ≥ 80 visibility', ...brands.map((b) => fmt(g(rep, b).topics80))],
       ],
-      { numCols: brands.map((_, i) => i + 1) })));
+      { numCols: brands.map((_, i) => i + 1) }), N.summary));
 
   // Category scorecard
   out.push(section('Section A — Category Scorecard', 'How many topics Nykaa owns per category, with the current category leader.',
@@ -222,14 +225,14 @@ function renderReport(rep, meta) {
           `<span class="${statusClass(c.signal)}">${esc(c.signal)}</span>`];
         return row;
       }),
-      { numCols: [1, 2, 3, 4] })));
+      { numCols: [1, 2, 3, 4] }), N.category));
 
   // Protect
   out.push(section('Section B — Top Topics to Protect', 'Highest-volume Nykaa topics and their current status.',
     tbl(['Category', 'Topic', 'Visibility', 'Mentions', 'Search volume', 'Status'],
       rep.protect.map((t) => [esc(t.category), esc(t.topic), fmt(t.visibility), fmt(t.mentions), fmt(t.volume),
         `<span class="${statusClass(t.status)}">${esc(t.status)}</span>`]),
-      { numCols: [2, 3, 4] })));
+      { numCols: [2, 3, 4] }), N.protect));
 
   // Gaps
   const compBrands = ['amazon', 'myntra', 'tira', 'flipkart'].filter((b) =>
@@ -240,7 +243,20 @@ function renderReport(rep, meta) {
         `<span class="prio-${gp.priority}">${esc(gp.priority)}</span>`, esc(gp.category), esc(gp.topic),
         ...compBrands.map((b) => fmt(gp.competitors[cap(b)] ?? 0)), fmt(gp.volume),
       ]),
-      { numCols: [...compBrands.map((_, i) => i + 3), compBrands.length + 3] })));
+      { numCols: [...compBrands.map((_, i) => i + 3), compBrands.length + 3] }), N.gaps));
+
+  // Beauty Brands — Nykaa vs competitors
+  if (rep.beautyBrands && rep.beautyBrands.length) {
+    const bbBrands = ['Nykaa', 'Amazon', 'Myntra', 'Tira', 'Flipkart'].filter((b) =>
+      rep.beautyBrands.some((r2) => r2.competitors[b] !== undefined));
+    out.push(section('Beauty Brands — Nykaa vs Competitors',
+      'Beauty-brand topics where competitors are being mentioned in AI answers. Numbers = AI mentions per brand. Target content / PDP / AEO on the ones Nykaa trails.',
+      tbl(['Beauty brand topic', 'Category', ...bbBrands, 'Status'],
+        rep.beautyBrands.map((r2) => [esc(r2.topic), esc(r2.category),
+          ...bbBrands.map((b) => fmt(r2.competitors[b] ?? 0)),
+          `<span class="${statusClass(r2.status)}">${esc(r2.status)}</span>`]),
+        { numCols: bbBrands.map((_, i) => i + 2) }), N.beautyBrands));
+  }
 
   // Brand comparison
   out.push(section('Brand Comparison — Mentions by Category', 'Total AI mentions per category from each brand\'s own 1K topics. Leader highlighted.',
@@ -254,7 +270,7 @@ function renderReport(rep, meta) {
         })];
         return row;
       }),
-      { numCols: brands.map((_, i) => i + 1) })));
+      { numCols: brands.map((_, i) => i + 1) }), N.brandComparison));
 
   // Source mix
   if (rep.sourceAnalysis.length) {
@@ -262,7 +278,7 @@ function renderReport(rep, meta) {
     out.push(section('Cited-Source Mix', 'Page types AI engines cite, per brand (from the sources export). Healthy = low homepage share, high blog/PDP.',
       tbl(['Page type', ...sBrands.map(cap)],
         rep.sourceAnalysis.map((s) => [esc(s.pageType), ...sBrands.map((b) => fmt(s.count[b] ?? 0))]),
-        { numCols: sBrands.map((_, i) => i + 1) })));
+        { numCols: sBrands.map((_, i) => i + 1) }), N.sourceAnalysis));
   }
 
   // Review queue
@@ -302,8 +318,11 @@ function activateTab(which) {
 $('tabSemrush').addEventListener('click', () => { if (lastReport) activateTab('semrush'); });
 $('tabTracking').addEventListener('click', () => { if (lastTracking) activateTab('tracking'); });
 
-function section(title, sub, table) {
-  return `<div class="sec"><h3>${title}</h3><p class="sub">${sub}</p>${table}</div>`;
+// title/sub may contain caller-escaped dynamic parts, so they are NOT re-escaped
+// here; `note` is plain data, so it is escaped.
+function section(title, sub, table, note) {
+  const callout = note ? `<p class="callout">💡 <strong>Key call-out:</strong> ${esc(note)}</p>` : '';
+  return `<div class="sec"><h3>${title}</h3><p class="sub">${sub}</p>${table}${callout}</div>`;
 }
 
 function deltaCell(d, isFloat) {
@@ -355,132 +374,144 @@ function renderTrends(t) {
   return parts.join('');
 }
 
-// ---- master tracker (.xlsx) parsing — done in the browser, never uploaded ----
-const MONTHS = /(20\d\d|before|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i;
+// ---- master tracker (.xlsx) — CROSS-BRAND comparison, parsed in the browser ----
+// Reads the sheet that has Nykaa / Amazon / Myntra / Tira columns per theme
+// (e.g. the "Topics" sheet), grouped by category — to reproduce the ideal
+// cross-brand comparison report (Topic | Nykaa | Amazon | Myntra | Tira).
+const BRAND_RE = /(nykaa|amazon|myntra|tira|flipkart|ajio)/i;
+function brandFromLabel(s) {
+  const m = String(s || '').toLowerCase().match(BRAND_RE);
+  return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : null;
+}
+const toNum = (v) => { const n = Number(String(v).replace(/[, ]/g, '')); return Number.isFinite(n) ? n : null; };
 
 async function parseTracker(file, vertical) {
   if (!window.XLSX) throw new Error('Excel reader not loaded yet — retry in a moment.');
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array' });
-  // Pick the Core Beauty / Core Fashion sheet for this vertical.
-  const want = vertical === 'fashion' ? 'fashion' : 'beauty';
-  const sheetName = wb.SheetNames.find((n) => /core/i.test(n) && n.toLowerCase().includes(want))
-    || wb.SheetNames.find((n) => n.toLowerCase().includes(want))
-    || wb.SheetNames[0];
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, blankrows: false, defval: '' });
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
 
-  // Find the metric-header row ("Prompt Theme" in column 0). The date labels sit
-  // in a header row above it (sometimes 1, sometimes 2 rows up) — pick the row
-  // above hr with the most week-like (month/year) labels.
-  let hr = rows.findIndex((r) => String(r[0] || '').trim().toLowerCase() === 'prompt theme');
-  if (hr < 1) throw new Error(`Couldn't find the "Prompt Theme" header in sheet "${sheetName}".`);
-  let dateRow = null, bestHits = -1;
-  for (let i = Math.max(0, hr - 3); i < hr; i++) {
-    const hits = rows[i].filter((c) => MONTHS.test(String(c || '')) && !/growth/i.test(String(c || ''))).length;
-    if (hits > bestHits) { bestHits = hits; dateRow = rows[i]; }
-  }
-  if (!dateRow) throw new Error('No weekly date header found in the tracker.');
-
-  // A week block starts at every column whose date-header cell is week-like.
-  // Within a block: [Mentions, Source Domains, Source URLs] in the next columns.
-  const blocks = [];
-  dateRow.forEach((v, c) => {
-    const label = String(v || '').trim();
-    if (c >= 1 && label && MONTHS.test(label) && !/growth/i.test(label)) {
-      blocks.push({ col: c, label: label.replace(/nykaa\s*-?\s*/i, '').trim() });
+  // Find candidate cross-brand sheets: a header row mentioning >=2 brands.
+  const candidates = [];
+  for (const name of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false, defval: '' });
+    let brandRowIdx = -1, brandCount = 0;
+    for (let i = 0; i < Math.min(rows.length, 6); i++) {
+      const brands = new Set(rows[i].map(brandFromLabel).filter(Boolean));
+      if (brands.size > brandCount) { brandCount = brands.size; brandRowIdx = i; }
     }
-  });
-  if (!blocks.length) throw new Error('No weekly date columns recognized in the tracker.');
-
-  const num = (v) => { const n = Number(String(v).replace(/[, ]/g, '')); return Number.isFinite(n) ? n : null; };
-  const themes = [];
-  for (let r = hr + 1; r < rows.length; r++) {
-    const theme = String(rows[r][0] || '').trim();
-    if (!theme) continue;
-    const series = blocks.map((b) => ({
-      mentions: num(rows[r][b.col]),
-      sd: num(rows[r][b.col + 1]),
-      su: num(rows[r][b.col + 2]),
-    }));
-    if (series.every((s) => s.mentions === null && s.sd === null && s.su === null)) continue;
-    themes.push({ theme, series });
+    if (brandCount >= 2) candidates.push({ name, rows, brandRowIdx, brandCount });
   }
-  return { sheetName, weeks: blocks.map((b) => b.label), themes };
-}
+  if (!candidates.length) throw new Error('No cross-brand sheet found (need columns for Nykaa, Amazon, Myntra, Tira).');
 
-function growth(first, last) {
-  if (first === null || last === null || first === 0) return null;
-  return ((last - first) / first) * 100;
-}
-function pctSpan(p) {
-  if (p === null) return '<span class="sub">—</span>';
-  const cls = p > 0 ? 'st-ok' : p < 0 ? 'st-bad' : '';
-  return `<span class="${cls}">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>`;
-}
+  // Choose by vertical: fashion → a fashion-named sheet; beauty → a non-fashion one.
+  const isFashion = (n) => /fashion/i.test(n);
+  let pool = candidates.filter((c) => vertical === 'fashion' ? isFashion(c.name) : !isFashion(c.name));
+  if (!pool.length) pool = candidates;
+  pool.sort((a, b) => b.brandCount - a.brandCount || b.rows.length - a.rows.length);
+  const { name: sheetName, rows, brandRowIdx } = pool[0];
 
-// Index of a theme's last / previous NON-EMPTY reading (tracker is filled
-// progressively, so themes finish different weeks — compare per theme).
-function readings(series) {
-  const idx = [];
-  series.forEach((s, i) => { if (s.mentions !== null || s.sd !== null || s.su !== null) idx.push(i); });
-  return idx;
+  const brandRow = rows[brandRowIdx];
+  // Metric header row: the row at/after brandRow that contains "Mentions".
+  let metricIdx = -1;
+  for (let i = brandRowIdx; i < Math.min(rows.length, brandRowIdx + 3); i++) {
+    if (rows[i].some((c) => /mention/i.test(String(c)))) { metricIdx = i; break; }
+  }
+  if (metricIdx < 0) throw new Error('Could not find the Mentions header in the cross-brand sheet.');
+  const metricRow = rows[metricIdx];
+
+  // Brand blocks: each column where brandRow names a brand. Within the block,
+  // locate Mentions / Source Domains / Source URLs by the metric header labels.
+  const firstBrandCol = brandRow.findIndex((c) => brandFromLabel(c));
+  const blocks = [];
+  brandRow.forEach((c, col) => {
+    const brand = brandFromLabel(c);
+    if (!brand) return;
+    const end = col + 4;
+    const find = (re) => { for (let k = col; k < end; k++) if (re.test(String(metricRow[k]))) return k; return -1; };
+    blocks.push({ brand, m: find(/mention/i), sd: find(/source\s*domain/i), su: find(/source\s*url/i) });
+  });
+  const brands = [...new Set(blocks.map((b) => b.brand))];
+
+  // Label columns (before the first brand block): identify theme + L1 category.
+  let themeCol = firstBrandCol - 1, l1Col = -1;
+  for (let k = 0; k < firstBrandCol; k++) {
+    const h = String(metricRow[k] || '').toLowerCase();
+    if (/l1|^category|categories/.test(h) && /l1|category/.test(h) && !/categories/.test(h)) l1Col = k;
+    if (/prompt theme|^categories$|topic|theme/.test(h)) themeCol = k;
+  }
+  // Fallbacks: if an "L1 Category" col exists separately, the theme is usually the next text col.
+  if (l1Col === -1) for (let k = 0; k < firstBrandCol; k++) if (/l1|category/i.test(String(metricRow[k]))) { l1Col = k; break; }
+  if (l1Col >= 0 && l1Col === themeCol) themeCol = Math.min(firstBrandCol - 1, l1Col + 1);
+
+  // Parse rows into groups by L1 category (or "All themes" if none).
+  const groupMap = new Map();
+  for (let r = metricIdx + 1; r < rows.length; r++) {
+    const theme = String(rows[r][themeCol] || '').trim();
+    if (!theme) continue;
+    const perBrand = {};
+    let any = false;
+    for (const b of blocks) {
+      const mentions = b.m >= 0 ? toNum(rows[r][b.m]) : null;
+      const sd = b.sd >= 0 ? toNum(rows[r][b.sd]) : null;
+      const su = b.su >= 0 ? toNum(rows[r][b.su]) : null;
+      perBrand[b.brand] = { mentions, sd, su };
+      if (mentions || sd || su) any = true;
+    }
+    if (!any) continue;
+    const cat = l1Col >= 0 ? (String(rows[r][l1Col] || '').trim() || 'Uncategorized') : 'All themes';
+    if (!groupMap.has(cat)) groupMap.set(cat, []);
+    groupMap.get(cat).push({ theme, perBrand });
+  }
+  const groups = [...groupMap.entries()].map(([category, themes]) => ({ category, themes }));
+  if (!groups.length) throw new Error('No theme rows parsed from the cross-brand sheet.');
+  return { sheetName, brands, groups };
 }
 
 function renderTracking(t) {
-  const wk = t.weeks, parts = [];
+  const brands = t.brands;
+  const parts = [];
+  const allThemes = t.groups.flatMap((g2) => g2.themes);
+  const totM = (b) => allThemes.reduce((s, th) => s + (th.perBrand[b]?.mentions ?? 0), 0);
+  const totSU = (b) => allThemes.reduce((s, th) => s + (th.perBrand[b]?.su ?? 0), 0);
 
-  // Per-theme: last and previous readings (each theme may end on a different week).
-  const enriched = t.themes.map((th) => {
-    const idx = readings(th.series);
-    const lastI = idx.length ? idx[idx.length - 1] : -1;
-    const prevI = idx.length > 1 ? idx[idx.length - 2] : -1;
-    const firstI = idx.length ? idx[0] : -1;
-    return {
-      theme: th.theme,
-      asOf: lastI >= 0 ? wk[lastI] : '—',
-      last: lastI >= 0 ? th.series[lastI] : { mentions: null, sd: null, su: null },
-      prev: prevI >= 0 ? th.series[prevI] : null,
-      first: firstI >= 0 ? th.series[firstI] : null,
-    };
-  });
+  // Header KPIs: total mentions per brand
+  parts.push(`<div class="kpis">${brands.map((b) =>
+    `<div class="kpi"><div class="v">${fmt(totM(b))}</div><div class="l">${esc(b)} — total mentions</div></div>`).join('')}</div>`);
 
-  // Highlights based on each theme's own week-over-week (robust to partial weeks).
-  const moved = enriched.filter((e) => e.prev && e.last.mentions !== null && e.prev.mentions !== null)
-    .map((e) => ({ theme: e.theme, g: growth(e.prev.mentions, e.last.mentions), d: e.last.mentions - e.prev.mentions }))
-    .filter((x) => x.g !== null);
-  const up = moved.filter((m) => m.d > 0).sort((a, b) => b.g - a.g);
-  const down = moved.filter((m) => m.d < 0).sort((a, b) => a.g - b.g);
-  parts.push(`<div class="sec highlights"><h3>Weekly Theme Tracking — highlights</h3>
-    <ul class="hl">
-      <li>${t.themes.length} themes tracked across ${wk.length} weeks (${esc(wk[0])} → ${esc(wk[wk.length - 1])}). Note: the latest week is filled in progressively, so each theme is compared to its own previous reading.</li>
-      <li>Week-over-week (per theme): ${up.length} themes up, ${down.length} down.</li>
-      ${up[0] ? `<li>Top gainer: “${esc(up[0].theme)}” ${pctSpan(up[0].g)} mentions.</li>` : ''}
-      ${down[0] ? `<li>Biggest decline: “${esc(down[0].theme)}” ${pctSpan(down[0].g)} mentions — check this.</li>` : ''}
-    </ul></div>`);
+  // Call-out: how Nykaa stacks up
+  const ranked = [...brands].sort((a, b) => totM(b) - totM(a));
+  const nykRank = ranked.indexOf('Nykaa') + 1;
+  const lead = ranked[0];
+  parts.push(`<div class="sec highlights"><h3>Cross-Brand Comparison — key call-out</h3><ul class="hl">
+    <li>Across ${allThemes.length} tracked beauty topics, Nykaa has ${fmt(totM('Nykaa'))} brand mentions vs ${brands.filter((b) => b !== 'Nykaa').map((b) => `${esc(b)} ${fmt(totM(b))}`).join(', ')}.</li>
+    <li>Nykaa ranks <strong>#${nykRank || '-'} of ${brands.length}</strong> on total mentions${lead === 'Nykaa' ? ' — category leader.' : ` (leader: ${esc(lead)}).`}</li>
+    <li>Source URLs (pages AI cites): ${brands.map((b) => `${esc(b)} ${fmt(totSU(b))}`).join(', ')}.</li>
+  </ul></div>`);
 
-  // Totals-by-week table (exposes how complete each week is).
-  const totRows = wk.map((w, i) => {
-    const withData = t.themes.filter((th) => th.series[i].mentions !== null).length;
-    const totM = t.themes.reduce((s, th) => s + (th.series[i].mentions ?? 0), 0);
-    const totSU = t.themes.reduce((s, th) => s + (th.series[i].su ?? 0), 0);
-    return [esc(w), fmt(withData), fmt(totM), fmt(totSU)];
-  });
-  parts.push(section('Weekly Theme Tracking — totals by week',
-    'Total mentions and cited Source URLs per week. “Themes with data” shows how many themes were measured that week (the newest week is usually still being filled in).',
-    tbl(['Week', 'Themes with data', 'Total mentions', 'Total Source URLs'], totRows, { numCols: [1, 2, 3] })));
-
-  // Per-theme detail, sorted by latest mentions.
-  const rows = [...enriched]
-    .sort((a, b) => (b.last.mentions ?? 0) - (a.last.mentions ?? 0))
-    .map((e) => {
-      const wow = (k) => (e.prev && e.last[k] !== null && e.prev[k] !== null) ? deltaCell(e.last[k] - e.prev[k], false) : '<span class="sub">—</span>';
-      const span = e.first ? growth(e.first.mentions, e.last.mentions) : null;
-      return [esc(e.theme), esc(e.asOf), fmt(e.last.mentions ?? 0), wow('mentions'), fmt(e.last.sd ?? 0), fmt(e.last.su ?? 0), wow('su'), pctSpan(span)];
+  // Per-category mentions tables (Topic | Nykaa | Amazon | Myntra | Tira) + subtotal
+  for (const g2 of t.groups) {
+    const rows = g2.themes.map((th) => {
+      const vals = brands.map((b) => th.perBrand[b]?.mentions ?? 0);
+      const max = Math.max(...vals);
+      return [esc(th.theme), ...brands.map((b, i) => {
+        const v = th.perBrand[b]?.mentions ?? 0;
+        return (v === max && max > 0) ? `<strong>${fmt(v)}</strong>` : fmt(v);
+      })];
     });
-  parts.push(section(`Weekly Theme Tracking — by theme (${esc(t.sheetName)})`,
-    'Each theme shown at its latest reading. WoW = vs that theme’s previous reading. Span = first → latest week.',
-    tbl(['Prompt Theme', 'As of', 'Mentions', 'WoW', 'Source Domains', 'Source URLs', 'URLs WoW', 'Mentions growth (span)'],
-      rows, { numCols: [2, 4, 5] })));
+    const subtotal = ['SUBTOTAL', ...brands.map((b) => `<strong>${fmt(g2.themes.reduce((s, th) => s + (th.perBrand[b]?.mentions ?? 0), 0))}</strong>`)];
+    rows.push(subtotal);
+    parts.push(section(`${esc(g2.category)} (${g2.themes.length} topics)`, 'Brand mentions in AI answers per topic. Bold = topic leader.',
+      tbl(['Topic', ...brands], rows, { numCols: brands.map((_, i) => i + 1) })));
+  }
+
+  // Grand total + Source URLs by category
+  parts.push(section('Grand Total — all tracked topics', 'Total AI brand mentions across every tracked topic.',
+    tbl(['Metric', ...brands], [['Total mentions', ...brands.map((b) => `<strong>${fmt(totM(b))}</strong>`)]], { numCols: brands.map((_, i) => i + 1) })));
+
+  const suRows = t.groups.map((g2) => [esc(g2.category), ...brands.map((b) => fmt(g2.themes.reduce((s, th) => s + (th.perBrand[b]?.su ?? 0), 0)))]);
+  suRows.push(['Grand Total', ...brands.map((b) => `<strong>${fmt(totSU(b))}</strong>`)]);
+  parts.push(section('Source URLs — pages AI cites, by category', 'Individual pages AI cites per brand across the tracked topics. More indexed pages now tends to mean more mentions later.',
+    tbl(['Category', ...brands], suRows, { numCols: brands.map((_, i) => i + 1) }),
+    `${(() => { const r = [...brands].sort((a, b) => totSU(b) - totSU(a)); return `${esc(r[0])} has the most AI-cited pages (${fmt(totSU(r[0]))}); Nykaa has ${fmt(totSU('Nykaa'))}.`; })()}`));
 
   return parts.join('');
 }
@@ -527,19 +558,32 @@ function saveWb(wb, suffix) {
   XLSX.writeFile(wb, fname); toast('Excel downloaded');
 }
 
-// Weekly Tracking tab -> its own workbook
+// Weekly Tracking tab (cross-brand) -> its own workbook
 $('xlsxTrackBtn').addEventListener('click', () => {
   if (!lastTracking || !window.XLSX) return;
-  const t = lastTracking;
+  const t = lastTracking, brands = t.brands;
   const wb = XLSX.utils.book_new();
-  const head = ['Prompt Theme'];
-  t.weeks.forEach((w) => head.push(`${w} Mentions`, `${w} Src Domains`, `${w} Src URLs`));
-  const aoa = [head, ...t.themes.map((th) => {
-    const row = [th.theme];
-    th.series.forEach((s) => row.push(s.mentions ?? '', s.sd ?? '', s.su ?? ''));
-    return row;
-  })];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Weekly Theme Tracking');
+
+  // Mentions sheet: Category | Topic | <brand> mentions, with subtotals + grand total
+  const mRows = [['Category', 'Topic', ...brands]];
+  const gTot = Object.fromEntries(brands.map((b) => [b, 0]));
+  for (const g2 of t.groups) {
+    const sub = Object.fromEntries(brands.map((b) => [b, 0]));
+    for (const th of g2.themes) {
+      mRows.push([g2.category, th.theme, ...brands.map((b) => th.perBrand[b]?.mentions ?? 0)]);
+      brands.forEach((b) => { sub[b] += th.perBrand[b]?.mentions ?? 0; gTot[b] += th.perBrand[b]?.mentions ?? 0; });
+    }
+    mRows.push([g2.category + ' SUBTOTAL', '', ...brands.map((b) => sub[b])]);
+  }
+  mRows.push(['GRAND TOTAL', '', ...brands.map((b) => gTot[b])]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(mRows), 'Brand Mentions');
+
+  // Source URLs sheet
+  const sRows = [['Category', 'Topic', ...brands]];
+  for (const g2 of t.groups) for (const th of g2.themes)
+    sRows.push([g2.category, th.theme, ...brands.map((b) => th.perBrand[b]?.su ?? 0)]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sRows), 'Source URLs');
+
   saveWb(wb, '_Tracking');
 });
 
@@ -585,6 +629,11 @@ $('xlsxBtn').addEventListener('click', () => {
     ['Priority', 'Category', 'Topic', ...cB.map(cap), 'Search volume'],
     ...rep.gaps.map((gp) => [gp.priority, gp.category, gp.topic, ...cB.map((b) => gp.competitors[cap(b)] ?? 0), gp.volume]),
   ]);
+  if (rep.beautyBrands && rep.beautyBrands.length) {
+    const bbB = ['Nykaa', 'Amazon', 'Myntra', 'Tira', 'Flipkart'].filter((b) => rep.beautyBrands.some((r2) => r2.competitors[b] !== undefined));
+    add('Beauty Brands', [['Beauty brand topic', 'Category', ...bbB, 'Status'],
+      ...rep.beautyBrands.map((r2) => [r2.topic, r2.category, ...bbB.map((b) => r2.competitors[b] ?? 0), r2.status])]);
+  }
   add('Brand Comparison', [
     ['Category', ...B],
     ...rep.brandComparison.map((bc) => [bc.category, ...brands.map((b) => bc.mentions[b] ?? 0)]),
