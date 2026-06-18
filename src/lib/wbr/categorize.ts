@@ -292,7 +292,7 @@ export const BEAUTY_BRAND_NAMES: string[] = [
   'dermalogica', 'vaseline', 'dove', 'oshea', "o'shea", 'soulflower', 'khadi',
   'aroma magic', 'astaberry', 'blue heaven', 'mars by ghc', 'carolina herrera',
   'chanel', 'kaya', 'pee safe', 'bella', 'happy herbs', 'urban botanics',
-  'mymuse', 'nabhi sutra', 'ozone', 'glamour world', 'raga', 'biosoft',
+  'mymuse', 'nabhi sutra', 'ozone', 'glamour world', 'biosoft',
   'sebastian', 'revlon', 'elle 18', 'nyx', 'rimmel', 'makeup revolution',
   'juicy chemistry', 'earth rhythm', 'bvlgari', 'versace', 'davidoff',
   'calvin klein', 'gucci', 'ysl', 'lancome', 'clarins', 'la opale', 'ramsons',
