@@ -7,7 +7,7 @@
 // page renders to HTML and the Excel exporter writes to tabs.
 
 import {
-  classifyTopic, BEAUTY_CATEGORIES, FASHION_CATEGORIES, type Vertical,
+  classifyTopic, isBeautyBrand, BEAUTY_CATEGORIES, FASHION_CATEGORIES, type Vertical,
 } from './categorize';
 import type { ParsedFile, TopicRow } from './parse';
 
@@ -39,6 +39,15 @@ export interface ClassifiedTopic extends TopicRow {
   vertical: Vertical;
   category: string;
   matched: boolean;
+  brand: boolean;
+}
+
+export interface BeautyBrandRow {
+  topic: string;
+  category: string; // product category it also falls under, if any
+  competitors: Record<string, number>; // brand -> mentions (incl. nykaa)
+  leader: string;
+  status: string;
 }
 
 export interface BrandSummary {
@@ -98,9 +107,12 @@ export interface WbrReport {
   protect: ProtectRow[];
   gaps: GapRow[];
   brandComparison: BrandComparisonRow[];
+  beautyBrands: BeautyBrandRow[];
   sourceAnalysis: SourceTypeRow[];
   reviewQueue: { brand: string; topic: string; category: string }[]; // unmatched
   brandsPresent: string[];
+  // Short, data-derived "key call-out" under each table, keyed by section id.
+  tableNotes: Record<string, string>;
   // Internal: compact per-topic metrics for the primary brand, used to build the
   // week-over-week snapshot. Stripped before sending to the browser.
   _primaryTopics?: { name: string; v: number; m: number; vol: number; cat: string }[];
@@ -114,14 +126,14 @@ type Overrides = ReportOptions['overrides'];
 
 function classifyOne(name: string, vertical: 'beauty' | 'fashion', overrides: Overrides) {
   const o = overrides?.[name];
-  if (o) return { vertical: o.vertical, category: o.category, matched: true };
+  if (o) return { vertical: o.vertical, category: o.category, matched: true, brand: isBeautyBrand(name) };
   return classifyTopic(name, { vertical });
 }
 
 function classifyTopics(file: ParsedFile, vertical: 'beauty' | 'fashion', overrides: Overrides): ClassifiedTopic[] {
   return (file.topics ?? []).map((t) => {
     const c = classifyOne(t.name, vertical, overrides);
-    return { ...t, vertical: c.vertical, category: c.category, matched: c.matched };
+    return { ...t, vertical: c.vertical, category: c.category, matched: c.matched, brand: Boolean(c.brand) };
   });
 }
 
@@ -262,6 +274,37 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
   }
   gaps.sort((a, b) => b.volume - a.volume);
 
+  // ---- Section: Beauty Brands — Nykaa vs competitors ----
+  // Brand-name topics (Laneige, Lakme, Clinique…) with the cross-brand mentions
+  // from the gap file's gap_mentions, so the team can see where Nykaa leads or
+  // trails on specific beauty brands and target content/SEO/AEO accordingly.
+  const beautyBrands: BeautyBrandRow[] = [];
+  if (vertical === 'beauty' && gapFile?.topics) {
+    for (const t of gapFile.topics) {
+      if (!isBeautyBrand(t.name)) continue;
+      // Exclude cross-vertical false positives (e.g. "Minimalist Shoes").
+      if (classifyOne(t.name, vertical, overrides).vertical !== 'beauty') continue;
+      const gm = t.gapMentions ?? {};
+      if (Object.keys(gm).length === 0) continue;
+      const competitors: Record<string, number> = {};
+      let leader = ''; let leaderV = -1; let total = 0;
+      for (const [host, v] of Object.entries(gm)) {
+        const label = host.includes(PRIMARY) ? 'Nykaa' : shortHost(host);
+        competitors[label] = v; total += v;
+        if (v > leaderV) { leaderV = v; leader = label; }
+      }
+      if (total === 0) continue;
+      const status = leader === 'Nykaa' ? '✓ Nykaa leads' : `⚠ behind ${leader}`;
+      const c = classifyOne(t.name, vertical, overrides);
+      beautyBrands.push({ topic: t.name, category: c.category, competitors, leader, status });
+    }
+  }
+  // Most-contested first (highest combined competitor presence).
+  beautyBrands.sort((a, b) => {
+    const sum = (r: BeautyBrandRow) => Object.entries(r.competitors).reduce((s, [k, v]) => s + (k === 'Nykaa' ? 0 : v), 0);
+    return sum(b) - sum(a);
+  });
+
   // ---- Section: Brand comparison by category (mentions) ----
   const brandComparison: BrandComparisonRow[] = orderedCats
     .map((cat) => {
@@ -307,6 +350,11 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
     vertical, summary, categoryScorecard, gaps, sourceCounts, authorityThreshold, competitors,
   );
 
+  const tableNotes = computeTableNotes({
+    vertical, summary, categoryScorecard, protect, gaps, brandComparison,
+    beautyBrands, sourceAnalysis, competitors,
+  });
+
   return {
     vertical,
     generatedAt: new Date().toISOString(),
@@ -316,11 +364,75 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
     protect,
     gaps,
     brandComparison,
+    beautyBrands,
     sourceAnalysis,
     reviewQueue,
     brandsPresent: brandOrder,
+    tableNotes,
     _primaryTopics: primaryTopics.map((t) => ({ name: t.name, v: t.visibility, m: t.mentions, vol: t.volume, cat: t.category })),
   };
+}
+
+// One-line, data-derived "key call-out" for each table.
+function computeTableNotes(d: {
+  vertical: 'beauty' | 'fashion';
+  summary: BrandSummary[];
+  categoryScorecard: CategoryRow[];
+  protect: ProtectRow[];
+  gaps: GapRow[];
+  brandComparison: BrandComparisonRow[];
+  beautyBrands: BeautyBrandRow[];
+  sourceAnalysis: SourceTypeRow[];
+  competitors: string[];
+}): Record<string, string> {
+  const f = (n: number) => Math.round(n).toLocaleString('en-IN');
+  const notes: Record<string, string> = {};
+  const nyk = d.summary.find((s) => s.brand === PRIMARY);
+  const V = d.vertical;
+
+  if (nyk) {
+    const topRival = d.summary.filter((s) => s.brand !== PRIMARY).sort((a, b) => b.totalMentions - a.totalMentions)[0];
+    notes.summary = topRival
+      ? `Nykaa leads ${V} mentions ${f(nyk.totalMentions)} vs ${cap(topRival.brand)} ${f(topRival.totalMentions)}; depth = ${f(nyk.topicsInVertical)} topics. Watch avg visibility, not just totals.`
+      : `Nykaa: ${f(nyk.totalMentions)} ${V} mentions across ${f(nyk.topicsInVertical)} topics.`;
+  }
+
+  const led = d.categoryScorecard.filter((c) => c.leader.toLowerCase() === PRIMARY).length;
+  const trail = d.categoryScorecard.filter((c) => c.leader.toLowerCase() !== PRIMARY);
+  notes.category = `Nykaa leads ${led}/${d.categoryScorecard.length} categories${trail.length ? `; defend ${trail.map((t) => `${t.category} (${t.leader})`).join(', ')}` : ' — clean sweep'}.`;
+
+  const lowProtect = d.protect.filter((p) => /improve|low/i.test(p.status));
+  notes.protect = lowProtect.length
+    ? `${lowProtect.length} high-volume topics are under-protected — prioritise ${lowProtect.slice(0, 3).map((p) => p.topic).join(', ')}.`
+    : 'All top-volume topics are at healthy visibility — hold the line.';
+
+  if (d.gaps.length) {
+    const high = d.gaps.filter((g) => g.priority === 'High').length;
+    const vol = d.gaps.reduce((s, g) => s + g.volume, 0);
+    notes.gaps = `${d.gaps.length} gaps (${high} high-priority) worth ~${f(vol)} monthly searches — start with “${d.gaps[0].topic}”.`;
+  }
+
+  if (d.brandComparison.length) {
+    const wins = d.brandComparison.filter((b) => {
+      const max = Math.max(...Object.values(b.mentions));
+      return (b.mentions[PRIMARY] ?? 0) === max && max > 0;
+    }).length;
+    notes.brandComparison = `Nykaa has the most mentions in ${wins}/${d.brandComparison.length} categories. Bold = category leader.`;
+  }
+
+  if (d.beautyBrands.length) {
+    const behind = d.beautyBrands.filter((b) => b.leader !== 'Nykaa');
+    notes.beautyBrands = `${d.beautyBrands.length} beauty-brand topics tracked; Nykaa trails on ${behind.length}. Target content/PDP/AEO on: ${behind.slice(0, 4).map((b) => b.topic).join(', ') || '—'}.`;
+  }
+
+  if (d.sourceAnalysis.length) {
+    const home = d.sourceAnalysis.find((s) => s.pageType === 'Homepage')?.count[PRIMARY] ?? 0;
+    const tot = d.sourceAnalysis.reduce((s, r) => s + (r.count[PRIMARY] ?? 0), 0);
+    const pct = tot ? Math.round((home / tot) * 100) : 0;
+    notes.sourceAnalysis = `Homepage = ${pct}% of Nykaa's cited pages${pct > 25 ? ' — too high; AI knows the brand but not its content. Grow blog/PDP citations.' : ' — healthy spread across blog/PDP.'}`;
+  }
+
+  return notes;
 }
 
 // Auto-written "why the numbers look this way" bullets — all derived from the
