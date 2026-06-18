@@ -1,7 +1,9 @@
 // WBR Builder client: upload SEMrush CSVs -> POST /api/wbr -> render + export.
 
 const $ = (id) => document.getElementById(id);
-const files = new Map(); // name -> File
+const files = new Map(); // name -> File (SEMrush CSVs)
+let trackerFile = null;  // optional master tracker .xlsx
+let lastTracking = null; // parsed tracker data
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('en-IN') : n ?? '-');
@@ -25,6 +27,15 @@ function detect(name) {
 function renderFileList() {
   const el = $('filelist');
   el.innerHTML = '';
+  if (trackerFile) {
+    const div = document.createElement('div');
+    div.className = 'fileitem';
+    div.innerHTML = `<span class="b">Master tracker</span><span class="tag">xlsx · weekly tracking</span>
+      <span style="color:var(--muted)">${trackerFile.name}</span>
+      <span style="margin-left:auto;color:var(--muted)">${(trackerFile.size / 1024).toFixed(0)} KB</span>
+      <button class="ghost" data-rmtracker="1" style="padding:3px 9px">✕</button>`;
+    el.appendChild(div);
+  }
   for (const [name, f] of files) {
     const { brand, type } = detect(name);
     const div = document.createElement('div');
@@ -39,10 +50,16 @@ function renderFileList() {
   }
   el.querySelectorAll('[data-rm]').forEach((b) =>
     b.addEventListener('click', () => { files.delete(b.dataset.rm); renderFileList(); }));
+  const rmt = el.querySelector('[data-rmtracker]');
+  if (rmt) rmt.addEventListener('click', () => { trackerFile = null; renderFileList(); });
 }
 
 function addFiles(list) {
-  for (const f of list) if (f.name.toLowerCase().endsWith('.csv')) files.set(f.name, f);
+  for (const f of list) {
+    const n = f.name.toLowerCase();
+    if (n.endsWith('.csv')) files.set(f.name, f);
+    else if (n.endsWith('.xlsx') || n.endsWith('.xls')) trackerFile = f;
+  }
   renderFileList();
 }
 
@@ -69,44 +86,61 @@ if ($('weekKey')) $('weekKey').value = _today;
 $('genBtn').addEventListener('click', async () => {
   const err = $('errBox'), info = $('infoBox');
   err.style.display = info.style.display = 'none';
-  if (files.size === 0) { err.textContent = 'Add at least one CSV file.'; err.style.display = 'block'; return; }
+  if (files.size === 0 && !trackerFile) { err.textContent = 'Add at least one CSV file (or a master tracker .xlsx).'; err.style.display = 'block'; return; }
 
   const btn = $('genBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Generating…';
+  const notes = [];
   try {
-    const fd = new FormData();
-    fd.set('vertical', $('vertical').value);
-    fd.set('useClaude', $('useClaude').checked ? 'true' : 'false');
-    fd.set('saveToHistory', $('saveToHistory').checked ? 'true' : 'false');
-    if ($('weekKey').value) fd.set('weekKey', $('weekKey').value);
-    fd.set('label', $('reportLabel').value.trim());
-    for (const [, f] of files) fd.append('files', f);
+    const vertical = $('vertical').value;
 
-    const res = await fetch('/api/wbr', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
+    // Parse the optional master tracker entirely in the browser (never uploaded).
+    lastTracking = null;
+    if (trackerFile) {
+      try {
+        lastTracking = await parseTracker(trackerFile, vertical);
+        notes.push(`Weekly tracker: ${lastTracking.themes.length} themes across ${lastTracking.weeks.length} weeks (${lastTracking.sheetName}).`);
+      } catch (e) {
+        notes.push(`⚠ Couldn't read the tracker: ${e.message}`);
+      }
+    }
 
-    lastReport = data.report;
-    lastTrends = data.trends || null;
-    lastGlossary = data.glossary || [];
-    lastLabel = $('reportLabel').value.trim() ||
-      `Nykaa ${cap(data.report.vertical)} · AI Visibility`;
-    renderReport(data.report, data.meta);
+    if (files.size > 0) {
+      const fd = new FormData();
+      fd.set('vertical', vertical);
+      fd.set('useClaude', $('useClaude').checked ? 'true' : 'false');
+      fd.set('saveToHistory', $('saveToHistory').checked ? 'true' : 'false');
+      if ($('weekKey').value) fd.set('weekKey', $('weekKey').value);
+      fd.set('label', $('reportLabel').value.trim());
+      for (const [, f] of files) fd.append('files', f);
+
+      const res = await fetch('/api/wbr', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
+
+      lastReport = data.report;
+      lastTrends = data.trends || null;
+      lastGlossary = data.glossary || [];
+      lastLabel = $('reportLabel').value.trim() || `Nykaa ${cap(data.report.vertical)} · AI Visibility`;
+      renderReport(data.report, data.meta);
+
+      const m = data.meta;
+      notes.push(`Parsed ${m.filesParsed.length} files for week ${m.weekKey}.`);
+      notes.push(data.trends ? `Compared against ${data.trends.prevWeekKey}.` : 'No earlier week saved yet — this becomes your baseline.');
+      if (m.savedToHistory) notes.push('Saved to history.');
+      if (m.historyError) notes.push(`⚠ History not saved: ${m.historyError}`);
+      if ($('useClaude').checked) notes.push(m.claudeAvailable ? `Claude classified ${m.claudeClassified} leftover topics.` : 'Claude fallback requested but no API key configured — used rules only.');
+    } else {
+      // Tracker-only view
+      lastReport = null; lastTrends = null;
+      lastLabel = $('reportLabel').value.trim() || `Nykaa ${cap(vertical)} · Weekly Theme Tracking`;
+      $('rTitle').textContent = lastLabel;
+      $('report').innerHTML = lastTracking ? renderTracking(lastTracking) : '<p class="sub">Nothing to show.</p>';
+    }
+
     $('results').style.display = 'block';
     $('results').scrollIntoView({ behavior: 'smooth' });
-
-    const m = data.meta;
-    let note = `Parsed ${m.filesParsed.length} files for week ${m.weekKey}.`;
-    if (data.trends) note += ` Compared against ${data.trends.prevWeekKey}.`;
-    else note += ' No earlier week saved yet — this becomes your baseline.';
-    if (m.savedToHistory) note += ' Saved to history.';
-    if (m.historyError) note += ` ⚠ History not saved: ${m.historyError}`;
-    if ($('useClaude').checked) {
-      note += m.claudeAvailable
-        ? ` Claude classified ${m.claudeClassified} leftover topics.`
-        : ' Claude fallback requested but no API key is configured on the server — used rules only.';
-    }
-    info.textContent = note; info.style.display = 'block';
+    info.textContent = notes.join(' '); info.style.display = 'block';
   } catch (e) {
     err.textContent = e.message; err.style.display = 'block';
   } finally {
@@ -157,6 +191,9 @@ function renderReport(rep, meta) {
 
   // Week-over-week trends
   if (lastTrends) out.push(renderTrends(lastTrends));
+
+  // Weekly theme tracking (from the uploaded master tracker)
+  if (lastTracking) out.push(renderTracking(lastTracking));
 
   // Summary scorecard
   out.push(section('Summary — AI Visibility at a Glance', 'One row per brand, this vertical only (noise excluded).',
@@ -293,6 +330,136 @@ function renderTrends(t) {
   return parts.join('');
 }
 
+// ---- master tracker (.xlsx) parsing — done in the browser, never uploaded ----
+const MONTHS = /(20\d\d|before|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i;
+
+async function parseTracker(file, vertical) {
+  if (!window.XLSX) throw new Error('Excel reader not loaded yet — retry in a moment.');
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  // Pick the Core Beauty / Core Fashion sheet for this vertical.
+  const want = vertical === 'fashion' ? 'fashion' : 'beauty';
+  const sheetName = wb.SheetNames.find((n) => /core/i.test(n) && n.toLowerCase().includes(want))
+    || wb.SheetNames.find((n) => n.toLowerCase().includes(want))
+    || wb.SheetNames[0];
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, blankrows: false, defval: '' });
+
+  // Find the metric-header row ("Prompt Theme" in column 0). The date labels sit
+  // in a header row above it (sometimes 1, sometimes 2 rows up) — pick the row
+  // above hr with the most week-like (month/year) labels.
+  let hr = rows.findIndex((r) => String(r[0] || '').trim().toLowerCase() === 'prompt theme');
+  if (hr < 1) throw new Error(`Couldn't find the "Prompt Theme" header in sheet "${sheetName}".`);
+  let dateRow = null, bestHits = -1;
+  for (let i = Math.max(0, hr - 3); i < hr; i++) {
+    const hits = rows[i].filter((c) => MONTHS.test(String(c || '')) && !/growth/i.test(String(c || ''))).length;
+    if (hits > bestHits) { bestHits = hits; dateRow = rows[i]; }
+  }
+  if (!dateRow) throw new Error('No weekly date header found in the tracker.');
+
+  // A week block starts at every column whose date-header cell is week-like.
+  // Within a block: [Mentions, Source Domains, Source URLs] in the next columns.
+  const blocks = [];
+  dateRow.forEach((v, c) => {
+    const label = String(v || '').trim();
+    if (c >= 1 && label && MONTHS.test(label) && !/growth/i.test(label)) {
+      blocks.push({ col: c, label: label.replace(/nykaa\s*-?\s*/i, '').trim() });
+    }
+  });
+  if (!blocks.length) throw new Error('No weekly date columns recognized in the tracker.');
+
+  const num = (v) => { const n = Number(String(v).replace(/[, ]/g, '')); return Number.isFinite(n) ? n : null; };
+  const themes = [];
+  for (let r = hr + 1; r < rows.length; r++) {
+    const theme = String(rows[r][0] || '').trim();
+    if (!theme) continue;
+    const series = blocks.map((b) => ({
+      mentions: num(rows[r][b.col]),
+      sd: num(rows[r][b.col + 1]),
+      su: num(rows[r][b.col + 2]),
+    }));
+    if (series.every((s) => s.mentions === null && s.sd === null && s.su === null)) continue;
+    themes.push({ theme, series });
+  }
+  return { sheetName, weeks: blocks.map((b) => b.label), themes };
+}
+
+function growth(first, last) {
+  if (first === null || last === null || first === 0) return null;
+  return ((last - first) / first) * 100;
+}
+function pctSpan(p) {
+  if (p === null) return '<span class="sub">—</span>';
+  const cls = p > 0 ? 'st-ok' : p < 0 ? 'st-bad' : '';
+  return `<span class="${cls}">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>`;
+}
+
+// Index of a theme's last / previous NON-EMPTY reading (tracker is filled
+// progressively, so themes finish different weeks — compare per theme).
+function readings(series) {
+  const idx = [];
+  series.forEach((s, i) => { if (s.mentions !== null || s.sd !== null || s.su !== null) idx.push(i); });
+  return idx;
+}
+
+function renderTracking(t) {
+  const wk = t.weeks, parts = [];
+
+  // Per-theme: last and previous readings (each theme may end on a different week).
+  const enriched = t.themes.map((th) => {
+    const idx = readings(th.series);
+    const lastI = idx.length ? idx[idx.length - 1] : -1;
+    const prevI = idx.length > 1 ? idx[idx.length - 2] : -1;
+    const firstI = idx.length ? idx[0] : -1;
+    return {
+      theme: th.theme,
+      asOf: lastI >= 0 ? wk[lastI] : '—',
+      last: lastI >= 0 ? th.series[lastI] : { mentions: null, sd: null, su: null },
+      prev: prevI >= 0 ? th.series[prevI] : null,
+      first: firstI >= 0 ? th.series[firstI] : null,
+    };
+  });
+
+  // Highlights based on each theme's own week-over-week (robust to partial weeks).
+  const moved = enriched.filter((e) => e.prev && e.last.mentions !== null && e.prev.mentions !== null)
+    .map((e) => ({ theme: e.theme, g: growth(e.prev.mentions, e.last.mentions), d: e.last.mentions - e.prev.mentions }))
+    .filter((x) => x.g !== null);
+  const up = moved.filter((m) => m.d > 0).sort((a, b) => b.g - a.g);
+  const down = moved.filter((m) => m.d < 0).sort((a, b) => a.g - b.g);
+  parts.push(`<div class="sec highlights"><h3>Weekly Theme Tracking — highlights</h3>
+    <ul class="hl">
+      <li>${t.themes.length} themes tracked across ${wk.length} weeks (${wk[0]} → ${wk[wk.length - 1]}). Note: the latest week is filled in progressively, so each theme is compared to its own previous reading.</li>
+      <li>Week-over-week (per theme): ${up.length} themes up, ${down.length} down.</li>
+      ${up[0] ? `<li>Top gainer: “${up[0].theme}” ${pctSpan(up[0].g)} mentions.</li>` : ''}
+      ${down[0] ? `<li>Biggest decline: “${down[0].theme}” ${pctSpan(down[0].g)} mentions — check this.</li>` : ''}
+    </ul></div>`);
+
+  // Totals-by-week table (exposes how complete each week is).
+  const totRows = wk.map((w, i) => {
+    const withData = t.themes.filter((th) => th.series[i].mentions !== null).length;
+    const totM = t.themes.reduce((s, th) => s + (th.series[i].mentions ?? 0), 0);
+    const totSU = t.themes.reduce((s, th) => s + (th.series[i].su ?? 0), 0);
+    return [w, fmt(withData), fmt(totM), fmt(totSU)];
+  });
+  parts.push(section('Weekly Theme Tracking — totals by week',
+    'Total mentions and cited Source URLs per week. “Themes with data” shows how many themes were measured that week (the newest week is usually still being filled in).',
+    tbl(['Week', 'Themes with data', 'Total mentions', 'Total Source URLs'], totRows, { numCols: [1, 2, 3] })));
+
+  // Per-theme detail, sorted by latest mentions.
+  const rows = [...enriched]
+    .sort((a, b) => (b.last.mentions ?? 0) - (a.last.mentions ?? 0))
+    .map((e) => {
+      const wow = (k) => (e.prev && e.last[k] !== null && e.prev[k] !== null) ? deltaCell(e.last[k] - e.prev[k], false) : '<span class="sub">—</span>';
+      const span = e.first ? growth(e.first.mentions, e.last.mentions) : null;
+      return [e.theme, e.asOf, fmt(e.last.mentions ?? 0), wow('mentions'), fmt(e.last.sd ?? 0), fmt(e.last.su ?? 0), wow('su'), pctSpan(span)];
+    });
+  parts.push(section(`Weekly Theme Tracking — by theme (${t.sheetName})`,
+    'Each theme shown at its latest reading. WoW = vs that theme’s previous reading. Span = first → latest week.',
+    tbl(['Prompt Theme', 'As of', 'Mentions', 'WoW', 'Source Domains', 'Source URLs', 'URLs WoW', 'Mentions growth (span)'],
+      rows, { numCols: [2, 4, 5] })));
+
+  return parts.join('');
+}
+
 // ---- history panel ----
 $('histBtn').addEventListener('click', async () => {
   const panel = $('histPanel');
@@ -328,10 +495,27 @@ function g(rep, brand) {
 $('pdfBtn').addEventListener('click', () => window.print());
 
 $('xlsxBtn').addEventListener('click', () => {
-  if (!lastReport || !window.XLSX) return;
-  const rep = lastReport, brands = rep.brandsPresent, B = brands.map(cap);
+  if ((!lastReport && !lastTracking) || !window.XLSX) return;
   const wb = XLSX.utils.book_new();
   const add = (name, aoa) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name.slice(0, 31));
+
+  if (lastTracking) {
+    const t = lastTracking, L = t.weeks.length - 1;
+    const head = ['Prompt Theme'];
+    t.weeks.forEach((w) => head.push(`${w} Mentions`, `${w} Src Domains`, `${w} Src URLs`));
+    add('Weekly Theme Tracking', [head, ...t.themes.map((th) => {
+      const row = [th.theme];
+      th.series.forEach((s) => row.push(s.mentions ?? '', s.sd ?? '', s.su ?? ''));
+      return row;
+    })]);
+  }
+
+  if (!lastReport) {
+    const fname = (lastLabel || 'WBR').replace(/[^a-z0-9]+/gi, '_') + '.xlsx';
+    XLSX.writeFile(wb, fname); toast('Excel downloaded'); return;
+  }
+
+  const rep = lastReport, brands = rep.brandsPresent, B = brands.map(cap);
 
   if (rep.highlights && rep.highlights.length)
     add('Highlights', [['Key highlights — what the numbers say'], ...rep.highlights.map((h) => [h])]);
