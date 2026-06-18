@@ -69,6 +69,64 @@ and citation behaviour varies per engine, so treat the score as one composite
 signal. The publish gate is advisory; real publish-blocking would be a CMS
 integration.
 
+## WBR Builder (`/wbr`) — weekly AI-visibility report from SEMrush exports
+
+Turns the weekly **SEMrush AI Visibility CSV bundle** into the full Beauty/Fashion
+report (the same tables as the published May reports) — no manual Excel pivoting
+or screenshot auditing.
+
+### What you do
+
+1. Download the weekly SEMrush exports per brand (Nykaa + competitors). The tool
+   recognises four shapes by filename + header:
+   - `brand_topics_<site>.csv` — the 1,000 topics (`name, visibility, mentions, volume, intents`)
+   - `gap_topics_<site>.csv` — adds `gap_mentions` (`amazon.in:7;myntra.com:32;…`)
+   - `sources_<site>.csv` / `citedpages-sources_<site>.csv` — cited pages (`url, prompts_count`)
+2. Drop them all on `/wbr`, pick **Beauty** or **Fashion**, click **Generate**.
+3. Review and **Download Excel** (every table in tabs) or **Print / Save PDF**
+   (laid out like the client report).
+
+### What it computes
+
+- **Summary scorecard** — topics, avg visibility, mentions, search volume,
+  topics ≥60 / ≥80, per brand (this vertical only; noise excluded).
+- **Section A — Category scorecard** — topics/avg-vis/mentions/volume per
+  category, plus the current category leader.
+- **Section B — Topics to protect** — highest-volume topics with status.
+- **Section C — Gap analysis** — topics where Nykaa = 0 but competitors rank,
+  with per-competitor mentions and a High/Medium/Low priority.
+- **Brand comparison** — mentions by category across brands.
+- **Cited-source mix** — page-type breakdown (homepage / blog / PDP / junk …).
+- **Review queue** — topics the rules couldn't confidently place (excluded from
+  totals until reviewed).
+
+### Week-over-week trends (history)
+
+Each generated week is saved as a compact JSON snapshot in `WBR_DATA_DIR`, so the
+next week is **automatically diffed** against the previous one — you only upload
+the new week's CSVs. The report then shows a **"What changed this week"** section:
+headline deltas, mentions movement by category, top visibility gainers/losers,
+and new vs closed gaps. Manage saved weeks (and delete mistakes) from the
+**View saved weeks** panel, or via `GET`/`DELETE /api/wbr-history`.
+
+On Railway, mount a **Volume** and set `WBR_DATA_DIR` to its path (e.g. `/data`)
+so history persists across redeploys. The history lives behind the same
+`SITE_PASSWORD` gate as the rest of the site.
+
+### Categorization (the manual "auditing", automated)
+
+Topics are classified into a vertical (`beauty | fashion | noise`) and a category
+by a **deterministic keyword dictionary** in `src/lib/wbr/categorize.ts`, so the
+same topic lands in the same category every week (essential for trend tracking).
+Topics it can't place are flagged for review, and — if `ANTHROPIC_API_KEY` is set
+and the **Claude fallback** box is ticked — sent to Claude to classify the
+leftovers. Tune the dictionary as new brands/topics appear.
+
+The engine is pure and testable: `parse.ts` (CSV) → `categorize.ts` → `report.ts`
+(tables) → `src/pages/api/wbr.ts` (endpoint) → `src/pages/wbr.astro` (UI + export).
+Run it against a local folder of CSVs with
+`npx tsx scripts/validate-wbr.ts <dir> <beauty|fashion>`.
+
 ## Tech
 
 - [Astro](https://astro.build) (server output, Node adapter)
@@ -79,7 +137,10 @@ integration.
 
 | Variable             | Required | Notes                                  |
 | -------------------- | -------- | -------------------------------------- |
-| `ANTHROPIC_API_KEY`  | yes      | Server-side Claude key. Never exposed to the browser. |
+| `SITE_PASSWORD`      | strongly recommended | Locks the WHOLE site behind HTTP Basic Auth. When unset, the site is open (local dev only). Set it in production — the WBR data is internal. |
+| `SITE_USER`          | no       | Username for the password gate. Defaults to `nykaa`. |
+| `ANTHROPIC_API_KEY`  | for AI features | Server-side Claude key. Needed for the AEO Auditor's AI signals and the WBR Claude fallback. Never exposed to the browser. |
+| `WBR_DATA_DIR`       | for WoW trends | Folder where the WBR saves each week's snapshot so it can show week-over-week change. Point it at a **Railway Volume** mount (e.g. `/data`) so history survives redeploys. Defaults to `./.wbr-data` (lost on redeploy). |
 | `PORT`               | no       | Defaults to `4321` (set by Railway).   |
 
 ## Run locally

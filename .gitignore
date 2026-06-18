@@ -2,3 +2,8 @@ node_modules/
 dist/
 .astro/
 .DS_Store
+
+# Local SEMrush client data drops — never commit
+.data/
+# Local week-over-week history store (use a Railway Volume in prod)
+.wbr-data/

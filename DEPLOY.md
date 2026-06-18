@@ -1,9 +1,10 @@
 # Deploying to Railway (plain-English guide)
 
-This repo contains **one app with two tools**:
+This repo contains **one app with three tools**:
 
 - `/` — the **Blog Topic Engine**
 - `/audit` — the **AEO Auditor**
+- `/wbr` — the **WBR Builder** (weekly AI-visibility report from SEMrush CSVs)
 
 You do **not** need a separate codebase for the Auditor. If you want it to run
 on its **own Railway project** (separate from your other deployments, so nothing
@@ -27,17 +28,27 @@ tools will be live on that one project's URL.
    - **Root Directory**: leave it as `/` (blank/root). All the app files live at
      the top of the repo.
    - Railway auto-detects the included `Dockerfile` — you don't change anything.
-6. Open the service → **Variables** → **New Variable**:
-   - Name: `ANTHROPIC_API_KEY`
-   - Value: your Anthropic key (`sk-ant-...`)
+6. Open the service → **Variables** → **New Variable**. Add these:
+   - `SITE_PASSWORD` → a password of your choice. **This locks the whole site**
+     so only people with the password can open it. **Add this** — the WBR data
+     is Nykaa-internal. (Optional companion: `SITE_USER`, defaults to `nykaa`.)
+   - `ANTHROPIC_API_KEY` → your Anthropic key (`sk-ant-...`). Needed for the
+     AEO Auditor's AI signals and the WBR's optional Claude fallback.
+   - `WBR_DATA_DIR` → `/data`. This is where the WBR remembers each week so it can
+     show week-over-week change. Pair it with a Volume (next step) so it survives
+     redeploys.
    - **Do NOT add a `PORT` variable** — Railway sets that automatically.
-7. Railway builds and deploys. When it's done, open **Settings → Networking →
+7. **Add a Volume for the weekly history** (so saved weeks aren't lost on redeploy):
+   open the service → **Variables/Settings → Volumes → New Volume**, and set the
+   **mount path** to `/data` (matching `WBR_DATA_DIR`). One-time setup.
+8. Railway builds and deploys. When it's done, open **Settings → Networking →
    Generate Domain** to get a public URL.
 
-That's it. Visit:
+That's it. Visit (you'll be asked for the password once):
 
 - `https://<your-domain>/` for the Topic Engine
 - `https://<your-domain>/audit` for the AEO Auditor
+- `https://<your-domain>/wbr` for the WBR Builder
 
 ---
 
@@ -45,6 +56,22 @@ That's it. Visit:
 
 Railway watches the branch you picked. Every time new code lands on that branch,
 Railway **redeploys automatically** — you don't have to do anything.
+
+## Keeping the data private (important for Nykaa)
+
+- **The site is password-locked** when `SITE_PASSWORD` is set — every page and the
+  upload endpoint require it. Always set it on Railway.
+- **Only weekly summaries are stored, behind the password.** To show week-over-week
+  change, the tool saves a small JSON summary per week (headline numbers, per-topic
+  visibility/mentions) in the `WBR_DATA_DIR` Volume. The raw uploaded CSV files are
+  **not** kept — they're processed in memory and discarded. You can delete any saved
+  week from the **View saved weeks** panel. Untick **Save to history** to generate a
+  report without storing anything.
+- **Railway gives you HTTPS** automatically, so uploads are encrypted in transit.
+- **Claude fallback:** only if you tick that box, the *topic names* the rules
+  couldn't categorize are sent to Anthropic's API to be classified (Anthropic does
+  not train on API data). Leave it **off** if you'd rather nothing leaves the box —
+  the rules alone produce the full report.
 
 ## Common questions
 
