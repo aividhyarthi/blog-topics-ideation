@@ -398,10 +398,19 @@ function computeTableNotes(d: {
   const V = d.vertical;
 
   if (nyk) {
-    const topRival = d.summary.filter((s) => s.brand !== PRIMARY).sort((a, b) => b.totalMentions - a.totalMentions)[0];
-    notes.summary = topRival
-      ? `Nykaa leads ${V} mentions ${f(nyk.totalMentions)} vs ${cap(topRival.brand)} ${f(topRival.totalMentions)}; depth = ${f(nyk.topicsInVertical)} topics. Watch avg visibility, not just totals.`
-      : `Nykaa: ${f(nyk.totalMentions)} ${V} mentions across ${f(nyk.topicsInVertical)} topics.`;
+    const rivals = d.summary.filter((s) => s.brand !== PRIMARY).sort((a, b) => b.totalMentions - a.totalMentions);
+    const topRival = rivals[0];
+    if (topRival) {
+      const x = topRival.totalMentions > 0 ? Math.round(nyk.totalMentions / topRival.totalMentions) : null;
+      const highVis = rivals.filter((r) => r.avgVisibility > nyk.avgVisibility).sort((a, b) => b.avgVisibility - a.avgVisibility)[0];
+      let s = `Nykaa leads on mentions (${f(nyk.totalMentions)} vs ${cap(topRival.brand)} ${f(topRival.totalMentions)}${x && x >= 2 ? `, ~${x}×` : ''}).`;
+      if (highVis) s += ` ${cap(highVis.brand)}'s higher avg visibility (${highVis.avgVisibility}) is concentrated coverage — only ${f(highVis.topicsInVertical)} ${V} topics vs Nykaa's ${f(nyk.topicsInVertical)} — not real breadth.`;
+      const tira = rivals.find((r) => r.brand === 'tira');
+      if (tira) s += ` Tira is beauty-pure — its gains come straight out of Nykaa's core; track it weekly.`;
+      notes.summary = s;
+    } else {
+      notes.summary = `Nykaa: ${f(nyk.totalMentions)} ${V} mentions across ${f(nyk.topicsInVertical)} topics. Upload competitors' brand_topics CSVs (Amazon / Myntra / Tira) to see the head-to-head here.`;
+    }
   }
 
   const led = d.categoryScorecard.filter((c) => c.leader.toLowerCase() === PRIMARY).length;
