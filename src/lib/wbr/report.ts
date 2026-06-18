@@ -79,6 +79,7 @@ export interface SourceTypeRow {
 export interface WbrReport {
   vertical: 'beauty' | 'fashion';
   generatedAt: string;
+  highlights: string[];
   summary: BrandSummary[];
   categoryScorecard: CategoryRow[];
   protect: ProtectRow[];
@@ -285,9 +286,14 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
     .filter((t) => !t.matched)
     .map((t) => ({ brand: PRIMARY, topic: t.name, category: t.category }));
 
+  const highlights = computeHighlights(
+    vertical, summary, categoryScorecard, gaps, sourceCounts, authorityThreshold,
+  );
+
   return {
     vertical,
     generatedAt: new Date().toISOString(),
+    highlights,
     summary,
     categoryScorecard,
     protect,
@@ -298,6 +304,117 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
     brandsPresent: brandOrder,
   };
 }
+
+// Auto-written "why the numbers look this way" bullets — all derived from the
+// data so they're defensible in the room. This is the narrative the WBR needs
+// (e.g. "Amazon's avg visibility is higher only because it ranks for far fewer,
+// concentrated topics").
+function computeHighlights(
+  vertical: 'beauty' | 'fashion',
+  summary: BrandSummary[],
+  cats: CategoryRow[],
+  gaps: GapRow[],
+  sourceCounts: Map<string, Map<string, number>>,
+  authorityThreshold: number,
+): string[] {
+  const f = (n: number) => Math.round(n).toLocaleString('en-IN');
+  const out: string[] = [];
+  const nyk = summary.find((s) => s.brand === PRIMARY);
+  if (!nyk) return out;
+  const comps = summary.filter((s) => s.brand !== PRIMARY);
+  const V = vertical;
+
+  // 1) Topic footprint vs the biggest competitor by topic count.
+  const byTopics = [...comps].sort((a, b) => b.topicsInVertical - a.topicsInVertical)[0];
+  if (byTopics) {
+    out.push(
+      `Nykaa ranks for ${f(nyk.topicsInVertical)} ${V} topics — vs ${cap(byTopics.brand)}'s ${f(byTopics.topicsInVertical)}. ` +
+      `Total ${V} mentions: Nykaa ${f(nyk.totalMentions)} vs ${cap(byTopics.brand)} ${f(byTopics.totalMentions)}; ` +
+      `total search volume Nykaa ${f(nyk.totalVolume)} vs ${f(byTopics.totalVolume)}.`,
+    );
+  }
+
+  // 2) The key avg-visibility explainer — artifact vs genuine gap.
+  const ahead = comps.filter((c) => c.avgVisibility > nyk.avgVisibility)
+    .sort((a, b) => b.avgVisibility - a.avgVisibility);
+  for (const c of ahead.slice(0, 2)) {
+    const wider = nyk.topicsInVertical >= c.topicsInVertical * 1.5;
+    const moreMentions = nyk.totalMentions > c.totalMentions;
+    if (wider && moreMentions) {
+      const x = (nyk.topicsInVertical / Math.max(c.topicsInVertical, 1)).toFixed(0);
+      const y = (nyk.totalMentions / Math.max(c.totalMentions, 1)).toFixed(0);
+      out.push(
+        `${cap(c.brand)}'s average visibility (${c.avgVisibility}) edges Nykaa's (${nyk.avgVisibility}), but that's a coverage effect, not strength: ` +
+        `${cap(c.brand)} ranks for only ${f(c.topicsInVertical)} ${V} topics — a concentrated set of high performers — while Nykaa spans ${f(nyk.topicsInVertical)} topics (~${x}× wider), including a long tail of low-visibility topics that drags the average down. ` +
+        `On absolute mentions Nykaa leads ${f(nyk.totalMentions)} vs ${f(c.totalMentions)} (~${y}×).`,
+      );
+    } else {
+      out.push(
+        `${cap(c.brand)} leads on average visibility (${c.avgVisibility} vs Nykaa's ${nyk.avgVisibility}) across ${f(c.topicsInVertical)} ${V} topics vs Nykaa's ${f(nyk.topicsInVertical)} — a genuine visibility gap to close, not just an averaging effect.`,
+      );
+    }
+  }
+
+  // 3) Authority (topics at/above the high-visibility bar).
+  const compAuth = Math.max(0, ...comps.map((c) => c.topicsAuthority));
+  out.push(
+    `Nykaa holds ${f(nyk.topicsAuthority)} ${V} topics at ≥${authorityThreshold} visibility (strong AI authority) vs the top competitor's ${f(compAuth)}.`,
+  );
+
+  // 4) Category leadership.
+  const led = cats.filter((c) => c.leader.toLowerCase() === PRIMARY).length;
+  const trailing = cats.filter((c) => c.leader.toLowerCase() !== PRIMARY);
+  let catLine = `Nykaa leads ${led} of ${cats.length} ${V} categories by mentions`;
+  if (trailing.length) catLine += `; watch ${trailing.map((t) => `${t.category} (${t.leader})`).join(', ')}.`;
+  else catLine += '.';
+  out.push(catLine);
+
+  // 5) Gaps.
+  if (gaps.length) {
+    const high = gaps.filter((g) => g.priority === 'High').length;
+    const totalVol = gaps.reduce((s, g) => s + g.volume, 0);
+    out.push(
+      `${gaps.length} actionable ${V} gaps where Nykaa = 0 visibility but competitors rank (${high} high-priority), led by “${gaps[0].topic}” (${f(gaps[0].volume)} monthly searches). Total addressable gap volume ≈ ${f(totalVol)}.`,
+    );
+  }
+
+  // 6) Cited-source forward risk.
+  if (sourceCounts.size > 1) {
+    const total = (b: string) => [...(sourceCounts.get(b)?.values() ?? [])].reduce((a, c) => a + c, 0);
+    const np = total(PRIMARY);
+    const rival = COMPETITORS
+      .map((b) => ({ b, n: total(b) }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n)[0];
+    if (np > 0 && rival && rival.n > np) {
+      out.push(
+        `${cap(rival.b)} has ${f(rival.n)} AI-cited pages vs Nykaa's ${f(np)} — more indexed pages compounds into more mentions over time, so closing the cited-page gap is the forward-looking lever.`,
+      );
+    }
+  }
+
+  return out;
+}
+
+// Plain-English definitions for every term/heading in the report.
+export const GLOSSARY: { term: string; def: string }[] = [
+  { term: 'Topic / Prompt Theme', def: 'A cluster of related questions people ask AI assistants (e.g. “Lip Gloss”, “Face Sunscreen”). SEMrush groups prompts into topics; this is the unit everything is measured on.' },
+  { term: 'Topics in their 1K', def: "SEMrush auto-surfaces the top 1,000 topics where a brand has any AI visibility. This counts how many of those are in this vertical (beauty/fashion) after noise is removed. We don't choose them — SEMrush ranks them by score and exports the top 1,000." },
+  { term: 'AI Visibility (score 0–100)', def: 'How prominently a brand appears in AI answers for a topic. 100 = almost always shown; low = rarely shown. “Avg AI visibility” averages this across a brand’s topics.' },
+  { term: 'Mentions', def: 'The number of times AI answers reference (mention) the brand when topics are queried. Totals sum across all of the brand’s topics in this vertical.' },
+  { term: 'Search Volume', def: 'Monthly search demand for a topic (from SEMrush). High volume = more people asking, so the topic matters more.' },
+  { term: 'Topics ≥ 80 / ≥ 60 visibility', def: 'Count of topics where the brand scores at or above that visibility bar — i.e. topics the brand genuinely “owns” in AI answers. (Beauty uses ≥80, Fashion ≥60.)' },
+  { term: 'Category Scorecard', def: 'Nykaa’s topics rolled up by product category (Skincare, Lips, …) with how many topics, average visibility, average mentions, total search volume, and which brand currently leads that category by mentions.' },
+  { term: 'Leader / Signal', def: 'The brand with the most mentions in that category. “✓ Nykaa leads” = Nykaa is on top; “→ watch <brand>” = a competitor leads there.' },
+  { term: 'Topics to Protect', def: 'Nykaa’s highest-search-volume topics and their status, so you can watch the ones that matter most. Protect = visibility ≥60, Monitor = 44–59, Improve = below that on a high-volume topic.' },
+  { term: 'Gap Analysis (Nykaa = 0)', def: 'Topics where Nykaa has zero AI visibility but competitors are being mentioned. The numbers under each competitor are their mentions for that topic — i.e. the visibility Nykaa is missing.' },
+  { term: 'Priority (High / Medium / Low)', def: 'How worth-it a gap is. High = big search volume (>25K) with real competitor presence; Medium = mid volume; Low = small. Tackle High first.' },
+  { term: 'Brand Comparison', def: 'Total AI mentions per category for each brand, computed from each brand’s own 1,000 topics. The leader in each row is bolded.' },
+  { term: 'Cited-Source Mix', def: 'The page types AI engines actually cite for a brand (homepage, blog, product page, junk, …). Healthy = low homepage share and high blog/PDP share; lots of homepage-only citations means AI knows the brand but not its content.' },
+  { term: 'Source Domains', def: 'Distinct websites AI cites when answering about a brand (e.g. youtube.com, reddit.com, the brand’s own site).' },
+  { term: 'Source URLs / Cited Pages', def: 'The individual web pages AI cites. More high-quality cited pages now tends to mean more mentions later.' },
+  { term: 'Noise / Review queue', def: 'Topics that aren’t about this vertical’s products — corporate/IPO/careers, coupons, marketplace, other-vertical items, or generic brand names. These are excluded from totals. The review queue lists topics the rules couldn’t confidently place.' },
+];
 
 function statusFor(vis: number, protectThreshold: number): string {
   if (vis >= protectThreshold) return '✓ Protect - high vis';

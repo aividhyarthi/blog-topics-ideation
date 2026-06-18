@@ -5,6 +5,7 @@ import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { parseFile, type ParsedFile } from '../../lib/wbr/parse';
 import { buildReport } from '../../lib/wbr/report';
+import { GLOSSARY } from '../../lib/wbr/report';
 import { classifyTopic, BEAUTY_CATEGORIES, FASHION_CATEGORIES, type Vertical } from '../../lib/wbr/categorize';
 
 export const prerender = false;
@@ -85,6 +86,7 @@ export const POST: APIRoute = async ({ request }) => {
     const report = buildReport(parsed, { vertical, overrides });
     return json({
       report,
+      glossary: GLOSSARY,
       meta: {
         filesParsed: parsed.map((f) => ({ name: f.fileName, brand: f.brand, type: f.type, rows: f.topics?.length ?? f.sources?.length ?? 0 })),
         claudeClassified: claudeCount,

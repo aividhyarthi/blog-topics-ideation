@@ -58,6 +58,7 @@ drop.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
 
 // ---- generate ----
 let lastReport = null;
+let lastGlossary = [];
 let lastLabel = '';
 
 $('genBtn').addEventListener('click', async () => {
@@ -78,6 +79,7 @@ $('genBtn').addEventListener('click', async () => {
     if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
 
     lastReport = data.report;
+    lastGlossary = data.glossary || [];
     lastLabel = $('reportLabel').value.trim() ||
       `Nykaa ${cap(data.report.vertical)} · AI Visibility`;
     renderReport(data.report, data.meta);
@@ -132,6 +134,12 @@ function renderReport(rep, meta) {
       <div class="kpi"><div class="v">${fmt(rep.vertical === 'beauty' ? p.topics80 : p.topics60)}</div><div class="l">Topics ≥ ${rep.vertical === 'beauty' ? 80 : 60} vis</div></div>
       <div class="kpi"><div class="v">${fmt(rep.gaps.length)}</div><div class="l">Actionable gaps</div></div>
     </div>`);
+  }
+
+  // Key highlights (auto-written, data-derived narrative)
+  if (rep.highlights && rep.highlights.length) {
+    out.push(`<div class="sec highlights"><h3>Key Highlights — what the numbers say</h3>
+      <ul class="hl">${rep.highlights.map((h) => `<li>${h}</li>`).join('')}</ul></div>`);
   }
 
   // Summary scorecard
@@ -205,6 +213,14 @@ function renderReport(rep, meta) {
       ${tbl(['Topic', 'Assigned bucket'], rep.reviewQueue.map((q) => [q.topic, q.category]))}</details>`);
   }
 
+  // Glossary — define every heading/term
+  if (lastGlossary.length) {
+    out.push(`<details class="review sec" open><summary>📖 What these terms mean</summary>
+      <div class="tw" style="margin-top:8px"><table><tbody>${
+        lastGlossary.map((g2) => `<tr><td style="font-weight:600;white-space:normal">${g2.term}</td><td style="white-space:normal;color:var(--muted)">${g2.def}</td></tr>`).join('')
+      }</tbody></table></div></details>`);
+  }
+
   $('report').innerHTML = out.join('');
 }
 
@@ -224,6 +240,8 @@ $('xlsxBtn').addEventListener('click', () => {
   const wb = XLSX.utils.book_new();
   const add = (name, aoa) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name.slice(0, 31));
 
+  if (rep.highlights && rep.highlights.length)
+    add('Highlights', [['Key highlights — what the numbers say'], ...rep.highlights.map((h) => [h])]);
   add('Summary', [
     ['Metric', ...B],
     ['Topics in their 1K', ...brands.map((b) => g(rep, b).topicsInVertical)],
@@ -258,6 +276,9 @@ $('xlsxBtn').addEventListener('click', () => {
   }
   if (rep.reviewQueue.length) {
     add('Review Queue', [['Topic', 'Assigned bucket'], ...rep.reviewQueue.map((q) => [q.topic, q.category])]);
+  }
+  if (lastGlossary.length) {
+    add('Glossary', [['Term', 'Definition'], ...lastGlossary.map((g2) => [g2.term, g2.def])]);
   }
   const fname = (lastLabel || 'WBR').replace(/[^a-z0-9]+/gi, '_') + '.xlsx';
   XLSX.writeFile(wb, fname);
