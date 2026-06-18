@@ -122,7 +122,7 @@ $('genBtn').addEventListener('click', async () => {
       lastTrends = data.trends || null;
       lastGlossary = data.glossary || [];
       lastLabel = $('reportLabel').value.trim() || `Nykaa ${cap(data.report.vertical)} · AI Visibility`;
-      renderReport(data.report, data.meta);
+      renderReport(data.report, data.meta); // -> #reportSemrush
 
       const m = data.meta;
       notes.push(`Parsed ${m.filesParsed.length} files for week ${m.weekKey}.`);
@@ -131,13 +131,18 @@ $('genBtn').addEventListener('click', async () => {
       if (m.historyError) notes.push(`⚠ History not saved: ${m.historyError}`);
       if ($('useClaude').checked) notes.push(m.claudeAvailable ? `Claude classified ${m.claudeClassified} leftover topics.` : 'Claude fallback requested but no API key configured — used rules only.');
     } else {
-      // Tracker-only view
       lastReport = null; lastTrends = null;
-      lastLabel = $('reportLabel').value.trim() || `Nykaa ${cap(vertical)} · Weekly Theme Tracking`;
-      $('rTitle').textContent = lastLabel;
-      $('report').innerHTML = lastTracking ? renderTracking(lastTracking) : '<p class="sub">Nothing to show.</p>';
+      lastLabel = $('reportLabel').value.trim() || `Nykaa ${cap(vertical)} · Weekly Tracking`;
+      $('reportSemrush').innerHTML = '<p class="sub">No SEMrush CSVs uploaded — add the brand_topics / gap_topics / sources exports to see the snapshot report.</p>';
     }
 
+    // Weekly Tracking pane (separate tab)
+    $('reportTracking').innerHTML = lastTracking
+      ? renderTracking(lastTracking)
+      : '<p class="sub">No master tracker uploaded — add your tracker .xlsx to see Weekly Theme Tracking.</p>';
+
+    $('rTitle').textContent = lastLabel;
+    setupTabs();
     $('results').style.display = 'block';
     $('results').scrollIntoView({ behavior: 'smooth' });
     info.textContent = notes.join(' '); info.style.display = 'block';
@@ -191,9 +196,6 @@ function renderReport(rep, meta) {
 
   // Week-over-week trends
   if (lastTrends) out.push(renderTrends(lastTrends));
-
-  // Weekly theme tracking (from the uploaded master tracker)
-  if (lastTracking) out.push(renderTracking(lastTracking));
 
   // Summary scorecard
   out.push(section('Summary — AI Visibility at a Glance', 'One row per brand, this vertical only (noise excluded).',
@@ -274,8 +276,27 @@ function renderReport(rep, meta) {
       }</tbody></table></div></details>`);
   }
 
-  $('report').innerHTML = out.join('');
+  $('reportSemrush').innerHTML = out.join('');
 }
+
+// ---- tabs ----
+function setupTabs() {
+  $('tabSemrush').disabled = !lastReport;
+  $('tabTracking').disabled = !lastTracking;
+  // Default to whichever exists (prefer SEMrush report).
+  activateTab(lastReport ? 'semrush' : 'tracking');
+}
+function activateTab(which) {
+  const isSem = which === 'semrush';
+  $('tabSemrush').classList.toggle('active', isSem);
+  $('tabTracking').classList.toggle('active', !isSem);
+  $('reportSemrush').style.display = isSem ? 'block' : 'none';
+  $('reportTracking').style.display = isSem ? 'none' : 'block';
+  $('actSemrush').style.display = isSem ? 'flex' : 'none';
+  $('actTracking').style.display = isSem ? 'none' : 'flex';
+}
+$('tabSemrush').addEventListener('click', () => { if (lastReport) activateTab('semrush'); });
+$('tabTracking').addEventListener('click', () => { if (lastTracking) activateTab('tracking'); });
 
 function section(title, sub, table) {
   return `<div class="sec"><h3>${title}</h3><p class="sub">${sub}</p>${table}</div>`;
@@ -492,30 +513,38 @@ function g(rep, brand) {
 }
 
 // ---- exports ----
+// Print: the inactive tab pane is display:none, so window.print() captures only
+// the active tab — giving a per-tab PDF.
 $('pdfBtn').addEventListener('click', () => window.print());
+$('pdfTrackBtn').addEventListener('click', () => window.print());
 
+function saveWb(wb, suffix) {
+  const fname = (lastLabel || 'WBR').replace(/[^a-z0-9]+/gi, '_') + suffix + '.xlsx';
+  XLSX.writeFile(wb, fname); toast('Excel downloaded');
+}
+
+// Weekly Tracking tab -> its own workbook
+$('xlsxTrackBtn').addEventListener('click', () => {
+  if (!lastTracking || !window.XLSX) return;
+  const t = lastTracking;
+  const wb = XLSX.utils.book_new();
+  const head = ['Prompt Theme'];
+  t.weeks.forEach((w) => head.push(`${w} Mentions`, `${w} Src Domains`, `${w} Src URLs`));
+  const aoa = [head, ...t.themes.map((th) => {
+    const row = [th.theme];
+    th.series.forEach((s) => row.push(s.mentions ?? '', s.sd ?? '', s.su ?? ''));
+    return row;
+  })];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Weekly Theme Tracking');
+  saveWb(wb, '_Tracking');
+});
+
+// SEMrush Report tab -> its own workbook
 $('xlsxBtn').addEventListener('click', () => {
-  if ((!lastReport && !lastTracking) || !window.XLSX) return;
+  if (!lastReport || !window.XLSX) return;
+  const rep = lastReport, brands = rep.brandsPresent, B = brands.map(cap);
   const wb = XLSX.utils.book_new();
   const add = (name, aoa) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name.slice(0, 31));
-
-  if (lastTracking) {
-    const t = lastTracking, L = t.weeks.length - 1;
-    const head = ['Prompt Theme'];
-    t.weeks.forEach((w) => head.push(`${w} Mentions`, `${w} Src Domains`, `${w} Src URLs`));
-    add('Weekly Theme Tracking', [head, ...t.themes.map((th) => {
-      const row = [th.theme];
-      th.series.forEach((s) => row.push(s.mentions ?? '', s.sd ?? '', s.su ?? ''));
-      return row;
-    })]);
-  }
-
-  if (!lastReport) {
-    const fname = (lastLabel || 'WBR').replace(/[^a-z0-9]+/gi, '_') + '.xlsx';
-    XLSX.writeFile(wb, fname); toast('Excel downloaded'); return;
-  }
-
-  const rep = lastReport, brands = rep.brandsPresent, B = brands.map(cap);
 
   if (rep.highlights && rep.highlights.length)
     add('Highlights', [['Key highlights — what the numbers say'], ...rep.highlights.map((h) => [h])]);
@@ -568,9 +597,7 @@ $('xlsxBtn').addEventListener('click', () => {
   if (lastGlossary.length) {
     add('Glossary', [['Term', 'Definition'], ...lastGlossary.map((g2) => [g2.term, g2.def])]);
   }
-  const fname = (lastLabel || 'WBR').replace(/[^a-z0-9]+/gi, '_') + '.xlsx';
-  XLSX.writeFile(wb, fname);
-  toast('Excel downloaded');
+  saveWb(wb, '_Report');
 });
 
 function toast(msg) {
