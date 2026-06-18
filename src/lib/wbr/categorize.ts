@@ -118,6 +118,7 @@ const BEAUTY_RULES: Rule[] = [
       'blusher', 'highlighter', 'bronzer', 'contour', 'primer', 'bb cream',
       'cc cream', 'face makeup', 'makeup base', 'tinted moisturizer',
       'setting spray', 'makeup fixer', 'face tint', 'cheek tint',
+      'sindoor', 'kumkum',
     ],
   },
   {
@@ -134,7 +135,7 @@ const BEAUTY_RULES: Rule[] = [
       'perfume', 'perfumes', 'fragrance', 'fragrances', 'attar', 'ittar',
       'deodorant', 'deo', 'body mist', 'body spray', 'eau de parfum',
       'eau de toilette', 'edp', 'edt', 'cologne', 'musk', 'oud', 'scent',
-      'roll on', 'roll-on',
+      'roll on', 'roll-on', 'parfum', 'parfums', 'eau de', 'body perfume',
     ],
   },
   {
@@ -146,6 +147,8 @@ const BEAUTY_RULES: Rule[] = [
       'dandruff', 'hair fall', 'hair growth', 'scalp', 'keratin',
       'hair straightener', 'hair dryer', 'hair curler', 'hairband',
       'hair clip', 'hair accessories', 'wig', 'hair treatment',
+      'haircare', 'hairfall', 'minoxidil', 'hair mousse', 'hair wax',
+      'anti-dandruff', 'hair pack',
     ],
   },
   {
@@ -153,9 +156,11 @@ const BEAUTY_RULES: Rule[] = [
     keywords: [
       'body lotion', 'body wash', 'body care', 'body butter', 'body scrub',
       'body oil', 'hand cream', 'hand wash', 'foot cream', 'shower gel',
-      'bath', 'soap', 'talc', 'talcum', 'moisturizing lotion',
+      'bath', 'soap', 'talc', 'talcum', 'moisturizing lotion', 'body cream',
       'intimate wash', 'wax strips', 'hair removal', 'razor', 'shaving',
-      'deodorant stick',
+      'deodorant stick', 'shower', 'wax', 'waxing', 'scrub', 'sanitary',
+      'sanitary pad', 'panty liner', 'period panties', 'feminine hygiene',
+      'intimate hygiene', 'toilet hygiene', 'wipes', 'menstrual cup', 'sindoor',
     ],
   },
   {
@@ -170,6 +175,9 @@ const BEAUTY_RULES: Rule[] = [
       'anti aging', 'anti-aging', 'anti ageing', 'dark spot', 'pigmentation',
       'face toner', 'micellar', 'cleansing', 'derma', 'dermatologist',
       'aloe vera', 'rosewater', 'rose water', 'ubtan', 'facial',
+      'cream', 'face pack', 'face packs', 'whitening', 'fairness',
+      'tan', 'de-tan', 'detan', 'face wipes', 'face cleanser', 'glow',
+      'vitamin e', 'collagen', 'ceramide', 'cica', 'clay mask', 'bleach',
     ],
   },
   {
@@ -279,6 +287,18 @@ export const BEAUTY_BRAND_NAMES: string[] = [
   "victoria's secret", 'fae beauty', 'lotus herbals', 'boroplus', 'vlcc',
   'kama ayurveda', 'cosrx', 'the inkey list', 'good vibes', 'wishcare',
   'sugar cosmetics', 'sesa', 'capilia longa', 'goree',
+  // batch 2 — more beauty / personal-care brands
+  'bioderma', 'banila co', 'charlotte tilbury', "l'occitane", 'loccitane',
+  'dermalogica', 'vaseline', 'dove', 'oshea', "o'shea", 'soulflower', 'khadi',
+  'aroma magic', 'astaberry', 'blue heaven', 'mars by ghc', 'carolina herrera',
+  'chanel', 'kaya', 'pee safe', 'bella', 'happy herbs', 'urban botanics',
+  'mymuse', 'nabhi sutra', 'ozone', 'glamour world', 'raga', 'biosoft',
+  'sebastian', 'revlon', 'elle 18', 'nyx', 'rimmel', 'makeup revolution',
+  'juicy chemistry', 'earth rhythm', 'bvlgari', 'versace', 'davidoff',
+  'calvin klein', 'gucci', 'ysl', 'lancome', 'clarins', 'la opale', 'ramsons',
+  'mcaffeine', 'm caffeine', 'qraa', 'wild stone', 'park avenue', 'engage',
+  'fogg', 'denver', 'set wet', 'plum goodness', 'redken', 'bobbi brown',
+  'organic harvest', 'bobbi', 'mac', 'estee', 'forest essentials',
 ];
 
 const BEAUTY_BRAND_RULE: Rule = {
