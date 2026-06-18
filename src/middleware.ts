@@ -25,7 +25,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
   return new Response('Authentication required.', {
     status: 401,
     headers: {
-      'WWW-Authenticate': 'Basic realm="Nykaa WBR — internal", charset="UTF-8"',
+      // NOTE: header values must be Latin-1 (ASCII-safe) — no em-dash / fancy
+      // punctuation here, or Node throws a ByteString error (HTTP 500).
+      'WWW-Authenticate': 'Basic realm="Nykaa WBR internal", charset="UTF-8"',
     },
   });
 });
