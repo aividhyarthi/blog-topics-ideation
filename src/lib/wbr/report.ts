@@ -12,7 +12,20 @@ import {
 import type { ParsedFile, TopicRow } from './parse';
 
 export const PRIMARY = 'nykaa';
-export const COMPETITORS = ['amazon', 'myntra', 'tira', 'flipkart'];
+// Preferred display order for known competitors. Any other brand actually found
+// in the uploaded files is still included (see deriveCompetitors) so nothing is
+// silently dropped — e.g. Ajio exports.
+export const COMPETITORS = ['amazon', 'myntra', 'tira', 'flipkart', 'ajio'];
+
+// Competitors to report on = every non-primary brand present in the uploads,
+// ordered by the preference list above, then any extras alphabetically.
+function deriveCompetitors(...sources: Map<string, unknown>[]): string[] {
+  const present = new Set<string>();
+  for (const m of sources) for (const b of m.keys()) if (b && b !== PRIMARY) present.add(b);
+  const known = COMPETITORS.filter((b) => present.has(b));
+  const extras = [...present].filter((b) => !COMPETITORS.includes(b)).sort();
+  return [...known, ...extras];
+}
 
 export interface ReportOptions {
   vertical: 'beauty' | 'fashion';
@@ -168,7 +181,8 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
     }
   }
 
-  const brandOrder = [PRIMARY, ...COMPETITORS].filter((b) => brandTopics.has(b) || sourceFiles.has(b));
+  const competitors = deriveCompetitors(brandTopics, sourceFiles, gapFiles);
+  const brandOrder = [PRIMARY, ...competitors].filter((b) => brandTopics.has(b) || sourceFiles.has(b));
 
   // ---- Section: Summary scorecard ----
   const summary: BrandSummary[] = brandOrder
@@ -192,7 +206,7 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
       const n = inCat.length;
       // leader = brand with most mentions in this category
       let leader = PRIMARY; let leaderM = perBrandCatMentions.get(PRIMARY)?.get(cat) ?? 0;
-      for (const b of COMPETITORS) {
+      for (const b of competitors) {
         const m = perBrandCatMentions.get(b)?.get(cat) ?? 0;
         if (m > leaderM) { leaderM = m; leader = b; }
       }
@@ -290,7 +304,7 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
     .map((t) => ({ brand: PRIMARY, topic: t.name, category: t.category }));
 
   const highlights = computeHighlights(
-    vertical, summary, categoryScorecard, gaps, sourceCounts, authorityThreshold,
+    vertical, summary, categoryScorecard, gaps, sourceCounts, authorityThreshold, competitors,
   );
 
   return {
@@ -320,6 +334,7 @@ function computeHighlights(
   gaps: GapRow[],
   sourceCounts: Map<string, Map<string, number>>,
   authorityThreshold: number,
+  competitors: string[],
 ): string[] {
   const f = (n: number) => Math.round(n).toLocaleString('en-IN');
   const out: string[] = [];
@@ -386,7 +401,7 @@ function computeHighlights(
   if (sourceCounts.size > 1) {
     const total = (b: string) => [...(sourceCounts.get(b)?.values() ?? [])].reduce((a, c) => a + c, 0);
     const np = total(PRIMARY);
-    const rival = COMPETITORS
+    const rival = competitors
       .map((b) => ({ b, n: total(b) }))
       .filter((x) => x.n > 0)
       .sort((a, b) => b.n - a.n)[0];

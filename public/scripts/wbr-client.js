@@ -5,9 +5,13 @@ const files = new Map(); // name -> File (SEMrush CSVs)
 let trackerFile = null;  // optional master tracker .xlsx
 let lastTracking = null; // parsed tracker data
 
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('en-IN') : n ?? '-');
-const r1 = (n) => (typeof n === 'number' ? n.toFixed(1) : n ?? '-');
+// Escape any value that originates from an uploaded file before it goes into
+// innerHTML, so a crafted topic/theme/brand name can't inject markup/script.
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const cap = (s) => (s ? esc(s.charAt(0).toUpperCase() + s.slice(1)) : esc(s));
+const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('en-IN') : esc(n ?? '-'));
+const r1 = (n) => (typeof n === 'number' ? n.toFixed(1) : esc(n ?? '-'));
 
 function detect(name) {
   const l = name.toLowerCase();
@@ -31,7 +35,7 @@ function renderFileList() {
     const div = document.createElement('div');
     div.className = 'fileitem';
     div.innerHTML = `<span class="b">Master tracker</span><span class="tag">xlsx · weekly tracking</span>
-      <span style="color:var(--muted)">${trackerFile.name}</span>
+      <span style="color:var(--muted)">${esc(trackerFile.name)}</span>
       <span style="margin-left:auto;color:var(--muted)">${(trackerFile.size / 1024).toFixed(0)} KB</span>
       <button class="ghost" data-rmtracker="1" style="padding:3px 9px">✕</button>`;
     el.appendChild(div);
@@ -42,10 +46,10 @@ function renderFileList() {
     div.className = 'fileitem';
     const warn = type === 'unknown' ? ' warn' : '';
     div.innerHTML = `<span class="b">${cap(brand)}</span>
-      <span class="tag${warn}">${type}</span>
-      <span style="color:var(--muted)">${name}</span>
+      <span class="tag${warn}">${esc(type)}</span>
+      <span style="color:var(--muted)">${esc(name)}</span>
       <span style="margin-left:auto;color:var(--muted)">${(f.size / 1024).toFixed(0)} KB</span>
-      <button class="ghost" data-rm="${name}" style="padding:3px 9px">✕</button>`;
+      <button class="ghost" data-rm="${esc(name)}" style="padding:3px 9px">✕</button>`;
     el.appendChild(div);
   }
   el.querySelectorAll('[data-rm]').forEach((b) =>
@@ -191,7 +195,7 @@ function renderReport(rep, meta) {
   // Key highlights (auto-written, data-derived narrative)
   if (rep.highlights && rep.highlights.length) {
     out.push(`<div class="sec highlights"><h3>Key Highlights — what the numbers say</h3>
-      <ul class="hl">${rep.highlights.map((h) => `<li>${h}</li>`).join('')}</ul></div>`);
+      <ul class="hl">${rep.highlights.map((h) => `<li>${esc(h)}</li>`).join('')}</ul></div>`);
   }
 
   // Week-over-week trends
@@ -214,8 +218,8 @@ function renderReport(rep, meta) {
   out.push(section('Section A — Category Scorecard', 'How many topics Nykaa owns per category, with the current category leader.',
     tbl(['Category', 'Topics', 'Avg vis', 'Avg mentions', 'Search volume', 'Signal'],
       rep.categoryScorecard.map((c) => {
-        const row = [c.category, fmt(c.topics), r1(c.avgVisibility), r1(c.avgMentions), fmt(c.totalVolume),
-          `<span class="${statusClass(c.signal)}">${c.signal}</span>`];
+        const row = [esc(c.category), fmt(c.topics), r1(c.avgVisibility), r1(c.avgMentions), fmt(c.totalVolume),
+          `<span class="${statusClass(c.signal)}">${esc(c.signal)}</span>`];
         return row;
       }),
       { numCols: [1, 2, 3, 4] })));
@@ -223,8 +227,8 @@ function renderReport(rep, meta) {
   // Protect
   out.push(section('Section B — Top Topics to Protect', 'Highest-volume Nykaa topics and their current status.',
     tbl(['Category', 'Topic', 'Visibility', 'Mentions', 'Search volume', 'Status'],
-      rep.protect.map((t) => [t.category, t.topic, fmt(t.visibility), fmt(t.mentions), fmt(t.volume),
-        `<span class="${statusClass(t.status)}">${t.status}</span>`]),
+      rep.protect.map((t) => [esc(t.category), esc(t.topic), fmt(t.visibility), fmt(t.mentions), fmt(t.volume),
+        `<span class="${statusClass(t.status)}">${esc(t.status)}</span>`]),
       { numCols: [2, 3, 4] })));
 
   // Gaps
@@ -233,7 +237,7 @@ function renderReport(rep, meta) {
   out.push(section('Section C — Gap Analysis', 'Topics where Nykaa = 0 visibility but competitors rank. Numbers = competitor AI mentions.',
     tbl(['Priority', 'Category', 'Topic (Nykaa = 0)', ...compBrands.map(cap), 'Search volume'],
       rep.gaps.map((gp) => [
-        `<span class="prio-${gp.priority}">${gp.priority}</span>`, gp.category, gp.topic,
+        `<span class="prio-${gp.priority}">${esc(gp.priority)}</span>`, esc(gp.category), esc(gp.topic),
         ...compBrands.map((b) => fmt(gp.competitors[cap(b)] ?? 0)), fmt(gp.volume),
       ]),
       { numCols: [...compBrands.map((_, i) => i + 3), compBrands.length + 3] })));
@@ -243,7 +247,7 @@ function renderReport(rep, meta) {
     tbl(['Category', ...brands.map(cap)],
       rep.brandComparison.map((bc) => {
         const max = Math.max(...brands.map((b) => bc.mentions[b] ?? 0));
-        const row = [bc.category, ...brands.map((b) => {
+        const row = [esc(bc.category), ...brands.map((b) => {
           const v = bc.mentions[b];
           const lead = v !== undefined && v === max && max > 0;
           return lead ? `<strong>${fmt(v ?? 0)}</strong>` : fmt(v ?? 0);
@@ -257,7 +261,7 @@ function renderReport(rep, meta) {
     const sBrands = brands.filter((b) => rep.sourceAnalysis.some((s) => s.count[b] !== undefined));
     out.push(section('Cited-Source Mix', 'Page types AI engines cite, per brand (from the sources export). Healthy = low homepage share, high blog/PDP.',
       tbl(['Page type', ...sBrands.map(cap)],
-        rep.sourceAnalysis.map((s) => [s.pageType, ...sBrands.map((b) => fmt(s.count[b] ?? 0))]),
+        rep.sourceAnalysis.map((s) => [esc(s.pageType), ...sBrands.map((b) => fmt(s.count[b] ?? 0))]),
         { numCols: sBrands.map((_, i) => i + 1) })));
   }
 
@@ -265,7 +269,7 @@ function renderReport(rep, meta) {
   if (rep.reviewQueue.length) {
     out.push(`<details class="review sec"><summary>⚠ Review queue — ${rep.reviewQueue.length} topics the rules couldn't confidently categorize</summary>
       <p class="sub" style="margin-top:8px">These were treated as noise (excluded from totals). Turn on the Claude fallback or refine the keyword dictionary to recover the beauty/fashion ones.</p>
-      ${tbl(['Topic', 'Assigned bucket'], rep.reviewQueue.map((q) => [q.topic, q.category]))}</details>`);
+      ${tbl(['Topic', 'Assigned bucket'], rep.reviewQueue.map((q) => [esc(q.topic), esc(q.category)]))}</details>`);
   }
 
   // Glossary — define every heading/term
@@ -311,11 +315,11 @@ function deltaCell(d, isFloat) {
 
 function renderTrends(t) {
   const parts = [];
-  parts.push(`<div class="sec highlights"><h3>What Changed This Week — vs ${t.prevLabel || t.prevWeekKey}</h3>
-    <ul class="hl">${t.narrative.map((n) => `<li>${n}</li>`).join('')}</ul></div>`);
+  parts.push(`<div class="sec highlights"><h3>What Changed This Week — vs ${esc(t.prevLabel || t.prevWeekKey)}</h3>
+    <ul class="hl">${t.narrative.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></div>`);
 
   // Headline movement
-  parts.push(section('Week-over-Week — Nykaa headline metrics', `This week (${t.currWeekKey}) vs last (${t.prevWeekKey}).`,
+  parts.push(section('Week-over-Week — Nykaa headline metrics', `This week (${esc(t.currWeekKey)}) vs last (${esc(t.prevWeekKey)}).`,
     tbl(['Metric', 'Last week', 'This week', 'Change'],
       t.summaryDeltas.map((d) => {
         const isFloat = d.label.toLowerCase().includes('visibility') && !d.label.includes('Topics');
@@ -327,25 +331,25 @@ function renderTrends(t) {
   if (moved.length) {
     parts.push(section('Week-over-Week — Mentions by category', 'Where Nykaa mentions grew or fell.',
       tbl(['Category', 'Last week', 'This week', 'Change'],
-        moved.map((d) => [d.label, fmt(d.prev), fmt(d.curr), deltaCell(d.delta, false)]),
+        moved.map((d) => [esc(d.label), fmt(d.prev), fmt(d.curr), deltaCell(d.delta, false)]),
         { numCols: [1, 2, 3] })));
   }
 
   // Movers
   if (t.visibilityGainers.length || t.visibilityLosers.length) {
     const rows = [];
-    t.visibilityGainers.forEach((m) => rows.push(['▲ Gainer', m.topic, m.prev, m.curr, deltaCell(m.delta, false)]));
-    t.visibilityLosers.forEach((m) => rows.push(['▼ Loser', m.topic, m.prev, m.curr, deltaCell(m.delta, false)]));
+    t.visibilityGainers.forEach((m) => rows.push(['▲ Gainer', esc(m.topic), m.prev, m.curr, deltaCell(m.delta, false)]));
+    t.visibilityLosers.forEach((m) => rows.push(['▼ Loser', esc(m.topic), m.prev, m.curr, deltaCell(m.delta, false)]));
     parts.push(section('Week-over-Week — Topic visibility movers', 'Topics that gained or lost the most AI visibility.',
       tbl(['Move', 'Topic', 'Last', 'This', 'Change'], rows, { numCols: [2, 3, 4] })));
   }
 
   // Gap & roster changes
   const lists = [];
-  if (t.closedGaps.length) lists.push(`<p class="sub"><strong class="st-ok">Closed gaps (${t.closedGaps.length}):</strong> ${t.closedGaps.slice(0, 20).join(', ')}</p>`);
-  if (t.newGaps.length) lists.push(`<p class="sub"><strong class="st-bad">New gaps (${t.newGaps.length}):</strong> ${t.newGaps.slice(0, 20).join(', ')}</p>`);
-  if (t.newTopics.length) lists.push(`<p class="sub"><strong>New topics this week (${t.newTopics.length}):</strong> ${t.newTopics.slice(0, 20).join(', ')}</p>`);
-  if (t.droppedTopics.length) lists.push(`<p class="sub"><strong>Dropped topics (${t.droppedTopics.length}):</strong> ${t.droppedTopics.slice(0, 20).join(', ')}</p>`);
+  if (t.closedGaps.length) lists.push(`<p class="sub"><strong class="st-ok">Closed gaps (${t.closedGaps.length}):</strong> ${t.closedGaps.slice(0, 20).map(esc).join(', ')}</p>`);
+  if (t.newGaps.length) lists.push(`<p class="sub"><strong class="st-bad">New gaps (${t.newGaps.length}):</strong> ${t.newGaps.slice(0, 20).map(esc).join(', ')}</p>`);
+  if (t.newTopics.length) lists.push(`<p class="sub"><strong>New topics this week (${t.newTopics.length}):</strong> ${t.newTopics.slice(0, 20).map(esc).join(', ')}</p>`);
+  if (t.droppedTopics.length) lists.push(`<p class="sub"><strong>Dropped topics (${t.droppedTopics.length}):</strong> ${t.droppedTopics.slice(0, 20).map(esc).join(', ')}</p>`);
   if (lists.length) parts.push(`<div class="sec"><h3>Week-over-Week — Gap &amp; topic roster changes</h3>${lists.join('')}</div>`);
 
   return parts.join('');
@@ -448,10 +452,10 @@ function renderTracking(t) {
   const down = moved.filter((m) => m.d < 0).sort((a, b) => a.g - b.g);
   parts.push(`<div class="sec highlights"><h3>Weekly Theme Tracking — highlights</h3>
     <ul class="hl">
-      <li>${t.themes.length} themes tracked across ${wk.length} weeks (${wk[0]} → ${wk[wk.length - 1]}). Note: the latest week is filled in progressively, so each theme is compared to its own previous reading.</li>
+      <li>${t.themes.length} themes tracked across ${wk.length} weeks (${esc(wk[0])} → ${esc(wk[wk.length - 1])}). Note: the latest week is filled in progressively, so each theme is compared to its own previous reading.</li>
       <li>Week-over-week (per theme): ${up.length} themes up, ${down.length} down.</li>
-      ${up[0] ? `<li>Top gainer: “${up[0].theme}” ${pctSpan(up[0].g)} mentions.</li>` : ''}
-      ${down[0] ? `<li>Biggest decline: “${down[0].theme}” ${pctSpan(down[0].g)} mentions — check this.</li>` : ''}
+      ${up[0] ? `<li>Top gainer: “${esc(up[0].theme)}” ${pctSpan(up[0].g)} mentions.</li>` : ''}
+      ${down[0] ? `<li>Biggest decline: “${esc(down[0].theme)}” ${pctSpan(down[0].g)} mentions — check this.</li>` : ''}
     </ul></div>`);
 
   // Totals-by-week table (exposes how complete each week is).
@@ -459,7 +463,7 @@ function renderTracking(t) {
     const withData = t.themes.filter((th) => th.series[i].mentions !== null).length;
     const totM = t.themes.reduce((s, th) => s + (th.series[i].mentions ?? 0), 0);
     const totSU = t.themes.reduce((s, th) => s + (th.series[i].su ?? 0), 0);
-    return [w, fmt(withData), fmt(totM), fmt(totSU)];
+    return [esc(w), fmt(withData), fmt(totM), fmt(totSU)];
   });
   parts.push(section('Weekly Theme Tracking — totals by week',
     'Total mentions and cited Source URLs per week. “Themes with data” shows how many themes were measured that week (the newest week is usually still being filled in).',
@@ -471,9 +475,9 @@ function renderTracking(t) {
     .map((e) => {
       const wow = (k) => (e.prev && e.last[k] !== null && e.prev[k] !== null) ? deltaCell(e.last[k] - e.prev[k], false) : '<span class="sub">—</span>';
       const span = e.first ? growth(e.first.mentions, e.last.mentions) : null;
-      return [e.theme, e.asOf, fmt(e.last.mentions ?? 0), wow('mentions'), fmt(e.last.sd ?? 0), fmt(e.last.su ?? 0), wow('su'), pctSpan(span)];
+      return [esc(e.theme), esc(e.asOf), fmt(e.last.mentions ?? 0), wow('mentions'), fmt(e.last.sd ?? 0), fmt(e.last.su ?? 0), wow('su'), pctSpan(span)];
     });
-  parts.push(section(`Weekly Theme Tracking — by theme (${t.sheetName})`,
+  parts.push(section(`Weekly Theme Tracking — by theme (${esc(t.sheetName)})`,
     'Each theme shown at its latest reading. WoW = vs that theme’s previous reading. Span = first → latest week.',
     tbl(['Prompt Theme', 'As of', 'Mentions', 'WoW', 'Source Domains', 'Source URLs', 'URLs WoW', 'Mentions growth (span)'],
       rows, { numCols: [2, 4, 5] })));
@@ -496,8 +500,8 @@ $('histBtn').addEventListener('click', async () => {
       return;
     }
     panel.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Week</th><th>Label</th><th>Saved</th><th></th></tr></thead><tbody>${
-      data.history.map((h) => `<tr><td>${h.weekKey}</td><td>${h.label || '-'}</td><td>${(h.savedAt || '').slice(0, 10)}</td>
-        <td><button class="ghost" data-del="${h.weekKey}" style="padding:3px 9px">Delete</button></td></tr>`).join('')
+      data.history.map((h) => `<tr><td>${esc(h.weekKey)}</td><td>${esc(h.label || '-')}</td><td>${esc((h.savedAt || '').slice(0, 10))}</td>
+        <td><button class="ghost" data-del="${esc(h.weekKey)}" style="padding:3px 9px">Delete</button></td></tr>`).join('')
     }</tbody></table></div>`;
     panel.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
       if (!confirm(`Delete saved week ${b.dataset.del}?`)) return;
