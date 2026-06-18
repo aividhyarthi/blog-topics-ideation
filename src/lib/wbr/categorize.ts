@@ -19,6 +19,7 @@ export interface Classification {
   vertical: Vertical;
   category: string;
   matched: boolean; // false => fell through to a default bucket, needs review
+  brand?: boolean;  // true => the topic names a known beauty brand
 }
 
 // A rule: if any keyword/phrase matches the lowercased topic name, it's a
@@ -254,7 +255,46 @@ const FASHION_RULES: Rule[] = [
   },
 ];
 
-const ALL_RULES = [...NOISE_RULES, ...BEAUTY_RULES, ...FASHION_RULES];
+// ---- BEAUTY BRANDS ----------------------------------------------------------
+// Known beauty/personal-care brand names. A topic that names one of these is a
+// "Beauty Brand" topic. Used both as a low-priority category (so brand-only
+// topics like "Urban Decay India" count as Beauty instead of noise) and as a
+// flag (isBeautyBrand) so the report can cut a dedicated Beauty Brands view —
+// even for topics that also match a product category (e.g. "Laneige Moisturizers"
+// stays in Skincare but is still flagged as a beauty brand).
+export const BEAUTY_BRAND_NAMES: string[] = [
+  'laneige', 'dot and key', 'dot & key', 'derma co', 'thedermaco', 'foxtale',
+  'cerave', 'aqualogica', 'minimalist', 'mamaearth', 'plum', 'plix', 'pilgrim',
+  'deconstruct', 'dr sheth', 're equil', "re'equil", 'fixderma', 'the ordinary',
+  'urban decay', 'dior', 'nars', 'huda beauty', 'garnier', 'chambor', 'tresemme',
+  'tresemmé', 'wella', 'indus valley', 'bella vita', 'sugar cosmetics', 'sugar pop',
+  'kay beauty', 'mars cosmetics', 'insight cosmetics', 'swiss beauty', 'lakme',
+  'maybelline', "l'oreal", 'loreal', 'clinique', 'estee lauder', 'mac cosmetics',
+  'nivea', 'ponds', "pond's", 'olay', 'neutrogena', 'cetaphil', 'innisfree',
+  'forest essentials', 'kama ayurveda', 'biotique', 'himalaya', 'wow skin',
+  'st botanica', 'colorbar', 'faces canada', 'gush beauty', 'renee', 'typsy beauty',
+  "paula's choice", 'the face shop', 'body shop', 'moroccanoil', 'schwarzkopf',
+  'matrix', 'streax', 'kerastase', 'beardo', 'ustraa', 'the man company',
+  'bombay shaving', 'nat habit', 'kryolan', 'arish', 'iluvia', 'sirona',
+  "victoria's secret", 'fae beauty', 'lotus herbals', 'boroplus', 'vlcc',
+  'kama ayurveda', 'cosrx', 'the inkey list', 'good vibes', 'wishcare',
+  'sugar cosmetics', 'sesa', 'capilia longa', 'goree',
+];
+
+const BEAUTY_BRAND_RULE: Rule = {
+  // Weight below product categories (so "Lakme Lipstick" stays in Lips) but above
+  // the catch-alls and noise-irrelevant, so brand-only topics resolve to Beauty.
+  vertical: 'beauty', category: 'Beauty Brands', weight: 40,
+  keywords: BEAUTY_BRAND_NAMES,
+};
+
+// True if the topic names a known beauty brand (independent of its category).
+export function isBeautyBrand(name: string): boolean {
+  const h = ` ${name.toLowerCase().trim()} `;
+  return BEAUTY_BRAND_NAMES.some((b) => hasKeyword(h, b));
+}
+
+const ALL_RULES = [...NOISE_RULES, ...BEAUTY_RULES, BEAUTY_BRAND_RULE, ...FASHION_RULES];
 
 export interface ClassifyOptions {
   // Which vertical this report is about. Topics that land in the OTHER product
@@ -264,6 +304,7 @@ export interface ClassifyOptions {
 
 export function classifyTopic(name: string, opts: ClassifyOptions): Classification {
   const h = ` ${name.toLowerCase().trim()} `;
+  const brand = BEAUTY_BRAND_NAMES.some((b) => hasKeyword(h, b));
 
   let best: Rule | null = null;
   let bestHits = 0;
@@ -283,24 +324,24 @@ export function classifyTopic(name: string, opts: ClassifyOptions): Classificati
   }
 
   if (!best) {
-    return { vertical: 'noise', category: 'Irrelevant / Other', matched: false };
+    return { vertical: 'noise', category: 'Irrelevant / Other', matched: false, brand };
   }
 
   // Cross-vertical product topics count as noise for THIS report's totals,
   // but we keep the real category label so the UI can show what it was.
   if (best.vertical !== 'noise' && best.vertical !== opts.vertical) {
-    return { vertical: 'noise', category: `${best.category} (other vertical)`, matched: true };
+    return { vertical: 'noise', category: `${best.category} (other vertical)`, matched: true, brand };
   }
 
   // "Other Beauty/Fashion" is a low-confidence catch-all — flag for review.
   const matched = best.weight > 19;
-  return { vertical: best.vertical, category: best.category, matched };
+  return { vertical: best.vertical, category: best.category, matched, brand };
 }
 
 // Ordered category lists for stable report row ordering.
 export const BEAUTY_CATEGORIES = [
   'Skincare', 'Lips', 'Hair Care', 'Fragrance', 'Eye Makeup',
-  'Face Makeup', 'Body Care', 'Nail', 'Other Beauty',
+  'Face Makeup', 'Body Care', 'Nail', 'Beauty Brands', 'Other Beauty',
 ];
 export const FASHION_CATEGORIES = [
   'Indian Wear', 'Western Wear', 'Men Fashion', 'Bags', 'Lingerie',
