@@ -1,0 +1,195 @@
+---
+// AI Visibility Snapshot — the sales wedge. Operator uploads a PROSPECT's
+// SEMrush export, names the brand + vertical, and gets a one-page, prospect-
+// facing "where you're losing in AI search" report to send in outreach or
+// present on a first call. Print-to-PDF gives a clean, brandable leave-behind.
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>AI Visibility Snapshot — CiteRank</title>
+    <meta name="description" content="Generate a one-page AI-search visibility snapshot for any brand: where they're invisible, which competitors are cited, and the addressable gap volume." />
+    <style is:global>
+      :root {
+        --pink: #6366f1; --pink-dark: #4f46e5; --ink: #1d1f2b; --muted: #6b6f80;
+        --line: #e7e8ef; --bg: #f6f6fa; --card: #fff; --ok: #15a06a; --warn: #c98a00; --bad: #b3261e;
+        --accent: #6366f1; /* overridden per-prospect at runtime */
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+      header { background: linear-gradient(120deg, #6366f1 0%, #8b5cf6 100%); color: #fff; padding: 30px 20px 34px; }
+      .wrap { max-width: 1000px; margin: 0 auto; padding: 0 20px; }
+      header h1 { margin: 0 0 6px; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+      header p { margin: 0; opacity: 0.95; font-size: 15px; max-width: 760px; }
+      nav.top { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+      nav.top a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; }
+      nav.top a.active { background: #fff; color: var(--pink-dark); }
+      .brandbar { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; flex-wrap: wrap; }
+      .brandbar .logo { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
+      .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+      .brandbar .by { font-size: 11.5px; font-weight: 600; opacity: 0.9; }
+      main { padding: 26px 0 60px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: 0 1px 2px rgba(20,20,40,0.04); margin-bottom: 18px; }
+      .card h3 { margin: 0 0 4px; font-size: 15px; }
+      .card .hint { margin: 0 0 12px; font-size: 12.5px; color: var(--muted); }
+      .drop { border: 2px dashed var(--line); border-radius: 12px; padding: 26px; text-align: center; background: #fcfcfe; cursor: pointer; transition: 0.15s; }
+      .drop.over { border-color: var(--pink); background: #f4f3ff; }
+      .drop p { margin: 6px 0 0; font-size: 13.5px; color: var(--muted); }
+      .filelist { margin-top: 12px; display: grid; gap: 6px; }
+      .fileitem { display: flex; align-items: center; gap: 10px; font-size: 12.5px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+      .fileitem .b { font-weight: 700; }
+      .tag { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: #f0eefc; color: #5b46c9; text-transform: uppercase; letter-spacing: 0.03em; }
+      .tag.warn { background: #fdecec; color: var(--bad); }
+      .row { display: flex; align-items: center; gap: 16px; margin-top: 18px; flex-wrap: wrap; }
+      .field { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); }
+      select, .field input[type=text] { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13.5px; background: #fff; }
+      button.primary { background: var(--pink); color: #fff; border: none; border-radius: 10px; padding: 12px 22px; font-size: 15px; font-weight: 700; cursor: pointer; }
+      button.primary:hover { background: var(--pink-dark); }
+      button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+      button.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 9px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+      button.ghost:hover { border-color: var(--pink); color: var(--pink); }
+      .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; display: inline-block; vertical-align: -3px; margin-right: 8px; animation: spin 0.7s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .alert { margin-top: 16px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; display: none; }
+      .alert.err { background: #fdecec; color: var(--bad); border: 1px solid #f6c9c6; }
+      .alert.info { background: #eef6ff; color: #1c4e80; border: 1px solid #c6dcf6; }
+
+      /* ---- Prospect-facing snapshot ---- */
+      #snap { display: none; }
+      .snap-actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+      .snapsheet { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 30px 32px; box-shadow: 0 1px 2px rgba(20,20,40,0.04); }
+      .snap-hd { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid var(--line); padding-bottom: 16px; margin-bottom: 18px; }
+      .snap-hd .plogo { width: 46px; height: 46px; border-radius: 11px; object-fit: contain; background: #f4f3ff; border: 1px solid var(--line); display: grid; place-items: center; font-size: 20px; font-weight: 800; color: var(--accent); }
+      .snap-hd .ht { flex: 1; }
+      .snap-hd .eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+      .snap-hd h2 { margin: 2px 0 0; font-size: 23px; letter-spacing: -0.02em; }
+      .snap-hd .date { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+      .verdict { background: #fff6f4; border: 1px solid #f6ccc4; border-left: 4px solid var(--bad); border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; }
+      .verdict .vh { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.45; color: #7a1d14; }
+      .verdict .vs { font-size: 13.5px; color: #6b4a45; margin-top: 7px; }
+      .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+      .kpi { background: #faf9ff; border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; }
+      .kpi .v { font-size: 23px; font-weight: 800; letter-spacing: -0.02em; color: var(--accent); }
+      .kpi .l { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+      .snap-sec { margin-bottom: 22px; }
+      .snap-sec h4 { font-size: 14px; margin: 0 0 3px; }
+      .snap-sec .sub { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+      .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+      table { border-collapse: collapse; width: 100%; font-size: 13px; }
+      th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      th { background: #fafafe; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+      td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+      tr:last-child td { border-bottom: none; }
+      .comp-name { font-weight: 700; color: var(--bad); }
+      .bars td { vertical-align: middle; }
+      .compbar { height: 8px; background: #eceaf6; border-radius: 99px; overflow: hidden; min-width: 120px; }
+      .compbar span { display: block; height: 100%; background: linear-gradient(90deg, #b3261e, #e0594f); border-radius: 99px; }
+      .cta { background: linear-gradient(120deg, #6366f1 0%, #8b5cf6 100%); color: #fff; border-radius: 14px; padding: 20px 24px; margin-top: 8px; }
+      .cta h4 { margin: 0 0 6px; font-size: 16px; color: #fff; }
+      .cta p { margin: 0 0 4px; font-size: 13.5px; opacity: 0.96; }
+      .cta ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+      .cta li { margin-bottom: 4px; }
+      .snap-foot { text-align: center; font-size: 11.5px; color: var(--muted); margin-top: 18px; }
+      footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px; }
+      .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13.5px; opacity: 0; transition: 0.2s; pointer-events: none; }
+      .toast.show { opacity: 1; }
+      @media print {
+        header, nav.top, #inputs, .snap-actions, footer { display: none !important; }
+        body { background: #fff; }
+        #snap { display: block !important; }
+        .snapsheet { box-shadow: none; border: none; padding: 0; }
+        .snap-sec, .verdict, .cta { page-break-inside: avoid; }
+        .table-wrap { overflow: visible; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <div class="brandbar">
+          <span class="logo">🎯</span>
+          <span class="wordmark">CiteRank Snapshot</span>
+          <span class="by">By Rudra Kasturi Inc</span>
+        </div>
+        <h1>AI Visibility Snapshot</h1>
+        <p>
+          Run a one-page "where you're losing in AI search" report on any brand from its
+          SEMrush AI-visibility export. Built for cold outreach and first calls — it shows
+          the prospect exactly which high-intent topics they're invisible for and who's
+          being cited instead.
+        </p>
+        <nav class="top">
+          <a href="/">✍️ Topic Engine</a>
+          <a href="/audit">🔎 AEO Auditor</a>
+          <a href="/wbr">📊 WBR Builder</a>
+          <a href="/snapshot" class="active">🎯 Snapshot</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="wrap">
+        <div id="inputs">
+          <div class="card">
+            <h3>1 · Upload the prospect's SEMrush export</h3>
+            <p class="hint">Drop the prospect's <code>brand_topics</code> and (most importantly) <code>gap_topics</code> CSVs. The gap file's per-competitor mentions power the "you're invisible for X" reel.</p>
+            <div class="drop" id="drop">
+              <strong>Drop CSV files here</strong> or click to browse
+              <p>SEMrush AI-visibility exports (.csv) for the prospect brand.</p>
+              <input type="file" id="fileInput" accept=".csv" multiple hidden />
+            </div>
+            <div class="filelist" id="filelist"></div>
+
+            <div class="row">
+              <label class="field">Prospect name
+                <input type="text" id="prospectName" placeholder="e.g. SUGAR Cosmetics" />
+              </label>
+              <label class="field" title="Canonical brand as it appears in the filenames/domain. Leave blank to auto-detect from the gap file.">Brand key (optional)
+                <input type="text" id="primaryBrand" placeholder="auto-detect" />
+              </label>
+              <label class="field">Vertical
+                <select id="vertical">
+                  <option value="beauty">Beauty</option>
+                  <option value="fashion">Fashion</option>
+                </select>
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">Accent colour
+                <input type="color" id="accent" value="#6366f1" />
+              </label>
+              <label class="field" title="Optional prospect logo for the report header.">Prospect logo
+                <input type="file" id="logoInput" accept="image/*" />
+              </label>
+            </div>
+
+            <div class="row">
+              <button class="primary" id="genBtn">Generate snapshot</button>
+            </div>
+            <div class="alert err" id="errBox"></div>
+            <div class="alert info" id="infoBox"></div>
+          </div>
+        </div>
+
+        <div id="snap">
+          <div class="snap-actions">
+            <button class="ghost" id="pdfBtn">🖨 Print / Save PDF</button>
+          </div>
+          <div class="snapsheet" id="snapsheet"></div>
+          <div class="snap-foot">
+            Prepared by Rudra Kasturi Inc · CiteRank · Data source: SEMrush AI Visibility ·
+            Methodology available on request.
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer>CiteRank Snapshot · The AEO sales wedge · By Rudra Kasturi Inc</footer>
+    <div class="toast" id="toast"></div>
+
+    <script type="module" src="/scripts/snapshot-client.js"></script>
+  </body>
+</html>
