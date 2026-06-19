@@ -60,15 +60,17 @@ function renderFileList() {
 
 function addFiles(list) {
   const skipped = [];
+  // A CSV whose name looks like the weekly tracker (not a SEMrush export).
+  const trackerName = /tracking|vth[_ ]?competit|core[_ ]?(beauty|fashion)|source_mentions|live ?date/i;
   for (const f of list) {
     const n = f.name.toLowerCase();
-    if (n.endsWith('.csv')) files.set(f.name, f);
-    else if (n.endsWith('.xlsx') || n.endsWith('.xls') || n.endsWith('.numbers')) trackerFile = f;
+    if (n.endsWith('.xlsx') || n.endsWith('.xls') || n.endsWith('.numbers')) trackerFile = f;
+    else if (n.endsWith('.csv')) { if (trackerName.test(n)) trackerFile = f; else files.set(f.name, f); }
     else skipped.push(f.name);
   }
   if (skipped.length) {
     const e = $('errBox');
-    e.textContent = `Unsupported file type (use .csv for SEMrush exports, or .xlsx / .numbers for the tracker): ${skipped.join(', ')}`;
+    e.textContent = `Unsupported file type (use .csv for SEMrush exports, or .xlsx / .numbers / tracker .csv for the tracker): ${skipped.join(', ')}`;
     e.style.display = 'block';
   }
   renderFileList();
@@ -529,16 +531,19 @@ async function parseTracker(file, vertical) {
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const isFashion = (n) => /fashion/i.test(n);
 
-  // Pick the weekly sheet for this vertical (most brand-block headers).
-  let pick = null;
+  // Pick the weekly sheet (most brand-block headers). Prefer one matching the
+  // vertical by name; fall back to any sheet with brand blocks (e.g. a single
+  // sheet exported to CSV, whose name won't say "beauty"/"fashion").
+  const cands = [];
   for (const name of wb.SheetNames) {
     if (/go ?live/i.test(name)) continue;
-    if (vertical === 'beauty' ? isFashion(name) : !isFashion(name)) continue;
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false, defval: '' });
     const headers = rows.filter((r) => brandFromLabel(r[0]) && monthCount(r) >= 2).length;
-    if (headers >= 1 && headers > (pick?.headers ?? 0)) pick = { name, rows, headers };
+    if (headers >= 1) cands.push({ name, rows, headers, fashion: isFashion(name) });
   }
-  if (!pick) throw new Error(`No weekly brand-block sheet found for ${vertical}.`);
+  if (!cands.length) throw new Error('No weekly brand-block sheet found (need rows like "Nykaa … May 7th 2026").');
+  const wanted = cands.filter((c) => (vertical === 'fashion' ? c.fashion : !c.fashion));
+  const pick = (wanted.length ? wanted : cands).sort((a, b) => b.headers - a.headers)[0];
   const { name: sheetName, rows } = pick;
 
   // Brand-block section starts
