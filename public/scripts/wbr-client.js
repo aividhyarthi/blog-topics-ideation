@@ -59,10 +59,17 @@ function renderFileList() {
 }
 
 function addFiles(list) {
+  const skipped = [];
   for (const f of list) {
     const n = f.name.toLowerCase();
     if (n.endsWith('.csv')) files.set(f.name, f);
-    else if (n.endsWith('.xlsx') || n.endsWith('.xls')) trackerFile = f;
+    else if (n.endsWith('.xlsx') || n.endsWith('.xls') || n.endsWith('.numbers')) trackerFile = f;
+    else skipped.push(f.name);
+  }
+  if (skipped.length) {
+    const e = $('errBox');
+    e.textContent = `Unsupported file type (use .csv for SEMrush exports, or .xlsx / .numbers for the tracker): ${skipped.join(', ')}`;
+    e.style.display = 'block';
   }
   renderFileList();
 }
@@ -137,6 +144,8 @@ $('genBtn').addEventListener('click', async () => {
 
       const m = data.meta;
       notes.push(`Parsed ${m.filesParsed.length} files for week ${m.weekKey}.`);
+      notes.push('Files: ' + m.filesParsed.map((f) => `${f.brand}/${f.type}=${f.rows} rows`).join(', '));
+      if (!data.report.summary || !data.report.summary.length) notes.push('⚠ No topics parsed — check these are the SEMrush brand_topics / gap_topics / sources CSVs (not the tracker exported as CSV).');
       notes.push(data.trends ? `Compared against ${data.trends.prevWeekKey}.` : 'No earlier week saved yet — this becomes your baseline.');
       if (m.savedToHistory) notes.push('Saved to history.');
       if (m.historyError) notes.push(`⚠ History not saved: ${m.historyError}`);
@@ -147,14 +156,18 @@ $('genBtn').addEventListener('click', async () => {
       $('reportSemrush').innerHTML = '<p class="sub">No SEMrush CSVs uploaded — add the brand_topics / gap_topics / sources exports to see the snapshot report.</p>';
     }
 
-    // Per-tab notes the user typed
-    lastNotes = { semrush: $('notesSemrush').value || '', tracking: $('notesTracking').value || '' };
+    // Per-tab notes the user typed (elements may be absent on older cached HTML)
+    lastNotes = { semrush: $('notesSemrush')?.value || '', tracking: $('notesTracking')?.value || '' };
     $('reportSemrush').insertAdjacentHTML('afterbegin', notesHtml(lastNotes.semrush));
 
     // Weekly Tracking pane (cross-brand + WoW + since-go-live, all from the tracker)
-    const tHtml = lastTracking
-      ? renderTracking(lastTracking)
-      : '<p class="sub">No master tracker uploaded — add your tracker .xlsx to see Weekly Tracking.</p>';
+    let tHtml;
+    if (lastTracking) {
+      try { tHtml = renderTracking(lastTracking); }
+      catch (e) { tHtml = `<p class="alert err" style="display:block">Couldn't render the tracker: ${esc(e.message)}</p>`; }
+    } else {
+      tHtml = '<p class="sub">No master tracker uploaded — add your tracker .xlsx / .numbers to see Weekly Tracking.</p>';
+    }
     $('reportTracking').innerHTML = notesHtml(lastNotes.tracking) + tHtml;
 
     $('rTitle').textContent = lastLabel;
