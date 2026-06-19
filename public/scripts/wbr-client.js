@@ -4,7 +4,6 @@ const $ = (id) => document.getElementById(id);
 const files = new Map(); // name -> File (SEMrush CSVs)
 let trackerFile = null;  // optional master tracker .xlsx
 let lastTracking = null; // parsed cross-brand tracker data
-let lastWeekly = null;   // parsed multi-week (week-over-week) data
 
 // Escape any value that originates from an uploaded file before it goes into
 // innerHTML, so a crafted topic/theme/brand name can't inject markup/script.
@@ -83,6 +82,13 @@ let lastReport = null;
 let lastTrends = null;
 let lastGlossary = [];
 let lastLabel = '';
+let lastNotes = { semrush: '', tracking: '' };
+
+// A notes/instructions panel from the user's free text (escaped).
+function notesHtml(text) {
+  if (!text || !text.trim()) return '';
+  return `<div class="notesbox"><div class="nb-h">📝 Notes</div>${esc(text.trim())}</div>`;
+}
 
 // default the week date to today
 const _today = new Date().toISOString().slice(0, 10);
@@ -100,19 +106,14 @@ $('genBtn').addEventListener('click', async () => {
     const vertical = $('vertical').value;
 
     // Parse the optional master tracker entirely in the browser (never uploaded).
-    lastTracking = null; lastWeekly = null;
+    lastTracking = null;
     if (trackerFile) {
       try {
         lastTracking = await parseTracker(trackerFile, vertical);
-        const nThemes = lastTracking.groups.reduce((s, g2) => s + g2.themes.length, 0);
-        notes.push(`Cross-brand tracker: ${nThemes} topics × ${lastTracking.brands.length} brands (${lastTracking.sheetName}).`);
+        notes.push(`Weekly tracker: ${lastTracking.themes.length} topics × ${lastTracking.brands.length} brands × ${lastTracking.weeks.length} weeks (${lastTracking.sheetName}).`);
       } catch (e) {
-        notes.push(`⚠ Couldn't read the cross-brand sheet: ${e.message}`);
+        notes.push(`⚠ Couldn't read the tracker: ${e.message}`);
       }
-      try {
-        lastWeekly = await parseWeekly(trackerFile, vertical);
-        if (lastWeekly) notes.push(`Week-over-week: ${lastWeekly.weeks.length} weeks in “${lastWeekly.sheetName}”.`);
-      } catch (e) { /* weekly is best-effort */ }
     }
 
     if (files.size > 0) {
@@ -146,12 +147,15 @@ $('genBtn').addEventListener('click', async () => {
       $('reportSemrush').innerHTML = '<p class="sub">No SEMrush CSVs uploaded — add the brand_topics / gap_topics / sources exports to see the snapshot report.</p>';
     }
 
-    // Weekly Tracking pane (cross-brand comparison + week-over-week growth)
-    const trackHtml = [
-      lastTracking ? renderTracking(lastTracking) : '',
-      lastWeekly ? renderWeekly(lastWeekly) : '',
-    ].filter(Boolean).join('');
-    $('reportTracking').innerHTML = trackHtml || '<p class="sub">No master tracker uploaded — add your tracker .xlsx to see Weekly Tracking.</p>';
+    // Per-tab notes the user typed
+    lastNotes = { semrush: $('notesSemrush').value || '', tracking: $('notesTracking').value || '' };
+    $('reportSemrush').insertAdjacentHTML('afterbegin', notesHtml(lastNotes.semrush));
+
+    // Weekly Tracking pane (cross-brand + WoW + since-go-live, all from the tracker)
+    const tHtml = lastTracking
+      ? renderTracking(lastTracking)
+      : '<p class="sub">No master tracker uploaded — add your tracker .xlsx to see Weekly Tracking.</p>';
+    $('reportTracking').innerHTML = notesHtml(lastNotes.tracking) + tHtml;
 
     $('rTitle').textContent = lastLabel;
     setupTabs();
@@ -319,7 +323,7 @@ function renderReport(rep, meta) {
 
 // ---- tabs ----
 function setupTabs() {
-  const hasTrack = !!(lastTracking || lastWeekly);
+  const hasTrack = !!lastTracking;
   $('tabSemrush').disabled = !lastReport;
   $('tabTracking').disabled = !hasTrack;
   // Default to whichever exists (prefer SEMrush report).
@@ -335,7 +339,7 @@ function activateTab(which) {
   $('actTracking').style.display = isSem ? 'none' : 'flex';
 }
 $('tabSemrush').addEventListener('click', () => { if (lastReport) activateTab('semrush'); });
-$('tabTracking').addEventListener('click', () => { if (lastTracking || lastWeekly) activateTab('tracking'); });
+$('tabTracking').addEventListener('click', () => { if (lastTracking) activateTab('tracking'); });
 
 // Metric toggle inside the Weekly Tracking tab (Mentions / Source Domains / Source URLs)
 document.addEventListener('click', (e) => {
@@ -405,24 +409,25 @@ function renderTrends(t) {
   return parts.join('');
 }
 
-// ---- master tracker (.xlsx) — CROSS-BRAND comparison, parsed in the browser ----
-// Reads the sheet that has Nykaa / Amazon / Myntra / Tira columns per theme
-// (e.g. the "Topics" sheet), grouped by category — to reproduce the ideal
-// cross-brand comparison report (Topic | Nykaa | Amazon | Myntra | Tira).
+// ---- master tracker (.xlsx) — vertical brand blocks, parsed in the browser ----
+// The weekly sheet stacks brands in row blocks: a header row whose first cell is
+// the brand name (Nykaa / Amazon / Myntra / Tira) and which carries the week
+// labels, then 2 sub-header rows, then the theme rows. Same week columns repeat
+// for each brand block. We read every block so all 4 brands get WoW + growth.
 const BRAND_RE = /(nykaa|amazon|myntra|tira|flipkart|ajio)/i;
+const MONTHS = /(20\d\d|before|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i;
+const MONTH_IDX = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
 function brandFromLabel(s) {
   const m = String(s || '').toLowerCase().match(BRAND_RE);
   return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : null;
 }
 const toNum = (v) => {
   const s = String(v).replace(/[, ]/g, '').trim();
-  if (s === '') return null; // blank cell = no reading (NOT zero)
+  if (s === '' || /^na$/i.test(s)) return null; // blank or NA = no reading (NOT zero)
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 };
-// Count exact metric-header labels in a row (avoids matching "% mentions" etc.)
 const metricScore = (row) => row.filter((c) => /^(mentions|source domains|source urls)$/i.test(String(c).trim())).length;
-// Best metric-header row within a small window after `start`.
 function findMetricRow(rows, start, span = 4) {
   let idx = -1, best = 0;
   for (let i = start; i < Math.min(rows.length, start + span); i++) {
@@ -431,155 +436,159 @@ function findMetricRow(rows, start, span = 4) {
   }
   return idx;
 }
+function monthCount(row) {
+  return row.filter((c) => MONTHS.test(String(c)) && !/growth/i.test(String(c))).length;
+}
+// "Before - May 7th 2026" / "June 17th 2026" -> Date
+function weekToDate(label) {
+  const m = String(label).toLowerCase().match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})/);
+  if (!m) return null;
+  const yr = (String(label).match(/20\d\d/) || ['2026'])[0];
+  return new Date(Number(yr), MONTH_IDX[m[1]], Number(m[2]));
+}
+// "Apr W4" / "Jun W3" -> Date (week-of-month -> approx day)
+function goliveToDate(s) {
+  const m = String(s).toLowerCase().match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*w\s*(\d)/);
+  if (!m) return null;
+  return new Date(2026, MONTH_IDX[m[1]], (Number(m[2]) - 1) * 7 + 1);
+}
+
+// Condensed client-side category guesser (to group like the PDF).
+function trackCategory(name, vertical) {
+  const h = ' ' + String(name).toLowerCase() + ' ';
+  const has = (arr) => arr.some((k) => h.includes(k));
+  if (vertical === 'fashion') {
+    if (has(['saree', 'kurta', 'kurti', 'salwar', 'lehenga', 'ethnic', 'blouse', 'dupatta', 'anarkali'])) return 'Indian Wear';
+    if (has(['shoe', 'sneaker', 'sandal', 'slipper', 'footwear', 'heel', 'boot', 'crocs'])) return 'Footwear';
+    if (has(['bag', 'handbag', 'backpack', 'luggage', 'wallet', 'clutch'])) return 'Bags';
+    if (has(['jewellery', 'jewelry', 'earring', 'necklace', 'bracelet', 'bangle', 'ring'])) return 'Jewellery';
+    if (has(['bra', 'lingerie', 'innerwear', 'panties', 'nightwear', 'shapewear'])) return 'Lingerie';
+    if (has(["men", 'shirt', 't-shirt', 'tshirt', 'jacket', 'suit'])) return 'Men Fashion';
+    if (has(['dress', 'jean', 'top', 'skirt', 'trouser', 'pant', 'short', 'western', 'gown'])) return 'Western Wear';
+    return 'Other Fashion';
+  }
+  if (has(['lip', 'lipstick', 'gloss', 'lip liner', 'lip tint', 'lip crayon', 'lip plumper'])) return 'Lips';
+  if (has(['eye', 'kajal', 'mascara', 'eyeliner', 'eyeshadow', 'eyebrow', 'brow', 'lash'])) return 'Eye Makeup';
+  if (has(['foundation', 'concealer', 'blush', 'highlighter', 'compact', 'primer', 'powder', 'bb cream', 'contour', 'bronzer'])) return 'Face Makeup';
+  if (has(['nail'])) return 'Nail';
+  if (has(['perfume', 'fragrance', 'deodorant', 'deo', 'parfum', 'mist', 'attar', 'cologne', 'eau de'])) return 'Fragrance';
+  if (has(['shampoo', 'conditioner', 'hair'])) return 'Hair Care';
+  if (has(['body', 'soap', 'shower', 'bath', 'sanitary', 'wax', 'hand cream', 'foot', 'intimate', 'hygiene', 'talc'])) return 'Body Care';
+  if (has(['skin', 'serum', 'moisturizer', 'moisturiser', 'sunscreen', 'spf', 'cleanser', 'toner', 'face wash', 'cream', 'gel', 'mask', 'scrub', 'sun care'])) return 'Skincare';
+  return 'Other Beauty';
+}
+const BEAUTY_CATS = ['Skincare', 'Lips', 'Hair Care', 'Fragrance', 'Eye Makeup', 'Face Makeup', 'Body Care', 'Nail', 'Other Beauty'];
+const FASHION_CATS = ['Indian Wear', 'Western Wear', 'Men Fashion', 'Bags', 'Lingerie', 'Footwear', 'Jewellery', 'Accessories', 'Other Fashion'];
+
+// go-live group keyword -> sheet-group matcher (to read its date)
+const GOLIVE_MAP = {
+  beauty: [
+    { re: /moistur|^.*cream|lotion/, sheet: /moisturizer/i },
+    { re: /sunscreen|sun ?care|spf/, sheet: /suncare|sun ?care/i },
+    { re: /toner|serum/, sheet: /toner|serum/i },
+    { re: /lip|foundation|conceal|blush|highlight|eye|kajal|mascara|brow|lash|makeup|primer|compact|powder/, sheet: /makeup/i },
+    { re: /shampoo|conditioner|hair/, sheet: /^hair/i },
+  ],
+  fashion: [
+    { re: /western|dress|top|jean|trouser|pant|t-?shirt|skirt|shirt|gown/, sheet: /western/i },
+    { re: /saree|kurta|kurti|salwar|lehenga|ethnic|blouse|indian/, sheet: /indian/i },
+  ],
+};
+
+function parseGoLive(wb) {
+  const sh = wb.SheetNames.find((n) => /go ?live/i.test(n));
+  if (!sh) return [];
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sh], { header: 1, blankrows: false, defval: '' });
+  const out = [];
+  for (const r of rows.slice(1)) {
+    const group = String(r[0] || '').trim();
+    if (!group) continue;
+    const actual = String(r[2] || '').trim();
+    const eta = String(r[1] || '').trim();
+    const date = goliveToDate(actual) || goliveToDate(eta);
+    if (date) out.push({ group, date, label: actual || eta });
+  }
+  return out;
+}
 
 async function parseTracker(file, vertical) {
   if (!window.XLSX) throw new Error('Excel reader not loaded yet — retry in a moment.');
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-
-  // Find candidate cross-brand sheets: a header row mentioning >=2 brands.
-  const candidates = [];
-  for (const name of wb.SheetNames) {
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false, defval: '' });
-    let brandRowIdx = -1, brandCount = 0;
-    for (let i = 0; i < Math.min(rows.length, 6); i++) {
-      const brands = new Set(rows[i].map(brandFromLabel).filter(Boolean));
-      if (brands.size > brandCount) { brandCount = brands.size; brandRowIdx = i; }
-    }
-    if (brandCount >= 2) candidates.push({ name, rows, brandRowIdx, brandCount });
-  }
-  if (!candidates.length) throw new Error('No cross-brand sheet found (need columns for Nykaa, Amazon, Myntra, Tira).');
-
-  // Choose by vertical: fashion → a fashion-named sheet; beauty → a non-fashion one.
-  const isFashion = (n) => /fashion/i.test(n);
-  let pool = candidates.filter((c) => vertical === 'fashion' ? isFashion(c.name) : !isFashion(c.name));
-  if (!pool.length) pool = candidates;
-  pool.sort((a, b) => b.brandCount - a.brandCount || b.rows.length - a.rows.length);
-  const { name: sheetName, rows, brandRowIdx } = pool[0];
-
-  const brandRow = rows[brandRowIdx];
-  // Metric header row: the row with the most exact Mentions/Source Domains/URLs labels.
-  const metricIdx = findMetricRow(rows, brandRowIdx, 4);
-  if (metricIdx < 0) throw new Error('Could not find the Mentions header in the cross-brand sheet.');
-  const metricRow = rows[metricIdx];
-
-  // Brand blocks: each column where brandRow names a brand. Within the block,
-  // locate Mentions / Source Domains / Source URLs by the metric header labels.
-  const firstBrandCol = brandRow.findIndex((c) => brandFromLabel(c));
-  const blocks = [];
-  brandRow.forEach((c, col) => {
-    const brand = brandFromLabel(c);
-    if (!brand) return;
-    const end = col + 4;
-    const find = (re) => { for (let k = col; k < end; k++) if (re.test(String(metricRow[k]))) return k; return -1; };
-    blocks.push({ brand, m: find(/mention/i), sd: find(/source\s*domain/i), su: find(/source\s*url/i) });
-  });
-  const brands = [...new Set(blocks.map((b) => b.brand))];
-
-  // Label columns (before the first brand block): identify theme + L1 category.
-  let themeCol = firstBrandCol - 1, l1Col = -1;
-  for (let k = 0; k < firstBrandCol; k++) {
-    const h = String(metricRow[k] || '').toLowerCase();
-    if (/l1|^category|categories/.test(h) && /l1|category/.test(h) && !/categories/.test(h)) l1Col = k;
-    if (/prompt theme|^categories$|topic|theme/.test(h)) themeCol = k;
-  }
-  // Fallbacks: if an "L1 Category" col exists separately, the theme is usually the next text col.
-  if (l1Col === -1) for (let k = 0; k < firstBrandCol; k++) if (/l1|category/i.test(String(metricRow[k]))) { l1Col = k; break; }
-  if (l1Col >= 0 && l1Col === themeCol) themeCol = Math.min(firstBrandCol - 1, l1Col + 1);
-
-  // Parse rows into groups by L1 category (or "All themes" if none).
-  const groupMap = new Map();
-  for (let r = metricIdx + 1; r < rows.length; r++) {
-    const theme = String(rows[r][themeCol] || '').trim();
-    if (!theme) continue;
-    const perBrand = {};
-    let any = false;
-    for (const b of blocks) {
-      const mentions = b.m >= 0 ? toNum(rows[r][b.m]) : null;
-      const sd = b.sd >= 0 ? toNum(rows[r][b.sd]) : null;
-      const su = b.su >= 0 ? toNum(rows[r][b.su]) : null;
-      perBrand[b.brand] = { mentions, sd, su };
-      if (mentions || sd || su) any = true;
-    }
-    if (!any) continue;
-    const cat = l1Col >= 0 ? (String(rows[r][l1Col] || '').trim() || 'Uncategorized') : 'All themes';
-    if (!groupMap.has(cat)) groupMap.set(cat, []);
-    groupMap.get(cat).push({ theme, perBrand });
-  }
-  const groups = [...groupMap.entries()].map(([category, themes]) => ({ category, themes }));
-  if (!groups.length) throw new Error('No theme rows parsed from the cross-brand sheet.');
-  return { sheetName, brands, groups };
-}
-
-// ---- multi-week parsing (for week-over-week growth) ----
-const MONTHS = /(20\d\d|before|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i;
-
-// Parse the sheet with the most WEEKLY snapshots (e.g. "Core Beauty") into a
-// per-theme, per-brand, per-week series so we can show week-over-week growth.
-async function parseWeekly(file, vertical) {
-  if (!window.XLSX) return null;
-  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const isFashion = (n) => /fashion/i.test(n);
 
-  let best = null;
+  // Pick the weekly sheet for this vertical (most brand-block headers).
+  let pick = null;
   for (const name of wb.SheetNames) {
+    if (/go ?live/i.test(name)) continue;
     if (vertical === 'beauty' ? isFashion(name) : !isFashion(name)) continue;
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false, defval: '' });
-    // date row = the row (first few) with the most month-like labels
-    let dateIdx = -1, hits = 0;
-    for (let i = 0; i < Math.min(rows.length, 5); i++) {
-      const h = rows[i].filter((c) => MONTHS.test(String(c)) && !/growth/i.test(String(c))).length;
-      if (h > hits) { hits = h; dateIdx = i; }
-    }
-    if (hits >= 2 && hits > (best?.weeks ?? 0)) best = { name, rows, dateIdx, weeks: hits };
+    const headers = rows.filter((r) => brandFromLabel(r[0]) && monthCount(r) >= 2).length;
+    if (headers >= 1 && headers > (pick?.headers ?? 0)) pick = { name, rows, headers };
   }
-  if (!best) return null;
+  if (!pick) throw new Error(`No weekly brand-block sheet found for ${vertical}.`);
+  const { name: sheetName, rows } = pick;
 
-  const { name: sheetName, rows, dateIdx } = best;
-  const dateRow = rows[dateIdx];
-  const metricIdx = findMetricRow(rows, dateIdx, 4);
-  if (metricIdx < 0) return null;
-  const metricRow = rows[metricIdx];
+  // Brand-block section starts
+  const starts = [];
+  rows.forEach((r, i) => { if (brandFromLabel(r[0]) && monthCount(r) >= 2) starts.push(i); });
 
-  const blocks = [];
-  dateRow.forEach((v, col) => {
-    const label = String(v || '').trim();
-    if (col >= 1 && label && MONTHS.test(label) && !/growth/i.test(label)) {
-      const end = col + 4;
-      const find = (re) => { for (let k = col; k < end; k++) if (re.test(String(metricRow[k]))) return k; return -1; };
-      blocks.push({
-        brand: brandFromLabel(label) || 'Nykaa',
-        week: label.replace(BRAND_RE, '').replace(/[-–]/g, ' ').replace(/\s+/g, ' ').trim(),
-        m: find(/mention/i), sd: find(/source\s*domain/i), su: find(/source\s*url/i),
-      });
+  const series = {}; // theme -> brand -> [{m,sd,su} per week]
+  let weeks = null;
+  const brands = [];
+  const themeOrder = [];
+  for (let s = 0; s < starts.length; s++) {
+    const hi = starts[s];
+    const brand = brandFromLabel(rows[hi][0]);
+    const mi = findMetricRow(rows, hi, 4);
+    if (mi < 0) continue;
+    const headerRow = rows[hi], metricRow = rows[mi];
+    const blocks = [];
+    headerRow.forEach((v, col) => {
+      const label = String(v || '').trim();
+      if (col >= 1 && label && MONTHS.test(label) && !/growth/i.test(label)) {
+        const end = col + 4;
+        const find = (re) => { for (let k = col; k < end; k++) if (re.test(String(metricRow[k]))) return k; return -1; };
+        blocks.push({ week: label.replace(BRAND_RE, '').replace(/[-–]/g, ' ').replace(/\s+/g, ' ').trim(), m: find(/mention/i), sd: find(/source\s*domain/i), su: find(/source\s*url/i) });
+      }
+    });
+    if (!blocks.length) continue;
+    if (!weeks) weeks = blocks.map((b) => ({ label: b.week, date: weekToDate(b.week) }));
+    if (!brands.includes(brand)) brands.push(brand);
+    const dataEnd = s + 1 < starts.length ? starts[s + 1] : rows.length;
+    for (let r = mi + 1; r < dataEnd; r++) {
+      const theme = String(rows[r][0] || '').trim();
+      if (!theme) continue;
+      const arr = blocks.map((b) => ({
+        m: b.m >= 0 ? toNum(rows[r][b.m]) : null,
+        sd: b.sd >= 0 ? toNum(rows[r][b.sd]) : null,
+        su: b.su >= 0 ? toNum(rows[r][b.su]) : null,
+      }));
+      if (arr.every((x) => x.m == null && x.sd == null && x.su == null)) continue;
+      (series[theme] = series[theme] || {})[brand] = arr;
+      if (!themeOrder.includes(theme)) themeOrder.push(theme);
     }
-  });
-  if (blocks.length < 2) return null;
-
-  // theme column = first label column
-  const firstCol = Math.min(...blocks.map((b) => b.m).filter((x) => x >= 0));
-  let themeCol = 0;
-  for (let k = 0; k < firstCol; k++) if (/prompt theme|categories|topic|theme/i.test(String(metricRow[k]))) { themeCol = k; break; }
-
-  const brands = [...new Set(blocks.map((b) => b.brand))];
-  const weeks = [...new Set(blocks.map((b) => b.week))];
-  const themes = [];
-  for (let r = metricIdx + 1; r < rows.length; r++) {
-    const theme = String(rows[r][themeCol] || '').trim();
-    if (!theme) continue;
-    const byBrand = {};
-    let any = false;
-    for (const b of blocks) {
-      const m = b.m >= 0 ? toNum(rows[r][b.m]) : null;
-      const sd = b.sd >= 0 ? toNum(rows[r][b.sd]) : null;
-      const su = b.su >= 0 ? toNum(rows[r][b.su]) : null;
-      (byBrand[b.brand] = byBrand[b.brand] || []).push({ week: b.week, m, sd, su });
-      if (m || sd || su) any = true;
-    }
-    if (any) themes.push({ theme, byBrand });
   }
-  return { sheetName, brands, weeks, themes };
+  if (!brands.length) throw new Error('No brand blocks parsed from the weekly sheet.');
+
+  // Map each theme -> go-live week index (nearest week on/after its group's date)
+  const goLiveList = parseGoLive(wb);
+  const groups = GOLIVE_MAP[vertical] || [];
+  const goLiveIdx = {};
+  for (const theme of themeOrder) {
+    const h = ' ' + theme.toLowerCase() + ' ';
+    const g = groups.find((gr) => gr.re.test(h));
+    if (!g) { goLiveIdx[theme] = null; continue; }
+    const row = goLiveList.find((x) => g.sheet.test(x.group));
+    if (!row || !row.date) { goLiveIdx[theme] = null; continue; }
+    let idx = weeks.findIndex((w) => w.date && w.date >= row.date);
+    if (idx < 0) idx = weeks.length - 1; // go-live after all tracked weeks
+    goLiveIdx[theme] = idx;
+  }
+
+  return { sheetName, vertical, brands, weeks, themes: themeOrder, series, goLiveIdx };
 }
 
+// ---- tracker rendering ----
 function pctCell(prev, last) {
   if (prev == null || last == null) return '<span class="sub">—</span>';
   if (prev === 0) return last ? '<span class="st-ok">▲ new</span>' : '<span class="sub">—</span>';
@@ -588,109 +597,94 @@ function pctCell(prev, last) {
   const a = p > 0 ? '▲' : p < 0 ? '▼' : '';
   return `<span class="${cls}">${a} ${p > 0 ? '+' : ''}${p.toFixed(0)}%</span>`;
 }
-// last two non-empty readings for a brand's weekly series
-function lastTwo(series) {
-  const nn = (series || []).filter((s) => s.m != null || s.sd != null || s.su != null);
-  return { last: nn[nn.length - 1] || null, prev: nn[nn.length - 2] || null, first: nn[0] || null };
-}
-
-function renderWeekly(w) {
-  if (!w) return '';
-  const parts = [];
-  parts.push('<h3 style="margin:26px 0 2px;font-size:18px">Week-over-Week Growth</h3>');
-  parts.push(`<p class="sub">From the weekly snapshots in “${esc(w.sheetName)}” (${w.weeks.map(esc).join(' → ')}). Each theme compares its two latest filled weeks.</p>`);
-
-  for (const brand of w.brands) {
-    // themes that have >=2 readings for this brand
-    const rows0 = w.themes.map((th) => ({ theme: th.theme, ...lastTwo(th.byBrand[brand]) }))
-      .filter((e) => e.last && e.prev);
-    if (rows0.length < 3) continue;
-    rows0.sort((a, b) => (b.last.m ?? 0) - (a.last.m ?? 0));
-
-    // call-out: totals across themes with both weeks
-    const sum = (k, which) => rows0.reduce((s, e) => s + (e[which]?.[k] ?? 0), 0);
-    const mPrev = sum('m', 'prev'), mLast = sum('m', 'last');
-    const suPrev = sum('su', 'prev'), suLast = sum('su', 'last');
-    const up = rows0.filter((e) => (e.last.m ?? 0) > (e.prev.m ?? 0)).length;
-    const dn = rows0.filter((e) => (e.last.m ?? 0) < (e.prev.m ?? 0)).length;
-    const mg = mPrev ? Math.round(((mLast - mPrev) / mPrev) * 100) : 0;
-    const sug = suPrev ? Math.round(((suLast - suPrev) / suPrev) * 100) : 0;
-
-    const rows = rows0.map((e) => [
-      esc(e.theme),
-      fmt(e.last.m ?? 0), pctCell(e.prev.m, e.last.m),
-      fmt(e.last.sd ?? 0), pctCell(e.prev.sd, e.last.sd),
-      fmt(e.last.su ?? 0), pctCell(e.prev.su, e.last.su),
-    ]);
-    parts.push(section(`${esc(brand)} — Week-over-Week (${rows0.length} themes)`,
-      `Latest filled week vs the one before, per theme.`,
-      tbl(['Theme', 'Mentions', 'WoW %', 'Source Domains', 'WoW %', 'Source URLs', 'WoW %'], rows, { numCols: [1, 3, 5] }),
-      `${esc(brand)} mentions ${mg >= 0 ? '+' : ''}${mg}% WoW (${fmt(mPrev)}→${fmt(mLast)}); Source URLs ${sug >= 0 ? '+' : ''}${sug}% (${fmt(suPrev)}→${fmt(suLast)}). ${up} themes up, ${dn} down.`));
-  }
-  if (parts.length <= 2) return ''; // no brand had enough weekly data
-  return parts.join('');
-}
-
-const METRICS = [['mentions', 'Mentions'], ['sd', 'Source Domains'], ['su', 'Source URLs']];
+const METRICS = [['m', 'Mentions'], ['sd', 'Source Domains'], ['su', 'Source URLs']];
 
 function renderTracking(t) {
   const brands = t.brands;
-  const allThemes = t.groups.flatMap((g2) => g2.themes);
-  const tot = (b, k) => allThemes.reduce((s, th) => s + (th.perBrand[b]?.[k] ?? 0), 0);
+  const ser = (theme, brand) => (t.series[theme] && t.series[theme][brand]) || [];
+  const lastNN = (arr, key) => { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] && arr[i][key] != null) return { i, v: arr[i][key] }; return null; };
+  const prevNN = (arr, key, before) => { for (let i = before - 1; i >= 0; i--) if (arr[i] && arr[i][key] != null) return { i, v: arr[i][key] }; return null; };
+  const atGoLive = (arr, key, idx) => {
+    if (idx == null) return null;
+    for (let i = idx; i < arr.length; i++) if (arr[i] && arr[i][key] != null) return { i, v: arr[i][key] };
+    for (let i = idx - 1; i >= 0; i--) if (arr[i] && arr[i][key] != null) return { i, v: arr[i][key] };
+    return null;
+  };
+  const totLatest = (brand, key) => t.themes.reduce((s, th) => { const l = lastNN(ser(th, brand), key); return s + (l ? l.v : 0); }, 0);
+  const latestWeek = (() => { for (let i = t.weeks.length - 1; i >= 0; i--) { if (t.themes.some((th) => brands.some((b) => ser(th, b)[i] && ser(th, b)[i].m != null))) return t.weeks[i].label; } return t.weeks[t.weeks.length - 1]?.label; })();
+
   const parts = [];
 
-  // Brand "hero" cards with a bar per brand (visual at-a-glance) — total mentions.
-  const maxM = Math.max(1, ...brands.map((b) => tot(b, 'mentions')));
-  parts.push(`<div class="brandcards">${brands.map((b) => {
-    const m = tot(b, 'mentions'); const win = m === maxM;
-    return `<div class="brandcard${win ? ' win' : ''}">
-      <div class="bc-name">${esc(b)}${win ? ' 🏆' : ''}</div>
-      <div class="bc-num">${fmt(m)}</div><div class="bc-cap">brand mentions</div>
-      <div class="bar"><span style="width:${Math.round((m / maxM) * 100)}%"></span></div>
-      <div class="bc-sub">Src Domains ${fmt(tot(b, 'sd'))} · Src URLs ${fmt(tot(b, 'su'))}</div>
-    </div>`;
-  }).join('')}</div>`);
+  // Summary
+  const ranked = [...brands].sort((a, b) => totLatest(b, 'm') - totLatest(a, 'm'));
+  const lead = ranked[0];
+  // Nykaa WoW total (mentions)
+  let nykPrev = 0, nykLast = 0;
+  for (const th of t.themes) { const a = ser(th, 'Nykaa'); const l = lastNN(a, 'm'); if (!l) continue; const p = prevNN(a, 'm', l.i); nykLast += l.v; if (p) nykPrev += p.v; }
+  const nykWoW = nykPrev ? Math.round(((nykLast - nykPrev) / nykPrev) * 100) : 0;
+  parts.push(`<div class="sec stories"><h3>Weekly Tracking — Summary</h3><div class="storygrid">
+    <div class="story story-nykaa"><div class="story-h">📈 Nykaa</div><p>Across ${t.themes.length} tracked ${t.vertical} topics, Nykaa has ${fmt(totLatest('Nykaa', 'm'))} brand mentions (latest week ${esc(latestWeek)}), ${nykWoW >= 0 ? '+' : ''}${nykWoW}% week-over-week. Source URLs: ${fmt(totLatest('Nykaa', 'su'))}.</p></div>
+    <div class="story story-comp"><div class="story-h">🎯 Competitors</div><p>${brands.filter((b) => b !== 'Nykaa').map((b) => `${esc(b)} ${fmt(totLatest(b, 'm'))}`).join(', ')} mentions. ${lead === 'Nykaa' ? 'Nykaa leads on mentions.' : `${esc(lead)} currently leads on mentions.`} Use the metric toggle and the WoW / Since-go-live tables below to see who is moving.</p></div>
+  </div></div>`);
 
-  // Key call-out
-  const ranked = [...brands].sort((a, b) => tot(b, 'mentions') - tot(a, 'mentions'));
-  const nykRank = ranked.indexOf('Nykaa') + 1; const lead = ranked[0];
-  parts.push(`<div class="sec highlights"><h3>Cross-Brand Comparison — key call-out</h3><ul class="hl">
-    <li>Across ${allThemes.length} tracked beauty topics, Nykaa has <strong>${fmt(tot('Nykaa', 'mentions'))}</strong> brand mentions vs ${brands.filter((b) => b !== 'Nykaa').map((b) => `${esc(b)} ${fmt(tot(b, 'mentions'))}`).join(', ')}.</li>
-    <li>Nykaa ranks <strong>#${nykRank || '-'} of ${brands.length}</strong> on mentions${lead === 'Nykaa' ? ' — leader.' : ` (leader: ${esc(lead)}).`} On Source URLs: ${brands.map((b) => `${esc(b)} ${fmt(tot(b, 'su'))}`).join(', ')}.</li>
-  </ul></div>`);
+  // Hero cards (latest mentions)
+  const maxM = Math.max(1, ...brands.map((b) => totLatest(b, 'm')));
+  const card = (b) => {
+    const m = totLatest(b, 'm'); const win = m === maxM; const w = Math.round((m / maxM) * 100);
+    return '<div class="brandcard' + (win ? ' win' : '') + '">'
+      + '<div class="bc-name">' + esc(b) + (win ? ' 🏆' : '') + '</div>'
+      + '<div class="bc-num">' + fmt(m) + '</div><div class="bc-cap">mentions (latest week)</div>'
+      + '<div class="bar"><span style="width:' + w + '%"></span></div>'
+      + '<div class="bc-sub">Src Domains ' + fmt(totLatest(b, 'sd')) + ' · Src URLs ' + fmt(totLatest(b, 'su')) + '</div></div>';
+  };
+  parts.push('<div class="brandcards">' + brands.map(card).join('') + '</div>');
 
-  // Metric toggle (Mentions / Source Domains / Source URLs) + one block per metric.
-  parts.push(`<div class="metric-toggle">${METRICS.map(([k, l], i) =>
-    `<button class="mt${i === 0 ? ' active' : ''}" data-metric="${k}">${l}</button>`).join('')}
-    <span class="mt-hint">Switch metric — same cross-brand view for each</span></div>`);
-  parts.push(METRICS.map(([k, l], i) =>
-    `<div class="metric-block" data-metric="${k}"${i ? ' style="display:none"' : ''}>${renderMetricTables(t, k, l)}</div>`).join(''));
+  // Metric toggle + one block per metric
+  parts.push(`<div class="metric-toggle">${METRICS.map(([k, l], i) => `<button class="mt${i === 0 ? ' active' : ''}" data-metric="${k}">${l}</button>`).join('')}<span class="mt-hint">switch metric — applies to every table below</span></div>`);
 
-  return parts.join('');
-}
+  const cats = (t.vertical === 'fashion' ? FASHION_CATS : BEAUTY_CATS);
+  const blocks = METRICS.map(([key, label], mi) => {
+    const p = [];
+    // group themes by category
+    const grouped = {};
+    for (const th of t.themes) { const c = trackCategory(th, t.vertical); (grouped[c] = grouped[c] || []).push(th); }
 
-// Per-category Topic × Brand tables for one metric, with subtotals + grand total.
-function renderMetricTables(t, key, label) {
-  const brands = t.brands; const parts = [];
-  const num = brands.map((_, i) => i + 1);
-  for (const g2 of t.groups) {
-    const rows = g2.themes.map((th) => {
-      const vals = brands.map((b) => th.perBrand[b]?.[key] ?? 0);
-      const max = Math.max(...vals);
-      return [esc(th.theme), ...brands.map((b) => {
-        const v = th.perBrand[b]?.[key] ?? 0;
-        return (v === max && max > 0) ? `<span class="win">${fmt(v)}</span>` : fmt(v);
-      })];
-    });
-    const sub = ['SUBTOTAL', ...brands.map((b) => fmt(g2.themes.reduce((s, th) => s + (th.perBrand[b]?.[key] ?? 0), 0)))];
-    sub._cls = 'subtotal-row';
-    rows.push(sub);
-    parts.push(section(`${esc(g2.category)} — ${label} (${g2.themes.length} topics)`, '',
-      tbl(['Topic', ...brands], rows, { numCols: num })));
-  }
-  const gt = [`GRAND TOTAL — ${esc(label)}`, ...brands.map((b) => fmt(t.groups.flatMap((g2) => g2.themes).reduce((s, th) => s + (th.perBrand[b]?.[key] ?? 0), 0)))];
-  gt._cls = 'grand-row';
-  parts.push(tbl(['Total', ...brands], [gt], { numCols: num }));
+    // 1) Latest cross-brand comparison (by category, subtotals + grand total)
+    const gtot = Object.fromEntries(brands.map((b) => [b, 0]));
+    for (const cat of cats) {
+      const ths = grouped[cat]; if (!ths || !ths.length) continue;
+      const rows = ths.map((th) => {
+        const vals = brands.map((b) => { const l = lastNN(ser(th, b), key); return l ? l.v : 0; });
+        const mx = Math.max(...vals);
+        return [esc(th), ...vals.map((v) => (v === mx && mx > 0) ? `<span class="win">${fmt(v)}</span>` : fmt(v))];
+      });
+      const sub = ['SUBTOTAL', ...brands.map((b) => { const s = ths.reduce((a, th) => { const l = lastNN(ser(th, b), key); return a + (l ? l.v : 0); }, 0); gtot[b] += s; return fmt(s); })];
+      sub._cls = 'subtotal-row';
+      rows.push(sub);
+      p.push(section(`${cat} — ${label} (latest week)`, '', tbl(['Topic', ...brands], rows, { numCols: brands.map((_, i) => i + 1) })));
+    }
+    const gt = ['GRAND TOTAL', ...brands.map((b) => fmt(gtot[b]))]; gt._cls = 'grand-row';
+    p.push(tbl(['Total', ...brands], [gt], { numCols: brands.map((_, i) => i + 1) }));
+
+    // 2) Week-over-week % (all brands)
+    const wowRows = t.themes.map((th) => {
+      const cells = brands.map((b) => { const a = ser(th, b); const l = lastNN(a, key); if (!l) return '<span class="sub">—</span>'; const pr = prevNN(a, key, l.i); return pr ? pctCell(pr.v, l.v) : '<span class="sub">—</span>'; });
+      return { th, cells, sortv: (lastNN(ser(th, 'Nykaa'), key) || {}).v || 0 };
+    }).sort((a, b) => b.sortv - a.sortv).map((r) => [esc(r.th), ...r.cells]);
+    p.push(section(`Week-over-Week growth — ${label}`, 'Latest filled week vs the previous, per brand.', tbl(['Topic', ...brands], wowRows, { numCols: [] })));
+
+    // 3) Since go-live % (all brands)
+    const glRows = t.themes.map((th) => {
+      const idx = t.goLiveIdx[th];
+      const cells = brands.map((b) => { const a = ser(th, b); const l = lastNN(a, key); const base = atGoLive(a, key, idx); return (l && base) ? pctCell(base.v, l.v) : '<span class="sub">—</span>'; });
+      return { th, cells, has: idx != null, sortv: (lastNN(ser(th, 'Nykaa'), key) || {}).v || 0 };
+    }).filter((r) => r.has).sort((a, b) => b.sortv - a.sortv).map((r) => [esc(r.th), ...r.cells]);
+    if (glRows.length) p.push(section(`Since go-live growth — ${label}`, 'Latest week vs the week your changes went live (from the Go Live Dates sheet).', tbl(['Topic', ...brands], glRows, { numCols: [] })));
+
+    return `<div class="metric-block" data-metric="${key}"${mi ? ' style="display:none"' : ''}>${p.join('')}</div>`;
+  });
+  parts.push(blocks.join(''));
+
   return parts.join('');
 }
 
@@ -736,60 +730,29 @@ function saveWb(wb, suffix) {
   XLSX.writeFile(wb, fname); toast('Excel downloaded');
 }
 
-// Weekly Tracking tab (cross-brand + week-over-week) -> its own workbook
+// Weekly Tracking tab -> its own workbook (full weekly series per brand + metric)
 $('xlsxTrackBtn').addEventListener('click', () => {
-  if ((!lastTracking && !lastWeekly) || !window.XLSX) return;
-  const wb = XLSX.utils.book_new();
-
-  // Week-over-week sheets (one per brand with multi-week data)
-  if (lastWeekly) {
-    for (const brand of lastWeekly.brands) {
-      const head = ['Theme'];
-      lastWeekly.weeks.forEach((wk) => head.push(`${wk} Mentions`, `${wk} SrcDomains`, `${wk} SrcURLs`));
-      const aoa = [head];
-      let used = 0;
-      for (const th of lastWeekly.themes) {
-        const series = th.byBrand[brand]; if (!series) continue;
-        if (!series.some((s) => s.m != null || s.sd != null || s.su != null)) continue;
-        const byWeek = Object.fromEntries(series.map((s) => [s.week, s]));
-        aoa.push([th.theme, ...lastWeekly.weeks.flatMap((wk) => {
-          const s = byWeek[wk] || {}; return [s.m ?? '', s.sd ?? '', s.su ?? ''];
-        })]);
-        used++;
-      }
-      if (used) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), `WoW ${brand}`.slice(0, 31));
-    }
-  }
-
-  if (!lastTracking) { saveWb(wb, '_Tracking'); return; }
+  if (!lastTracking || !window.XLSX) return;
   const t = lastTracking, brands = t.brands;
+  const wb = XLSX.utils.book_new();
+  if (lastNotes.tracking && lastNotes.tracking.trim())
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Notes'], [lastNotes.tracking]]), 'Notes');
+  const ser = (theme, brand) => (t.series[theme] && t.series[theme][brand]) || [];
 
-  // Mentions sheet: Category | Topic | <brand> mentions, with subtotals + grand total
-  const mRows = [['Category', 'Topic', ...brands]];
-  const gTot = Object.fromEntries(brands.map((b) => [b, 0]));
-  for (const g2 of t.groups) {
-    const sub = Object.fromEntries(brands.map((b) => [b, 0]));
-    for (const th of g2.themes) {
-      mRows.push([g2.category, th.theme, ...brands.map((b) => th.perBrand[b]?.mentions ?? 0)]);
-      brands.forEach((b) => { sub[b] += th.perBrand[b]?.mentions ?? 0; gTot[b] += th.perBrand[b]?.mentions ?? 0; });
+  // One sheet per metric: Topic | Brand | <each week> ... full series.
+  for (const [key, label] of [['m', 'Mentions'], ['sd', 'Source Domains'], ['su', 'Source URLs']]) {
+    const head = ['Topic', 'Brand', ...t.weeks.map((w) => w.label), 'Go-live week'];
+    const aoa = [head];
+    for (const th of t.themes) {
+      for (const b of brands) {
+        const arr = ser(th, b);
+        if (!arr.length || !arr.some((x) => x && x[key] != null)) continue;
+        const gl = t.goLiveIdx[th];
+        aoa.push([th, b, ...t.weeks.map((_, i) => (arr[i] && arr[i][key] != null ? arr[i][key] : '')), gl != null ? (t.weeks[gl]?.label || '') : '']);
+      }
     }
-    mRows.push([g2.category + ' SUBTOTAL', '', ...brands.map((b) => sub[b])]);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), label.slice(0, 31));
   }
-  mRows.push(['GRAND TOTAL', '', ...brands.map((b) => gTot[b])]);
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(mRows), 'Brand Mentions');
-
-  // Source Domains sheet
-  const sdRows = [['Category', 'Topic', ...brands]];
-  for (const g2 of t.groups) for (const th of g2.themes)
-    sdRows.push([g2.category, th.theme, ...brands.map((b) => th.perBrand[b]?.sd ?? 0)]);
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sdRows), 'Source Domains');
-
-  // Source URLs sheet
-  const sRows = [['Category', 'Topic', ...brands]];
-  for (const g2 of t.groups) for (const th of g2.themes)
-    sRows.push([g2.category, th.theme, ...brands.map((b) => th.perBrand[b]?.su ?? 0)]);
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sRows), 'Source URLs');
-
   saveWb(wb, '_Tracking');
 });
 
@@ -800,6 +763,7 @@ $('xlsxBtn').addEventListener('click', () => {
   const wb = XLSX.utils.book_new();
   const add = (name, aoa) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name.slice(0, 31));
 
+  if (lastNotes.semrush && lastNotes.semrush.trim()) add('Notes', [['Notes'], [lastNotes.semrush]]);
   add('Executive Summary', [
     ['The Nykaa story'], [rep.nykaaStory || ''], [''],
     ['The competitor story'], [rep.competitorStory || ''],
