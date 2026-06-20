@@ -1,0 +1,156 @@
+---
+// Live AEO Measurement (Phase 1). Query AI engines live for a frozen prompt set,
+// score the brand vs competitors, and show a transparent AEO scorecard + the
+// gap reel — all from OUR own data, not SEMrush. Runs in demo mode until a
+// PERPLEXITY_API_KEY is set, then flips to live automatically.
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Live AEO Measurement — CiteRank</title>
+    <style is:global>
+      :root {
+        --pink: #6366f1; --pink-dark: #4f46e5; --ink: #1d1f2b; --muted: #6b6f80;
+        --line: #e7e8ef; --bg: #f6f6fa; --card: #fff; --ok: #15a06a; --warn: #c98a00; --bad: #b3261e;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+      header { background: linear-gradient(120deg, #6366f1 0%, #8b5cf6 100%); color: #fff; padding: 30px 20px 34px; }
+      .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+      header h1 { margin: 0 0 6px; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+      header p { margin: 0; opacity: 0.95; font-size: 15px; max-width: 780px; }
+      nav.top { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+      nav.top a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; }
+      nav.top a.active { background: #fff; color: var(--pink-dark); }
+      .brandbar { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; flex-wrap: wrap; }
+      .brandbar .logo { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
+      .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+      .brandbar .by { font-size: 11.5px; font-weight: 600; opacity: 0.9; }
+      main { padding: 26px 0 60px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: 0 1px 2px rgba(20,20,40,0.04); margin-bottom: 18px; }
+      .card h3 { margin: 0 0 4px; font-size: 15px; }
+      .card .hint { margin: 0 0 12px; font-size: 12.5px; color: var(--muted); }
+      label.fld { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+      label.fld input, label.fld select { display: block; width: 100%; margin-top: 5px; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; font-size: 14px; background: #fff; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      @media (max-width: 720px){ .grid2 { grid-template-columns: 1fr; } }
+      button.primary { background: var(--pink); color: #fff; border: none; border-radius: 10px; padding: 12px 22px; font-size: 15px; font-weight: 700; cursor: pointer; }
+      button.primary:hover { background: var(--pink-dark); }
+      button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+      .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; display: inline-block; vertical-align: -3px; margin-right: 8px; animation: spin 0.7s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .alert { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; display: none; }
+      .alert.err { background: #fdecec; color: var(--bad); border: 1px solid #f6c9c6; }
+      .modepill { display:inline-block; font-size: 11px; font-weight: 800; padding: 4px 11px; border-radius: 999px; letter-spacing: 0.04em; }
+      .modepill.live { background:#e7f8ef; color:#0f8a59; border:1px solid #b9e6cd; }
+      .modepill.demo { background:#fff4e0; color:#9a6a00; border:1px solid #f3dfb0; }
+      #out { display:none; }
+      .sec { margin-bottom: 22px; }
+      .sec h3 { font-size: 16px; margin: 0 0 8px; }
+      .scorecards { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 12px; }
+      .sc { background:#fff; border:1px solid var(--line); border-radius:14px; padding:15px 16px; }
+      .sc.primary { border-color:#c9c3f7; background:#f6f5ff; }
+      .sc .nm { font-size:13px; font-weight:800; }
+      .sc .gr { font-size:30px; font-weight:800; letter-spacing:-0.02em; }
+      .sc .scv { font-size:12px; color:var(--muted); }
+      .sc .cmp { margin-top:8px; font-size:11px; color:var(--muted); display:grid; gap:3px; }
+      .sc .cmp b { color:var(--ink); }
+      .table-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:#fff; }
+      table { border-collapse:collapse; width:100%; font-size:13px; }
+      th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); white-space:nowrap; }
+      th { background:#fafafe; font-size:11px; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); }
+      td.num,th.num { text-align:right; font-variant-numeric: tabular-nums; }
+      tr:last-child td { border-bottom:none; }
+      .comp-name { font-weight:700; color:var(--bad); }
+      details.work summary { cursor:pointer; font-weight:700; font-size:13.5px; }
+      .resp { border:1px solid var(--line); border-radius:10px; padding:11px 13px; margin-top:10px; background:#fff; }
+      .resp .q { font-weight:700; font-size:12.5px; }
+      .resp .a { font-size:12.5px; color:#333; white-space:pre-wrap; margin-top:5px; }
+      .resp .c { font-size:11px; color:var(--muted); margin-top:6px; word-break:break-all; }
+      .note { font-size:12px; color:var(--muted); margin-top:6px; }
+      footer { text-align:center; color:var(--muted); font-size:12.5px; padding:24px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <div class="brandbar">
+          <span class="logo">📡</span>
+          <span class="wordmark">CiteRank Live AEO</span>
+          <span class="by">By Rudra Kasturi Inc</span>
+        </div>
+        <h1>Live AEO Measurement</h1>
+        <p>
+          Ask the AI engines <strong>live</strong> — for a frozen set of the questions your buyers
+          actually ask — and score how a brand ranks vs competitors on mentions, citations and
+          prominence. Our own data, not SEMrush. Transparent score, multi-run averaged.
+        </p>
+        <nav class="top">
+          <a href="/">✍️ Topic Engine</a>
+          <a href="/audit">🔎 AEO Auditor</a>
+          <a href="/wbr">📊 WBR Builder</a>
+          <a href="/snapshot">🎯 Snapshot</a>
+          <a href="/measure" class="active">📡 Live AEO</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="wrap">
+        <div class="card">
+          <h3>Measure a brand</h3>
+          <p class="hint">Runs the starter category prompt set live (or in demo mode until <code>PERPLEXITY_API_KEY</code> is set). Each prompt is asked multiple times and averaged.</p>
+          <div class="grid2">
+            <label class="fld">Primary brand
+              <input type="text" id="primaryLabel" placeholder="e.g. SUGAR Cosmetics" />
+            </label>
+            <label class="fld">Primary domain (optional)
+              <input type="text" id="primaryDomain" placeholder="e.g. sugarcosmetics.com" />
+            </label>
+            <label class="fld">Competitors (comma-separated)
+              <input type="text" id="competitors" placeholder="e.g. Nykaa, Lakme, Maybelline, Minimalist" />
+            </label>
+            <label class="fld">Vertical
+              <select id="vertical"><option value="beauty">Beauty</option><option value="fashion">Fashion</option></select>
+            </label>
+            <label class="fld">Locale
+              <input type="text" id="locale" value="en-IN" />
+            </label>
+            <label class="fld">Runs per prompt (1–5)
+              <input type="number" id="runs" value="3" min="1" max="5" />
+            </label>
+          </div>
+          <button class="primary" id="runBtn">Run live measurement</button>
+          <div class="alert err" id="errBox"></div>
+        </div>
+
+        <div id="out">
+          <div class="sec">
+            <h3>AEO Scorecard <span id="modePill"></span></h3>
+            <div class="scorecards" id="scorecards"></div>
+            <p class="note" id="scoreNote"></p>
+          </div>
+
+          <div class="sec">
+            <h3>Topic-by-topic: your AI visibility vs the leader</h3>
+            <div class="table-wrap"><table id="gapTable"><thead><tr><th>Topic</th><th>Category</th><th class="num">Your visibility</th><th class="num">Your mentions</th><th>Leader</th><th class="num">Leader visibility</th></tr></thead><tbody></tbody></table></div>
+            <p class="note" id="gapNote"></p>
+          </div>
+
+          <div class="sec">
+            <details class="work">
+              <summary>Show the work — sample live AI responses & citations</summary>
+              <div id="responses"></div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer>CiteRank Live AEO · Multi-run, category-honest, transparent scoring · By Rudra Kasturi Inc</footer>
+    <script type="module" src="/scripts/measure-client.js"></script>
+  </body>
+</html>
