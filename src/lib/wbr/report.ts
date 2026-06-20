@@ -19,11 +19,11 @@ export const COMPETITORS = ['amazon', 'myntra', 'tira', 'flipkart', 'ajio'];
 
 // Competitors to report on = every non-primary brand present in the uploads,
 // ordered by the preference list above, then any extras alphabetically.
-function deriveCompetitors(...sources: Map<string, unknown>[]): string[] {
+function deriveCompetitors(primary: string, order: string[], ...sources: Map<string, unknown>[]): string[] {
   const present = new Set<string>();
-  for (const m of sources) for (const b of m.keys()) if (b && b !== PRIMARY) present.add(b);
-  const known = COMPETITORS.filter((b) => present.has(b));
-  const extras = [...present].filter((b) => !COMPETITORS.includes(b)).sort();
+  for (const m of sources) for (const b of m.keys()) if (b && b !== primary) present.add(b);
+  const known = order.filter((b) => present.has(b));
+  const extras = [...present].filter((b) => !order.includes(b)).sort();
   return [...known, ...extras];
 }
 
@@ -33,6 +33,11 @@ export interface ReportOptions {
   authorityThreshold?: number; // "high authority" topics (beauty 80, fashion 60)
   // Optional manual/Claude classification overrides, keyed by exact topic name.
   overrides?: Record<string, { vertical: Vertical; category: string }>;
+  // Primary (client) brand. Defaults keep the original Nykaa behavior intact so
+  // existing reports are unchanged; set these to run the report for any brand.
+  primaryBrand?: string; // canonical key, e.g. "nykaa" | "sugar"
+  primaryLabel?: string; // display name, e.g. "Nykaa" | "SUGAR Cosmetics"
+  competitorOrder?: string[]; // preferred display order for known competitors
 }
 
 export interface ClassifiedTopic extends TopicRow {
@@ -101,6 +106,10 @@ export interface SourceTypeRow {
 export interface WbrReport {
   vertical: 'beauty' | 'fashion';
   generatedAt: string;
+  primaryBrand: string;
+  primaryLabel: string;
+  primaryStory: string;
+  // Back-compat alias for primaryStory (older cached clients read nykaaStory).
   nykaaStory: string;
   competitorStory: string;
   highlights: string[];
@@ -179,6 +188,10 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
   const authorityThreshold = opts.authorityThreshold ?? (vertical === 'beauty' ? 80 : 60);
   const orderedCats = vertical === 'beauty' ? BEAUTY_CATEGORIES : FASHION_CATEGORIES;
   const overrides = opts.overrides;
+  // Configurable primary brand (defaults preserve the original Nykaa report).
+  const primary = opts.primaryBrand ?? PRIMARY;
+  const primaryLabel = opts.primaryLabel ?? (primary === PRIMARY ? 'Nykaa' : cap(primary));
+  const competitorOrder = opts.competitorOrder ?? COMPETITORS;
 
   // index parsed files by brand
   const brandTopics = new Map<string, ClassifiedTopic[]>();
@@ -195,15 +208,15 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
     }
   }
 
-  const competitors = deriveCompetitors(brandTopics, sourceFiles, gapFiles);
-  const brandOrder = [PRIMARY, ...competitors].filter((b) => brandTopics.has(b) || sourceFiles.has(b));
+  const competitors = deriveCompetitors(primary, competitorOrder, brandTopics, sourceFiles, gapFiles);
+  const brandOrder = [primary, ...competitors].filter((b) => brandTopics.has(b) || sourceFiles.has(b));
 
   // ---- Section: Summary scorecard ----
   const summary: BrandSummary[] = brandOrder
     .filter((b) => brandTopics.has(b))
     .map((b) => brandSummary(b, brandTopics.get(b)!, vertical, authorityThreshold));
 
-  const primaryTopics = (brandTopics.get(PRIMARY) ?? []).filter((t) => t.vertical === vertical);
+  const primaryTopics = (brandTopics.get(primary) ?? []).filter((t) => t.vertical === vertical);
 
   // ---- Section A: Category scorecard (primary brand) + leader signal ----
   // Precompute per-brand mentions per category for leader detection.
@@ -219,19 +232,19 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
       if (inCat.length === 0) return null;
       const n = inCat.length;
       // leader = brand with most mentions in this category
-      let leader = PRIMARY; let leaderM = perBrandCatMentions.get(PRIMARY)?.get(cat) ?? 0;
+      let leader = primary; let leaderM = perBrandCatMentions.get(primary)?.get(cat) ?? 0;
       for (const b of competitors) {
         const m = perBrandCatMentions.get(b)?.get(cat) ?? 0;
         if (m > leaderM) { leaderM = m; leader = b; }
       }
-      const signal = leader === PRIMARY ? '✓ Nykaa leads' : `→ watch ${cap(leader)}`;
+      const signal = leader === primary ? `✓ ${primaryLabel} leads` : `→ watch ${cap(leader)}`;
       return {
         category: cat,
         topics: n,
         avgVisibility: round1(inCat.reduce((s, t) => s + t.visibility, 0) / n),
         avgMentions: round1(inCat.reduce((s, t) => s + t.mentions, 0) / n),
         totalVolume: inCat.reduce((s, t) => s + t.volume, 0),
-        leader: cap(leader),
+        leader: leader === primary ? primaryLabel : cap(leader),
         signal,
       } as CategoryRow;
     })
@@ -251,17 +264,21 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
     }));
 
   // ---- Section C: Gap analysis (primary = 0, competitors present) ----
-  const gapFile = gapFiles.get(PRIMARY);
+  const gapFile = gapFiles.get(primary);
   const gaps: GapRow[] = [];
   if (gapFile?.topics) {
     for (const t of gapFile.topics) {
       const gm = t.gapMentions ?? {};
-      const primaryM = gm[`${PRIMARY}.com`] ?? gm[`${PRIMARY}fashion.com`] ?? t.mentions ?? 0;
+      // Primary is present if any of its hosts (e.g. nykaa.com, nykaafashion.com)
+      // is cited; fall back to the row's own mentions when there's no breakdown.
+      let primaryM = 0;
+      for (const [host, v] of Object.entries(gm)) if (host.includes(primary)) primaryM += v;
+      if (primaryM === 0 && Object.keys(gm).length === 0) primaryM = t.mentions ?? 0;
       if (primaryM > 0) continue; // only true gaps
       const comp: Record<string, number> = {};
       let maxComp = 0;
       for (const [host, v] of Object.entries(gm)) {
-        if (host.includes(PRIMARY)) continue;
+        if (host.includes(primary)) continue;
         const short = shortHost(host);
         comp[short] = v;
         if (v > maxComp) maxComp = v;
@@ -291,19 +308,19 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
       const competitors: Record<string, number> = {};
       let leader = ''; let leaderV = -1; let total = 0;
       for (const [host, v] of Object.entries(gm)) {
-        const label = host.includes(PRIMARY) ? 'Nykaa' : shortHost(host);
+        const label = host.includes(primary) ? primaryLabel : shortHost(host);
         competitors[label] = v; total += v;
         if (v > leaderV) { leaderV = v; leader = label; }
       }
       if (total === 0) continue;
-      const status = leader === 'Nykaa' ? '✓ Nykaa leads' : `⚠ behind ${leader}`;
+      const status = leader === primaryLabel ? `✓ ${primaryLabel} leads` : `⚠ behind ${leader}`;
       const c = classifyOne(t.name, vertical, overrides);
       beautyBrands.push({ topic: t.name, category: c.category, competitors, leader, status });
     }
   }
   // Most-contested first (highest combined competitor presence).
   beautyBrands.sort((a, b) => {
-    const sum = (r: BeautyBrandRow) => Object.entries(r.competitors).reduce((s, [k, v]) => s + (k === 'Nykaa' ? 0 : v), 0);
+    const sum = (r: BeautyBrandRow) => Object.entries(r.competitors).reduce((s, [k, v]) => s + (k === primaryLabel ? 0 : v), 0);
     return sum(b) - sum(a);
   });
 
@@ -344,26 +361,29 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
     .filter((r) => Object.values(r.count).some((v) => v > 0));
 
   // ---- Review queue: low-confidence classifications for the primary brand ----
-  const reviewQueue = (brandTopics.get(PRIMARY) ?? [])
+  const reviewQueue = (brandTopics.get(primary) ?? [])
     .filter((t) => !t.matched)
-    .map((t) => ({ brand: PRIMARY, topic: t.name, category: t.category }));
+    .map((t) => ({ brand: primary, topic: t.name, category: t.category }));
 
   const highlights = computeHighlights(
-    vertical, summary, categoryScorecard, gaps, sourceCounts, authorityThreshold, competitors,
+    vertical, primary, primaryLabel, summary, categoryScorecard, gaps, sourceCounts, authorityThreshold, competitors,
   );
-  const { nykaaStory, competitorStory } = computeStories(
-    vertical, summary, categoryScorecard, gaps, beautyBrands, authorityThreshold,
+  const { primaryStory, competitorStory } = computeStories(
+    vertical, primary, primaryLabel, summary, categoryScorecard, gaps, beautyBrands, authorityThreshold,
   );
 
   const tableNotes = computeTableNotes({
-    vertical, summary, categoryScorecard, protect, gaps, brandComparison,
+    vertical, primary, primaryLabel, summary, categoryScorecard, protect, gaps, brandComparison,
     beautyBrands, sourceAnalysis, competitors,
   });
 
   return {
     vertical,
     generatedAt: new Date().toISOString(),
-    nykaaStory,
+    primaryBrand: primary,
+    primaryLabel,
+    primaryStory,
+    nykaaStory: primaryStory,
     competitorStory,
     highlights,
     summary,
@@ -383,6 +403,8 @@ export function buildReport(files: ParsedFile[], opts: ReportOptions): WbrReport
 // One-line, data-derived "key call-out" for each table.
 function computeTableNotes(d: {
   vertical: 'beauty' | 'fashion';
+  primary: string;
+  primaryLabel: string;
   summary: BrandSummary[];
   categoryScorecard: CategoryRow[];
   protect: ProtectRow[];
@@ -394,28 +416,31 @@ function computeTableNotes(d: {
 }): Record<string, string> {
   const f = (n: number) => Math.round(n).toLocaleString('en-IN');
   const notes: Record<string, string> = {};
-  const nyk = d.summary.find((s) => s.brand === PRIMARY);
+  const P = d.primaryLabel;
+  const nyk = d.summary.find((s) => s.brand === d.primary);
   const V = d.vertical;
 
   if (nyk) {
-    const rivals = d.summary.filter((s) => s.brand !== PRIMARY).sort((a, b) => b.totalMentions - a.totalMentions);
+    const rivals = d.summary.filter((s) => s.brand !== d.primary).sort((a, b) => b.totalMentions - a.totalMentions);
     const topRival = rivals[0];
     if (topRival) {
       const x = topRival.totalMentions > 0 ? Math.round(nyk.totalMentions / topRival.totalMentions) : null;
       const highVis = rivals.filter((r) => r.avgVisibility > nyk.avgVisibility).sort((a, b) => b.avgVisibility - a.avgVisibility)[0];
-      let s = `Nykaa leads on mentions (${f(nyk.totalMentions)} vs ${cap(topRival.brand)} ${f(topRival.totalMentions)}${x && x >= 2 ? `, ~${x}×` : ''}).`;
-      if (highVis) s += ` ${cap(highVis.brand)}'s higher avg visibility (${highVis.avgVisibility}) is concentrated coverage — only ${f(highVis.topicsInVertical)} ${V} topics vs Nykaa's ${f(nyk.topicsInVertical)} — not real breadth.`;
-      const tira = rivals.find((r) => r.brand === 'tira');
-      if (tira) s += ` Tira is beauty-pure — its gains come straight out of Nykaa's core; track it weekly.`;
+      let s = `${P} leads on mentions (${f(nyk.totalMentions)} vs ${cap(topRival.brand)} ${f(topRival.totalMentions)}${x && x >= 2 ? `, ~${x}×` : ''}).`;
+      if (highVis) s += ` ${cap(highVis.brand)}'s higher avg visibility (${highVis.avgVisibility}) is concentrated coverage — only ${f(highVis.topicsInVertical)} ${V} topics vs ${P}'s ${f(nyk.topicsInVertical)} — not real breadth.`;
+      if (d.primary === PRIMARY) {
+        const tira = rivals.find((r) => r.brand === 'tira');
+        if (tira) s += ` Tira is beauty-pure — its gains come straight out of ${P}'s core; track it weekly.`;
+      }
       notes.summary = s;
     } else {
-      notes.summary = `Nykaa: ${f(nyk.totalMentions)} ${V} mentions across ${f(nyk.topicsInVertical)} topics. Upload competitors' brand_topics CSVs (Amazon / Myntra / Tira) to see the head-to-head here.`;
+      notes.summary = `${P}: ${f(nyk.totalMentions)} ${V} mentions across ${f(nyk.topicsInVertical)} topics. Upload competitors' brand_topics CSVs to see the head-to-head here.`;
     }
   }
 
-  const led = d.categoryScorecard.filter((c) => c.leader.toLowerCase() === PRIMARY).length;
-  const trail = d.categoryScorecard.filter((c) => c.leader.toLowerCase() !== PRIMARY);
-  notes.category = `Nykaa leads ${led}/${d.categoryScorecard.length} categories${trail.length ? `; defend ${trail.map((t) => `${t.category} (${t.leader})`).join(', ')}` : ' — clean sweep'}.`;
+  const led = d.categoryScorecard.filter((c) => c.leader === P).length;
+  const trail = d.categoryScorecard.filter((c) => c.leader !== P);
+  notes.category = `${P} leads ${led}/${d.categoryScorecard.length} categories${trail.length ? `; defend ${trail.map((t) => `${t.category} (${t.leader})`).join(', ')}` : ' — clean sweep'}.`;
 
   const lowProtect = d.protect.filter((p) => /improve|low/i.test(p.status));
   notes.protect = lowProtect.length
@@ -431,21 +456,21 @@ function computeTableNotes(d: {
   if (d.brandComparison.length) {
     const wins = d.brandComparison.filter((b) => {
       const max = Math.max(...Object.values(b.mentions));
-      return (b.mentions[PRIMARY] ?? 0) === max && max > 0;
+      return (b.mentions[d.primary] ?? 0) === max && max > 0;
     }).length;
-    notes.brandComparison = `Nykaa has the most mentions in ${wins}/${d.brandComparison.length} categories. Bold = category leader.`;
+    notes.brandComparison = `${P} has the most mentions in ${wins}/${d.brandComparison.length} categories. Bold = category leader.`;
   }
 
   if (d.beautyBrands.length) {
-    const behind = d.beautyBrands.filter((b) => b.leader !== 'Nykaa');
-    notes.beautyBrands = `${d.beautyBrands.length} beauty-brand topics tracked; Nykaa trails on ${behind.length}. Target content/PDP/AEO on: ${behind.slice(0, 4).map((b) => b.topic).join(', ') || '—'}.`;
+    const behind = d.beautyBrands.filter((b) => b.leader !== P);
+    notes.beautyBrands = `${d.beautyBrands.length} beauty-brand topics tracked; ${P} trails on ${behind.length}. Target content/PDP/AEO on: ${behind.slice(0, 4).map((b) => b.topic).join(', ') || '—'}.`;
   }
 
   if (d.sourceAnalysis.length) {
-    const home = d.sourceAnalysis.find((s) => s.pageType === 'Homepage')?.count[PRIMARY] ?? 0;
-    const tot = d.sourceAnalysis.reduce((s, r) => s + (r.count[PRIMARY] ?? 0), 0);
+    const home = d.sourceAnalysis.find((s) => s.pageType === 'Homepage')?.count[d.primary] ?? 0;
+    const tot = d.sourceAnalysis.reduce((s, r) => s + (r.count[d.primary] ?? 0), 0);
     const pct = tot ? Math.round((home / tot) * 100) : 0;
-    notes.sourceAnalysis = `Homepage = ${pct}% of Nykaa's cited pages${pct > 25 ? ' — too high; AI knows the brand but not its content. Grow blog/PDP citations.' : ' — healthy spread across blog/PDP.'}`;
+    notes.sourceAnalysis = `Homepage = ${pct}% of ${P}'s cited pages${pct > 25 ? ' — too high; AI knows the brand but not its content. Grow blog/PDP citations.' : ' — healthy spread across blog/PDP.'}`;
   }
 
   return notes;
@@ -455,27 +480,30 @@ function computeTableNotes(d: {
 // "competitor story", both derived from the data.
 function computeStories(
   vertical: 'beauty' | 'fashion',
+  primary: string,
+  primaryLabel: string,
   summary: BrandSummary[],
   cats: CategoryRow[],
   gaps: GapRow[],
   beautyBrands: BeautyBrandRow[],
   authorityThreshold: number,
-): { nykaaStory: string; competitorStory: string } {
+): { primaryStory: string; competitorStory: string } {
   const f = (n: number) => Math.round(n).toLocaleString('en-IN');
   const V = vertical;
-  const nyk = summary.find((s) => s.brand === PRIMARY);
-  if (!nyk) return { nykaaStory: '', competitorStory: '' };
-  const rivals = summary.filter((s) => s.brand !== PRIMARY).sort((a, b) => b.totalMentions - a.totalMentions);
+  const P = primaryLabel;
+  const nyk = summary.find((s) => s.brand === primary);
+  if (!nyk) return { primaryStory: '', competitorStory: '' };
+  const rivals = summary.filter((s) => s.brand !== primary).sort((a, b) => b.totalMentions - a.totalMentions);
 
-  const led = cats.filter((c) => c.leader.toLowerCase() === PRIMARY).length;
-  const trailing = cats.filter((c) => c.leader.toLowerCase() !== PRIMARY);
+  const led = cats.filter((c) => c.leader === P).length;
+  const trailing = cats.filter((c) => c.leader !== P);
   const strongest = [...cats].sort((a, b) => b.avgMentions * b.topics - a.avgMentions * a.topics)
     .slice(0, 3).map((c) => c.category);
   const topRival = rivals[0];
   const mult = topRival && topRival.totalMentions > 0 ? Math.round(nyk.totalMentions / topRival.totalMentions) : null;
   const farMore = topRival ? nyk.topicsInVertical > topRival.topicsInVertical * 1.3 : true;
 
-  // ---- Nykaa story ----
+  // ---- Primary brand story ----
   const ns: string[] = [];
   const footprint = topRival
     ? (farMore
@@ -483,7 +511,7 @@ function computeStories(
       : `, a footprint comparable to ${cap(topRival.brand)} (${f(topRival.topicsInVertical)}) but with much stronger pull`)
     : '';
   ns.push(
-    `Nykaa is the clear ${V} leader in AI visibility: it ranks for ${f(nyk.topicsInVertical)} ${V} topics${footprint}, ` +
+    `${P} is the clear ${V} leader in AI visibility: it ranks for ${f(nyk.topicsInVertical)} ${V} topics${footprint}, ` +
     `with ${f(nyk.totalMentions)} total brand mentions${mult && mult >= 2 ? ` (~${mult}× ${cap(topRival.brand)})` : ''} and ${f(nyk.totalVolume)} in tracked search volume.`,
   );
   ns.push(
@@ -507,21 +535,23 @@ function computeStories(
     const higherVis = r.avgVisibility > nyk.avgVisibility;
     const x = r.totalMentions > 0 ? Math.round(nyk.totalMentions / r.totalMentions) : null;
     if (narrow && higherVis) {
-      cs.push(`${cap(r.brand)} looks strong on average visibility (${r.avgVisibility}) but only across ${f(r.topicsInVertical)} ${V} topics — a narrow, concentrated set; Nykaa out-mentions it${x ? ` ~${x}×` : ''}.`);
+      cs.push(`${cap(r.brand)} looks strong on average visibility (${r.avgVisibility}) but only across ${f(r.topicsInVertical)} ${V} topics — a narrow, concentrated set; ${P} out-mentions it${x ? ` ~${x}×` : ''}.`);
     } else if (narrow) {
       cs.push(`${cap(r.brand)} has a thin ${V} footprint (${f(r.topicsInVertical)} topics, ${f(r.totalMentions)} mentions) — not a broad threat yet, but worth monitoring.`);
     } else {
       cs.push(`${cap(r.brand)} has real ${V} breadth (${f(r.topicsInVertical)} topics, avg visibility ${r.avgVisibility}, ${f(r.totalMentions)} mentions) — the most direct rival to track.`);
     }
   }
-  const tira = rivals.find((r) => r.brand === 'tira');
-  if (tira) cs.push(`Tira is the beauty-pure player to watch — unlike Amazon/Myntra it competes only on beauty, so its gains come straight out of Nykaa's core.`);
+  if (primary === PRIMARY) {
+    const tira = rivals.find((r) => r.brand === 'tira');
+    if (tira) cs.push(`Tira is the beauty-pure player to watch — unlike Amazon/Myntra it competes only on beauty, so its gains come straight out of ${P}'s core.`);
+  }
   if (beautyBrands.length) {
-    const behind = beautyBrands.filter((b) => b.leader !== 'Nykaa').length;
-    if (behind) cs.push(`On specific beauty brands, competitors are already being cited on ${behind} brand topics where Nykaa is absent — the clearest place to publish brand content next.`);
+    const behind = beautyBrands.filter((b) => b.leader !== P).length;
+    if (behind) cs.push(`On specific beauty brands, competitors are already being cited on ${behind} brand topics where ${P} is absent — the clearest place to publish brand content next.`);
   }
 
-  return { nykaaStory: ns.join(' '), competitorStory: cs.join(' ') };
+  return { primaryStory: ns.join(' '), competitorStory: cs.join(' ') };
 }
 
 // Auto-written "why the numbers look this way" bullets — all derived from the
@@ -530,6 +560,8 @@ function computeStories(
 // concentrated topics").
 function computeHighlights(
   vertical: 'beauty' | 'fashion',
+  primary: string,
+  primaryLabel: string,
   summary: BrandSummary[],
   cats: CategoryRow[],
   gaps: GapRow[],
@@ -539,18 +571,19 @@ function computeHighlights(
 ): string[] {
   const f = (n: number) => Math.round(n).toLocaleString('en-IN');
   const out: string[] = [];
-  const nyk = summary.find((s) => s.brand === PRIMARY);
+  const P = primaryLabel;
+  const nyk = summary.find((s) => s.brand === primary);
   if (!nyk) return out;
-  const comps = summary.filter((s) => s.brand !== PRIMARY);
+  const comps = summary.filter((s) => s.brand !== primary);
   const V = vertical;
 
   // 1) Topic footprint vs the biggest competitor by topic count.
   const byTopics = [...comps].sort((a, b) => b.topicsInVertical - a.topicsInVertical)[0];
   if (byTopics) {
     out.push(
-      `Nykaa ranks for ${f(nyk.topicsInVertical)} ${V} topics — vs ${cap(byTopics.brand)}'s ${f(byTopics.topicsInVertical)}. ` +
-      `Total ${V} mentions: Nykaa ${f(nyk.totalMentions)} vs ${cap(byTopics.brand)} ${f(byTopics.totalMentions)}; ` +
-      `total search volume Nykaa ${f(nyk.totalVolume)} vs ${f(byTopics.totalVolume)}.`,
+      `${P} ranks for ${f(nyk.topicsInVertical)} ${V} topics — vs ${cap(byTopics.brand)}'s ${f(byTopics.topicsInVertical)}. ` +
+      `Total ${V} mentions: ${P} ${f(nyk.totalMentions)} vs ${cap(byTopics.brand)} ${f(byTopics.totalMentions)}; ` +
+      `total search volume ${P} ${f(nyk.totalVolume)} vs ${f(byTopics.totalVolume)}.`,
     );
   }
 
@@ -564,13 +597,13 @@ function computeHighlights(
       const x = (nyk.topicsInVertical / Math.max(c.topicsInVertical, 1)).toFixed(0);
       const y = (nyk.totalMentions / Math.max(c.totalMentions, 1)).toFixed(0);
       out.push(
-        `${cap(c.brand)}'s average visibility (${c.avgVisibility}) edges Nykaa's (${nyk.avgVisibility}), but that's a coverage effect, not strength: ` +
-        `${cap(c.brand)} ranks for only ${f(c.topicsInVertical)} ${V} topics — a concentrated set of high performers — while Nykaa spans ${f(nyk.topicsInVertical)} topics (~${x}× wider), including a long tail of low-visibility topics that drags the average down. ` +
-        `On absolute mentions Nykaa leads ${f(nyk.totalMentions)} vs ${f(c.totalMentions)} (~${y}×).`,
+        `${cap(c.brand)}'s average visibility (${c.avgVisibility}) edges ${P}'s (${nyk.avgVisibility}), but that's a coverage effect, not strength: ` +
+        `${cap(c.brand)} ranks for only ${f(c.topicsInVertical)} ${V} topics — a concentrated set of high performers — while ${P} spans ${f(nyk.topicsInVertical)} topics (~${x}× wider), including a long tail of low-visibility topics that drags the average down. ` +
+        `On absolute mentions ${P} leads ${f(nyk.totalMentions)} vs ${f(c.totalMentions)} (~${y}×).`,
       );
     } else {
       out.push(
-        `${cap(c.brand)} leads on average visibility (${c.avgVisibility} vs Nykaa's ${nyk.avgVisibility}) across ${f(c.topicsInVertical)} ${V} topics vs Nykaa's ${f(nyk.topicsInVertical)} — a genuine visibility gap to close, not just an averaging effect.`,
+        `${cap(c.brand)} leads on average visibility (${c.avgVisibility} vs ${P}'s ${nyk.avgVisibility}) across ${f(c.topicsInVertical)} ${V} topics vs ${P}'s ${f(nyk.topicsInVertical)} — a genuine visibility gap to close, not just an averaging effect.`,
       );
     }
   }
@@ -578,13 +611,13 @@ function computeHighlights(
   // 3) Authority (topics at/above the high-visibility bar).
   const compAuth = Math.max(0, ...comps.map((c) => c.topicsAuthority));
   out.push(
-    `Nykaa holds ${f(nyk.topicsAuthority)} ${V} topics at ≥${authorityThreshold} visibility (strong AI authority) vs the top competitor's ${f(compAuth)}.`,
+    `${P} holds ${f(nyk.topicsAuthority)} ${V} topics at ≥${authorityThreshold} visibility (strong AI authority) vs the top competitor's ${f(compAuth)}.`,
   );
 
   // 4) Category leadership.
-  const led = cats.filter((c) => c.leader.toLowerCase() === PRIMARY).length;
-  const trailing = cats.filter((c) => c.leader.toLowerCase() !== PRIMARY);
-  let catLine = `Nykaa leads ${led} of ${cats.length} ${V} categories by mentions`;
+  const led = cats.filter((c) => c.leader === P).length;
+  const trailing = cats.filter((c) => c.leader !== P);
+  let catLine = `${P} leads ${led} of ${cats.length} ${V} categories by mentions`;
   if (trailing.length) catLine += `; watch ${trailing.map((t) => `${t.category} (${t.leader})`).join(', ')}.`;
   else catLine += '.';
   out.push(catLine);
@@ -594,21 +627,21 @@ function computeHighlights(
     const high = gaps.filter((g) => g.priority === 'High').length;
     const totalVol = gaps.reduce((s, g) => s + g.volume, 0);
     out.push(
-      `${gaps.length} actionable ${V} gaps where Nykaa = 0 visibility but competitors rank (${high} high-priority), led by “${gaps[0].topic}” (${f(gaps[0].volume)} monthly searches). Total addressable gap volume ≈ ${f(totalVol)}.`,
+      `${gaps.length} actionable ${V} gaps where ${P} = 0 visibility but competitors rank (${high} high-priority), led by “${gaps[0].topic}” (${f(gaps[0].volume)} monthly searches). Total addressable gap volume ≈ ${f(totalVol)}.`,
     );
   }
 
   // 6) Cited-source forward risk.
   if (sourceCounts.size > 1) {
     const total = (b: string) => [...(sourceCounts.get(b)?.values() ?? [])].reduce((a, c) => a + c, 0);
-    const np = total(PRIMARY);
+    const np = total(primary);
     const rival = competitors
       .map((b) => ({ b, n: total(b) }))
       .filter((x) => x.n > 0)
       .sort((a, b) => b.n - a.n)[0];
     if (np > 0 && rival && rival.n > np) {
       out.push(
-        `${cap(rival.b)} has ${f(rival.n)} AI-cited pages vs Nykaa's ${f(np)} — more indexed pages compounds into more mentions over time, so closing the cited-page gap is the forward-looking lever.`,
+        `${cap(rival.b)} has ${f(rival.n)} AI-cited pages vs ${P}'s ${f(np)} — more indexed pages compounds into more mentions over time, so closing the cited-page gap is the forward-looking lever.`,
       );
     }
   }
@@ -650,5 +683,8 @@ function shortHost(host: string): string {
   if (host.includes('tira')) return 'Tira';
   if (host.includes('flipkart')) return 'Flipkart';
   if (host.includes('ajio')) return 'Ajio';
-  return host;
+  // Generic fallback: registrable-ish name, title-cased (e.g. sugarcosmetics.com -> Sugarcosmetics).
+  const core = host.replace(/^www\./, '').replace(/\.(com|in|co|net|org|io|store|shop)(\.[a-z]{2})?$/, '');
+  const name = core.split('.').pop() || core;
+  return name.split(/[-_]/).map((p) => (p ? p.charAt(0).toUpperCase() + p.slice(1) : p)).join(' ');
 }

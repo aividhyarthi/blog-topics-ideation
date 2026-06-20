@@ -3,7 +3,7 @@
 // returns the computed report as JSON for the page to render and export.
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
-import { parseFile, type ParsedFile } from '../../lib/wbr/parse';
+import { parseFile, brandFromName, type ParsedFile } from '../../lib/wbr/parse';
 import { buildReport } from '../../lib/wbr/report';
 import { GLOSSARY } from '../../lib/wbr/report';
 import { classifyTopic, BEAUTY_CATEGORIES, FASHION_CATEGORIES, type Vertical } from '../../lib/wbr/categorize';
@@ -57,6 +57,10 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const form = await request.formData();
     const vertical = (form.get('vertical') as string) === 'fashion' ? 'fashion' : 'beauty';
+    // Primary (client) brand — defaults to Nykaa so existing reports are unchanged.
+    const rawPrimary = ((form.get('primaryBrand') as string) || '').trim();
+    const primaryBrand = rawPrimary ? brandFromName(rawPrimary) : 'nykaa';
+    const primaryLabel = ((form.get('primaryLabel') as string) || '').trim() || undefined;
     const useClaude = form.get('useClaude') === 'true';
     const saveToHistory = form.get('saveToHistory') !== 'false'; // default on
     const rawWeek = (form.get('weekKey') as string) || '';
@@ -80,7 +84,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (useClaude) {
       const unmatched = new Set<string>();
       for (const f of parsed) {
-        if (f.brand !== 'nykaa') continue;
+        if (f.brand !== primaryBrand) continue;
         for (const t of f.topics ?? []) {
           if (!classifyTopic(t.name, { vertical }).matched) unmatched.add(t.name);
         }
@@ -89,7 +93,7 @@ export const POST: APIRoute = async ({ request }) => {
       claudeCount = Object.keys(overrides).length;
     }
 
-    const report = buildReport(parsed, { vertical, overrides });
+    const report = buildReport(parsed, { vertical, overrides, primaryBrand, primaryLabel });
 
     // Week-over-week: diff against the previous saved week, then (optionally)
     // remember this week so next week can diff against it.

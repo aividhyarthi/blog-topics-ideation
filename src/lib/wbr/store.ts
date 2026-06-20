@@ -13,10 +13,15 @@ export interface Snapshot {
   weekKey: string; // YYYY-MM-DD
   savedAt: string;
   label?: string;
+  // Primary (client) brand — optional for back-compat with pre-existing
+  // snapshots, which were always Nykaa.
+  primaryBrand?: string;
+  primaryLabel?: string;
   summary: BrandSummary[];
-  // Nykaa category -> total mentions (for category movement)
+  // primary brand's category -> total mentions (for category movement)
   categoryMentions: Record<string, number>;
-  // Nykaa topic name -> snapshot metrics (for topic-level movers)
+  // primary brand's topic name -> snapshot metrics (for topic-level movers).
+  // Field name kept as nykaaTopics for back-compat with saved history files.
   nykaaTopics: Record<string, { v: number; m: number; vol: number }>;
   gapTopics: string[]; // current gap topic names (for new/closed gaps)
   gapCount: number;

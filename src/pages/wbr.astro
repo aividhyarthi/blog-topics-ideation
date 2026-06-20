@@ -183,6 +183,12 @@
                   <option value="fashion">Fashion</option>
                 </select>
               </label>
+              <label class="field" title="The client brand this report is about. Must match the brand in the uploaded filenames (e.g. 'nykaa', 'sugarcosmetics'). Defaults to Nykaa.">Primary brand key
+                <input type="text" id="primaryBrand" placeholder="nykaa" />
+              </label>
+              <label class="field" title="Display name shown throughout the report (e.g. 'SUGAR Cosmetics'). Defaults to the brand key, capitalised.">Brand display name
+                <input type="text" id="primaryLabel" placeholder="Nykaa" />
+              </label>
               <label class="field" title="Use Claude to classify topics the keyword rules couldn't place. Requires server API key.">
                 <input type="checkbox" id="useClaude" /> Claude fallback for un-categorized topics
               </label>

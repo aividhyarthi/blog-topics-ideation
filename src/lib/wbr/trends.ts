@@ -15,6 +15,8 @@ export function snapshotFromReport(rep: WbrReport, weekKey: string, label?: stri
     weekKey,
     savedAt: new Date().toISOString(),
     label,
+    primaryBrand: rep.primaryBrand,
+    primaryLabel: rep.primaryLabel,
     summary: rep.summary,
     categoryMentions,
     nykaaTopics,
@@ -46,8 +48,11 @@ const pct = (prev: number, curr: number): number | null =>
 
 export function computeTrends(curr: Snapshot, prev: Snapshot): Trends {
   const f = (n: number) => Math.round(n).toLocaleString('en-IN');
-  const nykCurr = curr.summary.find((s) => s.brand === 'nykaa');
-  const nykPrev = prev.summary.find((s) => s.brand === 'nykaa');
+  // Default to 'nykaa' so pre-existing saved snapshots (which had no primaryBrand) still diff.
+  const primaryKey = curr.primaryBrand ?? 'nykaa';
+  const P = curr.primaryLabel ?? 'Nykaa';
+  const nykCurr = curr.summary.find((s) => s.brand === primaryKey);
+  const nykPrev = prev.summary.find((s) => s.brand === (prev.primaryBrand ?? primaryKey));
 
   const summaryDeltas: MetricDelta[] = [];
   if (nykCurr && nykPrev) {
@@ -90,7 +95,7 @@ export function computeTrends(curr: Snapshot, prev: Snapshot): Trends {
   const mv = summaryDeltas.find((d) => d.label === 'Total mentions');
   if (mv) {
     const dir = mv.delta >= 0 ? 'up' : 'down';
-    narrative.push(`Nykaa total ${curr.vertical} mentions ${dir} ${f(Math.abs(mv.delta))} (${mv.pct === null ? 'n/a' : mv.pct.toFixed(1) + '%'}) vs ${prev.weekKey}: ${f(mv.prev)} → ${f(mv.curr)}.`);
+    narrative.push(`${P} total ${curr.vertical} mentions ${dir} ${f(Math.abs(mv.delta))} (${mv.pct === null ? 'n/a' : mv.pct.toFixed(1) + '%'}) vs ${prev.weekKey}: ${f(mv.prev)} → ${f(mv.curr)}.`);
   }
   const vv = summaryDeltas.find((d) => d.label === 'Avg visibility');
   if (vv) narrative.push(`Average AI visibility moved ${vv.delta >= 0 ? '+' : ''}${vv.delta.toFixed(1)} (${f(vv.prev)} → ${f(vv.curr)}).`);

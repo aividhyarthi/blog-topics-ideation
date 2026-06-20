@@ -128,6 +128,8 @@ $('genBtn').addEventListener('click', async () => {
     if (files.size > 0) {
       const fd = new FormData();
       fd.set('vertical', vertical);
+      fd.set('primaryBrand', $('primaryBrand')?.value.trim() || '');
+      fd.set('primaryLabel', $('primaryLabel')?.value.trim() || '');
       fd.set('useClaude', $('useClaude').checked ? 'true' : 'false');
       fd.set('saveToHistory', $('saveToHistory').checked ? 'true' : 'false');
       if ($('weekKey').value) fd.set('weekKey', $('weekKey').value);
@@ -141,7 +143,7 @@ $('genBtn').addEventListener('click', async () => {
       lastReport = data.report;
       lastTrends = data.trends || null;
       lastGlossary = data.glossary || [];
-      lastLabel = $('reportLabel').value.trim() || `Nykaa ${cap(data.report.vertical)} · AI Visibility`;
+      lastLabel = $('reportLabel').value.trim() || `${data.report.primaryLabel || 'Nykaa'} ${cap(data.report.vertical)} · AI Visibility`;
       renderReport(data.report, data.meta); // -> #reportSemrush
 
       const m = data.meta;
@@ -201,13 +203,23 @@ function statusClass(s) {
   return 'st-warn';
 }
 
+// Derive the competitor/brand column labels present across a set of rows that
+// carry a `competitors` map (gaps, beautyBrands), ordered by total mentions so
+// the report works for ANY brand set, not just the hardcoded Nykaa competitors.
+function colsFromRows(rows) {
+  const tot = new Map();
+  for (const r of rows) for (const [k, v] of Object.entries(r.competitors || {})) tot.set(k, (tot.get(k) || 0) + (Number(v) || 0));
+  return [...tot.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+}
+
 function renderReport(rep, meta) {
   $('rTitle').textContent = lastLabel;
   const brands = rep.brandsPresent;
+  const P = rep.primaryLabel || 'Nykaa';
   const out = [];
 
   // KPI strip (primary brand)
-  const p = rep.summary.find((s) => s.brand === 'nykaa') || rep.summary[0];
+  const p = rep.summary.find((s) => s.brand === rep.primaryBrand) || rep.summary[0];
   if (p) {
     out.push(`<div class="kpis">
       <div class="kpi"><div class="v">${fmt(p.topicsInVertical)}</div><div class="l">${cap(rep.vertical)} topics in 1K</div></div>
@@ -219,12 +231,13 @@ function renderReport(rep, meta) {
     </div>`);
   }
 
-  // Executive summary — the Nykaa story and the competitor story
-  if (rep.nykaaStory || rep.competitorStory) {
+  // Executive summary — the primary-brand story and the competitor story
+  const primaryStory = rep.primaryStory || rep.nykaaStory;
+  if (primaryStory || rep.competitorStory) {
     out.push(`<div class="sec stories">
       <h3>Executive Summary</h3>
       <div class="storygrid">
-        <div class="story story-nykaa"><div class="story-h">📈 The Nykaa story</div><p>${esc(rep.nykaaStory)}</p></div>
+        <div class="story story-nykaa"><div class="story-h">📈 The ${esc(P)} story</div><p>${esc(primaryStory)}</p></div>
         <div class="story story-comp"><div class="story-h">🎯 The competitor story</div><p>${esc(rep.competitorStory)}</p></div>
       </div>
     </div>`);
@@ -255,7 +268,7 @@ function renderReport(rep, meta) {
       { numCols: brands.map((_, i) => i + 1) }), N.summary));
 
   // Category scorecard
-  out.push(section('Section A — Category Scorecard', 'How many topics Nykaa owns per category, with the current category leader.',
+  out.push(section('Section A — Category Scorecard', `How many topics ${P} owns per category, with the current category leader.`,
     tbl(['Category', 'Topics', 'Avg vis', 'Avg mentions', 'Search volume', 'Signal'],
       rep.categoryScorecard.map((c) => {
         const row = [esc(c.category), fmt(c.topics), r1(c.avgVisibility), r1(c.avgMentions), fmt(c.totalVolume),
@@ -265,30 +278,29 @@ function renderReport(rep, meta) {
       { numCols: [1, 2, 3, 4] }), N.category));
 
   // Protect
-  out.push(section('Section B — Top Topics to Protect', 'Highest-volume Nykaa topics and their current status.',
+  out.push(section('Section B — Top Topics to Protect', `Highest-volume ${P} topics and their current status.`,
     tbl(['Category', 'Topic', 'Visibility', 'Mentions', 'Search volume', 'Status'],
       rep.protect.map((t) => [esc(t.category), esc(t.topic), fmt(t.visibility), fmt(t.mentions), fmt(t.volume),
         `<span class="${statusClass(t.status)}">${esc(t.status)}</span>`]),
       { numCols: [2, 3, 4] }), N.protect));
 
-  // Gaps
-  const compBrands = ['amazon', 'myntra', 'tira', 'flipkart'].filter((b) =>
-    rep.gaps.some((g2) => g2.competitors[cap(b)] !== undefined));
-  out.push(section('Section C — Gap Analysis', 'Topics where Nykaa = 0 visibility but competitors rank. Numbers = competitor AI mentions.',
-    tbl(['Priority', 'Category', 'Topic (Nykaa = 0)', ...compBrands.map(cap), 'Search volume'],
+  // Gaps — competitor columns derived from the data (works for any brand set)
+  const gapCols = colsFromRows(rep.gaps);
+  out.push(section('Section C — Gap Analysis', `Topics where ${P} = 0 visibility but competitors rank. Numbers = competitor AI mentions.`,
+    tbl(['Priority', 'Category', `Topic (${esc(P)} = 0)`, ...gapCols.map(esc), 'Search volume'],
       rep.gaps.map((gp) => [
         `<span class="prio-${gp.priority}">${esc(gp.priority)}</span>`, esc(gp.category), esc(gp.topic),
-        ...compBrands.map((b) => fmt(gp.competitors[cap(b)] ?? 0)), fmt(gp.volume),
+        ...gapCols.map((b) => fmt(gp.competitors[b] ?? 0)), fmt(gp.volume),
       ]),
-      { numCols: [...compBrands.map((_, i) => i + 3), compBrands.length + 3] }), N.gaps));
+      { numCols: [...gapCols.map((_, i) => i + 3), gapCols.length + 3] }), N.gaps));
 
-  // Beauty Brands — Nykaa vs competitors
+  // Beauty Brands — primary vs competitors (columns derived, primary first)
   if (rep.beautyBrands && rep.beautyBrands.length) {
-    const bbBrands = ['Nykaa', 'Amazon', 'Myntra', 'Tira', 'Flipkart'].filter((b) =>
-      rep.beautyBrands.some((r2) => r2.competitors[b] !== undefined));
-    out.push(section('Beauty Brands — Nykaa vs Competitors',
-      'Beauty-brand topics where competitors are being mentioned in AI answers. Numbers = AI mentions per brand. Target content / PDP / AEO on the ones Nykaa trails.',
-      tbl(['Beauty brand topic', 'Category', ...bbBrands, 'Status'],
+    const bbAll = colsFromRows(rep.beautyBrands);
+    const bbBrands = [P, ...bbAll.filter((b) => b !== P)].filter((b) => bbAll.includes(b));
+    out.push(section(`Beauty Brands — ${P} vs Competitors`,
+      `Beauty-brand topics where competitors are being mentioned in AI answers. Numbers = AI mentions per brand. Target content / PDP / AEO on the ones ${P} trails.`,
+      tbl(['Beauty brand topic', 'Category', ...bbBrands.map(esc), 'Status'],
         rep.beautyBrands.map((r2) => [esc(r2.topic), esc(r2.category),
           ...bbBrands.map((b) => fmt(r2.competitors[b] ?? 0)),
           `<span class="${statusClass(r2.status)}">${esc(r2.status)}</span>`]),
@@ -781,9 +793,10 @@ $('xlsxBtn').addEventListener('click', () => {
   const wb = XLSX.utils.book_new();
   const add = (name, aoa) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name.slice(0, 31));
 
+  const P = rep.primaryLabel || 'Nykaa';
   if (lastNotes.semrush && lastNotes.semrush.trim()) add('Notes', [['Notes'], [lastNotes.semrush]]);
   add('Executive Summary', [
-    ['The Nykaa story'], [rep.nykaaStory || ''], [''],
+    [`The ${P} story`], [rep.primaryStory || rep.nykaaStory || ''], [''],
     ['The competitor story'], [rep.competitorStory || ''],
   ]);
   if (rep.highlights && rep.highlights.length)
@@ -816,13 +829,14 @@ $('xlsxBtn').addEventListener('click', () => {
     ['Category', 'Topic', 'Visibility', 'Mentions', 'Search volume', 'Status'],
     ...rep.protect.map((t) => [t.category, t.topic, t.visibility, t.mentions, t.volume, t.status]),
   ]);
-  const cB = ['amazon', 'myntra', 'tira', 'flipkart'].filter((b) => rep.gaps.some((x) => x.competitors[cap(b)] !== undefined));
+  const cB = colsFromRows(rep.gaps);
   add('Gap Analysis', [
-    ['Priority', 'Category', 'Topic', ...cB.map(cap), 'Search volume'],
-    ...rep.gaps.map((gp) => [gp.priority, gp.category, gp.topic, ...cB.map((b) => gp.competitors[cap(b)] ?? 0), gp.volume]),
+    ['Priority', 'Category', 'Topic', ...cB, 'Search volume'],
+    ...rep.gaps.map((gp) => [gp.priority, gp.category, gp.topic, ...cB.map((b) => gp.competitors[b] ?? 0), gp.volume]),
   ]);
   if (rep.beautyBrands && rep.beautyBrands.length) {
-    const bbB = ['Nykaa', 'Amazon', 'Myntra', 'Tira', 'Flipkart'].filter((b) => rep.beautyBrands.some((r2) => r2.competitors[b] !== undefined));
+    const bbAll = colsFromRows(rep.beautyBrands);
+    const bbB = [P, ...bbAll.filter((b) => b !== P)].filter((b) => bbAll.includes(b));
     add('Beauty Brands', [['Beauty brand topic', 'Category', ...bbB, 'Status'],
       ...rep.beautyBrands.map((r2) => [r2.topic, r2.category, ...bbB.map((b) => r2.competitors[b] ?? 0), r2.status])]);
   }
