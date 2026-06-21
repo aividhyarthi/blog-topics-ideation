@@ -134,7 +134,7 @@
       <div class="wrap">
         <div class="card">
           <h3>Measure a brand</h3>
-          <p class="hint">Runs the starter category prompt set live (or in demo mode until <code>PERPLEXITY_API_KEY</code> is set). Each prompt is asked multiple times and averaged.</p>
+          <p class="hint">Runs the starter category prompt set live against your AI engine (auto-detects <code>PERPLEXITY_API_KEY</code>, <code>OPENAI_API_KEY</code>, or <code>ANTHROPIC_API_KEY</code>; demo mode if none). Each prompt is asked multiple times and averaged. <strong>Live runs take ~30–90s</strong> while it queries the engine.</p>
           <div class="grid2">
             <label class="fld">Primary brand
               <input type="text" id="primaryLabel" placeholder="e.g. SUGAR Cosmetics" />
@@ -152,7 +152,7 @@
               <input type="text" id="locale" value="en-IN" />
             </label>
             <label class="fld">Runs per prompt (1–5)
-              <input type="number" id="runs" value="3" min="1" max="5" />
+              <input type="number" id="runs" value="2" min="1" max="5" />
             </label>
           </div>
           <button class="primary" id="runBtn">Run live measurement</button>

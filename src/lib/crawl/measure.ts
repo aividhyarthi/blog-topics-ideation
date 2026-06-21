@@ -2,7 +2,7 @@
 // score, and emit both the AEO scorecard and the ParsedFile[] that feeds the
 // Snapshot. Phase 1 = Perplexity (live) or deterministic demo (no key).
 
-import { collectPerplexity } from './engines/perplexity';
+import { collect } from './engines';
 import { extract } from './extract';
 import { aggregate, scoreBrands } from './aggregate';
 import { buildHeadline, buildReveals } from './reveal';
@@ -13,8 +13,11 @@ import type { Extraction, MeasureResult, PromptSet } from './types';
 export async function runMeasurement(
   set: PromptSet,
 ): Promise<{ result: MeasureResult; parsedFiles: ParsedFile[] }> {
-  // Phase 1 only wires Perplexity; the structure allows more engines later.
-  const { mode, responses } = await collectPerplexity(set);
+  // Pick the live engine from whichever API key is set (else demo).
+  const { mode, engine, responses } = await collect(set);
+  // If every live call errored (bad key / no web search / network), surface it.
+  const erroredAll = mode === 'live' && responses.length > 0 && responses.every((r) => r.text.startsWith('__error__'));
+  const notice = erroredAll ? responses[0].text.replace('__error__ ', '') : null;
 
   const extractions: Extraction[] = responses.map((r) => extract(r, set.primary, set.competitors));
   const topicMetrics = aggregate(set, extractions);
@@ -32,7 +35,8 @@ export async function runMeasurement(
 
   const result: MeasureResult = {
     mode,
-    engine: 'perplexity',
+    engine,
+    notice,
     generatedAt: new Date().toISOString(),
     set: {
       client: set.client, vertical: set.vertical, locale: set.locale,

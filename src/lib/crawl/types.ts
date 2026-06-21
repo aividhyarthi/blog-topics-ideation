@@ -7,7 +7,7 @@
 // unchanged. Built Perplexity-first; runs in deterministic demo mode with no
 // API key so the whole pipeline is exercisable offline.
 
-export type Engine = 'perplexity' | 'gemini' | 'chatgpt' | 'aio';
+export type Engine = 'perplexity' | 'openai' | 'anthropic' | 'gemini' | 'chatgpt' | 'aio';
 
 export interface BrandRef {
   key: string;     // canonical short key, e.g. "sugar" (matches host substrings)
@@ -117,6 +117,7 @@ export interface Reveal {
 export interface MeasureResult {
   mode: 'live' | 'demo';
   engine: Engine;
+  notice?: string | null; // surfaced if all live calls errored
   generatedAt: string;
   set: { client: string; vertical: string; locale: string; runsPerPrompt: number; topics: number; prompts: number };
   // Hero number — the gut-punch comparison.

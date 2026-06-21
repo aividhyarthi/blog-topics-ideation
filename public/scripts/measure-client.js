@@ -68,7 +68,9 @@ function render(data) {
 
   // Mode pill
   const live = r.mode === 'live';
-  $('modePill').innerHTML = `<span class="modepill ${live ? 'live' : 'demo'}">${live ? 'LIVE · Perplexity' : 'DEMO DATA (set PERPLEXITY_API_KEY for live)'}</span>`;
+  const engLabel = ({ perplexity: 'Perplexity', openai: 'OpenAI', anthropic: 'Claude', gemini: 'Gemini', chatgpt: 'ChatGPT', aio: 'AI Overviews' })[r.engine] || r.engine;
+  $('modePill').innerHTML = `<span class="modepill ${live ? 'live' : 'demo'}">${live ? 'LIVE · ' + esc(engLabel) : 'DEMO DATA (add an API key for live)'}</span>`;
+  if (r.notice) showErr('Live engine error (so showing what came back): ' + r.notice);
 
   // ---- Hero number ----
   const h = r.headline || {};
