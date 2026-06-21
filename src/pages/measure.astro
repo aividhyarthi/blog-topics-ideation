@@ -71,6 +71,38 @@
       .resp .a { font-size:12.5px; color:#333; white-space:pre-wrap; margin-top:5px; }
       .resp .c { font-size:11px; color:var(--muted); margin-top:6px; word-break:break-all; }
       .note { font-size:12px; color:var(--muted); margin-top:6px; }
+      /* ---- Hero number ---- */
+      .hero { background: linear-gradient(120deg, #1d1f2b 0%, #3a2d6b 100%); color: #fff; border-radius: 16px; padding: 24px 26px; margin-bottom: 22px; }
+      .hero .lead { font-size: 15px; opacity: 0.9; }
+      .hero .big { font-size: 42px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; margin: 6px 0 2px; }
+      .hero .big .them { opacity: 0.75; }
+      .hero .barwrap { margin-top: 16px; max-width: 560px; }
+      .hero .barrow { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; font-size: 13px; }
+      .hero .barrow .nm { width: 150px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .hero .track { flex: 1; height: 14px; background: rgba(255,255,255,0.16); border-radius: 99px; overflow: hidden; }
+      .hero .track span { display: block; height: 100%; border-radius: 99px; }
+      .hero .track span.you { background: linear-gradient(90deg, #15a06a, #38c172); }
+      .hero .track span.them { background: linear-gradient(90deg, #e0594f, #f08a82); }
+      .hero .pct { width: 44px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; }
+
+      /* ---- The Reveal ---- */
+      .reveal { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 14px; background: #fff; }
+      .reveal .rh { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 9px; }
+      .reveal .q { font-weight: 800; font-size: 13.5px; }
+      .reveal .q .topic { color: var(--muted); font-weight: 600; }
+      .reveal .vp { font-size: 11px; font-weight: 800; padding: 4px 11px; border-radius: 999px; white-space: nowrap; }
+      .reveal .vp.absent { background: #fde2dd; color: #b3261e; }
+      .reveal .vp.present { background: #d9f7e6; color: #0f8a59; }
+      .reveal .ans { font-size: 13px; line-height: 1.6; color: #2a2d3a; background: #fafafe; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; white-space: pre-wrap; }
+      .reveal mark.m-primary { background: #bff0d4; color: #0b6e47; font-weight: 700; padding: 0 2px; border-radius: 3px; }
+      .reveal mark.m-comp { background: #fbd5cd; color: #9a2820; font-weight: 700; padding: 0 2px; border-radius: 3px; }
+      .reveal .forensic { font-size: 12.5px; color: #6b4a45; margin: 10px 0 4px; }
+      .reveal .cites .ct { font-size: 10.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 8px 0 6px; }
+      .reveal .chip { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; margin: 0 6px 6px 0; background: #fff; max-width: 100%; }
+      .reveal .chip .tp { color: var(--muted); }
+      .reveal .chip .hh { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+      .reveal .chip.own { border-color: #b9e6cd; background: #f3fbf6; }
+      .reveal .chip.comp { border-color: #f6ccc4; background: #fff6f4; }
       footer { text-align:center; color:var(--muted); font-size:12.5px; padding:24px; }
     </style>
   </head>
@@ -128,8 +160,16 @@
         </div>
 
         <div id="out">
+          <div id="hero"></div>
+
           <div class="sec">
-            <h3>AEO Scorecard <span id="modePill"></span></h3>
+            <h3>What the AI actually says <span id="modePill"></span></h3>
+            <p class="note">The real answers your buyers get when they ask. Your brand is highlighted in <span style="background:#bff0d4;color:#0b6e47;font-weight:700;padding:0 3px;border-radius:3px">green</span>, competitors in <span style="background:#fbd5cd;color:#9a2820;font-weight:700;padding:0 3px;border-radius:3px">red</span>. Under each answer: the exact sources the AI used (the “why”).</p>
+            <div id="reveals"></div>
+          </div>
+
+          <div class="sec">
+            <h3>AEO Scorecard</h3>
             <div class="scorecards" id="scorecards"></div>
             <p class="note" id="scoreNote"></p>
           </div>
@@ -140,12 +180,6 @@
             <p class="note" id="gapNote"></p>
           </div>
 
-          <div class="sec">
-            <details class="work">
-              <summary>Show the work — sample live AI responses & citations</summary>
-              <div id="responses"></div>
-            </details>
-          </div>
         </div>
       </div>
     </main>

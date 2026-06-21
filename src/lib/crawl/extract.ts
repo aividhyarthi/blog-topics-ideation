@@ -58,6 +58,23 @@ function brandForHost(host: string, brands: BrandRef[]): string | null {
   return null;
 }
 
+export { brandForHost };
+
+// Classify a cited source into a human "type" for the citation forensics — the
+// "why they win" layer. Heuristic + transparent.
+export function classifySource(host: string): string {
+  const h = host.toLowerCase();
+  if (h.includes('reddit')) return 'Reddit';
+  if (h.includes('youtube') || h.includes('youtu.be')) return 'YouTube';
+  if (h.includes('quora')) return 'Quora';
+  if (h.includes('instagram') || h.includes('facebook') || h.includes('tiktok')) return 'Social';
+  if (/(amazon|flipkart|myntra|ajio|nykaa|tira|purplle|meesho)\./.test(h)) return 'Marketplace / Retailer';
+  if (h.includes('wikipedia')) return 'Wikipedia';
+  if (/(vogue|cosmopolitan|elle|harpersbazaar|healthline|times|hindustan|indianexpress|ndtv|news|magazine)/.test(h)) return 'Editorial / News';
+  if (/(blog|guide|review|best|top)/.test(h)) return 'Blog / Review';
+  return 'Other site';
+}
+
 export function extract(
   raw: RawResponse, primary: BrandRef, competitors: BrandRef[],
 ): Extraction {

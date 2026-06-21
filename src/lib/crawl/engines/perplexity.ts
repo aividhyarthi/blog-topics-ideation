@@ -66,11 +66,16 @@ function demoResponse(
     const jitter = (hash(`${b.key}|${prompt}|${run}`) - 0.5) * 0.1;
     if (base + jitter > threshold) appearing.push(b);
   }
-  const list = appearing.length
-    ? appearing.map((b, i) => `${i + 1}. ${b.label}`).join('\n')
-    : 'Several options exist; no single brand stands out for this query.';
-  const text = `For "${prompt}", here are the most frequently recommended options:\n${list}\n\n` +
-    `These brands are commonly cited for quality and value.`;
+  let text: string;
+  if (!appearing.length) {
+    text = `For "${prompt}", there isn't one clear standout — recommendations vary widely and depend on skin type, budget and preference.`;
+  } else {
+    const [first, ...rest] = appearing;
+    text = `For "${prompt}", ${first.label} is the most frequently recommended choice — it's widely praised for quality and value`;
+    if (rest.length === 1) text += `, and ${rest[0].label} also comes up often as a strong alternative`;
+    else if (rest.length > 1) text += `. ${rest.slice(0, -1).map((b) => b.label).join(', ')} and ${rest[rest.length - 1].label} are also commonly mentioned`;
+    text += `. Most reviewers suggest ${first.label} as the best overall pick for ${prompt.replace(/^best |in india$/gi, '').trim() || 'this category'}.`;
+  }
 
   // Citations: each appearing brand sometimes cites its own domain; always some
   // third-party (editorial / marketplace) sources.

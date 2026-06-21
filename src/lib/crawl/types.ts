@@ -89,12 +89,45 @@ export interface AeoScore {
   weights: Record<string, number>; // published, so it's auditable
 }
 
+// ---- The Reveal: the verbatim "here's what the AI actually says" layer ----
+export interface RevealMention {
+  label: string;
+  key: string;
+  isPrimary: boolean;
+  present: boolean;
+  rank: number | null; // order named in the answer (1 = first)
+}
+export interface RevealCitation {
+  url: string;
+  host: string;
+  type: string;        // classified source type (Reddit / Blog / Marketplace …)
+  brand: string | null; // brand label this source belongs to, if any
+}
+export interface Reveal {
+  topic: string;
+  prompt: string;
+  engine: Engine;
+  answer: string;            // full verbatim AI answer
+  mentions: RevealMention[];
+  citations: RevealCitation[];
+  primaryPresent: boolean;
+  winner: string | null;     // brand named first in this answer
+}
+
 export interface MeasureResult {
   mode: 'live' | 'demo';
   engine: Engine;
   generatedAt: string;
   set: { client: string; vertical: string; locale: string; runsPerPrompt: number; topics: number; prompts: number };
-  scorecard: AeoScore[];        // primary + competitors, ranked
+  // Hero number — the gut-punch comparison.
+  headline: {
+    primaryLabel: string;
+    primaryPresence: number;       // 0-100 across all responses
+    topCompetitor: string | null;
+    topCompetitorPresence: number; // 0-100
+  };
+  reveals: Reveal[];               // verbatim answers, brand-highlightable
+  brands: { label: string; key: string; aliases: string[]; isPrimary: boolean }[];
+  scorecard: AeoScore[];           // primary + competitors, ranked
   topicMetrics: TopicMetric[];
-  sampleResponses: { topic: string; prompt: string; text: string; citations: string[] }[];
 }

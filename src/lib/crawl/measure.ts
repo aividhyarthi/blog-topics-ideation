@@ -5,6 +5,7 @@
 import { collectPerplexity } from './engines/perplexity';
 import { extract } from './extract';
 import { aggregate, scoreBrands } from './aggregate';
+import { buildHeadline, buildReveals } from './reveal';
 import { toParsedFiles } from './toParsedFiles';
 import type { ParsedFile } from '../wbr/parse';
 import type { Extraction, MeasureResult, PromptSet } from './types';
@@ -20,10 +21,11 @@ export async function runMeasurement(
   const scorecard = scoreBrands(set, topicMetrics);
   const parsedFiles = toParsedFiles(set, topicMetrics, extractions);
 
-  // A few sample responses for the "show your work" panel (trust > black box).
-  const sampleResponses = responses.slice(0, 3).map((r) => ({
-    topic: r.topic, prompt: r.prompt, text: r.text.slice(0, 600),
-    citations: r.citations.map((c) => c.url).slice(0, 5),
+  // The Reveal: verbatim answers + citation forensics + the hero number.
+  const headline = buildHeadline(set, extractions);
+  const reveals = buildReveals(set, responses, extractions);
+  const brands = [set.primary, ...set.competitors].map((b) => ({
+    label: b.label, key: b.key, aliases: b.aliases, isPrimary: b.key === set.primary.key,
   }));
 
   const promptCount = set.topics.reduce((s, t) => s + t.prompts.length, 0);
@@ -36,9 +38,11 @@ export async function runMeasurement(
       client: set.client, vertical: set.vertical, locale: set.locale,
       runsPerPrompt: set.runsPerPrompt, topics: set.topics.length, prompts: promptCount,
     },
+    headline,
+    reveals,
+    brands,
     scorecard,
     topicMetrics,
-    sampleResponses,
   };
   return { result, parsedFiles };
 }

@@ -45,12 +45,73 @@ async function run() {
   }
 }
 
+// Highlight brand names in a verbatim answer: primary green, competitors red.
+function escapeReg(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function highlightAnswer(text, brands) {
+  const map = new Map();
+  const labels = [];
+  for (const b of brands) {
+    if (!b.label) continue;
+    map.set(b.label.toLowerCase(), b.isPrimary ? 'm-primary' : 'm-comp');
+    labels.push(b.label);
+  }
+  labels.sort((a, b) => b.length - a.length); // longest first
+  let html = esc(text);
+  if (!labels.length) return html;
+  const re = new RegExp(`(^|[^A-Za-z0-9])(${labels.map(escapeReg).join('|')})(?=[^A-Za-z0-9]|$)`, 'gi');
+  return html.replace(re, (m, p1, p2) => `${p1}<mark class="${map.get(p2.toLowerCase()) || 'm-comp'}">${p2}</mark>`);
+}
+
 function render(data) {
   const r = data.result;
+  const brands = r.brands || [];
 
   // Mode pill
   const live = r.mode === 'live';
   $('modePill').innerHTML = `<span class="modepill ${live ? 'live' : 'demo'}">${live ? 'LIVE · Perplexity' : 'DEMO DATA (set PERPLEXITY_API_KEY for live)'}</span>`;
+
+  // ---- Hero number ----
+  const h = r.headline || {};
+  const yourP = h.primaryPresence ?? 0;
+  const themP = h.topCompetitorPresence ?? 0;
+  $('hero').innerHTML = `
+    <div class="lead">When your buyers ask AI about ${esc(r.set.vertical)}, your brand shows up in…</div>
+    <div class="big">${esc(yourP)}% <span class="them">vs ${esc(h.topCompetitor || 'top competitor')} ${esc(themP)}%</span></div>
+    <div class="barwrap">
+      <div class="barrow"><div class="nm">${esc(h.primaryLabel || 'You')}</div><div class="track"><span class="you" style="width:${Math.max(2, yourP)}%"></span></div><div class="pct">${esc(yourP)}%</div></div>
+      ${h.topCompetitor ? `<div class="barrow"><div class="nm">${esc(h.topCompetitor)}</div><div class="track"><span class="them" style="width:${Math.max(2, themP)}%"></span></div><div class="pct">${esc(themP)}%</div></div>` : ''}
+    </div>`;
+
+  // ---- The Reveal: verbatim answers + citation forensics ----
+  $('reveals').innerHTML = (r.reveals || []).map((rv) => {
+    const absent = !rv.primaryPresent;
+    const vp = absent
+      ? `<span class="vp absent">✕ ${esc(h.primaryLabel || 'You')} not mentioned</span>`
+      : `<span class="vp present">✓ ${esc(h.primaryLabel || 'You')} mentioned</span>`;
+    // Citation forensics: competitor-owned + third-party sources the AI used.
+    const cites = (rv.citations || []);
+    const chips = cites.map((c) => {
+      const own = c.brand && brands.find((b) => b.label === c.brand && b.isPrimary);
+      const comp = c.brand && !own;
+      const cls = own ? 'own' : (comp ? 'comp' : '');
+      const who = c.brand ? `${esc(c.brand)} · ` : '';
+      return `<a class="chip ${cls}" href="${esc(c.url)}" target="_blank" rel="noopener"><span class="tp">${esc(c.type)}</span><span class="hh">${who}${esc(c.host)}</span></a>`;
+    }).join('');
+    const winner = rv.winner && (!brands.find((b) => b.label === rv.winner && b.isPrimary));
+    const forensic = absent && winner
+      ? `<div class="forensic">→ <strong>${esc(rv.winner)}</strong> is recommended here and ${esc(h.primaryLabel || 'you')} isn’t. The sources below are what the AI trusted.</div>`
+      : '';
+    return `
+      <div class="reveal">
+        <div class="rh">
+          <div class="q">“${esc(rv.prompt)}” <span class="topic">· ${esc(rv.topic)}</span></div>
+          ${vp}
+        </div>
+        <div class="ans">${highlightAnswer(rv.answer || '', brands)}</div>
+        ${forensic}
+        ${cites.length ? `<div class="cites"><div class="ct">Sources the AI cited</div>${chips}</div>` : ''}
+      </div>`;
+  }).join('');
 
   // Scorecards
   const primaryKey = data.meta.primaryKey;
@@ -98,14 +159,6 @@ function render(data) {
       </tr>`;
   }).join('');
   $('gapNote').textContent = `Visibility = % of the topic's live responses that mention the brand (0–100). You trail the leader on ${behind} of ${(r.topicMetrics || []).length} topics.`;
-
-  // Show the work
-  $('responses').innerHTML = (r.sampleResponses || []).map((s) => `
-    <div class="resp">
-      <div class="q">${esc(s.prompt)} <span style="color:var(--muted);font-weight:400">(${esc(s.topic)})</span></div>
-      <div class="a">${esc(s.text)}${s.text.length >= 600 ? '…' : ''}</div>
-      ${s.citations.length ? `<div class="c">Cited: ${s.citations.map(esc).join(' · ')}</div>` : ''}
-    </div>`).join('');
 
   $('out').style.display = 'block';
 }
