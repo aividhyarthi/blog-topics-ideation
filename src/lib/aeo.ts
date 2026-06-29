@@ -345,17 +345,24 @@ export interface LlmScores {
   summary?: string;
   prompts?: PromptCoverage[];
   notes?: Partial<Record<string, string>>;
+  // Per-signal, CONTENT-SPECIFIC fixes from the AI that quote/use the actual
+  // article (e.g. "Your headline 'X' hides the subject — rewrite to 'Y'").
+  fixes?: Partial<Record<string, string>>;
 }
 
 export function llmSignals(llm: LlmScores, hasTarget: boolean): Signal[] {
-  const mk = (id: string, label: string, pillar: PillarId | 'domain', weight: number, score: number | undefined, fix: string): Signal =>
-    sig({ id, label, pillar, weight, score: typeof score === 'number' ? c(score) : 50,
-      detail: llm.notes?.[id] || (typeof score === 'number' ? `Estimated ${c(score)}/100 by Claude.` : 'Not assessed.'),
-      fix: (typeof score === 'number' ? c(score) : 50) < 70 ? fix : undefined, source: 'ai' });
+  const mk = (id: string, label: string, pillar: PillarId | 'domain', weight: number, score: number | undefined, fix: string): Signal => {
+    const sc = typeof score === 'number' ? c(score) : 50;
+    const aiFix = llm.fixes?.[id];
+    return sig({ id, label, pillar, weight, score: sc,
+      detail: llm.notes?.[id] || (typeof score === 'number' ? `Estimated ${sc}/100 by Claude.` : 'Not assessed.'),
+      // Prefer the AI's article-specific fix; fall back to the generic template.
+      fix: sc < 70 ? (aiFix || fix) : undefined, source: 'ai' });
+  };
 
   const out: Signal[] = [
     // Answerability
-    mk('headline_clarity', 'Headline answer clarity', 'answerability', 0.2, llm.headlineClarity, 'Put the named subject + action in the headline; drop curiosity-gap phrasing ("this actress…").'),
+    mk('headline_clarity', 'Headline answer clarity', 'answerability', 0.2, llm.headlineClarity, 'Lead the headline with the named subject + the action; avoid vague teaser phrasing that hides who/what.'),
     mk('lead_completeness', 'Lead sentence completeness', 'answerability', 0.25, llm.leadCompleteness, 'Make the first sentence self-contained: who, what, when, where (or a direct answer for evergreen topics).'),
     mk('answer_above_fold', 'Answer above the fold', 'answerability', 0.2, llm.answerAboveFold, 'Surface the answer in the first paragraph / a summary block — not buried after paragraph 3.'),
     mk('direct_answer', 'Direct answer per section', 'answerability', 0.25, llm.directAnswer, 'Under each question heading, lead with a concise, quotable answer.'),
@@ -378,13 +385,13 @@ export function llmSignals(llm: LlmScores, hasTarget: boolean): Signal[] {
     ? c(llm.promptCoverageScore)
     : (llm.prompts && llm.prompts.length ? c((llm.prompts.filter((p) => p.covered).length / llm.prompts.length) * 100) : 50);
   out.push(sig({ id: 'prompt_coverage', label: 'Prompt coverage', pillar: 'query', weight: 0.5,
-    score: cov, detail: llm.prompts && llm.prompts.length ? `Answers ${llm.prompts.filter((p) => p.covered).length} of ${llm.prompts.length} likely AI prompts.` : 'Likely-prompt coverage estimated.',
-    fix: cov < 70 ? 'Add sections that directly answer the most likely AI prompts this story should win (see the prompt list).' : undefined, source: 'ai' }));
+    score: cov, detail: llm.notes?.prompt_coverage || (llm.prompts && llm.prompts.length ? `Answers ${llm.prompts.filter((p) => p.covered).length} of ${llm.prompts.length} likely AI prompts.` : 'Likely-prompt coverage estimated.'),
+    fix: cov < 70 ? (llm.fixes?.prompt_coverage || 'Add sections that directly answer the most likely AI prompts this story should win (see the prompt list).') : undefined, source: 'ai' }));
 
   out.push(sig({ id: 'answers_target', label: hasTarget ? 'Answers the target question' : 'Answer completeness', pillar: 'query', weight: hasTarget ? 0.25 : 0,
     score: typeof llm.answersTarget === 'number' ? c(llm.answersTarget) : (hasTarget ? 50 : null),
     detail: llm.notes?.answers_target || (typeof llm.answersTarget === 'number' ? `Scored ${c(llm.answersTarget)}/100.` : 'No target question provided.'),
-    fix: typeof llm.answersTarget === 'number' && c(llm.answersTarget) < 70 ? 'Answer the target question directly, completely and early.' : undefined, source: 'ai' }));
+    fix: typeof llm.answersTarget === 'number' && c(llm.answersTarget) < 70 ? (llm.fixes?.answers_target || 'Answer the target question directly, completely and early.') : undefined, source: 'ai' }));
 
   return out;
 }

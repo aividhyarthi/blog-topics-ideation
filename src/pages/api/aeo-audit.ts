@@ -71,7 +71,7 @@ For "prompts": generate 8-14 realistic natural-language questions a user would a
 
 Return ONLY valid JSON in EXACTLY this shape (no markdown):
 {
-  "headlineClarity": 0-100,      // headline names the subject + action, no curiosity-gap ("this actress…")
+  "headlineClarity": 0-100,      // headline names the subject + action, no vague curiosity-gap teaser
   "leadCompleteness": 0-100,     // first sentence self-contained (who/what/when/where for news; a direct answer for evergreen)
   "answerAboveFold": 0-100,      // the answer appears in the first paragraph / summary, not buried
   "directAnswer": 0-100,         // each section leads with a concise, quotable answer
@@ -92,9 +92,20 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown):
   "notes": {
     "headline_clarity":"...","lead_completeness":"...","answer_above_fold":"...","direct_answer":"...",
     "entity_density":"...","entity_consistency":"...","source_attribution":"...","claim_attribution":"...",
-    "intent_match":"...","long_tail_intent":"...","brand_authority":"...","offpage_corroboration":"..."
+    "intent_match":"...","long_tail_intent":"...","prompt_coverage":"...","answers_target":"...","brand_authority":"...","offpage_corroboration":"..."
+  },
+  "fixes": {
+    "headline_clarity":"...","lead_completeness":"...","answer_above_fold":"...","direct_answer":"...",
+    "entity_density":"...","entity_consistency":"...","source_attribution":"...","claim_attribution":"...",
+    "intent_match":"...","long_tail_intent":"...","prompt_coverage":"...","answers_target":"..."
   }
 }
+
+RULES FOR notes AND fixes (this is what makes the report useful):
+- Be CONTENT-SPECIFIC. Quote THIS article's real headline, lead, entities and sentences. Never use placeholder examples.
+- Each "fix" must be a concrete action the editor can apply right now, referencing the real text. Example shape: headline_clarity -> "Your headline \\"<their actual headline>\\" hides the subject — rewrite to \\"<a concrete rewrite that names who + what>\\"."
+- Only include a "fix" for dimensions that score below 70. Omit the rest (don't pad).
+- "summary": quote the actual headline, give the verdict, and name the single most important fix FIRST.
 brandAuthority/offpageCorroboration are ESTIMATES, not live measurements — if you don't recognise the brand, score low and say so.`;
 }
 
