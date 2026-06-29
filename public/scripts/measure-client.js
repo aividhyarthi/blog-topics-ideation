@@ -18,13 +18,15 @@ async function run() {
   const btn = $('runBtn');
   const orig = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>Querying engines…';
+  btn.innerHTML = `<span class="spinner"></span>${$('auto')?.checked ? 'Researching brand & querying AI…' : 'Querying engines…'}`;
+  const rb = $('researchBox'); if (rb) rb.style.display = 'none';
 
   const competitors = $('competitors').value.split(',').map((s) => s.trim()).filter(Boolean).map((label) => ({ label }));
   const payload = {
     primaryLabel,
     primaryDomain: $('primaryDomain').value.trim() || undefined,
     competitors,
+    auto: $('auto')?.checked || false,
     vertical: $('vertical').value,
     locale: $('locale').value.trim() || 'en-IN',
     runsPerPrompt: Number($('runs').value) || 3,
@@ -65,6 +67,21 @@ function highlightAnswer(text, brands) {
 function render(data) {
   const r = data.result;
   const brands = r.brands || [];
+
+  // What the AI research discovered (intelligence layer)
+  const rb = $('researchBox');
+  if (rb) {
+    if (data.research) {
+      const comps = (data.research.competitors || []).map((c) => esc(c.label)).join(', ');
+      rb.innerHTML = `🧠 <strong>Auto-discovered:</strong> ${esc(data.research.category || 'category')}${data.research.positioning ? ` — <em>${esc(data.research.positioning)}</em>` : ''}.<br>Competitors found: ${comps || '—'}. Prompt set generated for this brand.`;
+      rb.style.display = 'block';
+    } else if (data.meta && data.meta.autoRequested) {
+      rb.innerHTML = data.meta.researchError
+        ? `🧠 Auto-discovery couldn’t run (${esc(data.meta.researchError)}) — used the default starter prompts instead.`
+        : `🧠 Auto-discovery needs an OpenAI or Anthropic key — used the default starter prompts instead.`;
+      rb.style.display = 'block';
+    }
+  }
 
   // Mode pill
   const live = r.mode === 'live';

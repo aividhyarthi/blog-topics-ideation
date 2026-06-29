@@ -142,8 +142,8 @@
             <label class="fld">Primary domain (optional)
               <input type="text" id="primaryDomain" placeholder="e.g. sugarcosmetics.com" />
             </label>
-            <label class="fld">Competitors (comma-separated)
-              <input type="text" id="competitors" placeholder="e.g. Nykaa, Lakme, Maybelline, Minimalist" />
+            <label class="fld">Competitors (comma-separated — leave blank to auto-discover)
+              <input type="text" id="competitors" placeholder="auto-discovered when Auto is on" />
             </label>
             <label class="fld">Vertical
               <select id="vertical"><option value="beauty">Beauty</option><option value="fashion">Fashion</option></select>
@@ -155,7 +155,11 @@
               <input type="number" id="runs" value="2" min="1" max="5" />
             </label>
           </div>
-          <button class="primary" id="runBtn">Run live measurement</button>
+          <label class="field" style="margin-top:6px" title="An LLM researches the brand and generates the real buyer questions + competitors for any industry. Needs OpenAI or Anthropic key.">
+            <input type="checkbox" id="auto" checked /> 🧠 Auto-discover prompts &amp; competitors with AI (works for any brand/industry)
+          </label>
+          <div id="researchBox" class="alert info" style="display:none"></div>
+          <button class="primary" id="runBtn" style="margin-top:12px">Run AEO measurement</button>
           <div class="alert err" id="errBox"></div>
         </div>
 
