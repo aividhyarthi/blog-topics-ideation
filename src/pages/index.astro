@@ -11,6 +11,9 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>CiteRank — Is your content ready to rank in LLMs?</title>
     <meta name="description" content="CiteRank checks whether your content is ready to rank in LLMs. Paste a URL or your draft and see how likely ChatGPT, Perplexity, Gemini and Google AI Overviews are to cite it — and exactly what to fix before you publish." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <!-- is:global so styles also apply to the results DOM injected at runtime
          via innerHTML (Astro's scoped styles only match build-time elements). -->
     <style is:global>
@@ -21,7 +24,7 @@
         --bad: #d63a3a; --bad-bg: #fdecec; --na: #9aa0ad; --indigo: #5b46c9;
       }
       * { box-sizing: border-box; }
-      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+      body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
       header { background: linear-gradient(125deg, #6366f1 0%, #8b5cf6 60%, #a78bfa 100%); color: #fff; padding: 30px 20px 34px; }
       .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
       header h1 { margin: 0 0 8px; font-size: 27px; font-weight: 800; letter-spacing: -0.02em; }
@@ -179,6 +182,34 @@
       .caveat { margin-top: 20px; font-size: 12px; color: var(--muted); background: #eef0f7; border-radius: 12px; padding: 12px 14px; }
       .caveat b { color: var(--ink); }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 26px; }
+
+      /* premium polish */
+      .donut .num .pct { font-size: 20px; font-weight: 800; opacity: 0.7; margin-left: 1px; }
+      .donut .grd { letter-spacing: 0.02em; text-transform: uppercase; font-size: 11px; }
+      .herocard { background: linear-gradient(180deg, #ffffff 0%, #fbfbff 100%); }
+      .card { box-shadow: 0 6px 24px -12px rgba(40,40,90,0.18); }
+      button.primary { box-shadow: 0 6px 18px -6px rgba(99,102,241,0.55); }
+      .gauge, .pillar, .fixrow, .gauge:hover { transition: box-shadow 0.18s, transform 0.18s; }
+      .sectitle { letter-spacing: -0.01em; }
+      ::selection { background: #ddd9fb; }
+
+      /* PDF / print */
+      .printhead { display: none; }
+      @media print {
+        @page { margin: 14mm; }
+        body { background: #fff !important; }
+        body * { visibility: hidden; }
+        #results, #results * { visibility: visible; }
+        #results { position: absolute; left: 0; top: 0; width: 100%; margin: 0; }
+        header, footer, .toast, .resbar, .suggest a { display: none !important; }
+        .printhead { display: block !important; margin-bottom: 14px; border-bottom: 2px solid var(--pink); padding-bottom: 8px; }
+        .printhead .pt-brand { font-size: 18px; font-weight: 900; color: var(--pink-dark); letter-spacing: -0.02em; }
+        .printhead .pt-sub { font-size: 11px; color: var(--muted); }
+        .card { box-shadow: none !important; border: 1px solid var(--line) !important; break-inside: avoid; }
+        .pillar .signals { display: block !important; } /* expand all pillars in PDF */
+        .gauges { break-inside: avoid; }
+        a[href]:after { content: ""; }
+      }
     </style>
   </head>
   <body>
@@ -309,23 +340,26 @@
           suggest = `<div class="suggest">💡 This reads more like <b>${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)}</b> than ${esc(m.categoryLabel)}. <a id="recat" data-cat="${esc(m.suggestedCategory)}">Re-audit as ${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)}</a></div>`;
         }
 
+        const bandLine = r.citationBand === 'High' ? 'Likely to be cited by AI'
+          : r.citationBand === 'Medium' ? 'Some chance of being cited — needs work'
+          : 'Unlikely to be cited as it stands';
         const hero = `
-          <div class="card">
+          <div class="card herocard">
             <div class="hero">
               <div class="donut" style="--val:${r.overall};--ring:${v.c}">
-                <div class="inner"><div class="num" style="color:${v.c}">${r.overall}</div><div class="grd">Grade ${esc(r.grade)}</div></div>
+                <div class="inner"><div class="num" style="color:${v.c}">${r.overall}<span class="pct">%</span></div><div class="grd">AEO Score · ${esc(r.grade)}</div></div>
               </div>
               <div class="verdict">
                 <span class="gate ${r.gate.level}">${r.gate.level === 'block' ? '⛔' : r.gate.level === 'warn' ? '⚠️' : r.gate.level === 'optimized' ? '🏆' : '✅'} ${esc(r.gate.label)}</span>
-                <div class="vtitle" style="color:${v.c}">${v.t}</div>
-                <div class="vsub">${esc(m.mode === 'url' ? (m.url || 'Audited URL') : 'Pasted article')} · weighted for <b>${esc(m.categoryLabel)}</b></div>
+                <div class="vtitle" style="color:${v.c}">${bandLine}</div>
+                <div class="vsub">${esc(m.mode === 'url' ? (m.url || 'Audited URL') : 'Pasted content')}${m.pageTypeLabel ? ` · ${esc(m.pageTypeLabel)}` : ''} · weighted for <b>${esc(m.categoryLabel)}</b></div>
                 <div class="chips">${chips}</div>
                 ${suggest}
                 ${m.fetchNote ? `<div class="note-warn">⚠ ${esc(m.fetchNote)}</div>` : ''}
                 ${m.aiError ? `<div class="note-bad">⚠ AI-judged signals unavailable — they default to 50. (${esc(m.aiError)})</div>` : ''}
               </div>
             </div>
-            ${r.summary ? `<div class="summary"><span class="sicon">🤖</span><div class="sbody"><b>AI verdict</b><p>${esc(r.summary)}</p></div></div>` : ''}
+            ${r.summary ? `<div class="summary"><span class="sicon">✨</span><div class="sbody"><b>What this means</b><p>${esc(r.summary)}</p></div></div>` : ''}
           </div>`;
 
         const gauges = r.pillars.map((p) => {
@@ -395,8 +429,12 @@
         }).join('');
 
         root.innerHTML = `
+          <div class="printhead">
+            <div class="pt-brand">CiteRank — AEO Audit</div>
+            <div class="pt-sub">${esc(m.mode === 'url' ? (m.url || 'Audited page') : 'Pasted content')}${m.pageTypeLabel ? ` · ${esc(m.pageTypeLabel)}` : ''} · ${esc(new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }))}</div>
+          </div>
           ${hero}
-          <div class="resbar"><button class="ghostbtn" id="copyreport">📋 Copy report</button></div>
+          <div class="resbar"><button class="ghostbtn" id="pdfbtn">⬇ Download PDF</button><button class="ghostbtn" id="copyreport">📋 Copy report</button></div>
           <div class="sectitle">📊 Pillar scores <span class="sub">— points shown out of each pillar's category weight</span></div>
           <div class="gauges">${gauges}</div>
           ${promptPanel}
@@ -411,6 +449,8 @@
 
         const copyBtn = $('copyreport');
         if (copyBtn) copyBtn.addEventListener('click', () => copyReport(r, m));
+        const pdfBtn = $('pdfbtn');
+        if (pdfBtn) pdfBtn.addEventListener('click', () => window.print());
 
         // Click a pillar card -> open + scroll to its issues in the full breakdown.
         root.querySelectorAll('.gauge[data-pill]').forEach((g) => {
