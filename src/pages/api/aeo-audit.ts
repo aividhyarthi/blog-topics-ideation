@@ -2,8 +2,8 @@ import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import {
   analyzeHtml, deterministicSignals, llmSignals, buildReport,
-  CATEGORY_WEIGHTS, CATEGORY_LABEL,
-  type LlmScores, type PageFacts, type Category, type PromptCoverage,
+  CATEGORY_WEIGHTS, CATEGORY_LABEL, PAGE_TYPE_LABEL,
+  type LlmScores, type PageFacts, type Category, type PromptCoverage, type PageType,
 } from '../../lib/aeo';
 
 const json = (data: unknown, status = 200) =>
@@ -45,13 +45,35 @@ async function fetchText(url: string, timeoutMs: number): Promise<{ ok: boolean;
 
 const CATEGORIES: Category[] = ['general', 'entertainment', 'health', 'news', 'lifestyle', 'commerce'];
 
+const PAGE_TYPE_GUIDANCE: Record<string, string> = {
+  product: `PAGE TYPE: PRODUCT PAGE (not an editorial article). Judge it as a product page:
+- headlineClarity = does the title/H1 clearly name the product (brand + model)?
+- leadCompleteness = is the key info (what it is, price, 1-2 standout specs) right at the top?
+- directAnswer = does it answer "should I buy this / what are the specs / what's the price" directly?
+- entityDensity = product name, brand, model, variants, key specs named explicitly?
+- sourceAttribution / claimAttribution = specs/claims backed by ratings, review counts, official spec sheets (NOT "experts say")?
+- intentMatch / longTailIntent = covers "is X good", "X price", "X specs", "X vs Y", "X for <use>"?
+- Do NOT expect a bylined author or expert quotations — those are article concepts; do not penalise their absence.`,
+  listing: `PAGE TYPE: CATEGORY / LISTING PAGE (not an editorial article). Judge it as a listing/collection page:
+- headlineClarity = does the title/H1 clearly state the category + qualifier (e.g. "Samsung phones under ₹15,000")?
+- leadCompleteness = does intro copy directly answer the implied query (what are the best/available options)?
+- directAnswer = does each product entry lead with name + price + the one key spec?
+- entityDensity = are products named with brand + model (+ price), not generic "this phone"?
+- sourceAttribution / claimAttribution = are picks backed by ratings/review counts/specs?
+- intentMatch / longTailIntent = matches "best X under Y", "top X", "X vs Y", price/spec filters?
+- Do NOT expect a bylined author or expert quotations — do not penalise their absence.`,
+  article: '',
+};
+
 function buildLlmPrompt(f: PageFacts, target: string): string {
   const outline = f.headings.slice(0, 40).map((h) => `${'  '.repeat(Math.max(0, h.level - 1))}H${h.level}: ${h.text}`).join('\n');
-  return `You are an Answer Engine Optimization (AEO) auditor for a newsroom CMS. You judge how likely an article is to be EXTRACTED and CITED by LLM answer engines (ChatGPT, Perplexity, Google AI Overviews, Gemini, Copilot).
+  const ptGuidance = PAGE_TYPE_GUIDANCE[f.pageType] || '';
+  return `You are an Answer Engine Optimization (AEO) auditor. You judge how likely a web page is to be EXTRACTED and CITED by LLM answer engines (ChatGPT, Perplexity, Google AI Overviews/Mode, Gemini).
 
 Score each dimension 0-100 (0 = terrible, 100 = excellent for AEO). Be critical and calibrated — do NOT cluster everything at 70-80. Reserve 90+ for genuinely excellent and use sub-40 for real failures.
-
+${ptGuidance ? `\n${ptGuidance}\n` : ''}
 CONTEXT
+- Page type: ${f.pageType}
 - Category: ${CATEGORY_LABEL[f.category]}
 - Brand/site: ${f.brand || (f.host || 'unknown')}
 - Topic (if given): ${f.topic || '(infer from content)'}
@@ -109,8 +131,10 @@ RULES FOR notes AND fixes (this is what makes the report useful):
 brandAuthority/offpageCorroboration are ESTIMATES, not live measurements — if you don't recognise the brand, score low and say so.`;
 }
 
+const PAGE_TYPES = ['auto', 'article', 'product', 'listing'] as const;
+
 export const POST: APIRoute = async ({ request }) => {
-  let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string };
+  let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string; pageType?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
   // AI-judged signals use Anthropic; without a key the auditor still runs on its
@@ -123,6 +147,7 @@ export const POST: APIRoute = async ({ request }) => {
   const topic = (body.topic || '').trim();
   const target = (body.target || '').trim();
   const category = (CATEGORIES.includes(body.category as Category) ? body.category : 'general') as Category;
+  const pageTypeChoice = (PAGE_TYPES.includes(body.pageType as any) ? body.pageType : 'auto') as 'auto' | PageType;
 
   let html = '', host = '', isUrl = false, robotsTxt: string | null = null, fetchNote: string | undefined;
 
@@ -148,7 +173,7 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: 'Provide a URL or paste the article HTML/text.' }, 400);
   }
 
-  const facts = analyzeHtml(html, { isUrl, host, brand, topic, category, robotsTxt });
+  const facts = analyzeHtml(html, { isUrl, host, brand, topic, category, robotsTxt, pageType: pageTypeChoice });
   const auto = deterministicSignals(facts);
 
   let llmScores: LlmScores = {};
@@ -179,6 +204,8 @@ export const POST: APIRoute = async ({ request }) => {
     meta: {
       mode: isUrl ? 'url' : 'pasted', url: inputUrl || null, host: host || null, brand: brand || null,
       category, categoryLabel: CATEGORY_LABEL[category], categoryWeights: CATEGORY_WEIGHTS[category],
+      pageType: facts.pageType, pageTypeLabel: PAGE_TYPE_LABEL[facts.pageType],
+      detectedPageType: facts.detectedPageType, pageTypeAuto: pageTypeChoice === 'auto',
       wordCount: facts.wordCount, schemaTypes: facts.schemaTypes,
       detectedIntent: llmScores.detectedIntent || null, suggestedCategory: llmScores.suggestedCategory || null,
       fetchNote, aiError,

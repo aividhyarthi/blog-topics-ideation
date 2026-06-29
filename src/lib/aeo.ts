@@ -24,6 +24,11 @@ export type PillarId =
   | 'answerability' | 'entity' | 'attribution' | 'structure' | 'query' | 'freshness';
 export type Category =
   | 'general' | 'entertainment' | 'health' | 'news' | 'lifestyle' | 'commerce';
+// What KIND of page this is — changes which signals apply and how the AI judges.
+export type PageType = 'article' | 'product' | 'listing';
+export const PAGE_TYPE_LABEL: Record<PageType, string> = {
+  article: 'Article / Blog', product: 'Product page', listing: 'Category / Listing page',
+};
 
 export interface Signal {
   id: string;
@@ -134,6 +139,21 @@ export interface PageFacts {
   robotsTxtBlocks: boolean | null;
   firstWords: string; // lead text for display
   text: string;
+  // E-commerce / page-type detection
+  priceCount: number; hasProductSchema: boolean; hasItemList: boolean;
+  hasAggregateRating: boolean; hasAddToCart: boolean;
+  pageType: PageType; detectedPageType: PageType;
+}
+
+// Decide the page type from structural signals (schema first, then heuristics).
+export function detectPageType(f: {
+  hasItemList: boolean; hasProductSchema: boolean; hasAddToCart: boolean; priceCount: number;
+}): PageType {
+  if (f.hasItemList && !f.hasProductSchema) return 'listing';
+  if (f.hasProductSchema) return 'product';
+  if (f.hasAddToCart && f.priceCount >= 1 && f.priceCount <= 5) return 'product';
+  if (f.priceCount >= 6) return 'listing';
+  return 'article';
 }
 
 function countSyllables(word: string): number {
@@ -145,7 +165,7 @@ function countSyllables(word: string): number {
 
 export function analyzeHtml(
   html: string,
-  opts: { isUrl: boolean; host?: string; brand?: string; topic?: string; category?: Category; robotsTxt?: string | null },
+  opts: { isUrl: boolean; host?: string; brand?: string; topic?: string; category?: Category; robotsTxt?: string | null; pageType?: PageType | 'auto' },
 ): PageFacts {
   const title = (() => { const m = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i); return m ? decodeEntities(m[1]).replace(/\s+/g, ' ').trim() : ''; })();
   const metaDescription = pickMeta(html, 'description') || pickMeta(html, 'og:description');
@@ -227,6 +247,21 @@ export function analyzeHtml(
   const dateModified = pickMeta(html, 'article:modified_time') || (html.match(/"dateModified"\s*:\s*"([^"]+)"/i)?.[1] ?? '');
   const hasVideo = /<video\b|youtube\.com\/embed|player\.vimeo\.com/i.test(html);
 
+  // ---- e-commerce / page-type signals ----
+  const lowerTypes = [...schemaTypes].map((s) => s.toLowerCase());
+  const hasProductSchema = lowerTypes.some((t) => t === 'product' || t === 'productgroup' || t === 'offer');
+  const hasItemList = lowerTypes.some((t) => t === 'itemlist' || t === 'collectionpage' || t === 'offercatalog');
+  const priceCount =
+    (text.match(/(?:₹|rs\.?|inr|\$|usd|eur|€|£)\s?\d[\d,]*/gi) || []).length +
+    (html.match(/itemprop=["']price["']|"price"\s*:/gi) || []).length;
+  const hasAggregateRating =
+    lowerTypes.includes('aggregaterating') || /"aggregateRating"/i.test(html) ||
+    /\b\d(?:\.\d)?\s?(?:out of 5|\/\s?5|stars?)\b/i.test(text) || /\b[\d,]+\s+(?:ratings|reviews)\b/i.test(text);
+  const hasAddToCart = /add to (?:cart|bag|basket)|buy now|add to wishlist/i.test(html);
+
+  const detectedPageType = detectPageType({ hasItemList, hasProductSchema, hasAddToCart, priceCount });
+  const chosen = opts.pageType && opts.pageType !== 'auto' ? opts.pageType : detectedPageType;
+
   return {
     isUrl: opts.isUrl, host: opts.host || '', brand: opts.brand || '', topic: opts.topic || '', category: opts.category || 'general',
     title, metaDescription, canonical, robotsMeta, headings, h1Count,
@@ -236,6 +271,8 @@ export function analyzeHtml(
     robotsTxtBlocks: opts.isUrl ? Boolean(opts.robotsTxt && /Disallow:\s*\/\s*$/im.test(opts.robotsTxt)) : null,
     firstWords: words.slice(0, 60).join(' '),
     text: text.slice(0, 9000),
+    priceCount, hasProductSchema, hasItemList, hasAggregateRating, hasAddToCart,
+    pageType: chosen, detectedPageType,
   };
 }
 
@@ -254,13 +291,16 @@ export function deterministicSignals(f: PageFacts): Signal[] {
   const sub = f.headings.filter((h) => h.level >= 2);
   const qShare = sub.length ? sub.filter((h) => QUESTION_RE.test(h.text) || h.text.includes('?')).length / sub.length : 0;
   const avgPara = f.paragraphs.length ? f.paragraphs.reduce((a, b) => a + b, 0) / f.paragraphs.length : 0;
+  const pageType = f.pageType || 'article';
+  const isArticle = pageType === 'article';
+  const isCommerce = pageType === 'product' || pageType === 'listing';
 
   // ANSWERABILITY (deterministic part: conciseness)
   out.push(sig({
     id: 'conciseness', label: 'Conciseness (answer efficiency)', pillar: 'answerability', weight: 0.1,
-    score: (() => { const w = f.wordCount; if (w < 150) return 35; if (w < 300) return 70; if (w <= 1800) return 100; if (w <= 3000) return 80; return 60; })(),
+    score: (() => { const w = f.wordCount; if (isCommerce) return w < 30 ? 55 : 100; if (w < 150) return 35; if (w < 300) return 70; if (w <= 1800) return 100; if (w <= 3000) return 80; return 60; })(),
     detail: `${f.wordCount} words.`,
-    fix: f.wordCount > 3000 ? 'Tighten or split — most AI citations are under 1,000 words. Lead with the answer.' : f.wordCount < 150 ? 'Too thin to be cited — add substantive coverage.' : undefined,
+    fix: f.wordCount > 3000 ? 'Tighten or split — most AI citations are under 1,000 words. Lead with the answer.' : (!isCommerce && f.wordCount < 150) ? 'Too thin to be cited — add substantive coverage.' : undefined,
   }));
 
   // ENTITY CLARITY (deterministic part: pronoun dependency)
@@ -279,12 +319,24 @@ export function deterministicSignals(f: PageFacts): Signal[] {
   out.push(sig({ id: 'statistics', label: 'Statistics & data points', pillar: 'attribution', weight: 0.14,
     score: c(Math.min(100, f.statistics * 18)), detail: `${f.statistics} statistic/number/data mention(s).`,
     fix: f.statistics < 3 ? 'Add concrete statistics and figures — a proven causal lever for LLM citation (Princeton GEO).' : undefined }));
-  out.push(sig({ id: 'quotations', label: 'Expert quotations', pillar: 'attribution', weight: 0.1,
-    score: c(Math.min(100, f.blockquotes * 40 + Math.min(f.quotedPhrases, 4) * 15)), detail: `${f.blockquotes} blockquote(s), ${f.quotedPhrases} attributed quote(s).`,
-    fix: f.blockquotes + f.quotedPhrases < 1 ? 'Add named expert/source quotations — a top-three GEO lever.' : undefined }));
-  out.push(sig({ id: 'author_named', label: 'Named author / byline', pillar: 'attribution', weight: 0.2,
-    score: f.hasAuthor ? 90 : 20, detail: f.hasAuthor ? 'An author / byline was detected.' : 'No author / byline detected.',
-    fix: f.hasAuthor ? undefined : 'Add a named author with a credentialed bio (and Person/author schema).' }));
+  if (isArticle) {
+    // Article-only trust signals (don't penalise product/listing pages for these).
+    out.push(sig({ id: 'quotations', label: 'Expert quotations', pillar: 'attribution', weight: 0.1,
+      score: c(Math.min(100, f.blockquotes * 40 + Math.min(f.quotedPhrases, 4) * 15)), detail: `${f.blockquotes} blockquote(s), ${f.quotedPhrases} attributed quote(s).`,
+      fix: f.blockquotes + f.quotedPhrases < 1 ? 'Add named expert/source quotations — a top-three GEO lever.' : undefined }));
+    out.push(sig({ id: 'author_named', label: 'Named author / byline', pillar: 'attribution', weight: 0.2,
+      score: f.hasAuthor ? 90 : 20, detail: f.hasAuthor ? 'An author / byline was detected.' : 'No author / byline detected.',
+      fix: f.hasAuthor ? undefined : 'Add a named author with a credentialed bio (and Person/author schema).' }));
+  }
+  if (isCommerce) {
+    // Product/listing trust signals: clear pricing + ratings build buyer + AI trust.
+    out.push(sig({ id: 'price_present', label: 'Clear pricing', pillar: 'attribution', weight: 0.2,
+      score: f.priceCount >= 1 ? 95 : 20, detail: f.priceCount >= 1 ? `${f.priceCount} price/offer signal(s) detected.` : 'No price detected on the page.',
+      fix: f.priceCount >= 1 ? undefined : 'Show clear prices (and Offer/“price” schema) — AI shopping answers lead with price.' }));
+    out.push(sig({ id: 'ratings_reviews', label: 'Ratings & reviews', pillar: 'attribution', weight: 0.12,
+      score: f.hasAggregateRating ? 90 : 25, detail: f.hasAggregateRating ? 'Ratings / review signals detected.' : 'No ratings or review counts detected.',
+      fix: f.hasAggregateRating ? undefined : 'Add star ratings + review counts (AggregateRating schema) — strong trust signal for AI product picks.' }));
+  }
 
   // STRUCTURAL READABILITY (deterministic)
   out.push(sig({ id: 'summary_block', label: 'Summary / key-points block', pillar: 'structure', weight: 0.25,
@@ -314,17 +366,17 @@ export function deterministicSignals(f: PageFacts): Signal[] {
   })();
   out.push(sig({ id: 'updated_date', label: 'Updated timestamp & recency', pillar: 'freshness', weight: 0.45,
     score: fresh.score, detail: fresh.note, fix: fresh.score < 60 ? 'Show a visible published/updated timestamp and refresh stale content.' : undefined }));
-  const wantSchema: Partial<Record<Category, string[]>> = {
-    news: ['NewsArticle'], health: ['MedicalWebPage', 'MedicalWebpage'], commerce: ['Product'],
-  };
-  const valuable = ['FAQPage', 'HowTo', 'Article', 'NewsArticle', 'BlogPosting', 'Product', 'BreadcrumbList', 'Recipe', 'MedicalWebPage'];
+  // The schema we most want depends on page type first, then topic category.
+  const wanted: string[] | undefined = pageType === 'product' ? ['Product']
+    : pageType === 'listing' ? ['ItemList']
+    : ({ news: ['NewsArticle'], health: ['MedicalWebPage', 'MedicalWebpage'], commerce: ['Product'] } as Partial<Record<Category, string[]>>)[f.category];
+  const valuable = ['FAQPage', 'HowTo', 'Article', 'NewsArticle', 'BlogPosting', 'Product', 'ItemList', 'BreadcrumbList', 'Recipe', 'MedicalWebPage'];
   const matched = f.schemaTypes.filter((t) => valuable.includes(t));
-  const wanted = wantSchema[f.category];
   const hasWanted = wanted ? wanted.some((w) => f.schemaTypes.map((s) => s.toLowerCase()).includes(w.toLowerCase())) : true;
   out.push(sig({ id: 'schema', label: 'Schema.org metadata', pillar: 'freshness', weight: 0.3,
     score: matched.length === 0 ? 25 : c(50 + matched.length * 18 + (hasWanted ? 10 : 0)),
     detail: f.schemaTypes.length ? `Detected: ${f.schemaTypes.join(', ')}.` : 'No JSON-LD schema found.',
-    fix: matched.length === 0 ? `Add JSON-LD schema${wanted ? ` (${wanted[0]} for this category)` : ' (Article + FAQPage/HowTo)'}.` : (!hasWanted && wanted ? `Add ${wanted[0]} schema for ${CATEGORY_LABEL[f.category]} content.` : undefined) }));
+    fix: matched.length === 0 ? `Add JSON-LD schema${wanted ? ` (${wanted[0]} for this page)` : ' (Article + FAQPage/HowTo)'}.` : (!hasWanted && wanted ? `Add ${wanted[0]} schema for this ${PAGE_TYPE_LABEL[pageType].toLowerCase()}.` : undefined) }));
   out.push(sig({ id: 'metadata', label: 'Title & meta description', pillar: 'freshness', weight: 0.25,
     score: (() => { let s = 0; if (f.title) s += 50; if (f.title.length >= 20 && f.title.length <= 70) s += 10; if (f.metaDescription) s += 30; if (f.metaDescription.length >= 70 && f.metaDescription.length <= 165) s += 10; return c(s); })(),
     detail: `Title ${f.title ? `${f.title.length} chars` : 'missing'}; meta description ${f.metaDescription ? `${f.metaDescription.length} chars` : 'missing'}.`,

@@ -214,6 +214,15 @@
 
           <div class="three">
             <div>
+              <label class="fld" for="pagetype">Page type <span style="font-weight:400">(what is this page?)</span></label>
+              <select id="pagetype">
+                <option value="auto">Auto-detect</option>
+                <option value="article">Article / Blog</option>
+                <option value="product">Product page</option>
+                <option value="listing">Category / Listing page</option>
+              </select>
+            </div>
+            <div>
               <label class="fld" for="category">Category <span style="font-weight:400">(sets the weighting)</span></label>
               <select id="category">
                 <option value="general">General</option>
@@ -287,6 +296,7 @@
         const v = verdictFor(r.overall);
 
         const chips = [
+          m.pageTypeLabel ? `<span class="chip intent">${esc(m.pageTypeLabel)}${m.pageTypeAuto ? ' (auto)' : ''}</span>` : '',
           `<span class="chip band-${r.citationBand}">${r.citationBand} citation likelihood</span>`,
           r.benchmark ? `<span class="chip">${esc(r.benchmark)}</span>` : '',
           `<span class="chip">${m.wordCount} words</span>`,
@@ -445,7 +455,7 @@
 
       async function run() {
         hideAlerts();
-        const payload = { brand: $('brand').value.trim(), topic: $('topic').value.trim(), target: $('target').value.trim(), category: $('category').value };
+        const payload = { brand: $('brand').value.trim(), topic: $('topic').value.trim(), target: $('target').value.trim(), category: $('category').value, pageType: $('pagetype').value };
         if (mode === 'url') { payload.url = $('url').value.trim(); if (!payload.url) { showErr('Enter a page URL to audit.'); return; } }
         else { payload.html = $('html').value.trim(); if (!payload.html) { showErr('Paste the article HTML or text to audit.'); return; } }
 
