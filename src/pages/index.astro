@@ -115,7 +115,11 @@
       .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
       @media (max-width: 760px) { .gauges { grid-template-columns: 1fr 1fr; } }
       @media (max-width: 460px) { .gauges { grid-template-columns: 1fr; } }
-      .gauge { border: 1px solid var(--line); border-radius: 13px; padding: 13px 14px; background: #fff; border-left: 4px solid var(--g); }
+      .gauge { border: 1px solid var(--line); border-radius: 13px; padding: 13px 14px; background: #fff; border-left: 4px solid var(--g); cursor: pointer; transition: box-shadow 0.15s, transform 0.15s; }
+      .gauge:hover { box-shadow: 0 4px 14px rgba(20,20,40,0.10); transform: translateY(-1px); }
+      .gauge .gmore { font-size: 11px; font-weight: 800; color: var(--g); margin-top: 9px; }
+      .pillar .pissues { font-size: 11px; font-weight: 800; color: var(--bad); background: var(--bad-bg); padding: 2px 9px; border-radius: 999px; }
+      .pillar .pclean { font-size: 11px; font-weight: 800; color: var(--ok); background: var(--ok-bg); padding: 2px 9px; border-radius: 999px; }
       .gauge .gtop { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
       .gauge .gname { font-size: 12.5px; font-weight: 700; line-height: 1.25; }
       .gauge .gpts { font-size: 22px; font-weight: 800; color: var(--g); white-space: nowrap; }
@@ -317,8 +321,9 @@
         const gauges = r.pillars.map((p) => {
           const col = hexFor(p.score);
           const counts = p.signals.reduce((a, s) => { const st = s.score == null ? 'na' : statusOf(s.score); a[st] = (a[st] || 0) + 1; return a; }, {});
+          const issues = (counts.warn || 0) + (counts.fail || 0);
           return `
-            <div class="gauge" style="--g:${col}">
+            <div class="gauge" style="--g:${col}" data-pill="${p.id}" role="button" tabindex="0" title="Click to see the issues in ${esc(p.label)}">
               <div class="gtop">
                 <div><div class="gname">${esc(p.label)}</div><div class="gpurpose">${esc(p.purpose)}</div></div>
                 <div class="gpts">${p.points}<small>/${p.weight}</small></div>
@@ -329,6 +334,7 @@
                 ${counts.warn ? `<span class="cwarn">! ${counts.warn}</span>` : ''}
                 ${counts.fail ? `<span class="cbad">✕ ${counts.fail}</span>` : ''}
               </div>
+              <div class="gmore">${issues ? `See ${issues} issue${issues > 1 ? 's' : ''} →` : 'All good — view details →'}</div>
             </div>`;
         }).join('');
 
@@ -358,15 +364,24 @@
           return `<div class="fixrow" style="--fc:${col}"><span class="fnum">${i + 1}</span><div class="ftext"><b>${esc(fx.label)}</b>${esc(fx.fix)}</div><div class="fmeta">${gain}<span class="ftag ${fx.tag}">${TAGLBL[fx.tag] || fx.tag}</span></div></div>`;
         }).join('');
 
+        const statusRank = { fail: 0, warn: 1, na: 2, pass: 3 };
         const breakdown = r.pillars.map((p) => {
           const col = hexFor(p.score);
-          const sigs = p.signals.map((s) => {
+          // Issues first (fail, then warn), so "what's wrong" is at the top.
+          const ordered = [...p.signals].sort((a, b) => {
+            const sa = a.score == null ? 'na' : statusOf(a.score);
+            const sb = b.score == null ? 'na' : statusOf(b.score);
+            return statusRank[sa] - statusRank[sb];
+          });
+          const issues = p.signals.filter((s) => s.score != null && statusOf(s.score) !== 'pass').length;
+          const sigs = ordered.map((s) => {
             const st = s.score == null ? 'na' : statusOf(s.score);
             const tag = s.source === 'ai' ? '<span class="tag">AI</span>' : '';
             return `<div class="signal"><span class="schip ${st}">${ICON[st]}</span><div class="sbody"><div class="sname">${esc(s.label)}${tag}</div><div class="sdetail">${esc(s.detail)}</div>${s.fix ? `<div class="sfix">💡 ${esc(s.fix)}</div>` : ''}</div><span class="sscore" style="${tintFor(s.score)}">${s.score == null ? 'n/a' : s.score}</span></div>`;
           }).join('');
           const open = p.score < 70 ? ' open' : '';
-          return `<details class="pillar" style="--p:${col}"${open}><summary><span class="caret">▶</span><span class="pname">${esc(p.label)}</span><span class="ppts">${p.points}/${p.weight} pts</span><span class="pbar"><i style="width:${p.score}%"></i></span><span class="pscore">${p.score}</span></summary><div class="signals">${sigs}</div></details>`;
+          const issueLbl = issues ? `<span class="pissues">${issues} issue${issues > 1 ? 's' : ''} to fix</span>` : '<span class="pclean">no issues</span>';
+          return `<details class="pillar" id="pill-${p.id}" style="--p:${col}"${open}><summary><span class="caret">▶</span><span class="pname">${esc(p.label)}</span>${issueLbl}<span class="pbar"><i style="width:${p.score}%"></i></span><span class="pscore">${p.score}</span></summary><div class="signals">${sigs}</div></details>`;
         }).join('');
 
         root.innerHTML = `
@@ -386,6 +401,16 @@
 
         const copyBtn = $('copyreport');
         if (copyBtn) copyBtn.addEventListener('click', () => copyReport(r, m));
+
+        // Click a pillar card -> open + scroll to its issues in the full breakdown.
+        root.querySelectorAll('.gauge[data-pill]').forEach((g) => {
+          const openPill = () => {
+            const d = document.getElementById('pill-' + g.dataset.pill);
+            if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+          };
+          g.addEventListener('click', openPill);
+          g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPill(); } });
+        });
 
         root.style.display = 'block';
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });

@@ -460,11 +460,17 @@ export function buildReport(
   const sortedP = [...pillars].sort((a, b) => a.score - b.score);
   const weakest = sortedP[0], strongest = sortedP[sortedP.length - 1];
   const band = overall >= 70 ? 'High' : overall >= 45 ? 'Medium' : 'Low';
-  const lead = band === 'High' ? 'is well-placed to be cited' : band === 'Medium' ? 'has a moderate chance of being cited' : 'is unlikely to be cited as-is';
+  // Plain-English verdict framed around the engines — NO scores/numbers.
+  const ENGINES = 'ChatGPT, Gemini, Perplexity and Google AI Mode';
+  const likely = band === 'High'
+    ? `${ENGINES} are likely to cite this page.`
+    : band === 'Medium'
+      ? `${ENGINES} might cite this page, but it needs work first.`
+      : `${ENGINES} are unlikely to cite this page as it stands.`;
   const fallbackSummary =
-    `This article ${lead} by AI answer engines (score ${overall}/100). ` +
-    `Strongest area is ${strongest.label} (${strongest.score}); the weakest is ${weakest.label} (${weakest.score}). ` +
-    (topFixes[0] ? `Start with "${topFixes[0].label}" for the biggest lift.` : '');
+    `${likely} ` +
+    `It's strongest on ${strongest.label.toLowerCase()} and weakest on ${weakest.label.toLowerCase()} — that's what's holding it back. ` +
+    (topFixes[0] ? `Fix "${topFixes[0].label}" first.` : '');
 
   return {
     overall, grade: gradeFor(overall), category,

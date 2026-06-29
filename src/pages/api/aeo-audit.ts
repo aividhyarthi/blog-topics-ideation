@@ -85,7 +85,7 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown):
   "promptCoverageScore": 0-100,  // overall how well it covers the prompts below
   "brandAuthority": 0-100,       // ESTIMATE from training knowledge: how authoritative is this brand/site on this topic? (off-page; unknown brand = low)
   "offpageCorroboration": 0-100, // ESTIMATE: how corroborated on Wikipedia/Reddit/YouTube/reputable roundups?
-  "summary": "2-3 sentence plain-English verdict for an editor: how likely AI answer engines are to cite this, the 1-2 biggest reasons, and what to fix first. Conversational and specific, no jargon.",
+  "summary": "2-3 sentences for an editor with NO numbers or scores anywhere. Say plainly whether ChatGPT, Gemini, Perplexity and Google AI Mode would cite THIS page or not, the single biggest reason why, and the first thing to fix. Quote the page's actual headline. Conversational, no jargon.",
   "detectedIntent": "informational | commercial | comparison | transactional | how-to",
   "suggestedCategory": "one of: ${CATEGORIES.join(' | ')}",
   "prompts": [ { "q": "a likely AI question", "covered": true|false } ],
