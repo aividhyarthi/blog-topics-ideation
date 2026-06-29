@@ -1,6 +1,6 @@
 ---
-// AEO Auditor — newsroom copilot. Scores an article's likelihood of being
-// cited by LLM answer engines, with category-specific weighting.
+// CiteRank — AEO auditor. Scores how likely a page is to be cited by LLM
+// answer engines (ChatGPT, Perplexity, Gemini, Google AI Overviews).
 ---
 
 <!doctype html>
@@ -13,193 +13,226 @@
     <meta name="description" content="CiteRank checks whether your content is ready to rank in LLMs. Paste a URL or your draft and see how likely ChatGPT, Perplexity, Gemini and Google AI Overviews are to cite it — and exactly what to fix before you publish." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <!-- is:global so styles also apply to the results DOM injected at runtime
          via innerHTML (Astro's scoped styles only match build-time elements). -->
     <style is:global>
       :root {
-        --pink: #6366f1; --pink-dark: #4f46e5; --ink: #1d1f2b; --muted: #6b6f80;
-        --line: #e7e8ef; --bg: #f4f5fb; --card: #ffffff;
-        --ok: #15a06a; --ok-bg: #e7f6ef; --warn: #c98a00; --warn-bg: #fdf3dd;
-        --bad: #d63a3a; --bad-bg: #fdecec; --na: #9aa0ad; --indigo: #5b46c9;
+        --pink: #5b54e6; --pink-dark: #4840c9; --accent-soft: #eeedfb;
+        --ink: #14151a; --ink-2: #3c3f4a; --muted: #71757f; --faint: #9a9da6;
+        --line: #ececf1; --line-2: #e3e3ea; --bg: #f7f7fa; --card: #ffffff;
+        --ok: #15915f; --ok-bg: #e6f5ee; --warn: #b07900; --warn-bg: #fbf2da;
+        --bad: #d23c3c; --bad-bg: #fcebeb; --na: #9aa0ad; --indigo: #5b54e6;
+        --shadow: 0 1px 2px rgba(20,20,40,.04), 0 8px 24px -16px rgba(30,30,70,.18);
+        --shadow-lg: 0 1px 2px rgba(20,20,40,.05), 0 18px 48px -24px rgba(30,30,70,.28);
       }
       * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
       body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-      header { background: linear-gradient(125deg, #6366f1 0%, #8b5cf6 60%, #a78bfa 100%); color: #fff; padding: 30px 20px 34px; }
-      .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
-      header h1 { margin: 0 0 8px; font-size: 27px; font-weight: 800; letter-spacing: -0.02em; }
-      header p { margin: 0; opacity: 0.96; font-size: 15px; max-width: 760px; }
-      .badge { display: inline-flex; align-items: center; gap: 7px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; margin-bottom: 14px; }
-      nav.top { margin-top: 16px; display: flex; gap: 10px; }
-      nav.top a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 7px 13px; border-radius: 9px; }
-      nav.top a.active { background: #fff; color: var(--pink-dark); }
-      main { padding: 26px 0 64px; }
-      .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: 0 2px 8px rgba(20,20,40,0.05); }
-      .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-      .tab { padding: 9px 15px; border-radius: 10px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); }
-      .tab.active { border-color: var(--pink); color: var(--pink); background: #f0f1fe; }
-      label.fld { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin: 12px 0 5px; }
-      input[type=text], input[type=url], textarea, select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; color: var(--ink); background: #fcfcfe; outline: none; font-family: inherit; }
-      textarea { min-height: 200px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-      input:focus, textarea:focus, select:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
-      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-      .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-      @media (max-width: 720px) { .two, .three { grid-template-columns: 1fr; } }
-      .row { display: flex; align-items: center; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
-      button.primary { background: var(--pink); color: #fff; border: none; border-radius: 11px; padding: 13px 24px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 10px rgba(99,102,241,0.35); }
-      button.primary:hover { background: var(--pink-dark); }
-      button.primary:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
-      .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; display: inline-block; vertical-align: -3px; margin-right: 8px; animation: spin 0.7s linear infinite; }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      .alert { margin-top: 16px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; display: none; }
-      .alert.err { background: var(--bad-bg); color: #b3261e; border: 1px solid #f6c9c6; }
-      .alert.info { background: var(--warn-bg); color: #8a5d00; border: 1px solid #f3e0b0; }
-      #results { margin-top: 24px; display: none; }
+      .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+      svg { display: block; }
+      a { color: var(--pink-dark); }
 
-      .hero { display: flex; gap: 26px; align-items: center; flex-wrap: wrap; }
-      .donut { --val: 0; --ring: var(--ok); width: 150px; height: 150px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--ring) calc(var(--val) * 1%), #e9ebf3 0); flex-shrink: 0; }
-      .donut .inner { width: 116px; height: 116px; border-radius: 50%; background: #fff; display: grid; place-items: center; text-align: center; box-shadow: 0 1px 4px rgba(20,20,40,0.06); }
-      .donut .num { font-size: 40px; font-weight: 800; line-height: 1; }
-      .donut .grd { font-size: 13px; color: var(--muted); font-weight: 700; margin-top: 3px; }
-      .verdict { flex: 1; min-width: 260px; }
-      .verdict .vtitle { font-size: 22px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.01em; }
-      .gate { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 800; padding: 5px 12px; border-radius: 999px; margin-bottom: 8px; }
+      /* ---- sticky top nav ---- */
+      .nav { position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,.82); backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid var(--line); }
+      .navinner { display: flex; align-items: center; gap: 14px; height: 60px; }
+      .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: -.02em; color: var(--ink); }
+      .brand .mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(140deg, #6a63f0, #4840c9); display: grid; place-items: center; box-shadow: 0 4px 12px -4px rgba(72,64,201,.6); }
+      .brand .mark svg { width: 15px; height: 15px; color: #fff; }
+      .navmeta { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-weight: 500; }
+      .navmeta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+      @media (max-width: 560px) { .navmeta .hidesm { display: none; } }
+
+      /* ---- hero ---- */
+      .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); background:
+        radial-gradient(900px 360px at 78% -8%, rgba(91,84,230,.10), transparent 60%),
+        radial-gradient(700px 320px at 6% 0%, rgba(91,84,230,.07), transparent 55%); }
+      .hero .wrap { padding: 52px 24px 44px; }
+      .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pink-dark); background: var(--accent-soft); border: 1px solid #e0def7; padding: 5px 12px; border-radius: 999px; margin-bottom: 18px; }
+      .hero h1 { margin: 0 0 14px; font-size: 40px; line-height: 1.08; font-weight: 800; letter-spacing: -.032em; max-width: 16ch; }
+      .hero p { margin: 0; font-size: 16.5px; color: var(--ink-2); max-width: 62ch; line-height: 1.6; }
+      .hero p strong { color: var(--ink); font-weight: 700; }
+      .enginerow { margin-top: 26px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+      .enginerow .lbl { font-size: 12px; color: var(--faint); font-weight: 600; letter-spacing: .02em; }
+      .eng-wm { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
+      .eng-wm .swatch { width: 9px; height: 9px; border-radius: 3px; }
+      @media (max-width: 640px) { .hero h1 { font-size: 31px; } .hero .wrap { padding: 38px 24px 34px; } }
+
+      main { padding: 30px 0 72px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; box-shadow: var(--shadow); }
+      .panel-lead { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+      .panel-lead .ttl { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+      .panel-lead .sub { font-size: 12.5px; color: var(--muted); margin-left: auto; }
+
+      .tabs { display: inline-flex; gap: 4px; background: #f1f1f6; border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 18px; }
+      .tab { display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border-radius: 9px; border: none; background: transparent; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); font-family: inherit; transition: .15s; }
+      .tab svg { width: 15px; height: 15px; }
+      .tab.active { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(20,20,40,.12); }
+      label.fld { display: block; font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin: 14px 0 6px; }
+      label.fld .opt { font-weight: 400; color: var(--faint); }
+      input[type=text], input[type=url], textarea, select { width: 100%; border: 1px solid var(--line-2); border-radius: 11px; padding: 11px 13px; font-size: 14px; color: var(--ink); background: #fcfcfe; outline: none; font-family: inherit; transition: .15s; }
+      textarea { min-height: 200px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.55; }
+      input::placeholder, textarea::placeholder { color: var(--faint); }
+      input:focus, textarea:focus, select:focus { border-color: var(--pink); box-shadow: 0 0 0 3.5px rgba(91,84,230,.14); background: #fff; }
+      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+      @media (max-width: 720px) { .two, .three { grid-template-columns: 1fr; } }
+      .row { display: flex; align-items: center; gap: 14px; margin-top: 20px; flex-wrap: wrap; }
+      button.primary { display: inline-flex; align-items: center; gap: 9px; background: var(--ink); color: #fff; border: none; border-radius: 12px; padding: 13px 26px; font-size: 14.5px; font-weight: 600; cursor: pointer; font-family: inherit; box-shadow: 0 6px 18px -8px rgba(20,21,26,.6); transition: .15s; }
+      button.primary svg { width: 17px; height: 17px; }
+      button.primary:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -10px rgba(20,21,26,.7); }
+      button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+      .hint { font-size: 12.5px; color: var(--muted); }
+      .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .alert { margin-top: 16px; padding: 12px 14px; border-radius: 11px; font-size: 13.5px; display: none; align-items: center; gap: 9px; }
+      .alert svg { width: 16px; height: 16px; flex-shrink: 0; }
+      .alert.err { background: var(--bad-bg); color: #b3261e; border: 1px solid #f6c9c6; }
+      .alert.info { background: var(--accent-soft); color: var(--pink-dark); border: 1px solid #e0def7; }
+      #results { margin-top: 28px; display: none; }
+
+      /* ---- hero score card ---- */
+      .hero-res { display: flex; gap: 30px; align-items: center; flex-wrap: wrap; }
+      .donut { --val: 0; --ring: var(--ok); width: 158px; height: 158px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--ring) calc(var(--val) * 1%), #ececf3 0); flex-shrink: 0; }
+      .donut .inner { width: 124px; height: 124px; border-radius: 50%; background: #fff; display: grid; place-items: center; text-align: center; box-shadow: inset 0 0 0 1px rgba(20,20,40,.04); }
+      .donut .num { font-size: 44px; font-weight: 800; line-height: 1; letter-spacing: -.03em; }
+      .donut .num .pct { font-size: 20px; font-weight: 700; opacity: .6; margin-left: 1px; }
+      .donut .grd { font-size: 11px; color: var(--muted); font-weight: 700; margin-top: 5px; letter-spacing: .08em; text-transform: uppercase; }
+      .verdict { flex: 1; min-width: 280px; }
+      .verdict .vtitle { font-size: 23px; font-weight: 800; margin: 0 0 9px; letter-spacing: -.02em; line-height: 1.2; }
+      .gate { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; margin-bottom: 11px; letter-spacing: .01em; }
+      .gate svg { width: 13px; height: 13px; }
       .gate.block { background: var(--bad-bg); color: var(--bad); }
       .gate.warn { background: var(--warn-bg); color: var(--warn); }
       .gate.strong { background: var(--ok-bg); color: var(--ok); }
-      .gate.optimized { background: #e9e6fb; color: var(--indigo); }
-      .verdict .vsub { color: var(--muted); font-size: 13.5px; margin: 2px 0 10px; word-break: break-word; }
+      .gate.optimized { background: var(--accent-soft); color: var(--indigo); }
+      .verdict .vsub { color: var(--muted); font-size: 13px; margin: 0 0 12px; word-break: break-word; }
+      .verdict .vsub b { color: var(--ink-2); font-weight: 600; }
       .chips { display: flex; gap: 7px; flex-wrap: wrap; }
-      .chip { font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #eef0f7; color: #4a5060; }
-      .chip.intent { background: #f0eefc; color: var(--indigo); }
-      .chip.band-High { background: var(--ok-bg); color: var(--ok); }
-      .chip.band-Medium { background: var(--warn-bg); color: var(--warn); }
-      .chip.band-Low { background: var(--bad-bg); color: var(--bad); }
-      .note-warn { color: var(--warn); font-size: 12.5px; margin-top: 8px; }
-      .note-bad { color: var(--bad); font-size: 12.5px; margin-top: 8px; }
-      .suggest { margin-top: 10px; font-size: 12.5px; background: #eef0f7; border-radius: 9px; padding: 8px 11px; color: #3a4a6b; }
-      .suggest a { color: var(--pink-dark); font-weight: 700; cursor: pointer; text-decoration: underline; }
-
-      /* brand bar */
-      .brandbar { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; flex-wrap: wrap; }
-      .brandbar .logo { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
-      .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
-      .brandbar .by { font-size: 11.5px; font-weight: 600; opacity: 0.9; }
-      .brandbar .aipill { margin-left: auto; font-size: 11.5px; font-weight: 700; padding: 4px 11px; border-radius: 999px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4); }
+      .chip { font-size: 11.5px; font-weight: 600; padding: 4px 11px; border-radius: 999px; background: #f1f1f6; color: var(--ink-2); border: 1px solid var(--line); }
+      .chip.intent { background: var(--accent-soft); color: var(--indigo); border-color: #e0def7; }
+      .chip.band-High { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
+      .chip.band-Medium { background: var(--warn-bg); color: var(--warn); border-color: #f0e2b8; }
+      .chip.band-Low { background: var(--bad-bg); color: var(--bad); border-color: #f4cfcf; }
+      .note-warn { display: flex; gap: 7px; align-items: flex-start; color: var(--warn); font-size: 12.5px; margin-top: 11px; }
+      .note-bad { display: flex; gap: 7px; align-items: flex-start; color: var(--bad); font-size: 12.5px; margin-top: 11px; }
+      .note-warn svg, .note-bad svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
+      .suggest { margin-top: 12px; font-size: 12.5px; background: #f1f1f6; border-radius: 10px; padding: 9px 12px; color: var(--ink-2); }
+      .suggest a { color: var(--pink-dark); font-weight: 600; cursor: pointer; }
 
       /* AI executive summary */
-      .summary { margin-top: 16px; display: flex; gap: 12px; background: linear-gradient(120deg, #f3f1ff, #eef4ff); border: 1px solid #e2def8; border-radius: 13px; padding: 13px 15px; }
-      .summary .sicon { font-size: 18px; line-height: 1.4; }
-      .summary .sbody b { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--indigo); margin-bottom: 2px; }
-      .summary .sbody p { margin: 0; font-size: 13.5px; color: #2c3142; }
+      .summary { margin-top: 20px; display: flex; gap: 13px; background: linear-gradient(120deg, #f4f3ff, #f0f4ff); border: 1px solid #e6e3fb; border-radius: 14px; padding: 15px 17px; }
+      .summary .sicon { width: 30px; height: 30px; border-radius: 9px; background: #fff; border: 1px solid #e6e3fb; display: grid; place-items: center; flex-shrink: 0; }
+      .summary .sicon svg { width: 16px; height: 16px; color: var(--indigo); }
+      .summary .sbody b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--indigo); margin-bottom: 3px; font-weight: 700; }
+      .summary .sbody p { margin: 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.55; }
 
-      /* copy/share */
-      .resbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: -8px; }
-      .ghostbtn { background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 7px 13px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+      .resbar { display: flex; justify-content: flex-end; gap: 9px; margin: 18px 0 -6px; }
+      .ghostbtn { display: inline-flex; align-items: center; gap: 7px; background: #fff; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; transition: .15s; }
+      .ghostbtn svg { width: 14px; height: 14px; }
       .ghostbtn:hover { border-color: var(--pink); color: var(--pink); }
 
-      /* coverage meter */
-      .covbar { height: 10px; border-radius: 999px; background: #edeef4; overflow: hidden; margin: 4px 0 12px; }
-      .covbar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--indigo), #8b5cf6); }
+      .covbar { height: 9px; border-radius: 999px; background: #edeef4; overflow: hidden; margin: 6px 0 14px; }
+      .covbar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--indigo), #8b85f5); }
 
-      /* fix impact badge + tag */
-      .fixrow .fmeta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
-      .gain { font-size: 12px; font-weight: 800; color: var(--ok); white-space: nowrap; }
-      .ftag { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; }
-      .ftag.high { background: #e9e6fb; color: var(--indigo); }
+      .fixrow .fmeta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+      .gain { font-size: 12px; font-weight: 700; color: var(--ok); white-space: nowrap; }
+      .ftag { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 2px 8px; border-radius: 999px; }
+      .ftag.high { background: var(--accent-soft); color: var(--indigo); }
       .ftag.quick { background: var(--ok-bg); color: var(--ok); }
-      .ftag.offpage { background: #eef0f7; color: #4a5060; }
-      .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13.5px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+      .ftag.offpage { background: #f1f1f6; color: var(--muted); }
+      .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 11px; font-size: 13.5px; font-weight: 500; opacity: 0; transition: opacity .2s; pointer-events: none; box-shadow: 0 12px 32px -12px rgba(0,0,0,.5); }
       .toast.show { opacity: 1; }
 
-      .sectitle { font-size: 15px; font-weight: 800; margin: 26px 0 12px; display: flex; align-items: center; gap: 8px; }
-      .sectitle .sub { font-weight: 500; color: var(--muted); font-size: 12.5px; }
+      /* ---- section header (eyebrow style, no emoji) ---- */
+      .sectitle { display: flex; align-items: center; gap: 10px; margin: 34px 0 14px; }
+      .sectitle .sicn { width: 30px; height: 30px; border-radius: 9px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; flex-shrink: 0; color: var(--ink-2); box-shadow: var(--shadow); }
+      .sectitle .sicn svg { width: 15px; height: 15px; }
+      .sectitle .stx { display: flex; flex-direction: column; }
+      .sectitle .stx b { font-size: 14.5px; font-weight: 700; letter-spacing: -.01em; }
+      .sectitle .stx span { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 1px; }
 
-      .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+      /* ---- per-engine cards ---- */
+      .engcards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; }
+      @media (max-width: 680px) { .engcards { grid-template-columns: 1fr 1fr; } }
+      .engcard { position: relative; border: 1px solid var(--line); border-radius: 15px; padding: 15px 16px 16px; background: #fff; box-shadow: var(--shadow); overflow: hidden; }
+      .engcard::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--e); }
+      .engcard .en { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+      .engcard .en .swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--e); }
+      .engcard .es { font-size: 30px; font-weight: 800; letter-spacing: -.03em; margin: 8px 0 9px; line-height: 1; }
+      .engcard .es small { font-size: 15px; font-weight: 700; opacity: .55; }
+      .engcard .ebar { height: 6px; border-radius: 999px; background: #edeef4; overflow: hidden; }
+      .engcard .ebar > i { display: block; height: 100%; border-radius: 999px; }
+
+      /* ---- pillar gauges ---- */
+      .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
       @media (max-width: 760px) { .gauges { grid-template-columns: 1fr 1fr; } }
       @media (max-width: 460px) { .gauges { grid-template-columns: 1fr; } }
-      .gauge { border: 1px solid var(--line); border-radius: 13px; padding: 13px 14px; background: #fff; border-left: 4px solid var(--g); cursor: pointer; transition: box-shadow 0.15s, transform 0.15s; }
-      .gauge:hover { box-shadow: 0 4px 14px rgba(20,20,40,0.10); transform: translateY(-1px); }
-      .gauge .gmore { font-size: 11px; font-weight: 800; color: var(--g); margin-top: 9px; }
-      .pillar .pissues { font-size: 11px; font-weight: 800; color: var(--bad); background: var(--bad-bg); padding: 2px 9px; border-radius: 999px; }
-      .pillar .pclean { font-size: 11px; font-weight: 800; color: var(--ok); background: var(--ok-bg); padding: 2px 9px; border-radius: 999px; }
-      .gauge .gtop { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-      .gauge .gname { font-size: 12.5px; font-weight: 700; line-height: 1.25; }
-      .gauge .gpts { font-size: 22px; font-weight: 800; color: var(--g); white-space: nowrap; }
-      .gauge .gpts small { font-size: 12px; color: var(--muted); font-weight: 700; }
-      .gauge .gpurpose { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
-      .gbar { height: 7px; border-radius: 999px; background: #edeef4; overflow: hidden; margin-top: 9px; }
+      .gauge { border: 1px solid var(--line); border-radius: 15px; padding: 15px; background: #fff; cursor: pointer; box-shadow: var(--shadow); transition: box-shadow .18s, transform .18s, border-color .18s; }
+      .gauge:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); border-color: var(--line-2); }
+      .gauge .gtop { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+      .gauge .gname { font-size: 13px; font-weight: 700; line-height: 1.3; }
+      .gauge .gpts { font-size: 23px; font-weight: 800; color: var(--g); white-space: nowrap; letter-spacing: -.02em; }
+      .gauge .gpts small { font-size: 12px; color: var(--faint); font-weight: 700; }
+      .gauge .gpurpose { font-size: 10.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+      .gbar { height: 6px; border-radius: 999px; background: #edeef4; overflow: hidden; margin-top: 11px; }
       .gbar > i { display: block; height: 100%; border-radius: 999px; background: var(--g); }
-      .gcounts { display: flex; gap: 9px; margin-top: 9px; font-size: 11px; font-weight: 700; }
+      .gcounts { display: flex; gap: 11px; margin-top: 11px; font-size: 11px; font-weight: 700; }
       .gcounts .cok { color: var(--ok); } .gcounts .cwarn { color: var(--warn); } .gcounts .cbad { color: var(--bad); }
+      .gauge .gmore { font-size: 11px; font-weight: 700; color: var(--g); margin-top: 10px; display: inline-flex; align-items: center; gap: 4px; }
 
-      .domain { border: 1px dashed var(--line); border-radius: 13px; padding: 14px 16px; background: #fbfbfe; }
-      .domain .dhead { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
+      .domain { border: 1px solid var(--line); border-radius: 15px; padding: 16px 18px; background: #fbfbfe; box-shadow: var(--shadow); }
       .domain .dnote { font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
-      .drow { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
-      .drow:first-of-type { border-top: none; }
-      .drow .dscore { font-weight: 800; font-size: 13px; padding: 3px 9px; border-radius: 8px; min-width: 42px; text-align: center; flex-shrink: 0; }
+      .drow { display: flex; gap: 13px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+      .drow:first-of-type { border-top: none; padding-top: 2px; }
+      .drow .dscore { font-weight: 700; font-size: 13px; padding: 3px 9px; border-radius: 8px; min-width: 42px; text-align: center; flex-shrink: 0; }
       .drow .dbody .dname { font-weight: 600; font-size: 13px; }
-      .drow .dbody .ddetail { font-size: 12px; color: var(--muted); margin-top: 1px; }
+      .drow .dbody .ddetail { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
 
-      .prompts { display: grid; gap: 7px; }
-      .prow { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; background: #fff; font-size: 13px; }
-      .prow .pmark { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
+      .prompts { display: grid; gap: 8px; }
+      .prow { display: flex; gap: 11px; align-items: flex-start; border: 1px solid var(--line); border-radius: 11px; padding: 10px 13px; background: #fff; font-size: 13px; box-shadow: var(--shadow); }
+      .prow .pmark { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex-shrink: 0; }
+      .prow .pmark svg { width: 12px; height: 12px; }
       .prow .pmark.yes { background: var(--ok-bg); color: var(--ok); }
       .prow .pmark.no { background: var(--bad-bg); color: var(--bad); }
 
-      .fixlist { display: grid; gap: 9px; }
-      .fixrow { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; border-left: 4px solid var(--fc); }
+      .fixlist { display: grid; gap: 10px; }
+      .fixrow { display: flex; gap: 13px; align-items: flex-start; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: #fff; border-left: 3px solid var(--fc); box-shadow: var(--shadow); }
       .fixrow .fnum { font-weight: 800; color: var(--fc); font-size: 14px; min-width: 18px; }
-      .fixrow .ftext { font-size: 13px; flex: 1; }
-      .fixrow .ftext b { display: block; margin-bottom: 2px; font-size: 13.5px; }
-      .fixrow .sev { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; }
-      .sev.fail { background: var(--bad-bg); color: var(--bad); } .sev.warn { background: var(--warn-bg); color: var(--warn); }
+      .fixrow .ftext { font-size: 13px; flex: 1; line-height: 1.55; }
+      .fixrow .ftext b { display: block; margin-bottom: 3px; font-size: 13.5px; }
 
-      .pillar { border: 1px solid var(--line); border-radius: 13px; overflow: hidden; background: #fff; margin-bottom: 10px; border-left: 4px solid var(--p); }
-      .pillar > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
+      .pillar { border: 1px solid var(--line); border-radius: 15px; overflow: hidden; background: #fff; margin-bottom: 11px; box-shadow: var(--shadow); }
+      .pillar > summary { list-style: none; cursor: pointer; padding: 15px 17px; display: flex; align-items: center; gap: 14px; }
       .pillar > summary::-webkit-details-marker { display: none; }
-      .pillar .caret { color: var(--muted); font-size: 12px; transition: transform 0.15s; }
+      .pillar .caret { color: var(--faint); transition: transform .15s; display: grid; place-items: center; }
+      .pillar .caret svg { width: 13px; height: 13px; }
       .pillar[open] .caret { transform: rotate(90deg); }
+      .pillar .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--p); flex-shrink: 0; }
       .pname { font-weight: 700; font-size: 14.5px; flex: 1; }
-      .ppts { font-size: 11px; color: var(--muted); background: #f1f2f8; padding: 2px 9px; border-radius: 999px; font-weight: 700; }
-      .pbar { height: 8px; border-radius: 999px; background: #edeef4; width: 130px; overflow: hidden; }
+      .pillar .pissues { font-size: 11px; font-weight: 700; color: var(--bad); background: var(--bad-bg); padding: 3px 10px; border-radius: 999px; }
+      .pillar .pclean { font-size: 11px; font-weight: 700; color: var(--ok); background: var(--ok-bg); padding: 3px 10px; border-radius: 999px; }
+      .pbar { height: 7px; border-radius: 999px; background: #edeef4; width: 130px; overflow: hidden; }
       .pbar > i { display: block; height: 100%; border-radius: 999px; background: var(--p); }
-      @media (max-width: 720px) { .pbar { width: 60px; } }
-      .pscore { font-weight: 800; font-size: 18px; min-width: 40px; text-align: right; color: var(--p); }
-      .signals { padding: 2px 16px 12px; }
-      .signal { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); align-items: flex-start; }
-      .schip { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 13px; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
+      @media (max-width: 720px) { .pbar { width: 56px; } }
+      .pscore { font-weight: 800; font-size: 18px; min-width: 40px; text-align: right; color: var(--p); letter-spacing: -.02em; }
+      .signals { padding: 2px 17px 14px; }
+      .signal { display: flex; gap: 13px; padding: 13px 0; border-top: 1px solid var(--line); align-items: flex-start; }
+      .schip { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
+      .schip svg { width: 12px; height: 12px; }
       .schip.pass { background: var(--ok-bg); color: var(--ok); } .schip.warn { background: var(--warn-bg); color: var(--warn); }
       .schip.fail { background: var(--bad-bg); color: var(--bad); } .schip.na { background: #eef0f5; color: var(--na); }
       .sbody { flex: 1; min-width: 0; }
       .sname { font-weight: 600; font-size: 13.5px; }
-      .sname .tag { font-size: 9.5px; font-weight: 800; color: var(--indigo); background: #f0eefc; border-radius: 5px; padding: 1px 5px; margin-left: 7px; vertical-align: 1px; letter-spacing: 0.03em; }
-      .sdetail { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
-      .sfix { font-size: 12.5px; color: #5c4a14; margin-top: 6px; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 6px 10px; border-radius: 0 7px 7px 0; }
-      .sscore { font-weight: 800; font-size: 13px; padding: 3px 9px; border-radius: 8px; min-width: 42px; text-align: center; flex-shrink: 0; }
+      .sname .tag { font-size: 9px; font-weight: 700; color: var(--indigo); background: var(--accent-soft); border-radius: 5px; padding: 2px 6px; margin-left: 8px; vertical-align: 1px; letter-spacing: .04em; }
+      .sdetail { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+      .sfix { font-size: 12.5px; color: #6b5410; margin-top: 7px; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 7px 11px; border-radius: 0 8px 8px 0; line-height: 1.5; }
+      .sscore { font-weight: 700; font-size: 13px; padding: 3px 9px; border-radius: 8px; min-width: 42px; text-align: center; flex-shrink: 0; }
 
-      .caveat { margin-top: 20px; font-size: 12px; color: var(--muted); background: #eef0f7; border-radius: 12px; padding: 12px 14px; }
-      .caveat b { color: var(--ink); }
-      footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 26px; }
-
-      /* per-engine likelihood cards */
-      .engcards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-      @media (max-width: 680px) { .engcards { grid-template-columns: 1fr 1fr; } }
-      .engcard { border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px; background: #fff; border-top: 3px solid var(--e); box-shadow: 0 2px 8px -4px rgba(40,40,90,0.12); }
-      .engcard .en { font-size: 12.5px; font-weight: 700; }
-      .engcard .es { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 2px 0 7px; }
-      .engcard .ebar { height: 7px; border-radius: 999px; background: #edeef4; overflow: hidden; }
-      .engcard .ebar > i { display: block; height: 100%; border-radius: 999px; background: var(--e); }
-
-      /* premium polish */
-      .donut .num .pct { font-size: 20px; font-weight: 800; opacity: 0.7; margin-left: 1px; }
-      .donut .grd { letter-spacing: 0.02em; text-transform: uppercase; font-size: 11px; }
-      .herocard { background: linear-gradient(180deg, #ffffff 0%, #fbfbff 100%); }
-      .card { box-shadow: 0 6px 24px -12px rgba(40,40,90,0.18); }
-      button.primary { box-shadow: 0 6px 18px -6px rgba(99,102,241,0.55); }
-      .gauge, .pillar, .fixrow, .gauge:hover { transition: box-shadow 0.18s, transform 0.18s; }
-      .sectitle { letter-spacing: -0.01em; }
+      .caveat { margin-top: 24px; font-size: 12px; color: var(--muted); background: #f1f1f6; border-radius: 14px; padding: 14px 16px; line-height: 1.6; }
+      .caveat b { color: var(--ink-2); }
+      footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 32px 24px; border-top: 1px solid var(--line); }
+      footer b { color: var(--ink-2); }
       ::selection { background: #ddd9fb; }
 
       /* PDF / print */
@@ -210,37 +243,49 @@
         body * { visibility: hidden; }
         #results, #results * { visibility: visible; }
         #results { position: absolute; left: 0; top: 0; width: 100%; margin: 0; }
-        header, footer, .toast, .resbar, .suggest a { display: none !important; }
+        .nav, .hero, footer, .toast, .resbar, .suggest a { display: none !important; }
         .printhead { display: block !important; margin-bottom: 14px; border-bottom: 2px solid var(--pink); padding-bottom: 8px; }
-        .printhead .pt-brand { font-size: 18px; font-weight: 900; color: var(--pink-dark); letter-spacing: -0.02em; }
+        .printhead .pt-brand { font-size: 18px; font-weight: 800; color: var(--pink-dark); letter-spacing: -.02em; }
         .printhead .pt-sub { font-size: 11px; color: var(--muted); }
-        .card { box-shadow: none !important; border: 1px solid var(--line) !important; break-inside: avoid; }
-        .pillar .signals { display: block !important; } /* expand all pillars in PDF */
+        .card, .gauge, .engcard, .pillar, .fixrow, .prow, .domain { box-shadow: none !important; border: 1px solid var(--line) !important; break-inside: avoid; }
+        .pillar .signals { display: block !important; }
         .gauges { break-inside: avoid; }
         a[href]:after { content: ""; }
       }
     </style>
   </head>
   <body>
-    <header>
-      <div class="wrap">
-        <div class="brandbar">
-          <span class="logo">◆</span>
-          <span class="wordmark">CiteRank</span>
-          <span class="by">By Rudra Kasturi Inc</span>
-          <span class="aipill">✨ AI-powered</span>
+    <div class="nav">
+      <div class="wrap navinner">
+        <div class="brand">
+          <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg></span>
+          CiteRank
         </div>
+        <div class="navmeta"><span class="dot"></span><span>AI-powered</span><span class="hidesm">· By Rudra Kasturi Inc</span></div>
+      </div>
+    </div>
+
+    <section class="hero">
+      <div class="wrap">
+        <span class="eyebrow">Answer Engine Optimization</span>
         <h1>Is your content ready to rank in LLMs?</h1>
         <p>Check your content quality <strong>before you publish.</strong> Paste a URL or your draft and CiteRank scores how ready it is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews — then tells you exactly what to fix.</p>
+        <div class="enginerow">
+          <span class="lbl">Scored against</span>
+          <span class="eng-wm"><span class="swatch" style="background:#10a37f"></span>ChatGPT</span>
+          <span class="eng-wm"><span class="swatch" style="background:#20808d"></span>Perplexity</span>
+          <span class="eng-wm"><span class="swatch" style="background:#4285f4"></span>Gemini</span>
+          <span class="eng-wm"><span class="swatch" style="background:#a855f7"></span>AI Overviews</span>
+        </div>
       </div>
-    </header>
+    </section>
 
     <main>
       <div class="wrap">
         <div class="card">
           <div class="tabs">
-            <div class="tab active" id="tab-url" data-mode="url">🔗 Audit a URL</div>
-            <div class="tab" id="tab-paste" data-mode="paste">📝 Paste article</div>
+            <button class="tab active" id="tab-url" data-mode="url"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>Audit a URL</button>
+            <button class="tab" id="tab-paste" data-mode="paste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Paste article</button>
           </div>
 
           <div id="pane-url">
@@ -254,7 +299,7 @@
 
           <div class="three">
             <div>
-              <label class="fld" for="pagetype">Page type <span style="font-weight:400">(what is this page?)</span></label>
+              <label class="fld" for="pagetype">Page type <span class="opt">(what is this page?)</span></label>
               <select id="pagetype">
                 <option value="auto">Auto-detect</option>
                 <option value="article">Article / Blog</option>
@@ -263,7 +308,7 @@
               </select>
             </div>
             <div>
-              <label class="fld" for="category">Category <span style="font-weight:400">(sets the weighting)</span></label>
+              <label class="fld" for="category">Category <span class="opt">(sets the weighting)</span></label>
               <select id="category">
                 <option value="general">General</option>
                 <option value="entertainment">Entertainment</option>
@@ -274,19 +319,20 @@
               </select>
             </div>
             <div>
-              <label class="fld" for="brand">Brand / site <span style="font-weight:400">(optional)</span></label>
+              <label class="fld" for="brand">Brand / site <span class="opt">(optional)</span></label>
               <input id="brand" type="text" placeholder="Leave blank to use the domain" />
             </div>
             <div>
-              <label class="fld" for="topic">Topic <span style="font-weight:400">(optional)</span></label>
+              <label class="fld" for="topic">Topic <span class="opt">(optional)</span></label>
               <input id="topic" type="text" placeholder="e.g. Virat Kohli retirement" />
             </div>
           </div>
-          <label class="fld" for="target">Target question this page should be the cited answer to <span style="font-weight:400">(optional)</span></label>
+          <label class="fld" for="target">Target question this page should be the cited answer to <span class="opt">(optional)</span></label>
           <input id="target" type="text" placeholder="e.g. why did Virat Kohli retire?" />
 
           <div class="row">
-            <button class="primary" id="go">Audit AEO score</button>
+            <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit</button>
+            <span class="hint">Takes 15–30 seconds.</span>
           </div>
 
           <div class="alert err" id="err"></div>
@@ -305,6 +351,31 @@
       let mode = 'url';
       const CAT_LABEL = { general: 'General', entertainment: 'Entertainment', health: 'Health', news: 'Breaking News', lifestyle: 'Lifestyle', commerce: 'Beauty / Commerce' };
 
+      // Inline SVG icon set (stroke-based, replaces emoji for a cleaner look).
+      const IC = {
+        engine: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2.5"/><rect x="9" y="9" width="6" height="6" rx="1.2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>',
+        bars: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7" rx="1"/><rect x="12" y="6" width="3" height="11" rx="1"/><rect x="17" y="13" width="3" height="4" rx="1"/></svg>',
+        chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/></svg>',
+        wrench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 6.3a3.7 3.7 0 0 0-4.9 4.7l-6 6a1.7 1.7 0 0 0 0 2.4l.9.9a1.7 1.7 0 0 0 2.4 0l6-6a3.7 3.7 0 0 0 4.7-4.9l-2.5 2.5-2.1-.6-.6-2.1z"/></svg>',
+        globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18"/></svg>',
+        layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg>',
+        sparkle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg>',
+        download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>',
+        copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+        check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>',
+        alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5h.01"/></svg>',
+        x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+        dash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 12h12"/></svg>',
+        caret: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
+        arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>',
+        shieldX: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m10 10 4 4m0-4-4 4"/></svg>',
+        shieldA: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="M12 9v3m0 3h.01"/></svg>',
+        shieldOk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 11.5 2 2 4-4"/></svg>',
+        trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M9 19h6M10 15v4M14 15v4"/></svg>',
+      };
+      const STATUS_IC = { pass: IC.check, warn: IC.alert, fail: IC.x, na: IC.dash };
+      const GATE_IC = { block: IC.shieldX, warn: IC.shieldA, strong: IC.shieldOk, optimized: IC.trophy };
+
       function setMode(m) {
         mode = m;
         $('tab-url').classList.toggle('active', m === 'url');
@@ -316,24 +387,17 @@
       $('tab-paste').addEventListener('click', () => setMode('paste'));
 
       function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-      function showErr(msg) { const e = $('err'); e.textContent = msg; e.style.display = 'block'; }
+      function showErr(msg) { const e = $('err'); e.innerHTML = IC.alert + '<span>' + esc(msg) + '</span>'; e.style.display = 'flex'; }
       function hideAlerts() { $('err').style.display = 'none'; $('info').style.display = 'none'; }
 
-      function hexFor(s) { if (s == null) return '#9aa0ad'; if (s >= 75) return '#15a06a'; if (s >= 45) return '#c98a00'; return '#d63a3a'; }
+      function hexFor(s) { if (s == null) return '#9aa0ad'; if (s >= 75) return '#15915f'; if (s >= 45) return '#b07900'; return '#d23c3c'; }
       function statusOf(s) { if (s == null) return 'na'; if (s >= 75) return 'pass'; if (s >= 45) return 'warn'; return 'fail'; }
       function tintFor(s) { const st = statusOf(s); return st === 'pass' ? 'background:var(--ok-bg);color:var(--ok)' : st === 'warn' ? 'background:var(--warn-bg);color:var(--warn)' : st === 'fail' ? 'background:var(--bad-bg);color:var(--bad)' : 'background:#eef0f5;color:var(--na)'; }
-      const ICON = { pass: '✓', warn: '!', fail: '✕', na: '–' };
-      function verdictFor(s) {
-        if (s >= 80) return { t: 'Strong — likely to be cited', c: '#15a06a' };
-        if (s >= 65) return { t: 'Good, with room to improve', c: '#15a06a' };
-        if (s >= 50) return { t: 'Moderate — needs work to get cited', c: '#c98a00' };
-        if (s >= 35) return { t: 'Weak — unlikely to be cited as-is', c: '#d63a3a' };
-        return { t: 'Poor — major gaps for AEO', c: '#d63a3a' };
-      }
+      function sec(icon, title, sub) { return `<div class="sectitle"><span class="sicn">${icon}</span><div class="stx"><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}</div></div>`; }
 
       function render(data) {
         const r = data.report, m = data.meta || {}, root = $('results');
-        const v = verdictFor(r.overall);
+        const vc = hexFor(r.overall);
 
         const chips = [
           m.pageTypeLabel ? `<span class="chip intent">${esc(m.pageTypeLabel)}${m.pageTypeAuto ? ' (auto)' : ''}</span>` : '',
@@ -346,30 +410,37 @@
 
         let suggest = '';
         if (m.suggestedCategory && m.suggestedCategory !== m.category) {
-          suggest = `<div class="suggest">💡 This reads more like <b>${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)}</b> than ${esc(m.categoryLabel)}. <a id="recat" data-cat="${esc(m.suggestedCategory)}">Re-audit as ${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)}</a></div>`;
+          suggest = `<div class="suggest">This reads more like <b>${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)}</b> than ${esc(m.categoryLabel)}. <a id="recat" data-cat="${esc(m.suggestedCategory)}">Re-audit as ${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)} →</a></div>`;
         }
 
         const bandLine = r.citationBand === 'High' ? 'Likely to be cited by AI'
           : r.citationBand === 'Medium' ? 'Some chance of being cited — needs work'
           : 'Unlikely to be cited as it stands';
         const hero = `
-          <div class="card herocard">
-            <div class="hero">
-              <div class="donut" style="--val:${r.overall};--ring:${v.c}">
-                <div class="inner"><div class="num" style="color:${v.c}">${r.overall}<span class="pct">%</span></div><div class="grd">AEO Score · ${esc(r.grade)}</div></div>
+          <div class="card">
+            <div class="hero-res">
+              <div class="donut" style="--val:${r.overall};--ring:${vc}">
+                <div class="inner"><div class="num" style="color:${vc}">${r.overall}<span class="pct">%</span></div><div class="grd">AEO · ${esc(r.grade)}</div></div>
               </div>
               <div class="verdict">
-                <span class="gate ${r.gate.level}">${r.gate.level === 'block' ? '⛔' : r.gate.level === 'warn' ? '⚠️' : r.gate.level === 'optimized' ? '🏆' : '✅'} ${esc(r.gate.label)}</span>
-                <div class="vtitle" style="color:${v.c}">${bandLine}</div>
+                <span class="gate ${r.gate.level}">${GATE_IC[r.gate.level] || IC.shieldA} ${esc(r.gate.label)}</span>
+                <div class="vtitle" style="color:${vc}">${bandLine}</div>
                 <div class="vsub">${esc(m.mode === 'url' ? (m.url || 'Audited URL') : 'Pasted content')}${m.pageTypeLabel ? ` · ${esc(m.pageTypeLabel)}` : ''} · weighted for <b>${esc(m.categoryLabel)}</b></div>
                 <div class="chips">${chips}</div>
                 ${suggest}
-                ${m.fetchNote ? `<div class="note-warn">⚠ ${esc(m.fetchNote)}</div>` : ''}
-                ${m.aiError ? `<div class="note-bad">⚠ AI-judged signals unavailable — they default to 50. (${esc(m.aiError)})</div>` : ''}
+                ${m.fetchNote ? `<div class="note-warn">${IC.alert}<span>${esc(m.fetchNote)}</span></div>` : ''}
+                ${m.aiError ? `<div class="note-bad">${IC.alert}<span>AI-judged signals unavailable — they default to 50. Add a funded API key to the service. (${esc(m.aiError)})</span></div>` : ''}
               </div>
             </div>
-            ${r.summary ? `<div class="summary"><span class="sicon">✨</span><div class="sbody"><b>What this means</b><p>${esc(r.summary)}</p></div></div>` : ''}
+            ${r.summary ? `<div class="summary"><span class="sicon">${IC.sparkle}</span><div class="sbody"><b>What this means</b><p>${esc(r.summary)}</p></div></div>` : ''}
           </div>`;
+
+        const engineMeta = [['chatgpt', 'ChatGPT', '#10a37f'], ['gemini', 'Gemini', '#4285f4'], ['perplexity', 'Perplexity', '#20808d'], ['aiOverviews', 'AI Overviews', '#a855f7']];
+        const enginesPanel = r.engines ? sec(IC.engine, 'Likelihood by engine', 'estimated chance each engine cites this page') + `
+          <div class="engcards">${engineMeta.map(([k, label, brand]) => {
+            const s = typeof r.engines[k] === 'number' ? r.engines[k] : 0; const col = hexFor(s);
+            return `<div class="engcard" style="--e:${brand}"><div class="en"><span class="swatch"></span>${label}</div><div class="es" style="color:${col}">${s}<small>%</small></div><div class="ebar"><i style="width:${s}%;background:${col}"></i></div></div>`;
+          }).join('')}</div>` : '';
 
         const gauges = r.pillars.map((p) => {
           const col = hexFor(p.score);
@@ -387,32 +458,28 @@
                 ${counts.warn ? `<span class="cwarn">! ${counts.warn}</span>` : ''}
                 ${counts.fail ? `<span class="cbad">✕ ${counts.fail}</span>` : ''}
               </div>
-              <div class="gmore">${issues ? `See ${issues} issue${issues > 1 ? 's' : ''} →` : 'All good — view details →'}</div>
+              <div class="gmore">${issues ? `See ${issues} issue${issues > 1 ? 's' : ''}` : 'All good — view details'} ${IC.arrow}</div>
             </div>`;
         }).join('');
 
-        // domain context (off-page, not in score)
         const dc = (r.domainContext || []).map((s) => `
           <div class="drow">
             <span class="dscore" style="${tintFor(s.score)}">${s.score == null ? 'n/a' : s.score}</span>
             <div class="dbody"><div class="dname">${esc(s.label)}</div><div class="ddetail">${esc(s.detail)}</div></div>
           </div>`).join('');
-        const domainPanel = dc ? `
-          <div class="sectitle">🌐 Domain context <span class="sub">— off-page, NOT counted in the score (an editor can't change it per article)</span></div>
-          <div class="domain"><div class="dnote">Claude's estimate from training data, not a live measurement. Verify with Ahrefs/Semrush.</div>${dc}</div>` : '';
+        const domainPanel = dc ? sec(IC.globe, 'Domain context', 'off-page — NOT counted in the score (an editor can\'t change it per article)') + `
+          <div class="domain"><div class="dnote">AI estimate from training data, not a live measurement. Verify with Ahrefs / Semrush.</div>${dc}</div>` : '';
 
-        // prompt coverage
         const pc = (r.promptCoverage || []);
         const covered = pc.filter((p) => p.covered).length;
         const covPct = pc.length ? Math.round((covered / pc.length) * 100) : 0;
-        const promptPanel = pc.length ? `
-          <div class="sectitle">💬 Prompt coverage <span class="sub">— answers ${covered} of ${pc.length} likely AI questions (${covPct}%)</span></div>
+        const promptPanel = pc.length ? sec(IC.chat, 'Prompt coverage', `answers ${covered} of ${pc.length} likely AI questions (${covPct}%)`) + `
           <div class="covbar"><i style="width:${covPct}%"></i></div>
-          <div class="prompts">${pc.map((p) => `<div class="prow"><span class="pmark ${p.covered ? 'yes' : 'no'}">${p.covered ? '✓' : '✕'}</span><div>${esc(p.q)}</div></div>`).join('')}</div>` : '';
+          <div class="prompts">${pc.map((p) => `<div class="prow"><span class="pmark ${p.covered ? 'yes' : 'no'}">${p.covered ? IC.check : IC.x}</span><div>${esc(p.q)}</div></div>`).join('')}</div>` : '';
 
         const TAGLBL = { high: 'High impact', quick: 'Quick win', offpage: 'Off-page' };
         const fixesHtml = (r.topFixes || []).map((fx, i) => {
-          const col = fx.severity === 'fail' ? '#d63a3a' : '#c98a00';
+          const col = fx.severity === 'fail' ? '#d23c3c' : '#b07900';
           const gain = fx.gain >= 0.5 ? `<span class="gain">+${fx.gain} pts</span>` : '';
           return `<div class="fixrow" style="--fc:${col}"><span class="fnum">${i + 1}</span><div class="ftext"><b>${esc(fx.label)}</b>${esc(fx.fix)}</div><div class="fmeta">${gain}<span class="ftag ${fx.tag}">${TAGLBL[fx.tag] || fx.tag}</span></div></div>`;
         }).join('');
@@ -420,7 +487,6 @@
         const statusRank = { fail: 0, warn: 1, na: 2, pass: 3 };
         const breakdown = r.pillars.map((p) => {
           const col = hexFor(p.score);
-          // Issues first (fail, then warn), so "what's wrong" is at the top.
           const ordered = [...p.signals].sort((a, b) => {
             const sa = a.score == null ? 'na' : statusOf(a.score);
             const sb = b.score == null ? 'na' : statusOf(b.score);
@@ -430,20 +496,12 @@
           const sigs = ordered.map((s) => {
             const st = s.score == null ? 'na' : statusOf(s.score);
             const tag = s.source === 'ai' ? '<span class="tag">AI</span>' : '';
-            return `<div class="signal"><span class="schip ${st}">${ICON[st]}</span><div class="sbody"><div class="sname">${esc(s.label)}${tag}</div><div class="sdetail">${esc(s.detail)}</div>${s.fix ? `<div class="sfix">💡 ${esc(s.fix)}</div>` : ''}</div><span class="sscore" style="${tintFor(s.score)}">${s.score == null ? 'n/a' : s.score}</span></div>`;
+            return `<div class="signal"><span class="schip ${st}">${STATUS_IC[st]}</span><div class="sbody"><div class="sname">${esc(s.label)}${tag}</div><div class="sdetail">${esc(s.detail)}</div>${s.fix ? `<div class="sfix">${esc(s.fix)}</div>` : ''}</div><span class="sscore" style="${tintFor(s.score)}">${s.score == null ? 'n/a' : s.score}</span></div>`;
           }).join('');
           const open = p.score < 70 ? ' open' : '';
           const issueLbl = issues ? `<span class="pissues">${issues} issue${issues > 1 ? 's' : ''} to fix</span>` : '<span class="pclean">no issues</span>';
-          return `<details class="pillar" id="pill-${p.id}" style="--p:${col}"${open}><summary><span class="caret">▶</span><span class="pname">${esc(p.label)}</span>${issueLbl}<span class="pbar"><i style="width:${p.score}%"></i></span><span class="pscore">${p.score}</span></summary><div class="signals">${sigs}</div></details>`;
+          return `<details class="pillar" id="pill-${p.id}" style="--p:${col}"${open}><summary><span class="caret">${IC.caret}</span><span class="pdot"></span><span class="pname">${esc(p.label)}</span>${issueLbl}<span class="pbar"><i style="width:${p.score}%"></i></span><span class="pscore">${p.score}</span></summary><div class="signals">${sigs}</div></details>`;
         }).join('');
-
-        const engineMeta = [['chatgpt', 'ChatGPT'], ['gemini', 'Gemini'], ['perplexity', 'Perplexity'], ['aiOverviews', 'AI Overviews']];
-        const enginesPanel = r.engines ? `
-          <div class="sectitle">🤖 Likelihood by engine <span class="sub">— estimated chance each engine cites this page</span></div>
-          <div class="engcards">${engineMeta.map(([k, label]) => {
-            const s = typeof r.engines[k] === 'number' ? r.engines[k] : 0; const col = hexFor(s);
-            return `<div class="engcard" style="--e:${col}"><div class="en">${label}</div><div class="es" style="color:${col}">${s}%</div><div class="ebar"><i style="width:${s}%"></i></div></div>`;
-          }).join('')}</div>` : '';
 
         root.innerHTML = `
           <div class="printhead">
@@ -451,26 +509,24 @@
             <div class="pt-sub">${esc(m.mode === 'url' ? (m.url || 'Audited page') : 'Pasted content')}${m.pageTypeLabel ? ` · ${esc(m.pageTypeLabel)}` : ''} · ${esc(new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }))}</div>
           </div>
           ${hero}
-          <div class="resbar"><button class="ghostbtn" id="pdfbtn">⬇ Download PDF</button><button class="ghostbtn" id="copyreport">📋 Copy report</button></div>
+          <div class="resbar"><button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
           ${enginesPanel}
-          <div class="sectitle">📊 Pillar scores <span class="sub">— points shown out of each pillar's category weight</span></div>
+          ${sec(IC.bars, 'Pillar scores', 'points shown out of each pillar\'s category weight')}
           <div class="gauges">${gauges}</div>
           ${promptPanel}
-          ${fixesHtml ? `<div class="sectitle">🔧 Top fixes, ranked by impact</div><div class="fixlist">${fixesHtml}</div>` : ''}
+          ${fixesHtml ? sec(IC.wrench, 'Top fixes, ranked by impact', '') + `<div class="fixlist">${fixesHtml}</div>` : ''}
           ${domainPanel}
-          <div class="sectitle">🔬 Full breakdown</div>
+          ${sec(IC.layers, 'Full breakdown', '')}
           ${breakdown}
-          <div class="caveat"><b>How to read this:</b> the score grades only what an editor can change before publishing. Off-page brand authority is the strongest real driver of citation but is shown separately as <b>domain context</b> because it's the same for every article on your site. Signals marked <b>AI</b> are Claude's judgement/estimate. Citation behaviour varies between engines (ChatGPT favours Wikipedia, Perplexity favours Reddit), so treat this as one composite signal, not a guarantee.</div>`;
+          <div class="caveat"><b>How to read this:</b> the score grades only what an editor can change before publishing. Off-page brand authority is the strongest real driver of citation but is shown separately as <b>domain context</b> because it's the same for every article on your site. Signals marked <b>AI</b> are the model's judgement / estimate. Citation behaviour varies between engines (ChatGPT favours Wikipedia, Perplexity favours Reddit), so treat this as one composite signal, not a guarantee.</div>`;
 
         const recat = $('recat');
         if (recat) recat.addEventListener('click', () => { $('category').value = recat.dataset.cat; run(); });
-
         const copyBtn = $('copyreport');
         if (copyBtn) copyBtn.addEventListener('click', () => copyReport(r, m));
         const pdfBtn = $('pdfbtn');
         if (pdfBtn) pdfBtn.addEventListener('click', () => window.print());
 
-        // Click a pillar card -> open + scroll to its issues in the full breakdown.
         root.querySelectorAll('.gauge[data-pill]').forEach((g) => {
           const openPill = () => {
             const d = document.getElementById('pill-' + g.dataset.pill);
@@ -492,6 +548,7 @@
         L.push(`Category: ${m.categoryLabel}`);
         L.push(`Score: ${r.overall}/100 (Grade ${r.grade}) — ${r.citationBand} citation likelihood — ${r.gate.label}`);
         if (r.benchmark) L.push(r.benchmark);
+        if (r.engines) { L.push(''); L.push(`Likelihood by engine: ChatGPT ${r.engines.chatgpt}% · Gemini ${r.engines.gemini}% · Perplexity ${r.engines.perplexity}% · AI Overviews ${r.engines.aiOverviews}%`); }
         L.push('');
         L.push(`AI verdict: ${r.summary}`);
         L.push('');
@@ -520,8 +577,8 @@
         const btn = $('go');
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner"></span>Auditing…';
-        $('info').textContent = mode === 'url' ? 'Fetching the page and scoring it. This can take 15–30 seconds.' : 'Scoring the article. This can take 15–30 seconds.';
-        $('info').style.display = 'block';
+        $('info').innerHTML = IC.sparkle + '<span>' + (mode === 'url' ? 'Fetching the page and scoring it. This can take 15–30 seconds.' : 'Scoring the content. This can take 15–30 seconds.') + '</span>';
+        $('info').style.display = 'flex';
 
         try {
           const res = await fetch('/api/aeo-audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -533,7 +590,7 @@
         } finally {
           $('info').style.display = 'none';
           btn.disabled = false;
-          btn.textContent = 'Audit AEO score';
+          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit';
         }
       }
       $('go').addEventListener('click', run);
