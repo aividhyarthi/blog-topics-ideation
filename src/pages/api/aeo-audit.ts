@@ -174,6 +174,13 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const facts = analyzeHtml(html, { isUrl, host, brand, topic, category, robotsTxt, pageType: pageTypeChoice });
+
+  // Detect a JavaScript-rendered shell: URL fetched fine but almost no readable
+  // text (the real content loads client-side). Tell the user to paste the HTML.
+  if (isUrl && facts.wordCount < 120 && !fetchNote) {
+    fetchNote = 'This URL returned very little readable text — it looks JavaScript-rendered, so the score is based on a near-empty page. For an accurate audit, open the page, View Source or Inspect → copy the rendered HTML, and use the “Paste HTML” tab.';
+  }
+
   const auto = deterministicSignals(facts);
 
   let llmScores: LlmScores = {};

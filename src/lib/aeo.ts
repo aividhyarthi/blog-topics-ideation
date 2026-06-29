@@ -121,6 +121,16 @@ function stripTags(html: string): string {
       .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ').replace(/<[^>]+>/g, ' '),
   ).replace(/\s+/g, ' ').trim();
 }
+// Remove site chrome (nav/footer/aside/forms) so body metrics reflect the real
+// content, not menus and footers. Headings/schema are read from the full HTML,
+// so this is safe — it only cleans the body used for text/links/paragraphs.
+function stripBoilerplate(html: string): string {
+  return html
+    .replace(/<nav\b[\s\S]*?<\/nav>/gi, ' ')
+    .replace(/<footer\b[\s\S]*?<\/footer>/gi, ' ')
+    .replace(/<aside\b[\s\S]*?<\/aside>/gi, ' ')
+    .replace(/<form\b[\s\S]*?<\/form>/gi, ' ');
+}
 const QUESTION_RE = /^(what|how|why|when|where|who|which|can|do|does|is|are|should|will|would|could|did|has|have|best|top)\b/i;
 const PRONOUN_RE = /\b(he|she|they|him|her|them|his|hers|their|theirs|it|its|this|that|these|those)\b/gi;
 
@@ -180,7 +190,7 @@ export function analyzeHtml(
   const h1Count = headings.filter((h) => h.level === 1).length;
 
   const articleM = html.match(/<article[\s\S]*?<\/article>/i) || html.match(/<main[\s\S]*?<\/main>/i);
-  const bodyHtml = articleM ? articleM[0] : html;
+  const bodyHtml = articleM ? articleM[0] : stripBoilerplate(html);
 
   const paragraphs: number[] = [];
   for (const m of bodyHtml.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)) {
@@ -336,6 +346,13 @@ export function deterministicSignals(f: PageFacts): Signal[] {
     out.push(sig({ id: 'ratings_reviews', label: 'Ratings & reviews', pillar: 'attribution', weight: 0.12,
       score: f.hasAggregateRating ? 90 : 25, detail: f.hasAggregateRating ? 'Ratings / review signals detected.' : 'No ratings or review counts detected.',
       fix: f.hasAggregateRating ? undefined : 'Add star ratings + review counts (AggregateRating schema) — strong trust signal for AI product picks.' }));
+    // Structured specs / comparison — AI lifts structured product details readily.
+    out.push(sig({ id: 'specs_structured', label: pageType === 'listing' ? 'Comparison / spec structure' : 'Structured specs', pillar: 'structure', weight: 0.25,
+      score: c(Math.min(100, f.tables * 45 + f.lists * 12 + (f.hasFaqHeading ? 15 : 0))),
+      detail: `${f.tables} table(s), ${f.lists} list(s)${f.hasFaqHeading ? ', FAQ present' : ''}.`,
+      fix: (f.tables + f.lists) < 1 ? (pageType === 'listing'
+        ? 'Add a comparison table of the listed products (name, price, key specs) — AI lifts structured comparisons.'
+        : 'Add a spec/attribute table (or bulleted key specs) so AI can extract the product details.') : undefined }));
   }
 
   // STRUCTURAL READABILITY (deterministic)
