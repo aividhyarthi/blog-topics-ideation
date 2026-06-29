@@ -164,6 +164,26 @@
       .engcard .ebar { height: 6px; border-radius: 999px; background: #edeef4; overflow: hidden; }
       .engcard .ebar > i { display: block; height: 100%; border-radius: 999px; }
 
+      /* ---- AI crawlability ---- */
+      .crawlbanner { display: flex; gap: 12px; align-items: flex-start; background: var(--bad-bg); border: 1px solid #f4cfcf; border-radius: 14px; padding: 14px 16px; margin-bottom: 4px; font-size: 13px; color: #8f2020; line-height: 1.55; }
+      .crawlbanner svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--bad); margin-top: 1px; }
+      .crawlbanner b { color: var(--bad); }
+      .crawlcards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      @media (max-width: 620px) { .crawlcards { grid-template-columns: 1fr; } }
+      .crawlcard { border: 1px solid var(--line); border-radius: 14px; padding: 14px 15px; background: #fff; box-shadow: var(--shadow); border-left: 3px solid var(--line-2); }
+      .crawlcard.pass { border-left-color: var(--ok); }
+      .crawlcard.warn { border-left-color: var(--warn); }
+      .crawlcard.fail { border-left-color: var(--bad); }
+      .cc-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .cc-name { font-size: 13.5px; font-weight: 700; }
+      .cbadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+      .cbadge svg { width: 11px; height: 11px; }
+      .cbadge.pass { background: var(--ok-bg); color: var(--ok); }
+      .cbadge.warn { background: var(--warn-bg); color: var(--warn); }
+      .cbadge.fail { background: var(--bad-bg); color: var(--bad); }
+      .cc-detail { font-size: 12px; color: var(--muted); margin-top: 7px; line-height: 1.5; }
+      .cc-fix { font-size: 12.5px; color: #6b5410; margin-top: 8px; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 7px 11px; border-radius: 0 8px 8px 0; line-height: 1.5; }
+
       /* ---- pillar gauges ---- */
       .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
       @media (max-width: 760px) { .gauges { grid-template-columns: 1fr 1fr; } }
@@ -354,6 +374,7 @@
       // Inline SVG icon set (stroke-based, replaces emoji for a cleaner look).
       const IC = {
         engine: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2.5"/><rect x="9" y="9" width="6" height="6" rx="1.2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>',
+        bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 8V4M9 4h6"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M2 13v2M22 13v2"/></svg>',
         bars: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7" rx="1"/><rect x="12" y="6" width="3" height="11" rx="1"/><rect x="17" y="13" width="3" height="4" rx="1"/></svg>',
         chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/></svg>',
         wrench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 6.3a3.7 3.7 0 0 0-4.9 4.7l-6 6a1.7 1.7 0 0 0 0 2.4l.9.9a1.7 1.7 0 0 0 2.4 0l6-6a3.7 3.7 0 0 0 4.7-4.9l-2.5 2.5-2.1-.6-.6-2.1z"/></svg>',
@@ -435,6 +456,22 @@
             ${r.summary ? `<div class="summary"><span class="sicon">${IC.sparkle}</span><div class="sbody"><b>What this means</b><p>${esc(r.summary)}</p></div></div>` : ''}
           </div>`;
 
+        // ---- AI crawlability (robots.txt + llms.txt) ----
+        function crawlBadge(s) {
+          if (s.id === 'llms_txt') return s.score >= 100 ? ['Found', 'pass'] : ['Not found', 'warn'];
+          if (s.score >= 100) return ['Allowed', 'pass'];
+          if (s.score === 0) return ['Blocked', 'fail'];
+          if (s.score >= 70) return ['Default-allow', 'pass'];
+          return ['Partly blocked', 'warn'];
+        }
+        const crawl = r.crawlability || [];
+        const crawlPanel = crawl.length ? sec(IC.bot, 'AI crawlability', 'can answer-engine bots actually reach this page? (site-wide — not in the score)') + `
+          <div class="crawlcards">${crawl.map((s) => {
+            const [lbl, st] = crawlBadge(s);
+            return `<div class="crawlcard ${st}"><div class="cc-top"><span class="cc-name">${esc(s.label)}</span><span class="cbadge ${st}">${st === 'pass' ? IC.check : st === 'fail' ? IC.x : IC.alert}${lbl}</span></div><div class="cc-detail">${esc(s.detail)}</div>${s.fix ? `<div class="cc-fix">${esc(s.fix)}</div>` : ''}</div>`;
+          }).join('')}</div>` : '';
+        const crawlBanner = r.crawlBlocked ? `<div class="crawlbanner">${IC.shieldX}<div><b>An answer-engine crawler is blocked.</b> No matter how good this page is, the affected engines can't read it — so they can't cite it. Fix the robots.txt rules flagged in “AI crawlability” below first.</div></div>` : '';
+
         const engineMeta = [['chatgpt', 'ChatGPT', '#10a37f'], ['gemini', 'Gemini', '#4285f4'], ['perplexity', 'Perplexity', '#20808d'], ['aiOverviews', 'AI Overviews', '#a855f7']];
         const enginesPanel = r.engines ? sec(IC.engine, 'Likelihood by engine', 'estimated chance each engine cites this page') + `
           <div class="engcards">${engineMeta.map(([k, label, brand]) => {
@@ -509,8 +546,10 @@
             <div class="pt-sub">${esc(m.mode === 'url' ? (m.url || 'Audited page') : 'Pasted content')}${m.pageTypeLabel ? ` · ${esc(m.pageTypeLabel)}` : ''} · ${esc(new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }))}</div>
           </div>
           ${hero}
+          ${crawlBanner}
           <div class="resbar"><button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
           ${enginesPanel}
+          ${crawlPanel}
           ${sec(IC.bars, 'Pillar scores', 'points shown out of each pillar\'s category weight')}
           <div class="gauges">${gauges}</div>
           ${promptPanel}
@@ -549,6 +588,11 @@
         L.push(`Score: ${r.overall}/100 (Grade ${r.grade}) — ${r.citationBand} citation likelihood — ${r.gate.label}`);
         if (r.benchmark) L.push(r.benchmark);
         if (r.engines) { L.push(''); L.push(`Likelihood by engine: ChatGPT ${r.engines.chatgpt}% · Gemini ${r.engines.gemini}% · Perplexity ${r.engines.perplexity}% · AI Overviews ${r.engines.aiOverviews}%`); }
+        if (r.crawlability && r.crawlability.length) {
+          L.push(''); L.push('AI crawlability:');
+          r.crawlability.forEach((s) => L.push(`  - ${s.label}: ${s.detail}`));
+          if (r.crawlBlocked) L.push('  ⚠ A primary answer-engine crawler is BLOCKED — fix robots.txt first.');
+        }
         L.push('');
         L.push(`AI verdict: ${r.summary}`);
         L.push('');

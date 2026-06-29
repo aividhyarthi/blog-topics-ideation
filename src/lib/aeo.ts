@@ -33,7 +33,7 @@ export const PAGE_TYPE_LABEL: Record<PageType, string> = {
 export interface Signal {
   id: string;
   label: string;
-  pillar: PillarId | 'domain';
+  pillar: PillarId | 'domain' | 'crawl';
   score: number | null; // 0-100; null = not applicable
   weight: number; // relative weight within its pillar
   status: SignalStatus;
@@ -64,6 +64,8 @@ export interface AeoReport {
   gate: { label: string; level: 'block' | 'warn' | 'strong' | 'optimized' };
   pillars: PillarResult[];
   domainContext: Signal[]; // off-page, NOT in the score
+  crawlability: Signal[]; // can AI bots reach the page? site-wide, NOT in the score
+  crawlBlocked: boolean; // true if a primary answer-engine crawler is blocked
   promptCoverage: PromptCoverage[];
   topFixes: { label: string; severity: SignalStatus; fix: string; pillar: PillarId | 'domain'; gain: number; tag: 'quick' | 'high' | 'offpage' }[];
   engines: EngineScores | null; // per-engine estimated citation likelihood
@@ -165,6 +167,114 @@ export function detectPageType(f: {
   if (f.hasAddToCart && f.priceCount >= 1 && f.priceCount <= 5) return 'product';
   if (f.priceCount >= 6) return 'listing';
   return 'article';
+}
+
+// ---- AI crawlability (robots.txt + llms.txt) --------------------------------
+//
+// Answer engines can only cite a page their crawler is allowed to fetch. These
+// are SITE-WIDE technical checks (not per-article), so — like domain context —
+// they are reported separately and are NOT part of the per-article score. But a
+// blocked crawler is the single most important thing to fix, so it's surfaced
+// prominently with a hard warning.
+
+interface RobotsGroup { agents: string[]; rules: { allow: boolean; path: string }[] }
+
+function parseRobots(txt: string): RobotsGroup[] {
+  const groups: RobotsGroup[] = [];
+  let cur: RobotsGroup | null = null;
+  let lastWasAgent = false;
+  for (const rawLine of txt.split(/\r?\n/)) {
+    const line = rawLine.replace(/#.*$/, '').trim();
+    if (!line) continue;
+    const idx = line.indexOf(':');
+    if (idx === -1) continue;
+    const field = line.slice(0, idx).trim().toLowerCase();
+    const value = line.slice(idx + 1).trim();
+    if (field === 'user-agent') {
+      if (!cur || !lastWasAgent) { cur = { agents: [], rules: [] }; groups.push(cur); }
+      cur.agents.push(value.toLowerCase());
+      lastWasAgent = true;
+    } else if (field === 'allow' || field === 'disallow') {
+      if (!cur) { cur = { agents: ['*'], rules: [] }; groups.push(cur); }
+      cur.rules.push({ allow: field === 'allow', path: value });
+      lastWasAgent = false;
+    } else {
+      lastWasAgent = false;
+    }
+  }
+  return groups;
+}
+
+// Does robots.txt allow `ua` to fetch `path`? Most-specific UA group wins;
+// within it, the longest matching rule wins (Allow breaks ties), per the spec.
+function robotsAllows(groups: RobotsGroup[], ua: string, path = '/'): boolean {
+  const ual = ua.toLowerCase();
+  let match: RobotsGroup | undefined, star: RobotsGroup | undefined;
+  for (const g of groups) {
+    for (const a of g.agents) {
+      if (a === '*') star = star || g;
+      else if (ual === a || ual.includes(a) || a.includes(ual)) match = match || g;
+    }
+  }
+  const g = match || star;
+  if (!g) return true;
+  let decision = true, bestLen = -1;
+  for (const r of g.rules) {
+    if (r.path === '') continue; // empty path = no restriction
+    if (path.startsWith(r.path) && (r.path.length > bestLen || (r.path.length === bestLen && r.allow))) {
+      decision = r.allow; bestLen = r.path.length;
+    }
+  }
+  return decision;
+}
+
+// The answer-engine crawlers worth checking. `primary` = the user-agents that
+// actually gate live citation (vs training-only), so blocking them is critical.
+const BOT_GROUPS: { id: string; label: string; engine: string; agents: string[]; primary: string[] }[] = [
+  { id: 'bot_openai', label: 'ChatGPT (OpenAI)', engine: 'ChatGPT', agents: ['GPTBot', 'OAI-SearchBot', 'ChatGPT-User'], primary: ['OAI-SearchBot', 'ChatGPT-User'] },
+  { id: 'bot_perplexity', label: 'Perplexity', engine: 'Perplexity', agents: ['PerplexityBot', 'Perplexity-User'], primary: ['PerplexityBot'] },
+  { id: 'bot_google', label: 'Google AI (Gemini & AI Overviews)', engine: 'Google AI Overviews & Gemini', agents: ['Googlebot', 'Google-Extended'], primary: ['Googlebot'] },
+  { id: 'bot_anthropic', label: 'Claude (Anthropic)', engine: 'Claude', agents: ['ClaudeBot', 'anthropic-ai', 'Claude-Web'], primary: ['ClaudeBot'] },
+];
+
+export interface CrawlInput { isUrl: boolean; robotsTxt?: string | null; llmsTxt?: string | null }
+
+// Build the crawlability signals from a fetched robots.txt + llms.txt probe.
+// Only meaningful for live URLs (pasted HTML has no site context).
+export function crawlabilitySignals(input: CrawlInput): Signal[] {
+  if (!input.isUrl) return [];
+  const out: Signal[] = [];
+  const known = input.robotsTxt != null; // we successfully fetched robots.txt
+  const groups = known ? parseRobots(input.robotsTxt as string) : [];
+
+  for (const b of BOT_GROUPS) {
+    const blocked: string[] = [], allowed: string[] = [];
+    for (const ua of b.agents) {
+      (known && !robotsAllows(groups, ua, '/') ? blocked : allowed).push(ua);
+    }
+    const primaryBlocked = known ? b.primary.filter((ua) => !robotsAllows(groups, ua, '/')) : [];
+    const score = !known ? 75 : primaryBlocked.length ? 0 : blocked.length ? 60 : 100;
+    const detail = !known
+      ? 'No robots.txt found — crawlers are allowed by default.'
+      : blocked.length
+        ? `Blocked: ${blocked.join(', ')}.${allowed.length ? ` Allowed: ${allowed.join(', ')}.` : ''}`
+        : `Allowed: ${allowed.join(', ')}.`;
+    out.push(sig({
+      id: b.id, label: `${b.label} crawler access`, pillar: 'crawl', weight: 0, score, detail,
+      fix: primaryBlocked.length ? `Unblock ${primaryBlocked.join(' and ')} in your robots.txt so ${b.engine} can read — and cite — this page.` : undefined,
+      source: 'auto',
+    }));
+  }
+
+  const hasLlms = Boolean(input.llmsTxt && input.llmsTxt.trim().length > 0);
+  out.push(sig({
+    id: 'llms_txt', label: 'llms.txt guide file', pillar: 'crawl', weight: 0,
+    score: hasLlms ? 100 : 55,
+    detail: hasLlms ? 'An /llms.txt file was found — it points AI crawlers to your key content.' : 'No /llms.txt found (an emerging standard, not yet required).',
+    fix: hasLlms ? undefined : 'Add an /llms.txt at your site root listing your most important pages in Markdown — an emerging standard some AI crawlers now read.',
+    source: 'auto',
+  }));
+  return out;
 }
 
 function countSyllables(word: string): number {
@@ -494,7 +604,7 @@ function benchmarkFor(n: number): string {
 
 export function buildReport(
   deterministic: Signal[], llm: Signal[], category: Category, prompts: PromptCoverage[], aiSummary?: string,
-  aiEngines?: LlmScores['engines'],
+  aiEngines?: LlmScores['engines'], crawl: Signal[] = [],
 ): AeoReport {
   const all = [...deterministic, ...llm];
   const weights = CATEGORY_WEIGHTS[category] || CATEGORY_WEIGHTS.general;
@@ -568,12 +678,16 @@ export function buildReport(
     };
   })();
 
+  // A blocked primary crawler is a hard, critical issue — flag it for the UI.
+  const crawlBlocked = crawl.some((s) => s.id.startsWith('bot_') && s.score === 0);
+
   return {
     overall, grade: gradeFor(overall), category,
     summary: (aiSummary && aiSummary.trim()) || fallbackSummary,
     benchmark: benchmarkFor(overall),
     citationBand: band,
-    gate: gateFor(overall), pillars, domainContext, promptCoverage: prompts, topFixes,
+    gate: gateFor(overall), pillars, domainContext, crawlability: crawl, crawlBlocked,
+    promptCoverage: prompts, topFixes,
     engines,
   };
 }

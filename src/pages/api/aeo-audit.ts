@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  analyzeHtml, deterministicSignals, llmSignals, buildReport,
+  analyzeHtml, deterministicSignals, llmSignals, buildReport, crawlabilitySignals,
   CATEGORY_WEIGHTS, CATEGORY_LABEL, PAGE_TYPE_LABEL,
   type LlmScores, type PageFacts, type Category, type PromptCoverage, type PageType,
 } from '../../lib/aeo';
@@ -174,7 +174,7 @@ export const POST: APIRoute = async ({ request }) => {
   const category = (CATEGORIES.includes(body.category as Category) ? body.category : 'general') as Category;
   const pageTypeChoice = (PAGE_TYPES.includes(body.pageType as any) ? body.pageType : 'auto') as 'auto' | PageType;
 
-  let html = '', host = '', isUrl = false, robotsTxt: string | null = null, fetchNote: string | undefined;
+  let html = '', host = '', isUrl = false, robotsTxt: string | null = null, llmsTxt: string | null = null, fetchNote: string | undefined;
 
   if (inputUrl) {
     if (!/^https?:\/\//i.test(inputUrl)) return json({ error: 'URL must start with http:// or https://' }, 400);
@@ -186,7 +186,15 @@ export const POST: APIRoute = async ({ request }) => {
     }
     html = page.body;
     const origin = (() => { try { return new URL(inputUrl).origin; } catch { return ''; } })();
-    if (origin) { const robots = await fetchText(`${origin}/robots.txt`, 6000); robotsTxt = robots.ok ? robots.body : null; }
+    if (origin) {
+      // Probe robots.txt + llms.txt for AI-crawlability checks (best-effort, parallel).
+      const [robots, llms] = await Promise.all([
+        fetchText(`${origin}/robots.txt`, 6000),
+        fetchText(`${origin}/llms.txt`, 6000),
+      ]);
+      robotsTxt = robots.ok ? robots.body : null;
+      llmsTxt = llms.ok && /\S/.test(llms.body) && !/<html/i.test(llms.body.slice(0, 400)) ? llms.body : null;
+    }
   } else if (pasted) {
     if (/<\w+[\s>]/.test(pasted)) html = pasted;
     else {
@@ -235,7 +243,8 @@ export const POST: APIRoute = async ({ request }) => {
     ? llmScores.prompts.filter((p) => p && typeof p.q === 'string').slice(0, 16).map((p) => ({ q: p.q, covered: Boolean(p.covered) }))
     : [];
   const ai = llmSignals(llmScores, Boolean(target));
-  const report = buildReport(auto, ai, category, prompts, llmScores.summary, llmScores.engines);
+  const crawl = crawlabilitySignals({ isUrl, robotsTxt, llmsTxt });
+  const report = buildReport(auto, ai, category, prompts, llmScores.summary, llmScores.engines, crawl);
 
   return json({
     report,
