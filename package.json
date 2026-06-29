@@ -1,5 +1,5 @@
 {
-  "name": "nykaa-blog-engine",
+  "name": "citerank-aeo",
   "type": "module",
   "version": "1.0.0",
   "scripts": {
@@ -12,8 +12,5 @@
     "@anthropic-ai/sdk": "^0.96.0",
     "@astrojs/node": "^8.3.0",
     "astro": "^4.16.0"
-  },
-  "devDependencies": {
-    "xlsx": "^0.18.5"
   }
 }

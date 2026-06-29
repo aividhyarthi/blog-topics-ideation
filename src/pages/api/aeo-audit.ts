@@ -102,8 +102,9 @@ export const POST: APIRoute = async ({ request }) => {
   let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
+  // AI-judged signals use Anthropic; without a key the auditor still runs on its
+  // deterministic (rule-based) signals and the AI ones default to 50.
   const apiKey = process.env.ANTHROPIC_API_KEY || import.meta.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return json({ error: 'Server is not configured with an Anthropic API key. Set ANTHROPIC_API_KEY in Railway.' }, 500);
 
   const inputUrl = (body.url || '').trim();
   const pasted = (body.html || '').trim();
@@ -141,7 +142,9 @@ export const POST: APIRoute = async ({ request }) => {
 
   let llmScores: LlmScores = {};
   let aiError: string | undefined;
-  try {
+  if (!apiKey) {
+    aiError = 'No Anthropic API key configured — AI-judged signals default to 50. Set ANTHROPIC_API_KEY for full analysis.';
+  } else try {
     const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6', max_tokens: 2600,
