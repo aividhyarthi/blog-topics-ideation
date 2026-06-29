@@ -107,6 +107,7 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown):
   "promptCoverageScore": 0-100,  // overall how well it covers the prompts below
   "brandAuthority": 0-100,       // ESTIMATE from training knowledge: how authoritative is this brand/site on this topic? (off-page; unknown brand = low)
   "offpageCorroboration": 0-100, // ESTIMATE: how corroborated on Wikipedia/Reddit/YouTube/reputable roundups?
+  "engines": { "chatgpt": 0-100, "gemini": 0-100, "perplexity": 0-100, "aiOverviews": 0-100 }, // estimated likelihood THIS page gets cited by each engine given its biases: ChatGPT favours authoritative/Wikipedia-grade sources; Gemini favours Google-indexed, structured, entity-rich content; Perplexity favours fresh + forum/Reddit + clearly-cited pages; AI Overviews favours FAQ/snippet-ready structured answers.
   "summary": "2-3 sentences for an editor with NO numbers or scores anywhere. Say plainly whether ChatGPT, Gemini, Perplexity and Google AI Mode would cite THIS page or not, the single biggest reason why, and the first thing to fix. Quote the page's actual headline. Conversational, no jargon.",
   "detectedIntent": "informational | commercial | comparison | transactional | how-to",
   "suggestedCategory": "one of: ${CATEGORIES.join(' | ')}",
@@ -132,14 +133,38 @@ brandAuthority/offpageCorroboration are ESTIMATES, not live measurements — if 
 }
 
 const PAGE_TYPES = ['auto', 'article', 'product', 'listing'] as const;
+const OPENAI_MODEL = (import.meta as any).env?.OPENAI_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4o';
+
+// ---- LLM judge: provider-agnostic, returns raw JSON text ----
+async function judgeOpenAI(prompt: string, key: string): Promise<string> {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: OPENAI_MODEL, response_format: { type: 'json_object' }, temperature: 0.2,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text().catch(() => '')).slice(0, 240)}`);
+  const data: any = await res.json();
+  return data?.choices?.[0]?.message?.content ?? '';
+}
+async function judgeAnthropic(prompt: string, key: string): Promise<string> {
+  const client = new Anthropic({ apiKey: key });
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-6', max_tokens: 2600, messages: [{ role: 'user', content: prompt }],
+  });
+  return message.content[0]?.type === 'text' ? message.content[0].text : '';
+}
 
 export const POST: APIRoute = async ({ request }) => {
   let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string; pageType?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
-  // AI-judged signals use Anthropic; without a key the auditor still runs on its
-  // deterministic (rule-based) signals and the AI ones default to 50.
-  const apiKey = process.env.ANTHROPIC_API_KEY || import.meta.env.ANTHROPIC_API_KEY;
+  // AI-judged signals use OpenAI or Anthropic (whichever has a key + credits).
+  // Without either, the auditor still runs on rule-based signals (AI defaults to 50).
+  const openaiKey = process.env.OPENAI_API_KEY || import.meta.env.OPENAI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY || import.meta.env.ANTHROPIC_API_KEY;
 
   const inputUrl = (body.url || '').trim();
   const pasted = (body.html || '').trim();
@@ -185,26 +210,32 @@ export const POST: APIRoute = async ({ request }) => {
 
   let llmScores: LlmScores = {};
   let aiError: string | undefined;
-  if (!apiKey) {
-    aiError = 'No Anthropic API key configured — AI-judged signals default to 50. Set ANTHROPIC_API_KEY for full analysis.';
-  } else try {
-    const client = new Anthropic({ apiKey });
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-6', max_tokens: 2600,
-      messages: [{ role: 'user', content: buildLlmPrompt(facts, target) }],
-    });
-    const raw = message.content[0]?.type === 'text' ? message.content[0].text : '';
-    const m = raw.match(/\{[\s\S]*\}/);
-    if (m) { try { llmScores = JSON.parse(m[0]); } catch { llmScores = JSON.parse(repairJson(m[0])); } }
-  } catch (err: unknown) {
-    aiError = err instanceof Error ? err.message : String(err);
+  let judge: string | undefined;
+  // Try OpenAI first (Anthropic accounts may be out of credits), then Anthropic.
+  const providers: Array<[string, string]> = [];
+  if (openaiKey) providers.push(['OpenAI', openaiKey]);
+  if (anthropicKey) providers.push(['Claude', anthropicKey]);
+  if (!providers.length) {
+    aiError = 'No AI key configured — set OPENAI_API_KEY or ANTHROPIC_API_KEY. AI-judged signals default to 50.';
+  } else {
+    const prompt = buildLlmPrompt(facts, target);
+    for (const [name, key] of providers) {
+      try {
+        const raw = name === 'OpenAI' ? await judgeOpenAI(prompt, key) : await judgeAnthropic(prompt, key);
+        const m = raw.match(/\{[\s\S]*\}/);
+        if (m) { try { llmScores = JSON.parse(m[0]); } catch { llmScores = JSON.parse(repairJson(m[0])); } }
+        judge = name; aiError = undefined; break;
+      } catch (err: unknown) {
+        aiError = err instanceof Error ? err.message : String(err);
+      }
+    }
   }
 
   const prompts: PromptCoverage[] = Array.isArray(llmScores.prompts)
     ? llmScores.prompts.filter((p) => p && typeof p.q === 'string').slice(0, 16).map((p) => ({ q: p.q, covered: Boolean(p.covered) }))
     : [];
   const ai = llmSignals(llmScores, Boolean(target));
-  const report = buildReport(auto, ai, category, prompts, llmScores.summary);
+  const report = buildReport(auto, ai, category, prompts, llmScores.summary, llmScores.engines);
 
   return json({
     report,
@@ -215,6 +246,7 @@ export const POST: APIRoute = async ({ request }) => {
       detectedPageType: facts.detectedPageType, pageTypeAuto: pageTypeChoice === 'auto',
       wordCount: facts.wordCount, schemaTypes: facts.schemaTypes,
       detectedIntent: llmScores.detectedIntent || null, suggestedCategory: llmScores.suggestedCategory || null,
+      judge: judge || null,
       fetchNote, aiError,
     },
   });

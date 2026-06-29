@@ -66,6 +66,7 @@ export interface AeoReport {
   domainContext: Signal[]; // off-page, NOT in the score
   promptCoverage: PromptCoverage[];
   topFixes: { label: string; severity: SignalStatus; fix: string; pillar: PillarId | 'domain'; gain: number; tag: 'quick' | 'high' | 'offpage' }[];
+  engines: EngineScores | null; // per-engine estimated citation likelihood
 }
 
 export const PILLAR_META: { id: PillarId; label: string; purpose: string }[] = [
@@ -417,7 +418,11 @@ export interface LlmScores {
   // Per-signal, CONTENT-SPECIFIC fixes from the AI that quote/use the actual
   // article (e.g. "Your headline 'X' hides the subject — rewrite to 'Y'").
   fixes?: Partial<Record<string, string>>;
+  // Per-engine estimated citation likelihood (0-100).
+  engines?: { chatgpt?: number; gemini?: number; perplexity?: number; aiOverviews?: number };
 }
+
+export interface EngineScores { chatgpt: number; gemini: number; perplexity: number; aiOverviews: number }
 
 export function llmSignals(llm: LlmScores, hasTarget: boolean): Signal[] {
   const mk = (id: string, label: string, pillar: PillarId | 'domain', weight: number, score: number | undefined, fix: string): Signal => {
@@ -489,6 +494,7 @@ function benchmarkFor(n: number): string {
 
 export function buildReport(
   deterministic: Signal[], llm: Signal[], category: Category, prompts: PromptCoverage[], aiSummary?: string,
+  aiEngines?: LlmScores['engines'],
 ): AeoReport {
   const all = [...deterministic, ...llm];
   const weights = CATEGORY_WEIGHTS[category] || CATEGORY_WEIGHTS.general;
@@ -541,11 +547,33 @@ export function buildReport(
     `It's strongest on ${strongest.label.toLowerCase()} and weakest on ${weakest.label.toLowerCase()} — that's what's holding it back. ` +
     (topFixes[0] ? `Fix "${topFixes[0].label}" first.` : '');
 
+  // Per-engine scores: use the AI's estimate when present, else derive a sensible
+  // spread from the overall + pillar mix so the breakdown is always shown.
+  const engines: EngineScores | null = (() => {
+    const e = aiEngines;
+    const pill = (id: PillarId) => pillars.find((p) => p.id === id)?.score ?? overall;
+    const clampn = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+    if (e && [e.chatgpt, e.gemini, e.perplexity, e.aiOverviews].some((x) => typeof x === 'number')) {
+      return {
+        chatgpt: clampn(e.chatgpt ?? overall), gemini: clampn(e.gemini ?? overall),
+        perplexity: clampn(e.perplexity ?? overall), aiOverviews: clampn(e.aiOverviews ?? overall),
+      };
+    }
+    // Heuristic fallback weighted by each engine's known biases.
+    return {
+      chatgpt: clampn(overall * 0.6 + pill('attribution') * 0.4),       // authority/trust
+      gemini: clampn(overall * 0.6 + pill('entity') * 0.4),             // entities/structure
+      perplexity: clampn(overall * 0.6 + pill('freshness') * 0.4),      // freshness/citations
+      aiOverviews: clampn(overall * 0.6 + pill('structure') * 0.4),     // structured/snippet-ready
+    };
+  })();
+
   return {
     overall, grade: gradeFor(overall), category,
     summary: (aiSummary && aiSummary.trim()) || fallbackSummary,
     benchmark: benchmarkFor(overall),
     citationBand: band,
     gate: gateFor(overall), pillars, domainContext, promptCoverage: prompts, topFixes,
+    engines,
   };
 }

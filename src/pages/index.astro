@@ -183,6 +183,15 @@
       .caveat b { color: var(--ink); }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 26px; }
 
+      /* per-engine likelihood cards */
+      .engcards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+      @media (max-width: 680px) { .engcards { grid-template-columns: 1fr 1fr; } }
+      .engcard { border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px; background: #fff; border-top: 3px solid var(--e); box-shadow: 0 2px 8px -4px rgba(40,40,90,0.12); }
+      .engcard .en { font-size: 12.5px; font-weight: 700; }
+      .engcard .es { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 2px 0 7px; }
+      .engcard .ebar { height: 7px; border-radius: 999px; background: #edeef4; overflow: hidden; }
+      .engcard .ebar > i { display: block; height: 100%; border-radius: 999px; background: var(--e); }
+
       /* premium polish */
       .donut .num .pct { font-size: 20px; font-weight: 800; opacity: 0.7; margin-left: 1px; }
       .donut .grd { letter-spacing: 0.02em; text-transform: uppercase; font-size: 11px; }
@@ -428,6 +437,14 @@
           return `<details class="pillar" id="pill-${p.id}" style="--p:${col}"${open}><summary><span class="caret">▶</span><span class="pname">${esc(p.label)}</span>${issueLbl}<span class="pbar"><i style="width:${p.score}%"></i></span><span class="pscore">${p.score}</span></summary><div class="signals">${sigs}</div></details>`;
         }).join('');
 
+        const engineMeta = [['chatgpt', 'ChatGPT'], ['gemini', 'Gemini'], ['perplexity', 'Perplexity'], ['aiOverviews', 'AI Overviews']];
+        const enginesPanel = r.engines ? `
+          <div class="sectitle">🤖 Likelihood by engine <span class="sub">— estimated chance each engine cites this page</span></div>
+          <div class="engcards">${engineMeta.map(([k, label]) => {
+            const s = typeof r.engines[k] === 'number' ? r.engines[k] : 0; const col = hexFor(s);
+            return `<div class="engcard" style="--e:${col}"><div class="en">${label}</div><div class="es" style="color:${col}">${s}%</div><div class="ebar"><i style="width:${s}%"></i></div></div>`;
+          }).join('')}</div>` : '';
+
         root.innerHTML = `
           <div class="printhead">
             <div class="pt-brand">CiteRank — AEO Audit</div>
@@ -435,6 +452,7 @@
           </div>
           ${hero}
           <div class="resbar"><button class="ghostbtn" id="pdfbtn">⬇ Download PDF</button><button class="ghostbtn" id="copyreport">📋 Copy report</button></div>
+          ${enginesPanel}
           <div class="sectitle">📊 Pillar scores <span class="sub">— points shown out of each pillar's category weight</span></div>
           <div class="gauges">${gauges}</div>
           ${promptPanel}
