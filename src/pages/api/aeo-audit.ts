@@ -132,6 +132,32 @@ RULES FOR notes AND fixes (this is what makes the report useful):
 brandAuthority/offpageCorroboration are ESTIMATES, not live measurements — if you don't recognise the brand, score low and say so.`;
 }
 
+// Deterministic candidate prompts derived from the page, used for "Verify in
+// real engines" when the AI judge is OFF (no key) so the prompt set is never
+// empty. Verify only needs a live-engine key, not the judge key.
+const Q_HEAD_RE = /^(what|how|why|when|where|who|which|can|do|does|is|are|should|will|would|could|did|has|have|best|top)\b/i;
+function deterministicPrompts(f: PageFacts, target: string, topic: string): string[] {
+  const out: string[] = [];
+  if (target) out.push(target);
+  for (const h of f.headings) {
+    if (h.text.length >= 8 && h.text.length <= 110 && (/\?$/.test(h.text) || Q_HEAD_RE.test(h.text))) out.push(h.text);
+  }
+  const subject = (topic || f.title || '').trim();
+  if (subject) {
+    if (f.pageType === 'product' || f.pageType === 'listing' || f.category === 'commerce') {
+      out.push(`best ${subject}`, `${subject} review`, `is ${subject} worth buying`);
+    } else {
+      out.push(subject.length <= 90 ? subject : '', `${subject} explained`);
+    }
+  }
+  // dedupe (case-insensitive), trim noise, cap at 6
+  const seen = new Set<string>();
+  return out.map((s) => s.trim()).filter((s) => {
+    if (s.length < 6) return false;
+    const k = s.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true;
+  }).slice(0, 6);
+}
+
 const PAGE_TYPES = ['auto', 'article', 'product', 'listing'] as const;
 const OPENAI_MODEL = (import.meta as any).env?.OPENAI_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4o';
 
@@ -256,6 +282,8 @@ export const POST: APIRoute = async ({ request }) => {
       wordCount: facts.wordCount, schemaTypes: facts.schemaTypes,
       detectedIntent: llmScores.detectedIntent || null, suggestedCategory: llmScores.suggestedCategory || null,
       judge: judge || null,
+      // Fallback prompt set for Verify when the AI judge produced none (no key).
+      fallbackPrompts: prompts.length ? [] : deterministicPrompts(facts, target, topic),
       fetchNote, aiError,
     },
   });

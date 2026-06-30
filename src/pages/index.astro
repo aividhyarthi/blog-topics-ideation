@@ -195,6 +195,8 @@
       .verifybox { border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: linear-gradient(180deg, #fbfbff, #fff); box-shadow: var(--shadow); }
       .vfy-intro { font-size: 13.5px; color: var(--ink-2); line-height: 1.6; margin-bottom: 14px; }
       .vfy-intro b { color: var(--ink); font-weight: 700; }
+      .vfy-fallback { color: var(--warn); font-weight: 600; }
+      .verifybox code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
       .vfy-btn { font-size: 14px; }
       .vfy-loading { margin-top: 14px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
       .vfy-loading::before { content: ''; width: 15px; height: 15px; border: 2px solid var(--line-2); border-top-color: var(--pink); border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
@@ -427,6 +429,7 @@
     <script>
       const $ = (id) => document.getElementById(id);
       let mode = 'url';
+      let SVC = null; // server capability (set by checkHealth): { judge, verify, ... }
       const CAT_LABEL = { general: 'General', entertainment: 'Entertainment', health: 'Health', news: 'Breaking News', lifestyle: 'Lifestyle', commerce: 'Beauty / Commerce' };
 
       // Inline SVG icon set (stroke-based, replaces emoji for a cleaner look).
@@ -538,14 +541,25 @@
           }).join('')}</div>` : '';
 
         // ---- Verify in real engines (predict -> measure) ----
-        const verifyPrompts = (r.promptCoverage || []).map((p) => p.q).filter(Boolean);
+        const aiPrompts = (r.promptCoverage || []).map((p) => p.q).filter(Boolean);
+        const verifyPrompts = aiPrompts.length ? aiPrompts : (m.fallbackPrompts || []);
+        const usingFallback = aiPrompts.length === 0 && verifyPrompts.length > 0;
+        const verifyConfigured = SVC ? SVC.verify : true; // assume ok until health says otherwise
         const canVerify = m.mode === 'url' && verifyPrompts.length > 0;
+        let verifyBody;
+        if (m.mode !== 'url') {
+          verifyBody = `<div class="note-warn">${IC.alert}<span>Verification needs a live domain. Audit a URL (not pasted HTML) to use this.</span></div>`;
+        } else if (!verifyPrompts.length) {
+          verifyBody = `<div class="note-warn">${IC.alert}<span>No prompts to verify. Add a <b>Topic</b> or a <b>Target question</b> in the form and re-run — CiteRank will use those to query the engines.</span></div>`;
+        } else if (!verifyConfigured) {
+          verifyBody = `<div class="note-warn">${IC.alert}<span><b>Live verification is off.</b> This needs web search — add a <code>PERPLEXITY_API_KEY</code>, or enable web search on your <code>OPENAI_API_KEY</code> in Railway, then re-run.</span></div>`;
+        } else {
+          verifyBody = `<button class="primary vfy-btn" id="verifybtn">${IC.bot} Verify against live engines</button><span class="hint">Queries ${verifyPrompts.length} prompt${verifyPrompts.length > 1 ? 's' : ''} · up to ~60s.</span>`;
+        }
         const verifyPanel = sec(IC.shieldOk, 'Verify in real engines', 'run these prompts through live ChatGPT &amp; Perplexity and see who actually gets cited') + `
           <div class="verifybox">
-            <div class="vfy-intro"><b>The scores above are a prediction.</b> This runs ${verifyPrompts.length || 'the'} of the page's likely prompts through real answer engines and checks whether <b>${esc(m.host || 'your domain')}</b> is actually cited — ground truth, not an estimate.</div>
-            ${canVerify
-              ? `<button class="primary vfy-btn" id="verifybtn">${IC.bot} Verify against live engines</button><span class="hint">Uses your OpenAI / Perplexity key · up to ~60s.</span>`
-              : `<div class="note-warn">${IC.alert}<span>${m.mode === 'url' ? 'No prompts were generated to verify — the AI judge needs a key to produce the prompt set.' : 'Verification needs a live domain. Audit a URL (not pasted HTML) to use this.'}</span></div>`}
+            <div class="vfy-intro"><b>The scores above are a prediction.</b> This runs ${verifyPrompts.length || 'the'} of the page's likely prompts through real answer engines and checks whether <b>${esc(m.host || 'your domain')}</b> is actually cited — ground truth, not an estimate.${usingFallback ? ` <span class="vfy-fallback">Using prompts derived from your page (the AI judge is off).</span>` : ''}</div>
+            ${verifyBody}
             <div id="verifyout"></div>
           </div>`;
 
@@ -791,6 +805,7 @@
         const el = $('svcstatus');
         try {
           const h = await (await fetch('/api/aeo-health')).json();
+          SVC = h;
           let cls, ico, msg;
           if (h.judge && h.verify) {
             cls = 'ok'; ico = IC.check;
