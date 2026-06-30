@@ -135,6 +135,22 @@
       .kwrow .kterm { font-weight: 700; }
       .kwrow .krat { color: var(--muted); font-size: 12px; }
 
+      /* focus-keyword verdict */
+      .fvcard { padding: 16px 18px; }
+      .fvhead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+      .fvkw { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+      .fvrate { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px; }
+      .fvrate.strong { background: var(--ok-bg); color: var(--ok); }
+      .fvrate.moderate { background: var(--warn-bg); color: var(--warn); }
+      .fvrate.weak { background: var(--bad-bg); color: var(--bad); }
+      .fvrow { display: flex; gap: 11px; align-items: flex-start; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+      .fvrow:first-of-type { border-top: none; }
+      .fvrow b { font-weight: 700; }
+      .fvic { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
+      .fvic.ok { background: var(--ok-bg); color: var(--ok); }
+      .fvic.bad { background: var(--bad-bg); color: var(--bad); }
+      .fvic.alt { background: #e9e6fb; color: var(--indigo); }
+
       /* market signals */
       .market { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
       @media (max-width: 620px) { .market { grid-template-columns: 1fr 1fr; } }
@@ -353,7 +369,41 @@
               <td class="num kmark ${k.inLong ? 'y' : 'n'}">${k.inLong ? '✓' : '·'}</td></tr>`).join('')}</tbody>
           </table></div>` : '';
 
-        // competitor comparison (primary row + competitors)
+        // focus-keyword verdict (will it work / what won't / best alternative)
+        const focusKw = data.focusKeyword || r.focusKeyword || '';
+        const fv = ai.focusVerdict || {};
+        const focusVerdict = (fv.willWork || fv.wontWork || fv.bestAlternative) ? `
+          <div class="sectitle">🧭 Verdict on your keyword ${focusKw ? `<span class="sub">— “${esc(focusKw)}”</span>` : ''}</div>
+          <div class="card fvcard">
+            <div class="fvhead">
+              <span class="fvkw">${esc(fv.keyword || focusKw)}</span>
+              ${fv.rating ? `<span class="fvrate ${esc(fv.rating)}">${esc(fv.rating)} fit</span>` : ''}
+            </div>
+            ${fv.willWork ? `<div class="fvrow"><span class="fvic ok">✓</span><div><b>Can it work?</b> ${esc(fv.willWork)}</div></div>` : ''}
+            ${fv.wontWork ? `<div class="fvrow"><span class="fvic bad">✕</span><div><b>What's working against it</b> ${esc(fv.wontWork)}</div></div>` : ''}
+            ${fv.bestAlternative ? `<div class="fvrow"><span class="fvic alt">→</span><div><b>Better bet: “${esc(fv.bestAlternative)}”</b> ${esc(fv.alternativeWhy || '')} <button class="ghostbtn" data-refocus="${esc(fv.bestAlternative)}" style="margin-left:6px">↻ Re-run with this</button></div></div>` : ''}
+          </div>` : '';
+
+        // keyword head-to-head: who covers the focus keyword where (you vs rivals)
+        const fkCells = (cov) => {
+          const c = cov || { inTitle: false, inShort: false, inLong: false, longCount: 0 };
+          return `<td class="num kmark ${c.inTitle ? 'y' : 'n'}">${c.inTitle ? '✓' : '·'}</td>
+            <td class="num kmark ${c.inShort ? 'y' : 'n'}">${c.inShort ? '✓' : '·'}</td>
+            <td class="num kmark ${c.inLong ? 'y' : 'n'}">${c.longCount ? c.longCount + '×' : '·'}</td>`;
+        };
+        const h2hMe = `<tr class="me-row"><td>${esc(app.title || m.appId)} <span style="color:var(--pink-dark)">(you)</span></td>
+          ${fkCells(app.focus)}<td class="num">${app.score != null ? app.score.toFixed(2) + '★' : '—'}</td><td class="num">${esc(app.installs || '—')}</td></tr>`;
+        const h2hComp = comps.map((c) => `<tr><td><a href="${esc(c.url)}" target="_blank" rel="noopener" style="color:var(--ink)">${esc(c.title)}</a></td>
+          ${fkCells(c.focus)}<td class="num">${c.score != null ? c.score.toFixed(2) + '★' : '—'}</td><td class="num">${esc(c.installs || '—')}</td></tr>`).join('');
+        const headToHead = (comps.length && focusKw) ? `
+          <div class="sectitle">🥊 Keyword head-to-head <span class="sub">— who covers “${esc(focusKw)}”, and where</span></div>
+          <div class="tablewrap"><table>
+            <thead><tr><th>App</th><th class="num">Title</th><th class="num">Short</th><th class="num">Long</th><th class="num">Rating</th><th class="num">Installs</th></tr></thead>
+            <tbody>${h2hMe}${h2hComp}</tbody>
+          </table></div>
+          ${ai.competitorTakeaway ? `<div class="summary" style="margin-top:12px"><span class="sicon">🥊</span><div class="sbody"><b>Why they out-rank you on this keyword</b><p>${esc(ai.competitorTakeaway)}</p></div></div>` : ''}` : '';
+
+        // competitor comparison (overall ASO — primary row + competitors)
         const meRow = `<tr class="me-row"><td>${esc(app.title || m.appId)} <span style="color:var(--pink-dark)">(this app)</span></td>
           <td class="num"><span class="scorepill" style="${tintFor(r.overall)}">${r.overall}</span></td>
           <td class="num">${app.score != null ? app.score.toFixed(2) + '★' : '—'}</td><td class="num">${esc(app.installs || '—')}</td>
@@ -363,12 +413,11 @@
           <td class="num">${c.score != null ? c.score.toFixed(2) + '★' : '—'}</td><td class="num">${esc(c.installs || '—')}</td>
           <td class="num">${c.titleLen}</td><td class="num">${c.screenshots}</td></tr>`).join('');
         const compTable = comps.length ? `
-          <div class="sectitle">⚔️ Competitor comparison <span class="sub">— same ASO scoring applied to each rival listing</span></div>
+          <div class="sectitle">⚔️ Competitor comparison <span class="sub">— overall ASO score applied to each rival listing</span></div>
           <div class="tablewrap"><table>
             <thead><tr><th>App</th><th class="num">ASO</th><th class="num">Rating</th><th class="num">Installs</th><th class="num">Title len</th><th class="num">Shots</th></tr></thead>
             <tbody>${meRow}${compRows}</tbody>
-          </table></div>
-          ${ai.competitorTakeaway ? `<div class="summary" style="margin-top:12px"><span class="sicon">⚔️</span><div class="sbody"><b>Competitive takeaway</b><p>${esc(ai.competitorTakeaway)}</p></div></div>` : ''}` : '';
+          </table></div>` : '';
 
         // market signals
         const market = (r.marketSignals || []).map((s) => `<div class="mcell" style="--mc:${TONE[s.tone] || 'var(--na)'}"><div class="mlabel">${esc(s.label)}</div><div class="mval">${esc(s.detail)}</div></div>`).join('');
@@ -398,9 +447,11 @@
           ${appHead}
           <div class="sectitle">📊 ASO pillar scores <span class="sub">— points out of each pillar's weight (100 total)</span></div>
           <div class="gauges">${gauges}</div>
+          ${focusVerdict}
           ${improvements}
           ${kwTargets}
           ${kwTable}
+          ${headToHead}
           ${compTable}
           ${compErr}
           <div class="sectitle">📈 Market signals <span class="sub">— outcomes, shown as context (NOT in the score)</span></div>
@@ -408,9 +459,10 @@
           ${fixes ? `<div class="sectitle">🔧 Top fixes, ranked by impact</div><div class="fixlist">${fixes}</div>` : ''}
           <div class="sectitle">🔬 Full breakdown</div>
           ${breakdown}
-          <div class="caveat"><b>How to read this:</b> the <b>score</b> grades only listing fields you can edit in Play Console (title, descriptions, keywords, visuals, freshness). <b>Market signals</b> — rating, installs, age — are outcomes shown for context, not scored. Keyword opportunities and rewrites marked 🤖/✨ are Claude's suggestions; verify keyword volume in a dedicated ASO tool before shipping.</div>`;
+          <div class="caveat"><b>How to read this:</b> the <b>score</b> grades only listing fields you can edit in Play Console (title, descriptions, keywords, visuals, freshness). <b>Market signals</b> — rating, installs, age — are outcomes shown for context, not scored. The <b>keyword verdict</b> and <b>head-to-head</b> assess the keyword you entered (or, if blank, the strongest one we extracted): coverage in the table is measured from the live listings; the “will it work / better bet / why they out-rank you” narrative is Claude's judgement. Verify search volume in a dedicated ASO tool before committing.</div>`;
 
         root.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.getAttribute('data-copy'))));
+        root.querySelectorAll('[data-refocus]').forEach((b) => b.addEventListener('click', () => { $('focus').value = b.getAttribute('data-refocus'); run(); }));
         root.style.display = 'block';
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }

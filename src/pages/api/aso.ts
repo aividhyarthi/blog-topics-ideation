@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { parseAppId, fetchApp, fetchCompetitors, type AsoAppData } from '../../lib/aso/fetch';
-import { auditListing, competitorRow, type AsoReport } from '../../lib/aso/audit';
+import { auditListing, competitorRow, keywordCoverage, type AsoReport, type CompetitorRow } from '../../lib/aso/audit';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -27,15 +27,34 @@ function repairJson(raw: string): string {
 interface AiResult {
   focusKeyword?: string;
   summary?: string;
+  focusVerdict?: {
+    keyword?: string;
+    rating?: 'strong' | 'moderate' | 'weak';
+    willWork?: string;
+    wontWork?: string;
+    bestAlternative?: string;
+    alternativeWhy?: string;
+  };
   keywordTargets?: { term: string; rationale: string; covered: boolean }[];
   improvements?: { title?: string; shortDescription?: string; longDescription?: string };
   competitorTakeaway?: string;
 }
 
-function buildAiPrompt(app: AsoAppData, report: AsoReport, competitors: ReturnType<typeof competitorRow>[]): string {
+function buildAiPrompt(
+  app: AsoAppData,
+  report: AsoReport,
+  competitors: CompetitorRow[],
+  userFocus: string,
+): string {
+  const fk = userFocus || report.focusKeyword || '';
   const kw = report.keywords.slice(0, 14).map((k) => `${k.term} (${k.count}×)`).join(', ');
+  // Factual coverage of the focus keyword, primary app + each competitor, so the
+  // model's "who beats you on this keyword" verdict is grounded in real data.
+  const youCov = keywordCoverage(app, fk);
+  const cov = (c: { inTitle: boolean; inShort: boolean; inLong: boolean; longCount: number }) =>
+    `title:${c.inTitle ? 'Y' : 'N'} short:${c.inShort ? 'Y' : 'N'} long:${c.longCount}×`;
   const comp = competitors.length
-    ? competitors.map((c) => `- ${c.title} — ASO ${c.overall}/100, ${c.score ?? '?'}★, installs ${c.installs ?? '?'}, title "${c.titleLen} chars", ${c.screenshots} shots`).join('\n')
+    ? competitors.map((c) => `- ${c.title} — ASO ${c.overall}/100, ${c.score ?? '?'}★, installs ${c.installs ?? '?'}, focus-kw [${cov(c.focus)}]`).join('\n')
     : '(none provided)';
   return `You are an App Store Optimization (ASO) strategist for the Google Play Store. You optimise listings to rank for search terms AND convert browsers into installs.
 
@@ -51,15 +70,25 @@ APP
 ${app.description.slice(0, 3500)}
 """
 
+FOCUS KEYWORD TO EVALUATE: "${fk || '(none — pick the best one)'}"
+THIS APP'S COVERAGE OF THE FOCUS KEYWORD: title:${youCov.inTitle ? 'Y' : 'N'} short:${youCov.inShort ? 'Y' : 'N'} long:${youCov.longCount}×
 EXTRACTED KEYWORDS (frequency): ${kw || '(none)'}
 DETERMINISTIC ASO SCORE: ${report.overall}/100 (grade ${report.grade})
-COMPETITORS:
+COMPETITORS (with their coverage of the same focus keyword):
 ${comp}
 
 Return ONLY valid JSON in EXACTLY this shape (no markdown, no commentary):
 {
   "focusKeyword": "the single best primary keyword this app should rank for (2-3 words max, lowercase)",
   "summary": "3-4 sentence verdict for the app owner: biggest ASO opportunity, what to fix first, and the keyword angle. Plain English, specific to this app.",
+  "focusVerdict": {
+    "keyword": "the focus keyword you evaluated (echo it)",
+    "rating": "strong | moderate | weak — how winnable is THIS keyword for THIS app right now",
+    "willWork": "1-2 sentences: realistically, can this app rank for and convert on this keyword, and why",
+    "wontWork": "1-2 sentences: what is working AGAINST ranking for this keyword (e.g. not in the title, search intent mismatch, competitors dominate it, too broad/competitive)",
+    "bestAlternative": "a more winnable or higher-intent keyword to target instead (lowercase, 2-3 words) — or repeat the focus keyword if it is genuinely the best",
+    "alternativeWhy": "1-2 sentences on why that alternative is a better bet for this app"
+  },
   "keywordTargets": [
     { "term": "keyword phrase", "rationale": "why it fits this app + its audience's search intent", "covered": true|false }
   ],
@@ -68,7 +97,7 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown, no commentary):
     "shortDescription": "an optimised short description, MAX 80 chars, keyword + benefit",
     "longDescription": "an optimised long description opening (~600-900 chars): a benefit-led lead line, then bulleted feature sections with natural keyword use. Use plain text with • bullets and line breaks."
   },
-  "competitorTakeaway": "${competitors.length ? '2-3 sentences: where this app wins vs the competitors above and where it is being out-optimised.' : ''}"
+  "competitorTakeaway": "${competitors.length ? 'Focus on the FOCUS KEYWORD: name which competitor is out-ranking this app on it and exactly why (keyword in their title vs yours, higher rating, more installs). 2-3 sentences, concrete.' : ''}"
 }
 Provide 8-12 keywordTargets ranked by opportunity. Keep title ≤30 and shortDescription ≤80 characters — count carefully.`;
 }
@@ -102,32 +131,37 @@ export const POST: APIRoute = async ({ request }) => {
     }, 502);
   }
 
-  // 2) Deterministic audit (always available).
+  // 2) Deterministic audit (always available). The keyword we put head-to-head is
+  // the one the owner gave; if they gave none, fall back to the strongest one we
+  // extracted from the listing, so the verdict + comparison always have a subject.
   const report = auditListing(app, focusKeyword);
+  const evalFocus = (focusKeyword || report.focusKeyword || '').trim();
 
   // 3) Competitors (best-effort; auto-discovers similar apps if none given).
-  let competitors: ReturnType<typeof competitorRow>[] = [];
+  // Keep the raw apps so we can score each rival's coverage of the focus keyword.
+  let compApps: AsoAppData[] = [];
   let competitorErrors: string[] = [];
   try {
     const { apps, errors } = await fetchCompetitors(appId, competitorIds, lang, country, 4);
-    competitors = apps.map(competitorRow);
+    compApps = apps;
     competitorErrors = errors;
   } catch (e) {
     competitorErrors = [e instanceof Error ? e.message : String(e)];
   }
+  const competitors: CompetitorRow[] = compApps.map((a) => competitorRow(a, evalFocus));
 
-  // 4) Claude — keyword strategy + AI rewrites + verdict (best-effort).
+  // 4) Claude — keyword verdict + strategy + AI rewrites (best-effort).
   const apiKey = process.env.ANTHROPIC_API_KEY || import.meta.env.ANTHROPIC_API_KEY;
   let ai: AiResult = {};
   let aiError: string | undefined;
   if (!apiKey) {
-    aiError = 'No ANTHROPIC_API_KEY set — keyword strategy and AI rewrites are skipped. The deterministic audit still works.';
+    aiError = 'No ANTHROPIC_API_KEY set — the keyword verdict, opportunities and AI rewrites are skipped. The deterministic audit and competitor comparison still work.';
   } else {
     try {
       const client = new Anthropic({ apiKey });
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-6', max_tokens: 2200,
-        messages: [{ role: 'user', content: buildAiPrompt(app, report, competitors) }],
+        model: 'claude-sonnet-4-6', max_tokens: 2400,
+        messages: [{ role: 'user', content: buildAiPrompt(app, report, competitors, evalFocus) }],
       });
       const raw = message.content[0]?.type === 'text' ? message.content[0].text : '';
       const m = raw.match(/\{[\s\S]*\}/);
@@ -146,14 +180,16 @@ export const POST: APIRoute = async ({ request }) => {
 
   return json({
     report: finalReport,
+    focusKeyword: evalFocus,
     app: {
       appId: app.appId, url: app.url, title: app.title, summary: app.summary, icon: app.icon,
       headerImage: app.headerImage, screenshots: app.screenshots.slice(0, 8), genre: app.genre,
       score: app.score, ratings: app.ratings, installs: app.installs, developer: app.developer,
       updated: app.updated, version: app.version,
+      focus: keywordCoverage(app, evalFocus),
     },
     competitors,
     ai,
-    meta: { appId, lang, country, competitorErrors, aiError },
+    meta: { appId, lang, country, evalFocus, userGaveFocus: Boolean(focusKeyword), competitorErrors, aiError },
   });
 };

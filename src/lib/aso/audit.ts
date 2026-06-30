@@ -317,18 +317,35 @@ function fmt(n: number | null): string {
   return String(n);
 }
 
-/** Compact per-app summary used by the competitor comparison table. */
+/** Coverage of a single keyword across an app's listing fields. */
+export interface KeywordCoverage { inTitle: boolean; inShort: boolean; inLong: boolean; longCount: number; }
+export function keywordCoverage(app: AsoAppData, keyword?: string): KeywordCoverage {
+  const fk = (keyword || '').trim().toLowerCase();
+  if (!fk) return { inTitle: false, inShort: false, inLong: false, longCount: 0 };
+  return {
+    inTitle: app.title.toLowerCase().includes(fk),
+    inShort: app.summary.toLowerCase().includes(fk),
+    inLong: app.description.toLowerCase().includes(fk),
+    longCount: countOccurrences(app.description, fk),
+  };
+}
+
+/** Compact per-app summary used by the competitor comparison + keyword head-to-head. */
 export interface CompetitorRow {
   appId: string; title: string; icon: string | null; url: string;
   overall: number; grade: string; score: number | null; ratings: number | null;
-  installs: string | null; titleLen: number; shortLen: number; longLen: number; screenshots: number;
+  installs: string | null; minInstalls: number | null;
+  titleLen: number; shortLen: number; longLen: number; screenshots: number;
+  focus: KeywordCoverage;
 }
-export function competitorRow(app: AsoAppData): CompetitorRow {
-  const r = auditListing(app);
+export function competitorRow(app: AsoAppData, focusKeyword?: string): CompetitorRow {
+  const r = auditListing(app, focusKeyword);
   return {
     appId: app.appId, title: app.title, icon: app.icon, url: app.url,
     overall: r.overall, grade: r.grade, score: app.score, ratings: app.ratings,
-    installs: app.installs, titleLen: app.title.length, shortLen: app.summary.length,
+    installs: app.installs, minInstalls: app.minInstalls,
+    titleLen: app.title.length, shortLen: app.summary.length,
     longLen: app.description.length, screenshots: app.screenshots.length,
+    focus: keywordCoverage(app, focusKeyword),
   };
 }
