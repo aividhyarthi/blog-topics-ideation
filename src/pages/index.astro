@@ -64,6 +64,13 @@
       .panel-lead .ttl { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
       .panel-lead .sub { font-size: 12.5px; color: var(--muted); margin-left: auto; }
 
+      .svcstatus { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; line-height: 1.5; border-radius: 11px; padding: 10px 13px; margin-bottom: 16px; border: 1px solid; }
+      .svcstatus svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+      .svcstatus b { font-weight: 700; }
+      .svcstatus.ok { background: var(--ok-bg); color: #0f6b46; border-color: #cdebdd; }
+      .svcstatus.warn { background: var(--warn-bg); color: #8a5d00; border-color: #f0e2b8; }
+      .svcstatus.bad { background: var(--bad-bg); color: #9f2828; border-color: #f4cfcf; }
+      .svcstatus code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
       .tabs { display: inline-flex; gap: 4px; background: #f1f1f6; border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 18px; }
       .tab { display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border-radius: 9px; border: none; background: transparent; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); font-family: inherit; transition: .15s; }
       .tab svg { width: 15px; height: 15px; }
@@ -351,6 +358,7 @@
     <main>
       <div class="wrap">
         <div class="card">
+          <div id="svcstatus" class="svcstatus" style="display:none"></div>
           <div class="tabs">
             <button class="tab active" id="tab-url" data-mode="url"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>Audit a URL</button>
             <button class="tab" id="tab-paste" data-mode="paste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Paste article</button>
@@ -777,6 +785,29 @@
         }
       }
       $('go').addEventListener('click', run);
+
+      // ---- service status: show the user, up front, what the server can do ----
+      async function checkHealth() {
+        const el = $('svcstatus');
+        try {
+          const h = await (await fetch('/api/aeo-health')).json();
+          let cls, ico, msg;
+          if (h.judge && h.verify) {
+            cls = 'ok'; ico = IC.check;
+            msg = `<b>Fully configured.</b> AI scoring is on (${h.openai ? 'OpenAI' : 'Claude'}) and live verification is ready${h.openai ? ' — note OpenAI web search must be enabled on the key for Verify to return citations' : ' (Perplexity)'}.`;
+          } else if (h.judge && !h.verify) {
+            cls = 'warn'; ico = IC.alert;
+            msg = `<b>AI scoring on, live verification off.</b> Audits & fixes work, but “Verify in real engines”, competitors and source-gaps need web search — add <code>PERPLEXITY_API_KEY</code>, or enable web search on your <code>OPENAI_API_KEY</code>.`;
+          } else {
+            cls = 'bad'; ico = IC.alert;
+            msg = `<b>No AI key on the server.</b> Scores fall back to rule-based signals only; the AI verdict, target-query check, competitors and verification stay blank. Add <code>OPENAI_API_KEY</code> (with web search) in Railway → Variables, then redeploy.`;
+          }
+          el.className = 'svcstatus ' + cls;
+          el.innerHTML = ico + '<span>' + msg + '</span>';
+          el.style.display = 'flex';
+        } catch { /* stay hidden if the probe fails */ }
+      }
+      checkHealth();
     </script>
   </body>
 </html>
