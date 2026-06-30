@@ -203,6 +203,24 @@
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 26px; }
       .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13.5px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
       .toast.show { opacity: 1; }
+      .impcard .itext.longtext { max-height: 300px; overflow: auto; background: #fbfbfe; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+
+      /* Download PDF = browser print. Hide the chrome, expand every tab + pillar so
+         the whole report lands in the PDF, not just whatever tab was on screen. */
+      @media print {
+        header nav.top, .brandbar .aipill, #inputcard, .resbar, .ktabs, footer,
+        .ghostbtn, button.primary, .icopy, [data-refocus] { display: none !important; }
+        body { background: #fff; }
+        #results { display: block !important; }
+        .kpane { display: block !important; margin-bottom: 14px; }
+        .kpane[data-label]::before { content: attr(data-label); display: block; font-weight: 800; font-size: 13px; color: var(--indigo); margin: 10px 0 6px; }
+        .pillar .signals { display: block !important; }
+        .pillar .caret { display: none; }
+        .card, .gauge, .impcard, table, .mcell { box-shadow: none !important; }
+        .impcard .itext.longtext { max-height: none; overflow: visible; }
+        .sectitle { break-after: avoid; }
+        .gauge, .impcard, .fixrow, .pillar, tr { break-inside: avoid; }
+      }
     </style>
   </head>
   <body>
@@ -229,7 +247,7 @@
 
     <main>
       <div class="wrap">
-        <div class="card">
+        <div class="card" id="inputcard">
           <label class="fld" for="url">Google Play app URL or package id</label>
           <input id="url" type="text" placeholder="https://play.google.com/store/apps/details?id=com.company.app  —or—  com.company.app" />
           <div class="hint">Paste the Play Store link or just the package id (e.g. <code>com.whatsapp</code>).</div>
@@ -403,14 +421,43 @@
         const hasComps = (comps || []).length > 0;
         const keywordsSection = kw.length ? `
           <div class="sectitle">🔑 Keywords <span class="sub">— yours, vs competitors, and the gap</span></div>
-          <div class="ktabs">
-            <button class="ktab active" data-ktab="yours">Your keywords</button>
-            ${hasComps ? '<button class="ktab" data-ktab="vs">You vs competitors</button>' : ''}
-            ${hasComps ? '<button class="ktab" data-ktab="gap">Gap</button>' : ''}
-          </div>
-          <div class="kpane" data-kpane="yours">${yoursPane}</div>
-          ${hasComps ? `<div class="kpane" data-kpane="vs" style="display:none">${vsPane}</div>` : ''}
-          ${hasComps ? `<div class="kpane" data-kpane="gap" style="display:none">${gapPane}</div>` : ''}` : '';
+          <div class="tabgroup">
+            <div class="ktabs">
+              <button class="ktab active" data-ktab="yours">Your keywords</button>
+              ${hasComps ? '<button class="ktab" data-ktab="vs">You vs competitors</button>' : ''}
+              ${hasComps ? '<button class="ktab" data-ktab="gap">Gap</button>' : ''}
+            </div>
+            <div class="kpane" data-kpane="yours" data-label="Your keywords">${yoursPane}</div>
+            ${hasComps ? `<div class="kpane" data-kpane="vs" data-label="You vs competitors" style="display:none">${vsPane}</div>` : ''}
+            ${hasComps ? `<div class="kpane" data-kpane="gap" data-label="Keyword gap" style="display:none">${gapPane}</div>` : ''}
+          </div>` : '';
+
+        // ---- Listing copy: actual Title / Short / Long for you + each competitor ----
+        const listingApps = [
+          { name: 'You', title: app.title, summary: app.summary, description: app.description || '' },
+          ...comps.map((c) => ({ name: c.title, title: c.title, summary: c.summary, description: c.description || '' })),
+        ];
+        const copyCard = (label, text, limit) => {
+          const t = text || '';
+          const over = limit && t.length > limit;
+          return `<div class="impcard"><div class="ilabel"><span>${label}</span><span class="clen ${over ? 'over' : ''}">${t.length}${limit ? '/' + limit : ''} chars</span></div>
+            <div class="itext ${label.startsWith('Long') ? 'longtext' : ''}">${t ? esc(t) : '<span style="color:var(--muted)">(empty)</span>'}</div>
+            ${t ? `<button class="ghostbtn icopy" data-copy="${esc(t)}">📋 Copy</button>` : ''}</div>`;
+        };
+        const listingSection = `
+          <div class="sectitle">📄 Listing copy <span class="sub">— the live Title / Short / Long for you${hasComps ? ' and each competitor' : ''}</span></div>
+          <div class="tabgroup">
+            <div class="ktabs">
+              ${listingApps.map((a, i) => `<button class="ktab ${i === 0 ? 'active' : ''}" data-ktab="L${i}">${i === 0 ? '⭐ You' : shortName(a.name)}</button>`).join('')}
+            </div>
+            ${listingApps.map((a, i) => `<div class="kpane" data-kpane="L${i}" data-label="${esc(i === 0 ? 'Your listing' : a.name)}" ${i === 0 ? '' : 'style="display:none"'}>
+              <div class="impgrid">
+                ${copyCard('Title', a.title, 30)}
+                ${copyCard('Short description', a.summary, 80)}
+                ${copyCard('Long description', a.description, 4000)}
+              </div>
+            </div>`).join('')}
+          </div>`;
 
         // focus-keyword verdict (will it work / what won't / best alternative)
         const focusKw = data.focusKeyword || r.focusKeyword || '';
@@ -498,6 +545,7 @@
         const compErr = (m.competitorErrors || []).length ? `<div class="note-warn">⚠ Some competitors couldn't be read: ${esc((m.competitorErrors || []).join('; '))}</div>` : '';
 
         root.innerHTML = `
+          <div class="resbar"><button class="ghostbtn" id="pdfbtn">⬇️ Download PDF</button></div>
           ${appHead}
           <div class="sectitle">📊 ASO pillar scores <span class="sub">— points out of each pillar's weight (100 total)</span></div>
           <div class="gauges">${gauges}</div>
@@ -509,6 +557,7 @@
           ${leaderCard}
           ${compTable}
           ${compErr}
+          ${listingSection}
           <div class="sectitle">📈 Market signals <span class="sub">— outcomes, shown as context (NOT in the score)</span></div>
           <div class="market">${market}</div>
           ${fixes ? `<div class="sectitle">🔧 Top fixes, ranked by impact</div><div class="fixlist">${fixes}</div>` : ''}
@@ -518,11 +567,16 @@
 
         root.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.getAttribute('data-copy'))));
         root.querySelectorAll('[data-refocus]').forEach((b) => b.addEventListener('click', () => { $('focus').value = b.getAttribute('data-refocus'); run(); }));
-        root.querySelectorAll('.ktab').forEach((t) => t.addEventListener('click', () => {
-          const name = t.getAttribute('data-ktab');
-          root.querySelectorAll('.ktab').forEach((x) => x.classList.toggle('active', x === t));
-          root.querySelectorAll('.kpane').forEach((p) => { p.style.display = p.getAttribute('data-kpane') === name ? 'block' : 'none'; });
-        }));
+        // Tabs are scoped to their own .tabgroup so keyword tabs and listing tabs don't cross-toggle.
+        root.querySelectorAll('.tabgroup').forEach((group) => {
+          group.querySelectorAll('.ktab').forEach((t) => t.addEventListener('click', () => {
+            const name = t.getAttribute('data-ktab');
+            group.querySelectorAll('.ktab').forEach((x) => x.classList.toggle('active', x === t));
+            group.querySelectorAll('.kpane').forEach((p) => { p.style.display = p.getAttribute('data-kpane') === name ? 'block' : 'none'; });
+          }));
+        });
+        const pdfBtn = $('pdfbtn');
+        if (pdfBtn) pdfBtn.addEventListener('click', () => window.print());
         root.style.display = 'block';
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }

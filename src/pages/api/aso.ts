@@ -206,8 +206,8 @@ export const POST: APIRoute = async ({ request }) => {
     report: finalReport,
     focusKeyword: evalFocus,
     app: {
-      appId: app.appId, url: app.url, title: app.title, summary: app.summary, icon: app.icon,
-      headerImage: app.headerImage, screenshots: app.screenshots.slice(0, 8), genre: app.genre,
+      appId: app.appId, url: app.url, title: app.title, summary: app.summary, description: app.description,
+      icon: app.icon, headerImage: app.headerImage, screenshots: app.screenshots.slice(0, 8), genre: app.genre,
       score: app.score, ratings: app.ratings, installs: app.installs, developer: app.developer,
       updated: app.updated, version: app.version,
       focus: keywordCoverage(app, evalFocus),

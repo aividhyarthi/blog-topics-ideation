@@ -345,6 +345,7 @@ export interface CompetitorRow {
   installs: string | null; minInstalls: number | null;
   titleLen: number; shortLen: number; longLen: number; screenshots: number;
   focus: KeywordCoverage;
+  summary: string; description: string; // the rival's actual listing copy
 }
 export function competitorRow(app: AsoAppData, focusKeyword?: string): CompetitorRow {
   const r = auditListing(app, focusKeyword);
@@ -355,6 +356,7 @@ export function competitorRow(app: AsoAppData, focusKeyword?: string): Competito
     titleLen: app.title.length, shortLen: app.summary.length,
     longLen: app.description.length, screenshots: app.screenshots.length,
     focus: keywordCoverage(app, focusKeyword),
+    summary: app.summary, description: app.description,
   };
 }
 
