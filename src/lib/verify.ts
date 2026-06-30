@@ -44,19 +44,38 @@ export interface Probe {
   sources: string[];       // all source hostnames the engine cited
   error?: string;
 }
-export interface ShareRow { domain: string; count: number; isYou: boolean }
+export interface ShareRow { domain: string; count: number; isYou: boolean; isCompetitor: boolean }
+export interface SourceGap { domain: string; count: number; kind: string; action: string }
 export interface VerifyResult {
   ran: boolean;
   engines: string[];
   yourDomain: string;
   brand: string;
+  competitors: string[];      // pinned competitor domains (always tracked)
   promptCount: number;
   probes: Probe[];
   citationRate: number;       // % of (engine×prompt) trials where you were cited
   promptCitationRate: number; // % of prompts cited by at least one engine
   brandMentionRate: number;   // % of trials that named the brand
   shareOfVoice: ShareRow[];
+  sourceGaps: SourceGap[];    // third-party domains cited for your prompts where you're absent
   note?: string;
+}
+
+// Classify a third-party cited domain into an actionable off-page to-do.
+function classifySource(domain: string): { kind: string; action: string } {
+  const d = domain.toLowerCase();
+  if (/reddit|quora|stackexchange|stackoverflow|trustpilot/.test(d))
+    return { kind: 'Community', action: 'Earn authentic mentions and answer questions in these threads — answer engines lean on community consensus.' };
+  if (/wikipedia|wikidata|fandom/.test(d))
+    return { kind: 'Encyclopedia', action: 'Make sure an accurate, well-sourced entry exists and references you where relevant.' };
+  if (/youtube|vimeo|tiktok|dailymotion/.test(d))
+    return { kind: 'Video', action: 'Get featured in or publish video reviews — engines pull from video titles and transcripts.' };
+  if (/amazon|flipkart|ebay|walmart|myntra|ajio|nykaa|alibaba|etsy|target/.test(d))
+    return { kind: 'Marketplace', action: 'List here with complete specs and strong ratings — AI shopping answers cite marketplaces heavily.' };
+  if (/\.gov(\.|$)|\.edu(\.|$)|who\.int|nih\.gov/.test(d))
+    return { kind: 'Authority', action: 'Earn references or data citations from this institutional source.' };
+  return { kind: 'Publisher', action: 'Pitch this publication to mention you or include you in their roundups/guides.' };
 }
 
 const OPENAI_MODEL = (import.meta as any).env?.OPENAI_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4o';
@@ -136,12 +155,19 @@ async function queryPerplexity(prompt: string, key: string): Promise<{ text: str
 }
 
 // ---- orchestration ----------------------------------------------------------
-export interface VerifyInput { prompts: string[]; host: string; brand?: string; maxPrompts?: number }
+export interface VerifyInput { prompts: string[]; host: string; brand?: string; competitors?: string[]; maxPrompts?: number }
 
 export async function runVerification(input: VerifyInput): Promise<VerifyResult> {
   const yourDomain = regDomain(hostOf(input.host || ''));
   const brand = (input.brand || yourDomain.split('.')[0] || '').trim();
   const prompts = input.prompts.map((p) => p.trim()).filter(Boolean).slice(0, input.maxPrompts ?? 6);
+  // Pinned competitor domains — normalised to registrable domains, deduped,
+  // never including yourself. These are ALWAYS shown in share of voice (even at 0).
+  const competitors = [...new Set(
+    (input.competitors || [])
+      .map((c) => regDomain(hostOf(c)))
+      .filter((d) => d && d !== yourDomain),
+  )].slice(0, 5);
 
   const openaiKey = process.env.OPENAI_API_KEY || (import.meta as any).env?.OPENAI_API_KEY;
   const pplxKey = process.env.PERPLEXITY_API_KEY || (import.meta as any).env?.PERPLEXITY_API_KEY;
@@ -151,9 +177,9 @@ export async function runVerification(input: VerifyInput): Promise<VerifyResult>
   if (pplxKey) engines.push({ name: 'Perplexity', run: (p) => queryPerplexity(p, pplxKey) });
 
   const base: VerifyResult = {
-    ran: false, engines: engines.map((e) => e.name), yourDomain, brand,
+    ran: false, engines: engines.map((e) => e.name), yourDomain, brand, competitors,
     promptCount: prompts.length, probes: [], citationRate: 0, promptCitationRate: 0,
-    brandMentionRate: 0, shareOfVoice: [],
+    brandMentionRate: 0, shareOfVoice: [], sourceGaps: [],
   };
 
   if (!engines.length) {
@@ -202,17 +228,31 @@ export async function runVerification(input: VerifyInput): Promise<VerifyResult>
       tally.set(d, (tally.get(d) || 0) + 1);
     }
   }
-  if (!tally.has(yourDomain)) tally.set(yourDomain, 0); // always show "you" even at 0
-  const shareOfVoice: ShareRow[] = [...tally.entries()]
-    .map(([domain, count]) => ({ domain, count, isYou: domain === yourDomain }))
-    .sort((a, b) => (b.isYou ? 1 : 0) - (a.isYou ? 1 : 0) || b.count - a.count) // you first, then by count
-    .slice(0, 12)
-    .sort((a, b) => b.count - a.count || (b.isYou ? 1 : 0) - (a.isYou ? 1 : 0));
+  // Always show you + every pinned competitor, even at 0, so SoV tracks them.
+  const compSet = new Set(competitors);
+  for (const d of [yourDomain, ...competitors]) if (!tally.has(d)) tally.set(d, 0);
+
+  const allRows: ShareRow[] = [...tally.entries()].map(([domain, count]) => ({
+    domain, count, isYou: domain === yourDomain, isCompetitor: compSet.has(domain),
+  }));
+  // Pinned rows (you + competitors) are always kept; fill the rest with the
+  // most-cited other domains, capped for readability.
+  const pinned = allRows.filter((r) => r.isYou || r.isCompetitor);
+  const others = allRows.filter((r) => !r.isYou && !r.isCompetitor).sort((a, b) => b.count - a.count).slice(0, 10);
+  const shareOfVoice = [...pinned, ...others].sort((a, b) => b.count - a.count || (b.isYou ? 1 : 0) - (a.isYou ? 1 : 0));
+
+  // Source gaps: third-party domains (not you, not a pinned competitor) that the
+  // engines cited for YOUR prompts — the off-page places to go earn a mention.
+  const sourceGaps: SourceGap[] = allRows
+    .filter((r) => !r.isYou && !r.isCompetitor && r.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8)
+    .map((r) => ({ domain: r.domain, count: r.count, ...classifySource(r.domain) }));
 
   const allErrored = valid.length === 0;
   return {
     ...base, ran: true, probes,
-    citationRate, promptCitationRate, brandMentionRate, shareOfVoice,
+    citationRate, promptCitationRate, brandMentionRate, shareOfVoice, sourceGaps,
     note: allErrored ? `All engine calls failed (${probes[0]?.error || 'unknown error'}). Check the API key has credits and web search enabled.` : undefined,
   };
 }

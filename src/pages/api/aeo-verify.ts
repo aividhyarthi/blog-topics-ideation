@@ -7,7 +7,7 @@ const json = (data: unknown, status = 200) =>
 // Ground-truth check: run the page's likely prompts through real answer engines
 // (OpenAI web search + Perplexity) and report who actually got cited.
 export const POST: APIRoute = async ({ request }) => {
-  let body: { prompts?: unknown; url?: string; host?: string; brand?: string };
+  let body: { prompts?: unknown; url?: string; host?: string; brand?: string; competitors?: unknown };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
   const prompts = Array.isArray(body.prompts)
@@ -15,13 +15,19 @@ export const POST: APIRoute = async ({ request }) => {
     : [];
   if (!prompts.length) return json({ error: 'No prompts to verify — run an audit first.' }, 400);
 
+  // Competitors may arrive as an array or a comma/space-separated string.
+  const competitors = (Array.isArray(body.competitors)
+    ? body.competitors.filter((c): c is string => typeof c === 'string')
+    : typeof body.competitors === 'string' ? body.competitors.split(/[,\s]+/) : []
+  ).map((c) => c.trim()).filter(Boolean);
+
   // Resolve the host from an explicit host or the audited URL.
   let host = (body.host || '').trim();
   if (!host && body.url) { try { host = new URL(body.url).host; } catch { /* keep empty */ } }
   if (!host) return json({ error: 'Could not determine the domain to check. Audit a URL (not pasted HTML) to verify.' }, 400);
 
   try {
-    const result = await runVerification({ prompts, host, brand: (body.brand || '').trim(), maxPrompts: 6 });
+    const result = await runVerification({ prompts, host, brand: (body.brand || '').trim(), competitors, maxPrompts: 6 });
     return json({ result });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : 'Verification failed.' }, 500);

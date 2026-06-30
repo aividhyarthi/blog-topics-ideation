@@ -218,7 +218,19 @@
       .sovbar { height: 9px; border-radius: 999px; background: #edeef4; overflow: hidden; }
       .sovbar > i { display: block; height: 100%; border-radius: 999px; background: #b9bccb; }
       .sovrow.you .sovbar > i { background: var(--pink); }
+      .sovrow.rival .sovdom { color: #b07900; font-weight: 700; }
+      .sovrow.rival .sovbar > i { background: #d9a43a; }
+      .rivaltag { font-size: 9px; font-weight: 800; letter-spacing: .05em; background: var(--warn); color: #fff; padding: 1px 6px; border-radius: 5px; }
       .sovn { font-size: 12.5px; font-weight: 700; text-align: right; color: var(--ink-2); }
+
+      /* source gap to-do list */
+      .gaphint { font-size: 12.5px; color: var(--muted); margin: -4px 0 11px; line-height: 1.55; }
+      .gaplist { display: grid; gap: 9px; }
+      .gaprow { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; box-shadow: var(--shadow); }
+      .gaptop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .gapdom { font-size: 13.5px; font-weight: 700; }
+      .gapkind { font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+      .gapaction { font-size: 12.5px; color: var(--ink-2); margin-top: 7px; line-height: 1.55; }
 
       /* ---- pillar gauges ---- */
       .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
@@ -385,6 +397,8 @@
           </div>
           <label class="fld" for="target">Target question this page should be the cited answer to <span class="opt">(optional)</span></label>
           <input id="target" type="text" placeholder="e.g. why did Virat Kohli retire?" />
+          <label class="fld" for="competitors">Competitors to track <span class="opt">(optional — domains, comma-separated; used in “Verify in real engines”)</span></label>
+          <input id="competitors" type="text" placeholder="e.g. sephora.com, sugarcosmetics.com" />
 
           <div class="row">
             <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit</button>
@@ -638,9 +652,10 @@
         btn.innerHTML = '<span class="spinner"></span>Querying live engines…';
         out.innerHTML = '<div class="vfy-loading">Running ' + prompts.length + ' prompt' + (prompts.length > 1 ? 's' : '') + ' through real answer engines. This can take up to a minute…</div>';
         try {
+          const competitors = ($('competitors').value || '').split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
           const res = await fetch('/api/aeo-verify', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompts, url: m.url, host: m.host, brand: m.brand }),
+            body: JSON.stringify({ prompts, url: m.url, host: m.host, brand: m.brand, competitors }),
           });
           const data = await res.json();
           if (!res.ok) { out.innerHTML = '<div class="note-bad">' + IC.alert + '<span>' + esc(data.error || 'Verification failed.') + '</span></div>'; }
@@ -675,8 +690,16 @@
 
         const maxSov = Math.max(1, ...(v.shareOfVoice || []).map((s) => s.count));
         const sov = (v.shareOfVoice || []).map((s) => {
+          const cls = s.isYou ? 'you' : s.isCompetitor ? 'rival' : '';
+          const tag = s.isYou ? '<span class="youtag">YOU</span>' : s.isCompetitor ? '<span class="rivaltag">RIVAL</span>' : '';
           const w = Math.round((s.count / maxSov) * 100);
-          return `<div class="sovrow ${s.isYou ? 'you' : ''}"><div class="sovdom">${esc(s.domain)}${s.isYou ? '<span class="youtag">YOU</span>' : ''}</div><div class="sovbar"><i style="width:${Math.max(w, s.count ? 6 : 0)}%"></i></div><div class="sovn">${s.count}</div></div>`;
+          return `<div class="sovrow ${cls}"><div class="sovdom">${esc(s.domain)}${tag}</div><div class="sovbar"><i style="width:${Math.max(w, s.count ? 6 : 0)}%"></i></div><div class="sovn">${s.count}</div></div>`;
+        }).join('');
+
+        const KIND_TINT = { Community: '#5b54e6', Encyclopedia: '#15915f', Video: '#d23c3c', Marketplace: '#b07900', Authority: '#20808d', Publisher: '#3c3f4a' };
+        const gaps = (v.sourceGaps || []).map((g) => {
+          const col = KIND_TINT[g.kind] || '#3c3f4a';
+          return `<div class="gaprow"><div class="gaptop"><span class="gapdom">${esc(g.domain)}</span><span class="gapkind" style="background:${col}1a;color:${col}">${esc(g.kind)} · cited ${g.count}×</span></div><div class="gapaction">${esc(g.action)}</div></div>`;
         }).join('');
 
         out.innerHTML = `
@@ -689,7 +712,8 @@
           <div class="vfy-engines">Measured live via ${v.engines.map((e) => `<span class="chip">${esc(e)}</span>`).join(' ')}</div>
           <div class="vsub2">Per-prompt results</div>
           <div class="vrows">${promptRows}</div>
-          ${sov ? `<div class="vsub2">Share of voice — who got cited across these prompts</div><div class="sovlist">${sov}</div>` : ''}
+          ${sov ? `<div class="vsub2">Share of voice — who got cited across these prompts${v.competitors && v.competitors.length ? ' (your pinned rivals are always shown)' : ''}</div><div class="sovlist">${sov}</div>` : ''}
+          ${gaps ? `<div class="vsub2">Source gap — your off-page to-do list</div><div class="gaphint">These third-party sites get cited for your prompts and you don't. Earning a presence on them is the highest-leverage off-page work for AI citation.</div><div class="gaplist">${gaps}</div>` : ''}
           <div class="caveat">This is a real-time sample of ${v.promptCount} prompt(s) on a single run — answer engines are non-deterministic, so treat it as a directional read, not a fixed ranking. Re-run for a fresh sample.</div>`;
         out.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
