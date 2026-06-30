@@ -34,6 +34,10 @@ interface AiResult {
     wontWork?: string;
     bestAlternative?: string;
     alternativeWhy?: string;
+    recoTitle?: string;
+    recoShort?: string;
+    placement?: 'main' | 'custom';
+    placementWhy?: string;
   }[];
   keywordTargets?: { term: string; rationale: string; covered: boolean }[];
   improvements?: { title?: string; shortDescription?: string; longDescription?: string };
@@ -107,7 +111,11 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown, no commentary):
       "willWork": "1-2 sentences: realistically, can this app rank for and convert on this keyword, and why",
       "wontWork": "1-2 sentences: what is working AGAINST ranking for this keyword (e.g. not in the title, search intent mismatch, competitors dominate it, too broad/competitive)",
       "bestAlternative": "a more winnable or higher-intent keyword to target instead (lowercase, 2-3 words) — or repeat the keyword if it is genuinely the best",
-      "alternativeWhy": "1-2 sentences on why that alternative is a better bet for this app"
+      "alternativeWhy": "1-2 sentences on why that alternative is a better bet for this app",
+      "recoTitle": "a Play Store TITLE (MAX 30 chars) optimised to rank for THIS keyword: brand + the keyword. Count characters.",
+      "recoShort": "a SHORT DESCRIPTION (MAX 80 chars) optimised for THIS keyword + a benefit. Count characters.",
+      "placement": "main | custom — should this keyword drive the MAIN (default, global) store listing, or a CUSTOM store listing (a variant Play serves to a specific country/language/audience/campaign)?",
+      "placementWhy": "1 sentence: why. Rule of thumb — your core, highest-volume, brand-defining head terms belong in the MAIN listing; niche, regional/local-language, seasonal, or campaign/audience-specific terms belong in a CUSTOM store listing so they don't dilute the default listing."
     }
   ],
   "keywordTargets": [

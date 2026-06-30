@@ -464,22 +464,34 @@
         const verdicts = ai.focusVerdicts || [];
         const vById = {};
         verdicts.forEach((v) => { if (v && v.keyword) vById[String(v.keyword).toLowerCase()] = v; });
+        const miniReco = (label, text, limit) => {
+          if (!text) return '';
+          const over = text.length > limit;
+          return `<div class="impcard" style="margin-top:8px"><div class="ilabel"><span>${label} for this keyword</span><span class="clen ${over ? 'over' : ''}">${text.length}/${limit} chars</span></div>
+            <div class="itext">${esc(text)}</div>
+            <button class="ghostbtn icopy" data-copy="${esc(text)}">📋 Copy</button></div>`;
+        };
+        const PLACE = { main: { t: '✅ Main listing', c: 'var(--ok)', bg: 'var(--ok-bg)' }, custom: { t: '🎯 Custom store listing', c: 'var(--indigo)', bg: '#e9e6fb' } };
         const verdictCard = (kwTerm, idx) => {
           const fv = vById[String(kwTerm).toLowerCase()] || verdicts[idx] || {};
-          if (!(fv.willWork || fv.wontWork || fv.bestAlternative)) return '';
+          if (!(fv.willWork || fv.wontWork || fv.bestAlternative || fv.recoTitle)) return '';
+          const pl = PLACE[fv.placement] || null;
           return `<div class="card fvcard" style="margin-bottom:10px">
             <div class="fvhead">
               <span class="fvkw">${esc(fv.keyword || kwTerm)}</span>
               ${fv.rating ? `<span class="fvrate ${esc(fv.rating)}">${esc(fv.rating)} fit</span>` : ''}
+              ${pl ? `<span class="fvrate" style="background:${pl.bg};color:${pl.c}">${pl.t}</span>` : ''}
             </div>
             ${fv.willWork ? `<div class="fvrow"><span class="fvic ok">✓</span><div><b>Can it work?</b> ${esc(fv.willWork)}</div></div>` : ''}
             ${fv.wontWork ? `<div class="fvrow"><span class="fvic bad">✕</span><div><b>What's working against it</b> ${esc(fv.wontWork)}</div></div>` : ''}
+            ${pl ? `<div class="fvrow"><span class="fvic alt">📍</span><div><b>Where to use it: ${pl.t.replace(/^.\s/, '')}</b> ${esc(fv.placementWhy || '')}</div></div>` : ''}
             ${fv.bestAlternative ? `<div class="fvrow"><span class="fvic alt">→</span><div><b>Better bet: “${esc(fv.bestAlternative)}”</b> ${esc(fv.alternativeWhy || '')} <button class="ghostbtn" data-refocus="${esc(fv.bestAlternative)}" style="margin-left:6px">↻ Re-run with this</button></div></div>` : ''}
+            ${(fv.recoTitle || fv.recoShort) ? `<div style="margin-top:6px"><div class="impgrid">${miniReco('Title', fv.recoTitle, 30)}${miniReco('Short description', fv.recoShort, 80)}</div></div>` : ''}
           </div>`;
         };
         const verdictCards = focusKws.map((k, i) => verdictCard(k, i)).join('');
         const focusVerdict = verdictCards ? `
-          <div class="sectitle">🧭 Verdict on your keyword${focusKws.length > 1 ? 's' : ''} <span class="sub">— ${focusKws.map((k) => '“' + esc(k) + '”').join(', ')}</span></div>
+          <div class="sectitle">🧭 Keyword plan <span class="sub">— verdict, title/short-description recommendation &amp; main-vs-custom-listing call for ${focusKws.map((k) => '“' + esc(k) + '”').join(', ')}</span></div>
           ${verdictCards}` : '';
 
         // keyword head-to-head — a table PER focus keyword (who covers it where)
