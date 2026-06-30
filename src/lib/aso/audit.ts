@@ -38,8 +38,17 @@ export interface AsoReport {
   pillars: Pillar[];
   marketSignals: MarketSignal[];
   keywords: KeywordRow[];
-  focusKeyword: string | null;
+  focusKeyword: string | null; // the primary (first) focus keyword
+  focusKeywords: string[]; // up to 3 evaluated keywords
   topFixes: Fix[];
+}
+
+/** Parse a focus-keyword input (string or array, comma/newline separated) into up to 3 clean terms. */
+export function normalizeFocusList(input?: string | string[], fallback?: string | null): string[] {
+  const raw = Array.isArray(input) ? input : String(input || '').split(/[,\n;]+/);
+  const list = [...new Set(raw.map((s) => s.trim().toLowerCase()).filter(Boolean))].slice(0, 3);
+  if (!list.length && fallback) return [fallback.toLowerCase()];
+  return list;
 }
 
 const STOPWORDS = new Set(
@@ -118,10 +127,10 @@ function gradeFor(s: number): string {
  * owner provides one, the Keyword Strategy pillar grades coverage of THAT term;
  * otherwise it falls back to the strongest extracted keyword.
  */
-export function auditListing(app: AsoAppData, focusKeywordInput?: string): AsoReport {
+export function auditListing(app: AsoAppData, focusKeywordInput?: string | string[]): AsoReport {
   const keywords = extractKeywords(app);
-  const focusKeyword =
-    (focusKeywordInput || '').trim().toLowerCase() || (keywords[0] ? keywords[0].term : null);
+  const focusKeywords = normalizeFocusList(focusKeywordInput, keywords[0] ? keywords[0].term : null);
+  const focusKeyword = focusKeywords[0] || null;
 
   const titleLen = app.title.length;
   const shortLen = app.summary.length;
@@ -180,31 +189,37 @@ export function auditListing(app: AsoAppData, focusKeywordInput?: string): AsoRe
     },
   ];
 
-  // ---- Pillar 4: Keyword strategy (20) ----
-  const fk = focusKeyword || '';
-  const inTitle = fk ? app.title.toLowerCase().includes(fk) : false;
-  const inShort = fk ? app.summary.toLowerCase().includes(fk) : false;
-  const longCount = fk ? countOccurrences(app.description, fk) : 0;
-  const totalWords = tokenize(app.description).length || 1;
-  const density = fk ? (countOccurrences(app.description, fk) * fk.split(' ').length) / totalWords : 0;
+  // ---- Pillar 4: Keyword strategy (20) — graded across up to 3 focus keywords ----
+  const titleL = app.title.toLowerCase();
+  const shortL = app.summary.toLowerCase();
+  const n = focusKeywords.length;
+  const inTitleKw = focusKeywords.filter((k) => titleL.includes(k));
+  const inShortKw = focusKeywords.filter((k) => shortL.includes(k));
+  const missingTitle = focusKeywords.filter((k) => !titleL.includes(k));
+  const missingShort = focusKeywords.filter((k) => !shortL.includes(k));
+  const longCovered = focusKeywords.filter((k) => countOccurrences(app.description, k) >= 1);
+  const longRepeated = focusKeywords.filter((k) => countOccurrences(app.description, k) >= 3);
+  const missingLong = focusKeywords.filter((k) => countOccurrences(app.description, k) < 1);
+  const q = (arr: string[]) => arr.map((k) => `“${k}”`).join(', ');
+  const frac = (c: number) => (n ? c / n : 0);
   const keywordSignals: Signal[] = [
     {
-      key: 'kw-title', label: `Focus keyword in title${fk ? ` ("${fk}")` : ''}`, source: 'auto',
-      detail: !fk ? 'No focus keyword detected.' : inTitle ? 'Focus keyword is in the title (highest-weighted field).' : 'Focus keyword missing from the title.',
-      score: !fk ? null : inTitle ? 95 : 35,
-      fix: fk && !inTitle ? `Work "${fk}" into the title — it is the strongest ranking signal on Play.` : undefined,
+      key: 'kw-title', label: n > 1 ? `Focus keywords in title (${inTitleKw.length}/${n})` : `Focus keyword in title${focusKeyword ? ` ("${focusKeyword}")` : ''}`, source: 'auto',
+      detail: !n ? 'No focus keyword detected.' : inTitleKw.length === n ? `All focus keyword(s) appear in the title — the highest-weighted field.` : `${inTitleKw.length} of ${n} in the title. Missing: ${q(missingTitle)}.`,
+      score: !n ? null : Math.round(35 + 60 * frac(inTitleKw.length)),
+      fix: missingTitle.length ? `Work ${q(missingTitle)} into the title where they fit — it is the strongest ranking signal on Play (titles cap at ${LIMITS.title} chars, so prioritise the highest-volume term).` : undefined,
     },
     {
-      key: 'kw-short', label: 'Focus keyword in short description', source: 'auto',
-      detail: !fk ? 'No focus keyword detected.' : inShort ? 'Focus keyword appears in the short description.' : 'Focus keyword missing from the short description.',
-      score: !fk ? null : inShort ? 90 : 45,
-      fix: fk && !inShort ? `Include "${fk}" in the 80-char short description.` : undefined,
+      key: 'kw-short', label: n > 1 ? `Focus keywords in short description (${inShortKw.length}/${n})` : 'Focus keyword in short description', source: 'auto',
+      detail: !n ? 'No focus keyword detected.' : inShortKw.length === n ? 'All focus keyword(s) appear in the short description.' : `${inShortKw.length} of ${n} in the short description. Missing: ${q(missingShort)}.`,
+      score: !n ? null : Math.round(45 + 50 * frac(inShortKw.length)),
+      fix: missingShort.length ? `Fit ${q(missingShort)} into the 80-char short description.` : undefined,
     },
     {
-      key: 'kw-long', label: 'Focus keyword repetition in long description', source: 'auto',
-      detail: !fk ? 'No focus keyword detected.' : `Appears ${longCount}× in the long description (≈${(density * 100).toFixed(1)}% density).`,
-      score: !fk ? null : longCount >= 3 && density <= 0.035 ? 90 : longCount >= 1 ? 68 : 40,
-      fix: fk && longCount < 3 ? `Repeat "${fk}" 3–5 times naturally across the description (avoid stuffing — keep density under ~3%).` : (density > 0.035 ? 'Density is high — ease off repetition to avoid looking like keyword stuffing.' : undefined),
+      key: 'kw-long', label: n > 1 ? `Focus keywords in long description (${longCovered.length}/${n})` : 'Focus keyword repetition in long description', source: 'auto',
+      detail: !n ? 'No focus keyword detected.' : `${longCovered.length} of ${n} present; ${longRepeated.length} repeated 3+ times.${missingLong.length ? ` Missing: ${q(missingLong)}.` : ''}`,
+      score: !n ? null : Math.round(40 + 30 * frac(longCovered.length) + 20 * frac(longRepeated.length)),
+      fix: (missingLong.length || longRepeated.length < n) ? `Use each focus keyword 3–5 times naturally across the description${missingLong.length ? ` (currently missing: ${q(missingLong)})` : ''} — without stuffing.` : undefined,
     },
   ];
 
@@ -314,6 +329,7 @@ export function auditListing(app: AsoAppData, focusKeywordInput?: string): AsoRe
     marketSignals,
     keywords,
     focusKeyword,
+    focusKeywords,
     topFixes: topFixes.slice(0, 7),
   };
 }
@@ -344,18 +360,21 @@ export interface CompetitorRow {
   overall: number; grade: string; score: number | null; ratings: number | null;
   installs: string | null; minInstalls: number | null;
   titleLen: number; shortLen: number; longLen: number; screenshots: number;
-  focus: KeywordCoverage;
+  focus: KeywordCoverage; // coverage of the primary focus keyword (back-compat)
+  focusList: KeywordCoverage[]; // coverage of each focus keyword, aligned to focusKeywords
   summary: string; description: string; // the rival's actual listing copy
 }
-export function competitorRow(app: AsoAppData, focusKeyword?: string): CompetitorRow {
-  const r = auditListing(app, focusKeyword);
+export function competitorRow(app: AsoAppData, focusKeywords?: string | string[]): CompetitorRow {
+  const list = normalizeFocusList(focusKeywords);
+  const r = auditListing(app, list.length ? list : undefined);
   return {
     appId: app.appId, title: app.title, icon: app.icon, url: app.url,
     overall: r.overall, grade: r.grade, score: app.score, ratings: app.ratings,
     installs: app.installs, minInstalls: app.minInstalls,
     titleLen: app.title.length, shortLen: app.summary.length,
     longLen: app.description.length, screenshots: app.screenshots.length,
-    focus: keywordCoverage(app, focusKeyword),
+    focus: keywordCoverage(app, list[0]),
+    focusList: list.map((k) => keywordCoverage(app, k)),
     summary: app.summary, description: app.description,
   };
 }

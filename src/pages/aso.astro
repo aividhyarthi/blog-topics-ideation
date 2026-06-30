@@ -254,8 +254,8 @@
 
           <div class="two" style="margin-top:4px">
             <div>
-              <label class="fld" for="focus">Focus keyword <span style="font-weight:400">(optional)</span></label>
-              <input id="focus" type="text" placeholder="e.g. photo editor — leave blank to let AI pick" />
+              <label class="fld" for="focus">Focus keywords <span style="font-weight:400">(optional, up to 3 — comma-separated)</span></label>
+              <input id="focus" type="text" placeholder="e.g. photo editor, collage maker, photo filters" />
             </div>
             <div>
               <label class="fld" for="competitors">Competitor apps <span style="font-weight:400">(optional)</span></label>
@@ -342,7 +342,7 @@
                 <div class="vtitle" style="color:${v.c}">${v.t}</div>
                 <div class="chips">
                   <span class="chip band-${r.band}">${r.band} optimization</span>
-                  ${r.focusKeyword ? `<span class="chip">focus: ${esc(r.focusKeyword)}</span>` : ''}
+                  ${(data.focusKeywords || []).map((k) => `<span class="chip">🎯 ${esc(k)}</span>`).join('')}
                   ${app.version ? `<span class="chip">v${esc(app.version)}</span>` : ''}
                 </div>
                 ${m.aiError ? `<div class="note-warn">⚠ ${esc(m.aiError)}</div>` : ''}
@@ -459,39 +459,52 @@
             </div>`).join('')}
           </div>`;
 
-        // focus-keyword verdict (will it work / what won't / best alternative)
-        const focusKw = data.focusKeyword || r.focusKeyword || '';
-        const fv = ai.focusVerdict || {};
-        const focusVerdict = (fv.willWork || fv.wontWork || fv.bestAlternative) ? `
-          <div class="sectitle">🧭 Verdict on your keyword ${focusKw ? `<span class="sub">— “${esc(focusKw)}”</span>` : ''}</div>
-          <div class="card fvcard">
+        // focus-keyword verdicts — one card per evaluated keyword (up to 3)
+        const focusKws = data.focusKeywords || (data.focusKeyword ? [data.focusKeyword] : []);
+        const verdicts = ai.focusVerdicts || [];
+        const vById = {};
+        verdicts.forEach((v) => { if (v && v.keyword) vById[String(v.keyword).toLowerCase()] = v; });
+        const verdictCard = (kwTerm, idx) => {
+          const fv = vById[String(kwTerm).toLowerCase()] || verdicts[idx] || {};
+          if (!(fv.willWork || fv.wontWork || fv.bestAlternative)) return '';
+          return `<div class="card fvcard" style="margin-bottom:10px">
             <div class="fvhead">
-              <span class="fvkw">${esc(fv.keyword || focusKw)}</span>
+              <span class="fvkw">${esc(fv.keyword || kwTerm)}</span>
               ${fv.rating ? `<span class="fvrate ${esc(fv.rating)}">${esc(fv.rating)} fit</span>` : ''}
             </div>
             ${fv.willWork ? `<div class="fvrow"><span class="fvic ok">✓</span><div><b>Can it work?</b> ${esc(fv.willWork)}</div></div>` : ''}
             ${fv.wontWork ? `<div class="fvrow"><span class="fvic bad">✕</span><div><b>What's working against it</b> ${esc(fv.wontWork)}</div></div>` : ''}
             ${fv.bestAlternative ? `<div class="fvrow"><span class="fvic alt">→</span><div><b>Better bet: “${esc(fv.bestAlternative)}”</b> ${esc(fv.alternativeWhy || '')} <button class="ghostbtn" data-refocus="${esc(fv.bestAlternative)}" style="margin-left:6px">↻ Re-run with this</button></div></div>` : ''}
-          </div>` : '';
+          </div>`;
+        };
+        const verdictCards = focusKws.map((k, i) => verdictCard(k, i)).join('');
+        const focusVerdict = verdictCards ? `
+          <div class="sectitle">🧭 Verdict on your keyword${focusKws.length > 1 ? 's' : ''} <span class="sub">— ${focusKws.map((k) => '“' + esc(k) + '”').join(', ')}</span></div>
+          ${verdictCards}` : '';
 
-        // keyword head-to-head: who covers the focus keyword where (you vs rivals)
+        // keyword head-to-head — a table PER focus keyword (who covers it where)
         const fkCells = (cov) => {
           const c = cov || { inTitle: false, inShort: false, inLong: false, longCount: 0 };
           return `<td class="num kmark ${c.inTitle ? 'y' : 'n'}">${c.inTitle ? '✓' : '·'}</td>
             <td class="num kmark ${c.inShort ? 'y' : 'n'}">${c.inShort ? '✓' : '·'}</td>
             <td class="num kmark ${c.inLong ? 'y' : 'n'}">${c.longCount ? c.longCount + '×' : '·'}</td>`;
         };
-        const h2hMe = `<tr class="me-row"><td>${esc(app.title || m.appId)} <span style="color:var(--pink-dark)">(you)</span></td>
-          ${fkCells(app.focus)}<td class="num">${app.score != null ? app.score.toFixed(2) + '★' : '—'}</td><td class="num">${esc(app.installs || '—')}</td></tr>`;
-        const h2hComp = comps.map((c) => `<tr><td><a href="${esc(c.url)}" target="_blank" rel="noopener" style="color:var(--ink)">${esc(c.title)}</a></td>
-          ${fkCells(c.focus)}<td class="num">${c.score != null ? c.score.toFixed(2) + '★' : '—'}</td><td class="num">${esc(c.installs || '—')}</td></tr>`).join('');
-        const headToHead = (comps.length && focusKw) ? `
-          <div class="sectitle">🥊 Keyword head-to-head <span class="sub">— who covers “${esc(focusKw)}”, and where</span></div>
-          <div class="tablewrap"><table>
-            <thead><tr><th>App</th><th class="num">Title</th><th class="num">Short</th><th class="num">Long</th><th class="num">Rating</th><th class="num">Installs</th></tr></thead>
-            <tbody>${h2hMe}${h2hComp}</tbody>
-          </table></div>
-          ${ai.competitorTakeaway ? `<div class="summary" style="margin-top:12px"><span class="sicon">🥊</span><div class="sbody"><b>Why they out-rank you on this keyword</b><p>${esc(ai.competitorTakeaway)}</p></div></div>` : ''}` : '';
+        const h2hTable = (kwTerm, idx) => {
+          const meCov = (app.focusList && app.focusList[idx]) || app.focus;
+          const meRow = `<tr class="me-row"><td>${esc(app.title || m.appId)} <span style="color:var(--pink-dark)">(you)</span></td>
+            ${fkCells(meCov)}<td class="num">${app.score != null ? app.score.toFixed(2) + '★' : '—'}</td><td class="num">${esc(app.installs || '—')}</td></tr>`;
+          const rows = comps.map((c) => `<tr><td><a href="${esc(c.url)}" target="_blank" rel="noopener" style="color:var(--ink)">${esc(c.title)}</a></td>
+            ${fkCells((c.focusList && c.focusList[idx]) || c.focus)}<td class="num">${c.score != null ? c.score.toFixed(2) + '★' : '—'}</td><td class="num">${esc(c.installs || '—')}</td></tr>`).join('');
+          return `<div style="margin-bottom:14px"><div style="font-weight:700;font-size:13px;margin:4px 0 6px">🥊 “${esc(kwTerm)}”</div>
+            <div class="tablewrap"><table>
+              <thead><tr><th>App</th><th class="num">Title</th><th class="num">Short</th><th class="num">Long</th><th class="num">Rating</th><th class="num">Installs</th></tr></thead>
+              <tbody>${meRow}${rows}</tbody>
+            </table></div></div>`;
+        };
+        const headToHead = (comps.length && focusKws.length) ? `
+          <div class="sectitle">🥊 Keyword head-to-head <span class="sub">— who covers each keyword, and where</span></div>
+          ${focusKws.map((k, i) => h2hTable(k, i)).join('')}
+          ${ai.competitorTakeaway ? `<div class="summary" style="margin-top:4px"><span class="sicon">🥊</span><div class="sbody"><b>Why they out-rank you on these keywords</b><p>${esc(ai.competitorTakeaway)}</p></div></div>` : ''}` : '';
 
         // why the install leader ranks ahead
         const lv = ai.leaderVerdict || {};

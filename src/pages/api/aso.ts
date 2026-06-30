@@ -27,14 +27,14 @@ function repairJson(raw: string): string {
 interface AiResult {
   focusKeyword?: string;
   summary?: string;
-  focusVerdict?: {
+  focusVerdicts?: {
     keyword?: string;
     rating?: 'strong' | 'moderate' | 'weak';
     willWork?: string;
     wontWork?: string;
     bestAlternative?: string;
     alternativeWhy?: string;
-  };
+  }[];
   keywordTargets?: { term: string; rationale: string; covered: boolean }[];
   improvements?: { title?: string; shortDescription?: string; longDescription?: string };
   competitorTakeaway?: string;
@@ -46,19 +46,25 @@ function buildAiPrompt(
   app: AsoAppData,
   report: AsoReport,
   competitors: CompetitorRow[],
-  userFocus: string,
+  focusKeywords: string[],
   gap: GapKeyword[],
   leader: { title: string; score: number | null; installs: string | null } | null,
 ): string {
-  const fk = userFocus || report.focusKeyword || '';
+  const fkList = focusKeywords.length ? focusKeywords : (report.focusKeyword ? [report.focusKeyword] : []);
   const kw = report.keywords.slice(0, 14).map((k) => `${k.term} (${k.count}×)`).join(', ');
-  // Factual coverage of the focus keyword, primary app + each competitor, so the
+  // Factual coverage of each focus keyword, primary app + every competitor, so the
   // model's "who beats you on this keyword" verdict is grounded in real data.
-  const youCov = keywordCoverage(app, fk);
+  const youCovLines = fkList.map((k) => {
+    const c = keywordCoverage(app, k);
+    return `  · "${k}" → title:${c.inTitle ? 'Y' : 'N'} short:${c.inShort ? 'Y' : 'N'} long:${c.longCount}×`;
+  }).join('\n');
   const cov = (c: { inTitle: boolean; inShort: boolean; inLong: boolean; longCount: number }) =>
     `title:${c.inTitle ? 'Y' : 'N'} short:${c.inShort ? 'Y' : 'N'} long:${c.longCount}×`;
   const comp = competitors.length
-    ? competitors.map((c) => `- ${c.title} — ASO ${c.overall}/100, ${c.score ?? '?'}★, installs ${c.installs ?? '?'}, focus-kw [${cov(c.focus)}]`).join('\n')
+    ? competitors.map((c) => {
+        const perKw = fkList.map((k, i) => `"${k}" [${cov(c.focusList[i] || { inTitle: false, inShort: false, inLong: false, longCount: 0 })}]`).join('; ');
+        return `- ${c.title} — ASO ${c.overall}/100, ${c.score ?? '?'}★, installs ${c.installs ?? '?'} · ${perKw}`;
+      }).join('\n')
     : '(none provided)';
   const gapLines = gap.length
     ? gap.map((g) => `- "${g.term}" — used by ${g.competitors} competitor(s)${g.inTitle ? `, ${g.inTitle} in their title` : ''}${g.inShort ? `, ${g.inShort} in short desc` : ''} (e.g. ${g.apps.slice(0, 2).join(', ')}); THIS APP does not use it`).join('\n')
@@ -78,11 +84,12 @@ APP
 ${app.description.slice(0, 3500)}
 """
 
-FOCUS KEYWORD TO EVALUATE: "${fk || '(none — pick the best one)'}"
-THIS APP'S COVERAGE OF THE FOCUS KEYWORD: title:${youCov.inTitle ? 'Y' : 'N'} short:${youCov.inShort ? 'Y' : 'N'} long:${youCov.longCount}×
+FOCUS KEYWORDS TO EVALUATE (up to 3): ${fkList.length ? fkList.map((k) => `"${k}"`).join(', ') : '(none — pick the best one)'}
+THIS APP'S COVERAGE OF EACH FOCUS KEYWORD:
+${youCovLines || '  (none)'}
 EXTRACTED KEYWORDS (frequency): ${kw || '(none)'}
 DETERMINISTIC ASO SCORE: ${report.overall}/100 (grade ${report.grade})
-COMPETITORS (with their coverage of the same focus keyword):
+COMPETITORS (with their coverage of each focus keyword):
 ${comp}
 
 KEYWORD GAP — terms competitors build around that THIS APP is missing:
@@ -93,14 +100,16 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown, no commentary):
 {
   "focusKeyword": "the single best primary keyword this app should rank for (2-3 words max, lowercase)",
   "summary": "3-4 sentence verdict for the app owner: biggest ASO opportunity, what to fix first, and the keyword angle. Plain English, specific to this app.",
-  "focusVerdict": {
-    "keyword": "the focus keyword you evaluated (echo it)",
-    "rating": "strong | moderate | weak — how winnable is THIS keyword for THIS app right now",
-    "willWork": "1-2 sentences: realistically, can this app rank for and convert on this keyword, and why",
-    "wontWork": "1-2 sentences: what is working AGAINST ranking for this keyword (e.g. not in the title, search intent mismatch, competitors dominate it, too broad/competitive)",
-    "bestAlternative": "a more winnable or higher-intent keyword to target instead (lowercase, 2-3 words) — or repeat the focus keyword if it is genuinely the best",
-    "alternativeWhy": "1-2 sentences on why that alternative is a better bet for this app"
-  },
+  "focusVerdicts": [
+    {
+      "keyword": "echo one of the focus keywords above (give one object PER focus keyword)",
+      "rating": "strong | moderate | weak — how winnable is THIS keyword for THIS app right now",
+      "willWork": "1-2 sentences: realistically, can this app rank for and convert on this keyword, and why",
+      "wontWork": "1-2 sentences: what is working AGAINST ranking for this keyword (e.g. not in the title, search intent mismatch, competitors dominate it, too broad/competitive)",
+      "bestAlternative": "a more winnable or higher-intent keyword to target instead (lowercase, 2-3 words) — or repeat the keyword if it is genuinely the best",
+      "alternativeWhy": "1-2 sentences on why that alternative is a better bet for this app"
+    }
+  ],
   "keywordTargets": [
     { "term": "keyword phrase", "rationale": "why it fits this app + its audience's search intent", "covered": true|false }
   ],
@@ -109,7 +118,7 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown, no commentary):
     "shortDescription": "an optimised short description, MAX 80 chars, keyword + benefit",
     "longDescription": "an optimised long description opening (~600-900 chars): a benefit-led lead line, then bulleted feature sections with natural keyword use. Use plain text with • bullets and line breaks."
   },
-  "competitorTakeaway": "${competitors.length ? 'Focus on the FOCUS KEYWORD: name which competitor is out-ranking this app on it and exactly why (keyword in their title vs yours, higher rating, more installs). 2-3 sentences, concrete.' : ''}",
+  "competitorTakeaway": "${competitors.length ? 'Across the FOCUS KEYWORDS: name which competitor is out-ranking this app and exactly why (keyword in their title vs yours, higher rating, more installs). 2-3 sentences, concrete.' : ''}",
   "gapInsight": "${gap.length ? '2-3 sentences: the most important keyword/positioning gaps from the KEYWORD GAP list above, what they reveal about how competitors are ranking, and which 2-3 terms this app should add to its title/short description to close the gap.' : ''}",
   "leaderVerdict": ${leader ? `{
     "app": "the category leader's name",
@@ -117,7 +126,7 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown, no commentary):
     "copyThis": "the 1-2 highest-leverage things this app should copy from the leader's LISTING right now"
   }` : 'null'}
 }
-Provide 8-12 keywordTargets ranked by opportunity. Keep title ≤30 and shortDescription ≤80 characters — count carefully.`;
+Give ONE focusVerdicts entry for EACH focus keyword listed above (so ${fkList.length || 1} object(s)). Provide 8-12 keywordTargets ranked by opportunity. Keep title ≤30 and shortDescription ≤80 characters — count carefully.`;
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -153,10 +162,13 @@ export const POST: APIRoute = async ({ request }) => {
   // the one the owner gave; if they gave none, fall back to the strongest one we
   // extracted from the listing, so the verdict + comparison always have a subject.
   const report = auditListing(app, focusKeyword);
-  const evalFocus = (focusKeyword || report.focusKeyword || '').trim();
+  // Up to 3 keywords are evaluated; if the owner gave none we fall back to the
+  // strongest extracted term so the verdict + comparison always have a subject.
+  const evalFocusList = report.focusKeywords;
+  const evalFocus = evalFocusList[0] || '';
 
   // 3) Competitors (best-effort; auto-discovers similar apps if none given).
-  // Keep the raw apps so we can score each rival's coverage of the focus keyword.
+  // Keep the raw apps so we can score each rival's coverage of the focus keywords.
   let compApps: AsoAppData[] = [];
   let competitorErrors: string[] = [];
   try {
@@ -166,7 +178,7 @@ export const POST: APIRoute = async ({ request }) => {
   } catch (e) {
     competitorErrors = [e instanceof Error ? e.message : String(e)];
   }
-  const competitors: CompetitorRow[] = compApps.map((a) => competitorRow(a, evalFocus));
+  const competitors: CompetitorRow[] = compApps.map((a) => competitorRow(a, evalFocusList));
 
   // Keyword gap (what rivals build around that this app lacks) + the install leader.
   const gap = keywordGap(app, compApps, 12);
@@ -185,7 +197,7 @@ export const POST: APIRoute = async ({ request }) => {
       const client = new Anthropic({ apiKey });
       const message = await client.messages.create({
         model: 'claude-sonnet-4-6', max_tokens: 2400,
-        messages: [{ role: 'user', content: buildAiPrompt(app, report, competitors, evalFocus, gap, leader ? { title: leader.title, score: leader.score, installs: leader.installs } : null) }],
+        messages: [{ role: 'user', content: buildAiPrompt(app, report, competitors, evalFocusList, gap, leader ? { title: leader.title, score: leader.score, installs: leader.installs } : null) }],
       });
       const raw = message.content[0]?.type === 'text' ? message.content[0].text : '';
       const m = raw.match(/\{[\s\S]*\}/);
@@ -195,22 +207,17 @@ export const POST: APIRoute = async ({ request }) => {
     }
   }
 
-  // If the owner gave no focus keyword but Claude suggested one, re-grade so the
-  // keyword pillar reflects the recommended target.
-  let finalReport = report;
-  if (!focusKeyword && ai.focusKeyword && ai.focusKeyword.trim()) {
-    finalReport = auditListing(app, ai.focusKeyword.trim());
-  }
-
   return json({
-    report: finalReport,
+    report,
     focusKeyword: evalFocus,
+    focusKeywords: evalFocusList,
     app: {
       appId: app.appId, url: app.url, title: app.title, summary: app.summary, description: app.description,
       icon: app.icon, headerImage: app.headerImage, screenshots: app.screenshots.slice(0, 8), genre: app.genre,
       score: app.score, ratings: app.ratings, installs: app.installs, developer: app.developer,
       updated: app.updated, version: app.version,
       focus: keywordCoverage(app, evalFocus),
+      focusList: evalFocusList.map((k) => keywordCoverage(app, k)),
     },
     competitors,
     gap,
