@@ -184,6 +184,42 @@
       .cc-detail { font-size: 12px; color: var(--muted); margin-top: 7px; line-height: 1.5; }
       .cc-fix { font-size: 12.5px; color: #6b5410; margin-top: 8px; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 7px 11px; border-radius: 0 8px 8px 0; line-height: 1.5; }
 
+      /* ---- Verify in real engines ---- */
+      .verifybox { border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: linear-gradient(180deg, #fbfbff, #fff); box-shadow: var(--shadow); }
+      .vfy-intro { font-size: 13.5px; color: var(--ink-2); line-height: 1.6; margin-bottom: 14px; }
+      .vfy-intro b { color: var(--ink); font-weight: 700; }
+      .vfy-btn { font-size: 14px; }
+      .vfy-loading { margin-top: 14px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+      .vfy-loading::before { content: ''; width: 15px; height: 15px; border: 2px solid var(--line-2); border-top-color: var(--pink); border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
+      .vfy-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+      @media (max-width: 620px) { .vfy-stats { grid-template-columns: 1fr; } }
+      .vstat { display: flex; align-items: center; gap: 13px; border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px; background: #fff; box-shadow: var(--shadow); }
+      .vstat .vnum { font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1; color: var(--ink); }
+      .vstat .vnum small { font-size: 15px; font-weight: 700; opacity: .55; }
+      .vstat .vlbl { font-size: 12.5px; font-weight: 700; }
+      .vstat .vlbl span { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+      .vfy-engines { margin-top: 14px; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+      .vsub2 { font-size: 13px; font-weight: 700; margin: 20px 0 10px; letter-spacing: -.01em; }
+      .vrows { display: grid; gap: 9px; }
+      .vrow { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; box-shadow: var(--shadow); }
+      .vq { font-size: 13px; font-weight: 600; margin-bottom: 9px; }
+      .vchips { display: flex; gap: 7px; flex-wrap: wrap; }
+      .vchip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); }
+      .vchip svg { width: 11px; height: 11px; }
+      .vchip.pass { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
+      .vchip.fail { background: var(--bad-bg); color: var(--bad); border-color: #f4cfcf; }
+      .vchip.na { background: #eef0f5; color: var(--na); }
+      .sovlist { display: grid; gap: 8px; }
+      .sovrow { display: grid; grid-template-columns: 200px 1fr 36px; align-items: center; gap: 12px; }
+      @media (max-width: 560px) { .sovrow { grid-template-columns: 120px 1fr 30px; } }
+      .sovrow.you .sovdom { color: var(--pink-dark); font-weight: 800; }
+      .sovdom { font-size: 12.5px; font-weight: 600; color: var(--ink-2); display: flex; align-items: center; gap: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .youtag { font-size: 9px; font-weight: 800; letter-spacing: .05em; background: var(--pink); color: #fff; padding: 1px 6px; border-radius: 5px; }
+      .sovbar { height: 9px; border-radius: 999px; background: #edeef4; overflow: hidden; }
+      .sovbar > i { display: block; height: 100%; border-radius: 999px; background: #b9bccb; }
+      .sovrow.you .sovbar > i { background: var(--pink); }
+      .sovn { font-size: 12.5px; font-weight: 700; text-align: right; color: var(--ink-2); }
+
       /* ---- pillar gauges ---- */
       .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
       @media (max-width: 760px) { .gauges { grid-template-columns: 1fr 1fr; } }
@@ -479,6 +515,18 @@
             return `<div class="engcard" style="--e:${brand}"><div class="en"><span class="swatch"></span>${label}</div><div class="es" style="color:${col}">${s}<small>%</small></div><div class="ebar"><i style="width:${s}%;background:${col}"></i></div></div>`;
           }).join('')}</div>` : '';
 
+        // ---- Verify in real engines (predict -> measure) ----
+        const verifyPrompts = (r.promptCoverage || []).map((p) => p.q).filter(Boolean);
+        const canVerify = m.mode === 'url' && verifyPrompts.length > 0;
+        const verifyPanel = sec(IC.shieldOk, 'Verify in real engines', 'run these prompts through live ChatGPT &amp; Perplexity and see who actually gets cited') + `
+          <div class="verifybox">
+            <div class="vfy-intro"><b>The scores above are a prediction.</b> This runs ${verifyPrompts.length || 'the'} of the page's likely prompts through real answer engines and checks whether <b>${esc(m.host || 'your domain')}</b> is actually cited — ground truth, not an estimate.</div>
+            ${canVerify
+              ? `<button class="primary vfy-btn" id="verifybtn">${IC.bot} Verify against live engines</button><span class="hint">Uses your OpenAI / Perplexity key · up to ~60s.</span>`
+              : `<div class="note-warn">${IC.alert}<span>${m.mode === 'url' ? 'No prompts were generated to verify — the AI judge needs a key to produce the prompt set.' : 'Verification needs a live domain. Audit a URL (not pasted HTML) to use this.'}</span></div>`}
+            <div id="verifyout"></div>
+          </div>`;
+
         const gauges = r.pillars.map((p) => {
           const col = hexFor(p.score);
           const counts = p.signals.reduce((a, s) => { const st = s.score == null ? 'na' : statusOf(s.score); a[st] = (a[st] || 0) + 1; return a; }, {});
@@ -549,6 +597,7 @@
           ${crawlBanner}
           <div class="resbar"><button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
           ${enginesPanel}
+          ${verifyPanel}
           ${crawlPanel}
           ${sec(IC.bars, 'Pillar scores', 'points shown out of each pillar\'s category weight')}
           <div class="gauges">${gauges}</div>
@@ -566,6 +615,9 @@
         const pdfBtn = $('pdfbtn');
         if (pdfBtn) pdfBtn.addEventListener('click', () => window.print());
 
+        const verifyBtn = $('verifybtn');
+        if (verifyBtn) verifyBtn.addEventListener('click', () => runVerify(r, m, verifyPrompts, verifyBtn));
+
         root.querySelectorAll('.gauge[data-pill]').forEach((g) => {
           const openPill = () => {
             const d = document.getElementById('pill-' + g.dataset.pill);
@@ -577,6 +629,69 @@
 
         root.style.display = 'block';
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      // ---- Verify in real engines ----
+      async function runVerify(r, m, prompts, btn) {
+        const out = $('verifyout');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Querying live engines…';
+        out.innerHTML = '<div class="vfy-loading">Running ' + prompts.length + ' prompt' + (prompts.length > 1 ? 's' : '') + ' through real answer engines. This can take up to a minute…</div>';
+        try {
+          const res = await fetch('/api/aeo-verify', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompts, url: m.url, host: m.host, brand: m.brand }),
+          });
+          const data = await res.json();
+          if (!res.ok) { out.innerHTML = '<div class="note-bad">' + IC.alert + '<span>' + esc(data.error || 'Verification failed.') + '</span></div>'; }
+          else renderVerify(data.result, out);
+        } catch (e) {
+          out.innerHTML = '<div class="note-bad">' + IC.alert + '<span>Network error: ' + esc(e && e.message ? e.message : e) + '</span></div>';
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = IC.bot + ' Re-run verification';
+        }
+      }
+
+      function renderVerify(v, out) {
+        if (!v || !v.ran) {
+          out.innerHTML = '<div class="note-warn">' + IC.alert + '<span>' + esc((v && v.note) || 'Verification could not run.') + '</span></div>';
+          return;
+        }
+        const rateCol = hexFor(v.citationRate);
+        // Group probes by prompt for a per-question view.
+        const byPrompt = {};
+        (v.probes || []).forEach((p) => { (byPrompt[p.q] = byPrompt[p.q] || []).push(p); });
+        const promptRows = Object.keys(byPrompt).map((q) => {
+          const chips = byPrompt[q].map((p) => {
+            const cls = p.error ? 'na' : p.cited ? 'pass' : 'fail';
+            const txt = p.error ? 'error' : p.cited ? 'Cited' : 'Not cited';
+            const ico = p.error ? IC.dash : p.cited ? IC.check : IC.x;
+            const srcN = !p.error ? ` · ${p.sources.length} src` : '';
+            return `<span class="vchip ${cls}" title="${esc(p.engine)}${p.error ? ': ' + esc(p.error) : ''}">${ico}${esc(p.engine)}: ${txt}${srcN}</span>`;
+          }).join('');
+          return `<div class="vrow"><div class="vq">${esc(q)}</div><div class="vchips">${chips}</div></div>`;
+        }).join('');
+
+        const maxSov = Math.max(1, ...(v.shareOfVoice || []).map((s) => s.count));
+        const sov = (v.shareOfVoice || []).map((s) => {
+          const w = Math.round((s.count / maxSov) * 100);
+          return `<div class="sovrow ${s.isYou ? 'you' : ''}"><div class="sovdom">${esc(s.domain)}${s.isYou ? '<span class="youtag">YOU</span>' : ''}</div><div class="sovbar"><i style="width:${Math.max(w, s.count ? 6 : 0)}%"></i></div><div class="sovn">${s.count}</div></div>`;
+        }).join('');
+
+        out.innerHTML = `
+          ${v.note ? `<div class="note-warn">${IC.alert}<span>${esc(v.note)}</span></div>` : ''}
+          <div class="vfy-stats">
+            <div class="vstat" style="--vc:${rateCol}"><div class="vnum" style="color:${rateCol}">${v.citationRate}<small>%</small></div><div class="vlbl">Citation rate<span>${esc(v.yourDomain)} cited in live answers</span></div></div>
+            <div class="vstat"><div class="vnum">${v.promptCitationRate}<small>%</small></div><div class="vlbl">Prompt coverage<span>prompts where you were cited at least once</span></div></div>
+            <div class="vstat"><div class="vnum">${v.brandMentionRate}<small>%</small></div><div class="vlbl">Brand mention<span>answers that named ${esc(v.brand || 'the brand')}</span></div></div>
+          </div>
+          <div class="vfy-engines">Measured live via ${v.engines.map((e) => `<span class="chip">${esc(e)}</span>`).join(' ')}</div>
+          <div class="vsub2">Per-prompt results</div>
+          <div class="vrows">${promptRows}</div>
+          ${sov ? `<div class="vsub2">Share of voice — who got cited across these prompts</div><div class="sovlist">${sov}</div>` : ''}
+          <div class="caveat">This is a real-time sample of ${v.promptCount} prompt(s) on a single run — answer engines are non-deterministic, so treat it as a directional read, not a fixed ranking. Re-run for a fresh sample.</div>`;
+        out.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
 
       function showToast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1900); }
