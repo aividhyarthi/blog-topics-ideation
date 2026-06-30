@@ -104,6 +104,30 @@ export async function fetchApp(appId: string, lang = 'en', country = 'us'): Prom
   return normalize(app as Record<string, any>, appId);
 }
 
+export interface Market { country: string; lang: string; }
+export interface MarketListing {
+  country: string; lang: string; ok: boolean;
+  title: string; summary: string; description: string; screenshots: number; error?: string;
+}
+
+/**
+ * Fetch one app's listing across several markets (country/language). Play serves
+ * a *custom store listing* when a developer has localized/targeted copy, so
+ * comparing these reveals whether an app runs market-specific listings.
+ * Best-effort: a market that fails to load is flagged, not fatal.
+ */
+export async function fetchListingVariants(appId: string, markets: Market[]): Promise<MarketListing[]> {
+  const settled = await Promise.allSettled(markets.map((m) => fetchApp(appId, m.lang, m.country)));
+  return settled.map((r, i) => {
+    const m = markets[i];
+    if (r.status === 'fulfilled') {
+      const a = r.value;
+      return { country: m.country, lang: m.lang, ok: true, title: a.title, summary: a.summary, description: a.description, screenshots: a.screenshots.length };
+    }
+    return { country: m.country, lang: m.lang, ok: false, title: '', summary: '', description: '', screenshots: 0, error: r.reason instanceof Error ? r.reason.message : String(r.reason) };
+  });
+}
+
 /**
  * Resolve competitor apps. If `ids` are given, fetch those; otherwise ask Play
  * for apps similar to the primary app. Best-effort: failures are skipped so one

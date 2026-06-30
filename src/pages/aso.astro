@@ -316,6 +316,43 @@
       }
       function fmtNum(n) { if (n == null) return '—'; if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k'; return String(n); }
 
+      function renderVariants(data) {
+        const apps = data.apps || [];
+        if (!apps.length) return '<div class="note-warn">No apps to check.</div>';
+        const cell = (changed, baseline) => baseline
+          ? '<td class="num" style="color:var(--muted)">base</td>'
+          : `<td class="num kmark ${changed ? 'n' : 'y'}">${changed ? '✦ diff' : '✓ same'}</td>`;
+        const body = apps.map((a) => {
+          const badge = a.hasVariants
+            ? '<span class="fvrate" style="background:#e9e6fb;color:var(--indigo)">🎯 Localized listings detected</span>'
+            : '<span class="fvrate" style="background:var(--ok-bg);color:var(--ok)">Same across markets</span>';
+          const rows = (a.markets || []).map((mk) => {
+            if (!mk.ok) return `<tr><td>${esc(mk.country)}/${esc(mk.lang)}</td><td colspan="4" style="color:var(--bad);font-size:12px">couldn't load${mk.error ? ': ' + esc(mk.error) : ''}</td></tr>`;
+            return `<tr${mk.isBaseline ? ' class="me-row"' : ''}><td>${esc(mk.country)}/${esc(mk.lang)}${mk.isBaseline ? ' <span style="color:var(--pink-dark)">(base)</span>' : ''}</td>
+              ${cell(mk.titleChanged, mk.isBaseline)}${cell(mk.shortChanged, mk.isBaseline)}${cell(mk.longChanged, mk.isBaseline)}
+              <td class="num">${mk.screenshots}${mk.shotsChanged ? ' <span style="color:var(--indigo)">✦</span>' : ''}</td></tr>`;
+          }).join('');
+          return `<div style="margin-bottom:16px"><div style="font-weight:700;margin-bottom:6px">${esc(a.title)} ${badge}</div>
+            <div class="tablewrap"><table><thead><tr><th>Market</th><th class="num">Title</th><th class="num">Short</th><th class="num">Long</th><th class="num">Shots</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+        }).join('');
+        return body + '<div class="hint">✦ diff = that field differs from the base market — evidence of a localized / custom store listing. We compare title, short &amp; long description and screenshot count.</div>';
+      }
+      async function runVariants(appIds) {
+        const out = $('variantout'), btn = $('variantbtn');
+        if (!appIds || !appIds.length) { out.innerHTML = '<div class="note-warn">No app ids to check.</div>'; return; }
+        btn.disabled = true; btn.textContent = 'Checking markets…';
+        out.innerHTML = '<div class="hint">Fetching each listing across US · IN (en) · IN (hi) · GB — this can take ~15–40s for several apps.</div>';
+        try {
+          const res = await fetch('/api/aso-variants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appIds }) });
+          const data = await res.json();
+          out.innerHTML = res.ok ? renderVariants(data) : `<div class="note-bad">${esc(data.error || 'Failed to check variants.')}</div>`;
+        } catch (e) {
+          out.innerHTML = `<div class="note-bad">Network error: ${esc(e && e.message ? e.message : e)}</div>`;
+        } finally {
+          btn.disabled = false; btn.textContent = '🌍 Re-check market variants';
+        }
+      }
+
       function render(data) {
         const r = data.report, app = data.app || {}, ai = data.ai || {}, m = data.meta || {}, comps = data.competitors || [];
         const root = $('results');
@@ -444,6 +481,15 @@
             <div class="itext ${label.startsWith('Long') ? 'longtext' : ''}">${t ? esc(t) : '<span style="color:var(--muted)">(empty)</span>'}</div>
             ${t ? `<button class="ghostbtn icopy" data-copy="${esc(t)}">📋 Copy</button>` : ''}</div>`;
         };
+        const variantAppIds = [app.appId, ...comps.map((c) => c.appId)].filter(Boolean);
+        const variantSection = `
+          <div class="sectitle">🌍 Custom / localized listings <span class="sub">— does an app serve different copy by market?</span></div>
+          <div class="card">
+            <div class="hint" style="margin-bottom:10px">Play serves a <b>custom store listing</b> when a developer targets specific countries/languages/audiences. We detect the <b>country &amp; language</b> kind by fetching each listing across <b>US · IN (en) · IN (hi) · GB</b> and diffing the copy. (Install-state, URL-targeted and pre-registration listings aren't visible from outside.)</div>
+            <button class="ghostbtn" id="variantbtn">🌍 Check market variants${hasComps ? ' (you + competitors)' : ''}</button>
+            <div id="variantout" style="margin-top:12px"></div>
+          </div>`;
+
         const listingSection = `
           <div class="sectitle">📄 Listing copy <span class="sub">— the live Title / Short / Long for you${hasComps ? ' and each competitor' : ''}</span></div>
           <div class="tabgroup">
@@ -582,6 +628,7 @@
           ${leaderCard}
           ${compTable}
           ${compErr}
+          ${variantSection}
           ${listingSection}
           <div class="sectitle">📈 Market signals <span class="sub">— outcomes, shown as context (NOT in the score)</span></div>
           <div class="market">${market}</div>
@@ -602,6 +649,8 @@
         });
         const pdfBtn = $('pdfbtn');
         if (pdfBtn) pdfBtn.addEventListener('click', () => window.print());
+        const vBtn = $('variantbtn');
+        if (vBtn) vBtn.addEventListener('click', () => runVariants(variantAppIds));
         root.style.display = 'block';
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
