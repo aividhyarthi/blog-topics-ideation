@@ -92,7 +92,9 @@ function normalize(app: Record<string, any>, appId: string): AsoAppData {
     developer: app.developer || null,
     developerId: app.developerId || null,
     adSupported: typeof app.adSupported === 'boolean' ? app.adSupported : null,
-    containsAds: typeof app.containsAds === 'boolean' ? app.containsAds : null,
+    // Play exposes ads as either `containsAds` or `adSupported` depending on the
+    // listing; fall back so ad-supported free apps aren't mislabeled as just "Free".
+    containsAds: typeof app.containsAds === 'boolean' ? app.containsAds : (typeof app.adSupported === 'boolean' ? app.adSupported : null),
   };
 }
 
