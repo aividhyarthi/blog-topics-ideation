@@ -349,3 +349,48 @@ export function competitorRow(app: AsoAppData, focusKeyword?: string): Competito
     focus: keywordCoverage(app, focusKeyword),
   };
 }
+
+/**
+ * Keyword GAP: terms competitors build their listings around that the primary
+ * app does NOT use anywhere. This is the "what are they ranking for that I'm
+ * missing" view. Terms used by more competitors — and placed in their titles /
+ * short descriptions — rank higher, because that's a stronger category signal.
+ */
+export interface GapKeyword {
+  term: string;
+  competitors: number; // how many rival apps use it
+  inTitle: number; // how many put it in their title
+  inShort: number; // how many put it in their short description
+  apps: string[]; // example rival titles using it
+}
+export function keywordGap(primary: AsoAppData, competitors: AsoAppData[], limit = 12): GapKeyword[] {
+  if (!competitors.length) return [];
+  const primaryText = `${primary.title} ${primary.summary} ${primary.description}`.toLowerCase();
+  const primaryTokens = new Set(tokenize(primaryText));
+  const map = new Map<string, { apps: Set<string>; titles: Set<string>; inTitle: number; inShort: number }>();
+
+  for (const c of competitors) {
+    for (const k of extractKeywords(c, 25)) {
+      // Skip anything the primary already uses (substring or token match), and
+      // skip the competitor's own brand token (its name appears in its title).
+      if (primaryText.includes(k.term)) continue;
+      if (!k.term.includes(' ') && primaryTokens.has(k.term)) continue;
+      const brandTokens = tokenize(c.title);
+      if (!k.term.includes(' ') && brandTokens.slice(0, 1).includes(k.term)) continue;
+
+      let e = map.get(k.term);
+      if (!e) { e = { apps: new Set(), titles: new Set(), inTitle: 0, inShort: 0 }; map.set(k.term, e); }
+      if (!e.apps.has(c.appId)) { e.apps.add(c.appId); e.titles.add(c.title); }
+      if (k.inTitle) e.inTitle++;
+      if (k.inShort) e.inShort++;
+    }
+  }
+
+  return [...map.entries()]
+    .map(([term, e]) => ({ term, competitors: e.apps.size, inTitle: e.inTitle, inShort: e.inShort, apps: [...e.titles] }))
+    .sort((a, b) =>
+      b.competitors - a.competitors ||
+      (b.inTitle * 2 + b.inShort) - (a.inTitle * 2 + a.inShort) ||
+      b.term.length - a.term.length)
+    .slice(0, limit);
+}

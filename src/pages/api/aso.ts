@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { parseAppId, fetchApp, fetchCompetitors, type AsoAppData } from '../../lib/aso/fetch';
-import { auditListing, competitorRow, keywordCoverage, type AsoReport, type CompetitorRow } from '../../lib/aso/audit';
+import { auditListing, competitorRow, keywordCoverage, keywordGap, type AsoReport, type CompetitorRow, type GapKeyword } from '../../lib/aso/audit';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -38,6 +38,8 @@ interface AiResult {
   keywordTargets?: { term: string; rationale: string; covered: boolean }[];
   improvements?: { title?: string; shortDescription?: string; longDescription?: string };
   competitorTakeaway?: string;
+  gapInsight?: string;
+  leaderVerdict?: { app?: string; why?: string; copyThis?: string };
 }
 
 function buildAiPrompt(
@@ -45,6 +47,8 @@ function buildAiPrompt(
   report: AsoReport,
   competitors: CompetitorRow[],
   userFocus: string,
+  gap: GapKeyword[],
+  leader: { title: string; score: number | null; installs: string | null } | null,
 ): string {
   const fk = userFocus || report.focusKeyword || '';
   const kw = report.keywords.slice(0, 14).map((k) => `${k.term} (${k.count}×)`).join(', ');
@@ -56,6 +60,10 @@ function buildAiPrompt(
   const comp = competitors.length
     ? competitors.map((c) => `- ${c.title} — ASO ${c.overall}/100, ${c.score ?? '?'}★, installs ${c.installs ?? '?'}, focus-kw [${cov(c.focus)}]`).join('\n')
     : '(none provided)';
+  const gapLines = gap.length
+    ? gap.map((g) => `- "${g.term}" — used by ${g.competitors} competitor(s)${g.inTitle ? `, ${g.inTitle} in their title` : ''}${g.inShort ? `, ${g.inShort} in short desc` : ''} (e.g. ${g.apps.slice(0, 2).join(', ')}); THIS APP does not use it`).join('\n')
+    : '(no clear gap — primary already covers competitor keywords)';
+  const leaderLine = leader ? `${leader.title} (${leader.score ?? '?'}★, installs ${leader.installs ?? '?'})` : '(none)';
   return `You are an App Store Optimization (ASO) strategist for the Google Play Store. You optimise listings to rank for search terms AND convert browsers into installs.
 
 Be specific and calibrated. Respect Play's hard limits: title ≤30 chars, short description ≤80 chars, long description ≤4000 chars. Never keyword-stuff.
@@ -77,6 +85,10 @@ DETERMINISTIC ASO SCORE: ${report.overall}/100 (grade ${report.grade})
 COMPETITORS (with their coverage of the same focus keyword):
 ${comp}
 
+KEYWORD GAP — terms competitors build around that THIS APP is missing:
+${gapLines}
+CATEGORY LEADER (highest installs): ${leaderLine}
+
 Return ONLY valid JSON in EXACTLY this shape (no markdown, no commentary):
 {
   "focusKeyword": "the single best primary keyword this app should rank for (2-3 words max, lowercase)",
@@ -97,7 +109,13 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown, no commentary):
     "shortDescription": "an optimised short description, MAX 80 chars, keyword + benefit",
     "longDescription": "an optimised long description opening (~600-900 chars): a benefit-led lead line, then bulleted feature sections with natural keyword use. Use plain text with • bullets and line breaks."
   },
-  "competitorTakeaway": "${competitors.length ? 'Focus on the FOCUS KEYWORD: name which competitor is out-ranking this app on it and exactly why (keyword in their title vs yours, higher rating, more installs). 2-3 sentences, concrete.' : ''}"
+  "competitorTakeaway": "${competitors.length ? 'Focus on the FOCUS KEYWORD: name which competitor is out-ranking this app on it and exactly why (keyword in their title vs yours, higher rating, more installs). 2-3 sentences, concrete.' : ''}",
+  "gapInsight": "${gap.length ? '2-3 sentences: the most important keyword/positioning gaps from the KEYWORD GAP list above, what they reveal about how competitors are ranking, and which 2-3 terms this app should add to its title/short description to close the gap.' : ''}",
+  "leaderVerdict": ${leader ? `{
+    "app": "the category leader's name",
+    "why": "2-3 sentences on why this leader ranks #1 — be concrete about title keywords, the gap terms they own, rating, install volume, and freshness. Distinguish what is on-listing (copyable) vs brand/scale (not quickly copyable).",
+    "copyThis": "the 1-2 highest-leverage things this app should copy from the leader's LISTING right now"
+  }` : 'null'}
 }
 Provide 8-12 keywordTargets ranked by opportunity. Keep title ≤30 and shortDescription ≤80 characters — count carefully.`;
 }
@@ -150,6 +168,11 @@ export const POST: APIRoute = async ({ request }) => {
   }
   const competitors: CompetitorRow[] = compApps.map((a) => competitorRow(a, evalFocus));
 
+  // Keyword gap (what rivals build around that this app lacks) + the install leader.
+  const gap = keywordGap(app, compApps, 12);
+  const leader = compApps.slice().sort((a, b) =>
+    (b.minInstalls || 0) - (a.minInstalls || 0) || (b.score || 0) - (a.score || 0))[0] || null;
+
   // 4) Claude — keyword verdict + strategy + AI rewrites (best-effort).
   const apiKey = process.env.ANTHROPIC_API_KEY || import.meta.env.ANTHROPIC_API_KEY;
   let ai: AiResult = {};
@@ -161,7 +184,7 @@ export const POST: APIRoute = async ({ request }) => {
       const client = new Anthropic({ apiKey });
       const message = await client.messages.create({
         model: 'claude-sonnet-4-6', max_tokens: 2400,
-        messages: [{ role: 'user', content: buildAiPrompt(app, report, competitors, evalFocus) }],
+        messages: [{ role: 'user', content: buildAiPrompt(app, report, competitors, evalFocus, gap, leader ? { title: leader.title, score: leader.score, installs: leader.installs } : null) }],
       });
       const raw = message.content[0]?.type === 'text' ? message.content[0].text : '';
       const m = raw.match(/\{[\s\S]*\}/);
@@ -189,6 +212,8 @@ export const POST: APIRoute = async ({ request }) => {
       focus: keywordCoverage(app, evalFocus),
     },
     competitors,
+    gap,
+    leader: leader ? { title: leader.title, appId: leader.appId, url: leader.url, score: leader.score, installs: leader.installs } : null,
     ai,
     meta: { appId, lang, country, evalFocus, userGaveFocus: Boolean(focusKeyword), competitorErrors, aiError },
   });

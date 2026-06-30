@@ -117,6 +117,7 @@
       .kmark.y { color: var(--ok); } .kmark.n { color: var(--na); }
       .tablewrap { overflow-x: auto; }
       .me-row td { background: #f3f1ff; font-weight: 600; }
+      .gapcount { font-weight: 800; background: #e9e6fb; color: var(--indigo); padding: 2px 9px; border-radius: 7px; }
       .scorepill { font-weight: 800; padding: 2px 8px; border-radius: 7px; }
 
       /* AI improvement cards */
@@ -403,6 +404,31 @@
           </table></div>
           ${ai.competitorTakeaway ? `<div class="summary" style="margin-top:12px"><span class="sicon">🥊</span><div class="sbody"><b>Why they out-rank you on this keyword</b><p>${esc(ai.competitorTakeaway)}</p></div></div>` : ''}` : '';
 
+        // keyword GAP — terms rivals build around that this app is missing
+        const gap = data.gap || [];
+        const gapTable = gap.length ? `
+          <div class="sectitle">🕳️ Keyword gap vs competitors <span class="sub">— terms rivals rank around that your listing is missing</span></div>
+          ${ai.gapInsight ? `<div class="summary" style="margin:0 0 12px"><span class="sicon">🕳️</span><div class="sbody"><b>The gap</b><p>${esc(ai.gapInsight)}</p></div></div>` : ''}
+          <div class="tablewrap"><table>
+            <thead><tr><th>Missing keyword</th><th class="num">Rivals using it</th><th class="num">In their title</th><th class="num">In their short</th><th>Examples</th></tr></thead>
+            <tbody>${gap.map((g) => `<tr><td><b>${esc(g.term)}</b></td>
+              <td class="num"><span class="gapcount">${g.competitors}</span></td>
+              <td class="num kmark ${g.inTitle ? 'y' : 'n'}">${g.inTitle || '·'}</td>
+              <td class="num kmark ${g.inShort ? 'y' : 'n'}">${g.inShort || '·'}</td>
+              <td style="color:var(--muted);font-size:12px">${esc((g.apps || []).slice(0, 2).join(', '))}</td></tr>`).join('')}</tbody>
+          </table></div>` : '';
+
+        // why the install leader ranks ahead
+        const lv = ai.leaderVerdict || {};
+        const leaderName = (lv.app || (data.leader && data.leader.title) || '').trim();
+        const leaderCard = (lv.why || lv.copyThis) ? `
+          <div class="sectitle">👑 Why ${leaderName ? `“${esc(leaderName)}”` : 'the leader'} ranks ahead <span class="sub">— the category install leader</span></div>
+          <div class="card fvcard">
+            ${data.leader ? `<div class="fvhead"><span class="fvkw">${esc(data.leader.title)}</span>${data.leader.score != null ? `<span class="chip">${data.leader.score.toFixed(2)}★</span>` : ''}${data.leader.installs ? `<span class="chip">${esc(data.leader.installs)} installs</span>` : ''}</div>` : ''}
+            ${lv.why ? `<div class="fvrow"><span class="fvic alt">★</span><div><b>Why they're #1</b> ${esc(lv.why)}</div></div>` : ''}
+            ${lv.copyThis ? `<div class="fvrow"><span class="fvic ok">✓</span><div><b>Copy this now</b> ${esc(lv.copyThis)}</div></div>` : ''}
+          </div>` : '';
+
         // competitor comparison (overall ASO — primary row + competitors)
         const meRow = `<tr class="me-row"><td>${esc(app.title || m.appId)} <span style="color:var(--pink-dark)">(this app)</span></td>
           <td class="num"><span class="scorepill" style="${tintFor(r.overall)}">${r.overall}</span></td>
@@ -452,6 +478,8 @@
           ${kwTargets}
           ${kwTable}
           ${headToHead}
+          ${gapTable}
+          ${leaderCard}
           ${compTable}
           ${compErr}
           <div class="sectitle">📈 Market signals <span class="sub">— outcomes, shown as context (NOT in the score)</span></div>
