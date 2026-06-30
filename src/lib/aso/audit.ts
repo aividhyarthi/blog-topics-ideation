@@ -233,7 +233,7 @@ export function auditListing(app: AsoAppData, focusKeywordInput?: string | strin
     },
     {
       key: 'vis-shots', label: 'Screenshots', source: 'auto',
-      detail: `${shots} screenshot${shots === 1 ? '' : 's'} (Play shows up to 8; the first 2–3 drive most conversion).`,
+      detail: `${shots} screenshot${shots === 1 ? '' : 's'} across all device types (phone/tablet/Chromebook). Play allows up to 8 per device type; the first 2–3 phone shots drive most conversion.`,
       score: shots >= 6 ? 95 : shots >= 4 ? 82 : shots >= 2 ? 60 : shots === 1 ? 40 : 0,
       fix: shots < 4 ? 'Add screenshots up to 8, leading with captioned hero shots that state your top benefits.' : undefined,
     },

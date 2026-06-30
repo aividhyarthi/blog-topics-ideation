@@ -333,7 +333,7 @@
               <td class="num">${mk.screenshots}${mk.shotsChanged ? ' <span style="color:var(--indigo)">✦</span>' : ''}</td></tr>`;
           }).join('');
           return `<div style="margin-bottom:16px"><div style="font-weight:700;margin-bottom:6px">${esc(a.title)} ${badge}</div>
-            <div class="tablewrap"><table><thead><tr><th>Market</th><th class="num">Title</th><th class="num">Short</th><th class="num">Long</th><th class="num">Shots</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+            <div class="tablewrap"><table><thead><tr><th>Market</th><th class="num">Title</th><th class="num">Short</th><th class="num">Long</th><th class="num" title="Total screenshots across all device types (phone, tablet, Chromebook…). Up to 8 per device type.">Shots ⓘ</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
         }).join('');
         return body + '<div class="hint">✦ diff = that field differs from the base market — evidence of a localized / custom store listing. We compare title, short &amp; long description and screenshot count.</div>';
       }
@@ -587,7 +587,7 @@
         const compTable = comps.length ? `
           <div class="sectitle">⚔️ Competitor comparison <span class="sub">— overall ASO score applied to each rival listing</span></div>
           <div class="tablewrap"><table>
-            <thead><tr><th>App</th><th class="num">ASO</th><th class="num">Rating</th><th class="num">Installs</th><th class="num">Title len</th><th class="num">Shots</th></tr></thead>
+            <thead><tr><th>App</th><th class="num">ASO</th><th class="num">Rating</th><th class="num">Installs</th><th class="num">Title len</th><th class="num" title="Total screenshots across ALL device types (phone, tablet, Chromebook…). Play allows up to 8 per device type, so apps with tablet/Chromebook sets show 16–24+.">Shots ⓘ</th></tr></thead>
             <tbody>${meRow}${compRows}</tbody>
           </table></div>` : '';
 
