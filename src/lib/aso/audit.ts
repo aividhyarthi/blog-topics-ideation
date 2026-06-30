@@ -57,23 +57,31 @@ export function extractKeywords(app: AsoAppData, limit = 18): KeywordRow[] {
   const titleL = app.title.toLowerCase();
   const shortL = app.summary.toLowerCase();
   const longL = app.description.toLowerCase();
-  const tokens = tokenize(`${app.title} ${app.summary} ${app.description}`);
   const counts = new Map<string, number>();
-
   const bump = (term: string) => counts.set(term, (counts.get(term) || 0) + 1);
-  for (let i = 0; i < tokens.length; i++) {
-    const w = tokens[i];
-    if (!STOPWORDS.has(w)) bump(w);
-    // bigram (skip if either side is a stopword to avoid "the best")
-    if (i + 1 < tokens.length) {
-      const a = tokens[i], b = tokens[i + 1];
-      if (!STOPWORDS.has(a) && !STOPWORDS.has(b)) bump(`${a} ${b}`);
+
+  // Process each field separately so a phrase never spans a field boundary, and
+  // only keep a bigram if the two words are truly contiguous in that field's text
+  // (so "local news, breaking" never yields "news breaking" across the comma).
+  for (const fieldL of [titleL, shortL, longL]) {
+    const tokens = tokenize(fieldL);
+    for (let i = 0; i < tokens.length; i++) {
+      const w = tokens[i];
+      if (!STOPWORDS.has(w)) bump(w);
+      if (i + 1 < tokens.length) {
+        const a = tokens[i], b = tokens[i + 1];
+        if (!STOPWORDS.has(a) && !STOPWORDS.has(b) && fieldL.includes(`${a} ${b}`)) bump(`${a} ${b}`);
+      }
     }
   }
 
   return [...counts.entries()]
     .filter(([t, c]) => c >= 2 || t.includes(' '))
-    .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
+    // Multi-word phrases are the real search queries — rank them above bare words.
+    .sort((a, b) => {
+      const ap = a[0].includes(' ') ? 1 : 0, bp = b[0].includes(' ') ? 1 : 0;
+      return b[1] - a[1] || bp - ap || b[0].length - a[0].length;
+    })
     .slice(0, limit)
     .map(([term, count]) => ({
       term,
@@ -351,6 +359,40 @@ export function competitorRow(app: AsoAppData, focusKeyword?: string): Competito
 }
 
 /**
+ * Keyword MATRIX: for the important terms (your top keywords + the gap terms),
+ * who uses each one — you vs every competitor. Powers the "You vs competitors"
+ * comparison tab. `inTitle` flags the strongest placement.
+ */
+export interface MatrixRow { term: string; yours: boolean; yoursTitle: boolean; competitors: boolean[]; gap: boolean; }
+export interface KeywordMatrix { columns: string[]; rows: MatrixRow[] }
+export function keywordMatrix(primary: AsoAppData, competitors: AsoAppData[], gap: GapKeyword[], limit = 16): KeywordMatrix {
+  const fullL = (a: AsoAppData) => `${a.title} ${a.summary} ${a.description}`.toLowerCase();
+  const pLong = fullL(primary);
+  const pTitle = primary.title.toLowerCase();
+  const compLong = competitors.map(fullL);
+
+  // Rows = your strongest keywords + the gap terms (deduped, capped).
+  const terms: string[] = [];
+  const seen = new Set<string>();
+  for (const t of [...extractKeywords(primary, 12).map((k) => k.term), ...gap.map((g) => g.term)]) {
+    if (!seen.has(t)) { seen.add(t); terms.push(t); }
+    if (terms.length >= limit) break;
+  }
+
+  const rows: MatrixRow[] = terms.map((term) => {
+    const yours = pLong.includes(term);
+    return {
+      term,
+      yours,
+      yoursTitle: pTitle.includes(term),
+      competitors: compLong.map((t) => t.includes(term)),
+      gap: !yours, // you don't use it but it's on the list because a rival does
+    };
+  });
+  return { columns: competitors.map((c) => c.title), rows };
+}
+
+/**
  * Keyword GAP: terms competitors build their listings around that the primary
  * app does NOT use anywhere. This is the "what are they ranking for that I'm
  * missing" view. Terms used by more competitors — and placed in their titles /
@@ -386,11 +428,30 @@ export function keywordGap(primary: AsoAppData, competitors: AsoAppData[], limit
     }
   }
 
-  return [...map.entries()]
+  const ranked = [...map.entries()]
     .map(([term, e]) => ({ term, competitors: e.apps.size, inTitle: e.inTitle, inShort: e.inShort, apps: [...e.titles] }))
-    .sort((a, b) =>
-      b.competitors - a.competitors ||
-      (b.inTitle * 2 + b.inShort) - (a.inTitle * 2 + a.inShort) ||
-      b.term.length - a.term.length)
-    .slice(0, limit);
+    // Phrases first (they're the searchable queries), then breadth, then placement.
+    .sort((a, b) => {
+      const ap = a.term.includes(' ') ? 1 : 0, bp = b.term.includes(' ') ? 1 : 0;
+      return bp - ap ||
+        b.competitors - a.competitors ||
+        (b.inTitle * 2 + b.inShort) - (a.inTitle * 2 + a.inShort) ||
+        b.term.length - a.term.length;
+    });
+
+  // Drop bare single words once a chosen phrase already contains them, so the gap
+  // reads as "breaking news / news alerts", not "breaking, news, alerts, world".
+  const chosen: GapKeyword[] = [];
+  const phraseWords = new Set<string>();
+  for (const g of ranked) {
+    if (g.term.includes(' ')) {
+      chosen.push(g);
+      g.term.split(' ').forEach((w) => phraseWords.add(w));
+    } else if (!phraseWords.has(g.term) && g.competitors >= 2) {
+      // keep a lone word only if it's broadly used and not already inside a phrase
+      chosen.push(g);
+    }
+    if (chosen.length >= limit) break;
+  }
+  return chosen;
 }

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { parseAppId, fetchApp, fetchCompetitors, type AsoAppData } from '../../lib/aso/fetch';
-import { auditListing, competitorRow, keywordCoverage, keywordGap, type AsoReport, type CompetitorRow, type GapKeyword } from '../../lib/aso/audit';
+import { auditListing, competitorRow, keywordCoverage, keywordGap, keywordMatrix, type AsoReport, type CompetitorRow, type GapKeyword } from '../../lib/aso/audit';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -170,6 +170,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   // Keyword gap (what rivals build around that this app lacks) + the install leader.
   const gap = keywordGap(app, compApps, 12);
+  const matrix = keywordMatrix(app, compApps, gap, 16);
   const leader = compApps.slice().sort((a, b) =>
     (b.minInstalls || 0) - (a.minInstalls || 0) || (b.score || 0) - (a.score || 0))[0] || null;
 
@@ -213,6 +214,7 @@ export const POST: APIRoute = async ({ request }) => {
     },
     competitors,
     gap,
+    matrix,
     leader: leader ? { title: leader.title, appId: leader.appId, url: leader.url, score: leader.score, installs: leader.installs } : null,
     ai,
     meta: { appId, lang, country, evalFocus, userGaveFocus: Boolean(focusKeyword), competitorErrors, aiError },

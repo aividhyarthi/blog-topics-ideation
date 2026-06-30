@@ -118,6 +118,11 @@
       .tablewrap { overflow-x: auto; }
       .me-row td { background: #f3f1ff; font-weight: 600; }
       .gapcount { font-weight: 800; background: #e9e6fb; color: var(--indigo); padding: 2px 9px; border-radius: 7px; }
+      .gap-row td { background: #f6f4ff; }
+      /* keyword sub-tabs */
+      .ktabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+      .ktab { padding: 8px 14px; border-radius: 9px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 13px; font-weight: 700; color: var(--muted); }
+      .ktab.active { border-color: var(--pink); color: var(--pink); background: #f0f1fe; }
       .scorepill { font-weight: 800; padding: 2px 8px; border-radius: 7px; }
 
       /* AI improvement cards */
@@ -358,17 +363,54 @@
           <div class="sectitle">🎯 Keyword opportunities <span class="sub">— ranked by Claude for this app's audience</span></div>
           <div class="kwtargets">${kt.map((k) => `<div class="kwrow"><span class="kmk ${k.covered ? 'yes' : 'no'}">${k.covered ? '✓' : '+'}</span><div><span class="kterm">${esc(k.term)}</span> <span class="krat">— ${esc(k.rationale)}</span></div></div>`).join('')}</div>` : '';
 
-        // extracted keyword table
+        // ---- Keywords section: tabbed (Yours · You vs competitors · Gap) ----
         const kw = r.keywords || [];
-        const kwTable = kw.length ? `
-          <div class="sectitle">🔑 Keywords in the current listing <span class="sub">— extracted from title, short &amp; long description</span></div>
+        const gap = data.gap || [];
+        const matrix = data.matrix || { columns: [], rows: [] };
+        const shortName = (s) => { s = String(s || ''); return s.length > 16 ? esc(s.slice(0, 15)) + '…' : esc(s); };
+        const yn = (b, extra) => `<td class="num kmark ${b ? 'y' : 'n'}" ${extra || ''}>${b ? '✓' : '·'}</td>`;
+
+        // Pane 1 — your current listing keywords
+        const yoursPane = kw.length ? `
           <div class="tablewrap"><table>
             <thead><tr><th>Keyword</th><th class="num">Count</th><th class="num">Title</th><th class="num">Short</th><th class="num">Long</th></tr></thead>
             <tbody>${kw.map((k) => `<tr><td>${esc(k.term)}</td><td class="num">${k.count}</td>
-              <td class="num kmark ${k.inTitle ? 'y' : 'n'}">${k.inTitle ? '✓' : '·'}</td>
-              <td class="num kmark ${k.inShort ? 'y' : 'n'}">${k.inShort ? '✓' : '·'}</td>
-              <td class="num kmark ${k.inLong ? 'y' : 'n'}">${k.inLong ? '✓' : '·'}</td></tr>`).join('')}</tbody>
-          </table></div>` : '';
+              ${yn(k.inTitle)}${yn(k.inShort)}${yn(k.inLong)}</tr>`).join('')}</tbody>
+          </table></div>` : '<div class="hint" style="padding:8px">No keywords extracted.</div>';
+
+        // Pane 2 — you vs competitors matrix (✓ = the app's listing uses the term)
+        const vsPane = matrix.rows.length ? `
+          <div class="hint" style="margin-bottom:8px">✓ = the app's listing uses the term. <span style="color:var(--indigo);font-weight:700">Indigo rows</span> = a gap (rivals use it, you don't).</div>
+          <div class="tablewrap"><table>
+            <thead><tr><th>Keyword</th><th class="num">You</th>${matrix.columns.map((c) => `<th class="num" title="${esc(c)}">${shortName(c)}</th>`).join('')}</tr></thead>
+            <tbody>${matrix.rows.map((row) => `<tr${row.gap ? ' class="gap-row"' : ''}>
+              <td>${row.gap ? '<span style="color:var(--indigo);font-weight:700">' + esc(row.term) + '</span>' : esc(row.term)}</td>
+              ${yn(row.yours)}${row.competitors.map((b) => yn(b)).join('')}</tr>`).join('')}</tbody>
+          </table></div>` : '<div class="hint" style="padding:8px">Add competitors to see the comparison.</div>';
+
+        // Pane 3 — the gap (relevant terms rivals use that you don't)
+        const gapPane = gap.length ? `
+          ${ai.gapInsight ? `<div class="summary" style="margin:0 0 12px"><span class="sicon">🕳️</span><div class="sbody"><b>The gap</b><p>${esc(ai.gapInsight)}</p></div></div>` : ''}
+          <div class="tablewrap"><table>
+            <thead><tr><th>Missing keyword</th><th class="num">Rivals</th><th class="num">In title</th><th class="num">In short</th><th>Examples</th></tr></thead>
+            <tbody>${gap.map((g) => `<tr><td><b>${esc(g.term)}</b></td>
+              <td class="num"><span class="gapcount">${g.competitors}</span></td>
+              <td class="num kmark ${g.inTitle ? 'y' : 'n'}">${g.inTitle || '·'}</td>
+              <td class="num kmark ${g.inShort ? 'y' : 'n'}">${g.inShort || '·'}</td>
+              <td style="color:var(--muted);font-size:12px">${esc((g.apps || []).slice(0, 2).join(', '))}</td></tr>`).join('')}</tbody>
+          </table></div>` : '<div class="hint" style="padding:8px">No clear gap — your listing already covers the competitor keywords. 🎉</div>';
+
+        const hasComps = (comps || []).length > 0;
+        const keywordsSection = kw.length ? `
+          <div class="sectitle">🔑 Keywords <span class="sub">— yours, vs competitors, and the gap</span></div>
+          <div class="ktabs">
+            <button class="ktab active" data-ktab="yours">Your keywords</button>
+            ${hasComps ? '<button class="ktab" data-ktab="vs">You vs competitors</button>' : ''}
+            ${hasComps ? '<button class="ktab" data-ktab="gap">Gap</button>' : ''}
+          </div>
+          <div class="kpane" data-kpane="yours">${yoursPane}</div>
+          ${hasComps ? `<div class="kpane" data-kpane="vs" style="display:none">${vsPane}</div>` : ''}
+          ${hasComps ? `<div class="kpane" data-kpane="gap" style="display:none">${gapPane}</div>` : ''}` : '';
 
         // focus-keyword verdict (will it work / what won't / best alternative)
         const focusKw = data.focusKeyword || r.focusKeyword || '';
@@ -403,20 +445,6 @@
             <tbody>${h2hMe}${h2hComp}</tbody>
           </table></div>
           ${ai.competitorTakeaway ? `<div class="summary" style="margin-top:12px"><span class="sicon">🥊</span><div class="sbody"><b>Why they out-rank you on this keyword</b><p>${esc(ai.competitorTakeaway)}</p></div></div>` : ''}` : '';
-
-        // keyword GAP — terms rivals build around that this app is missing
-        const gap = data.gap || [];
-        const gapTable = gap.length ? `
-          <div class="sectitle">🕳️ Keyword gap vs competitors <span class="sub">— terms rivals rank around that your listing is missing</span></div>
-          ${ai.gapInsight ? `<div class="summary" style="margin:0 0 12px"><span class="sicon">🕳️</span><div class="sbody"><b>The gap</b><p>${esc(ai.gapInsight)}</p></div></div>` : ''}
-          <div class="tablewrap"><table>
-            <thead><tr><th>Missing keyword</th><th class="num">Rivals using it</th><th class="num">In their title</th><th class="num">In their short</th><th>Examples</th></tr></thead>
-            <tbody>${gap.map((g) => `<tr><td><b>${esc(g.term)}</b></td>
-              <td class="num"><span class="gapcount">${g.competitors}</span></td>
-              <td class="num kmark ${g.inTitle ? 'y' : 'n'}">${g.inTitle || '·'}</td>
-              <td class="num kmark ${g.inShort ? 'y' : 'n'}">${g.inShort || '·'}</td>
-              <td style="color:var(--muted);font-size:12px">${esc((g.apps || []).slice(0, 2).join(', '))}</td></tr>`).join('')}</tbody>
-          </table></div>` : '';
 
         // why the install leader ranks ahead
         const lv = ai.leaderVerdict || {};
@@ -476,9 +504,8 @@
           ${focusVerdict}
           ${improvements}
           ${kwTargets}
-          ${kwTable}
+          ${keywordsSection}
           ${headToHead}
-          ${gapTable}
           ${leaderCard}
           ${compTable}
           ${compErr}
@@ -491,6 +518,11 @@
 
         root.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.getAttribute('data-copy'))));
         root.querySelectorAll('[data-refocus]').forEach((b) => b.addEventListener('click', () => { $('focus').value = b.getAttribute('data-refocus'); run(); }));
+        root.querySelectorAll('.ktab').forEach((t) => t.addEventListener('click', () => {
+          const name = t.getAttribute('data-ktab');
+          root.querySelectorAll('.ktab').forEach((x) => x.classList.toggle('active', x === t));
+          root.querySelectorAll('.kpane').forEach((p) => { p.style.display = p.getAttribute('data-kpane') === name ? 'block' : 'none'; });
+        }));
         root.style.display = 'block';
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
