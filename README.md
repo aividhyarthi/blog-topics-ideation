@@ -69,6 +69,42 @@ and citation behaviour varies per engine, so treat the score as one composite
 signal. The publish gate is advisory; real publish-blocking would be a CMS
 integration.
 
+## ASO Inspector (`/aso`) — Google Play (Android) App Store Optimization
+
+A tool in the same app that audits a **Google Play (Android) app listing** for
+App Store Optimization. Paste a **Play Store URL** or a **package id**
+(e.g. `com.whatsapp`) and it pulls the live listing via
+[`google-play-scraper`](https://www.npmjs.com/package/google-play-scraper) and returns:
+
+- **ASO score (0–100)** with a letter grade and an optimization band
+  (Low/Medium/High). Like the AEO Auditor, the **score grades only
+  owner-editable listing fields** — title, short/long description, keyword
+  coverage, visual assets, freshness/metadata. Ratings, installs and app age
+  are reported as **market signals** (outcomes), deliberately **not** in the score.
+- **Six weighted pillars** (`src/lib/aso/audit.ts`): Title (20), Short
+  description (15), Long description (20), Keyword strategy (20), Visual assets
+  (15), Freshness &amp; metadata (10). Each pillar's signals are scored
+  deterministically against Play's hard limits (title ≤30, short ≤80, long ≤4000).
+- **Keyword analysis** — keywords extracted from the current listing (uni- and
+  bi-grams) with a coverage matrix (in title / short / long), plus Claude-ranked
+  **keyword opportunities** for the app's audience.
+- **Competitor comparison** — paste competitor package ids/URLs (or let it
+  **auto-discover similar apps**) and the same ASO scoring is applied to each
+  rival listing, side by side.
+- **AI-rewritten listing copy** — Claude proposes an optimized **title, short
+  description and long-description opening**, each within Play's character
+  limits, with one-click copy.
+- **Ranked fixes** — the lowest-scoring editable signals, ordered by estimated
+  point gain.
+
+The engine is split like the others: `src/lib/aso/fetch.ts` (scraper wrapper +
+normalization) → `src/lib/aso/audit.ts` (deterministic scoring, pure/testable) →
+`src/pages/api/aso.ts` (endpoint: fetch + audit + Claude) → `src/pages/aso.astro`
+(UI). The deterministic audit always works; the Claude layer (keyword strategy,
+rewrites, verdict) is best-effort and degrades gracefully when
+`ANTHROPIC_API_KEY` is unset. Live Play Store access is required at runtime, so
+the host's outbound network must allow `play.google.com`.
+
 ## WBR Builder (`/wbr`) — weekly AI-visibility report from SEMrush exports
 
 Turns the weekly **SEMrush AI Visibility CSV bundle** into the full Beauty/Fashion
