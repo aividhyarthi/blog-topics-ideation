@@ -5,18 +5,22 @@
 // HTTP Basic Auth when SITE_PASSWORD is set.
 //
 // PRODUCT MODE (PRODUCT_MODE=1) — the deployment serves AppRankr, the paid
-// multi-user rank tracker:
-//   - public: landing page (/), /login, /signup, auth APIs, Stripe webhook
-//   - everything else needs a session cookie; /rank + /api/rank additionally
-//     need an active subscription or a live trial
-//   - the internal Nykaa tools are not part of the product and 404
+// app-store toolkit (Rank Tracker + ASO Inspector):
+//   - public: landing page (/), /login, /signup, auth APIs, Razorpay webhook
+//   - everything else needs a session cookie; the two paid tools (/rank,
+//     /aso and their APIs) additionally need an active subscription or a
+//     live trial
+//   - the internal Nykaa tools (Blog Topic Engine, AEO Auditor, WBR Builder,
+//     Snapshot, Live AEO) are not part of the product and 404
 import { defineMiddleware } from 'astro:middleware';
 import { userFromSessionToken, readCookie, SESSION_COOKIE } from './lib/saas/auth';
 import { checkAccess } from './lib/saas/plans';
 
 const PUBLIC_PREFIXES = ['/login', '/signup', '/api/auth/', '/api/billing/webhook', '/_astro/', '/favicon', '/robots'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.
-const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/account', '/rank', '/api/auth/', '/api/billing/', '/api/rank', '/_astro/', '/favicon', '/robots'];
+const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/account', '/rank', '/aso', '/api/auth/', '/api/billing/', '/api/rank', '/api/aso', '/api/aso-variants', '/_astro/', '/favicon', '/robots'];
+// The two paid tools — gated on a live trial/subscription (checked below).
+const PAID_TOOL_PREFIXES = ['/rank', '/api/rank', '/aso', '/api/aso', '/api/aso-variants'];
 
 const isJsonRoute = (path: string) => path.startsWith('/api/');
 const json = (data: unknown, status: number) =>
@@ -46,8 +50,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
         : context.redirect(`/login?next=${encodeURIComponent(path)}`);
     }
 
-    // The tracker itself needs a live trial or an active subscription.
-    if (path === '/rank' || path.startsWith('/api/rank')) {
+    // Both paid tools need a live trial or an active subscription.
+    if (PAID_TOOL_PREFIXES.some(matches)) {
       const access = checkAccess(user.status, user.trialEndsAt);
       context.locals.access = access;
       if (!access.allowed) {

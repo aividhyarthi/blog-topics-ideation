@@ -19,7 +19,7 @@ const limitsText = product && plan
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>CiteRank — Rank Tracker</title>
+    <title>{product ? `${BRAND} — Rank Tracker` : 'CiteRank — Rank Tracker'}</title>
     <meta name="description" content="Track where your apps rank in Google Play and App Store search for your keywords, with daily history and trends." />
     <style is:global>
       :root {
@@ -144,7 +144,8 @@ const limitsText = product && plan
               movement vs the last check, keyword discovery, and top-chart positions. Checked daily.
             </p>
             <nav class="top">
-              <a href="/rank" class="active">📈 Dashboard</a>
+              <a href="/rank" class="active">🏆 Rank Tracker</a>
+              <a href="/aso">📱 ASO Inspector</a>
               <a href="/account">⚙️ Account &amp; billing</a>
             </nav>
           </>
@@ -164,7 +165,6 @@ const limitsText = product && plan
             <nav class="top">
               <a href="/aso">📱 ASO Inspector</a>
               <a href="/rank" class="active">🏆 Rank Tracker</a>
-              <a href="/measure">📡 Live AEO</a>
             </nav>
           </>
         )}

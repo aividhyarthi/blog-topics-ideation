@@ -2,6 +2,13 @@
 // ASO Inspector — Google Play (Android) App Store Optimization.
 // Scores a Play Store listing on owner-editable fields, extracts keywords,
 // compares competitors, and proposes AI-rewritten title/short/long copy.
+// Serves two audiences from one page: the internal (Nykaa) toolset, and the
+// AppRankr product (product mode: branded header, trial banner).
+import { BRAND, planOf, checkAccess } from '../lib/saas/plans';
+const product = Boolean(Astro.locals.productMode);
+const user = Astro.locals.user || null;
+const plan = user ? planOf(user.plan) : null;
+const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
 ---
 
 <!doctype html>
@@ -10,7 +17,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>CiteRank — ASO Inspector for Google Play</title>
+    <title>{product ? `${BRAND} — ASO Inspector` : 'CiteRank — ASO Inspector for Google Play'}</title>
     <meta name="description" content="Audit any Google Play (Android) app's store listing: ASO score, keyword analysis, competitor comparison and AI-rewritten title, short and long descriptions." />
     <!-- is:global so styles also apply to the results DOM injected at runtime. -->
     <style is:global>
@@ -226,21 +233,46 @@
   <body>
     <header>
       <div class="wrap">
-        <div class="brandbar">
-          <span class="logo">◆</span>
-          <span class="wordmark">CiteRank</span>
-          <span class="by">By Rudra Kasturi Inc</span>
-          <span class="aipill">✨ AI-powered</span>
-        </div>
-        <h1>ASO Inspector — Google Play</h1>
-        <p>Paste a Google Play (Android) app and get its App Store Optimization score, keyword analysis, competitor comparison, and AI-rewritten title, short and long descriptions — all from the live listing.</p>
-        <nav class="top">
-          <a href="/aso" class="active">📱 ASO Inspector</a>
-          <a href="/rank">🏆 Rank Tracker</a>
-          <a href="/measure">📡 Live AEO</a>
-        </nav>
+        {product ? (
+          <>
+            <div class="brandbar">
+              <span class="logo">▲</span>
+              <span class="wordmark">{BRAND}</span>
+              <span class="aipill" style="margin-left:auto;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);">{user?.email}</span>
+            </div>
+            <h1>ASO Inspector — Google Play</h1>
+            <p>Paste a Google Play (Android) app and get its App Store Optimization score, keyword analysis, competitor comparison, and AI-rewritten title, short and long descriptions — all from the live listing.</p>
+            <nav class="top">
+              <a href="/rank">🏆 Rank Tracker</a>
+              <a href="/aso" class="active">📱 ASO Inspector</a>
+              <a href="/account">⚙️ Account &amp; billing</a>
+            </nav>
+          </>
+        ) : (
+          <>
+            <div class="brandbar">
+              <span class="logo">◆</span>
+              <span class="wordmark">CiteRank</span>
+              <span class="by">By Rudra Kasturi Inc</span>
+              <span class="aipill">✨ AI-powered</span>
+            </div>
+            <h1>ASO Inspector — Google Play</h1>
+            <p>Paste a Google Play (Android) app and get its App Store Optimization score, keyword analysis, competitor comparison, and AI-rewritten title, short and long descriptions — all from the live listing.</p>
+            <nav class="top">
+              <a href="/aso" class="active">📱 ASO Inspector</a>
+              <a href="/rank">🏆 Rank Tracker</a>
+            </nav>
+          </>
+        )}
       </div>
     </header>
+
+    {product && access?.trialDaysLeft && (
+      <div style="background:#fff6e6;border-bottom:1px solid #f3e0b0;color:#8a5d00;font-size:13.5px;padding:9px 20px;text-align:center;">
+        ⏳ <b>{access.trialDaysLeft} day{access.trialDaysLeft === 1 ? '' : 's'}</b> left in your free trial —
+        <a href="/account" style="color:#8a5d00;font-weight:700;">choose a plan</a> to keep using ASO Inspector.
+      </div>
+    )}
 
     <main>
       <div class="wrap">
@@ -286,7 +318,9 @@
       </div>
     </main>
 
-    <footer><b>CiteRank · ASO Inspector</b> · By Rudra Kasturi Inc · live Google Play data · the score grades owner-editable listing fields; ratings &amp; installs are shown as market context</footer>
+    <footer>{product
+      ? <><b>{BRAND} · ASO Inspector</b> · live Google Play data · the score grades owner-editable listing fields; ratings &amp; installs are shown as market context</>
+      : <><b>CiteRank · ASO Inspector</b> · By Rudra Kasturi Inc · live Google Play data · the score grades owner-editable listing fields; ratings &amp; installs are shown as market context</>}</footer>
     <div class="toast" id="toast"></div>
 
     <script>
