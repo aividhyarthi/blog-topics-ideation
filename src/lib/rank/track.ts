@@ -7,6 +7,9 @@
 import gplay from 'google-play-scraper';
 import { fetchApp, type AsoAppData } from '../aso/fetch';
 
+export const MAX_KEYWORDS = 50;
+export const MAX_COMPETITORS = 5;
+
 export interface RankedApp {
   position: number; // 1-based position in the result list
   appId: string;

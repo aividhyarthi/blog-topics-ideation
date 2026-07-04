@@ -22,7 +22,12 @@ export const GET: APIRoute = async ({ params, url }) => {
     return { date, ranks };
   });
 
-  return json({ tracker, dates, run, history });
+  // The keyword list to display: for sheet-sourced trackers this comes from
+  // the last run (tracker.keywords is empty/stale — the sheet is the source
+  // of truth), for manual trackers it's the same as the static list either way.
+  const keywordList = run ? run.keywords.map((k) => k.keyword) : tracker.keywords;
+
+  return json({ tracker, dates, run, history, keywordList });
 };
 
 /** Manual "Recheck now" — same logic the daily scheduler runs automatically. */

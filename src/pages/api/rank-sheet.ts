@@ -1,14 +1,11 @@
 import type { APIRoute } from 'astro';
 import { parseAppId } from '../../lib/aso/fetch';
-import { parseCategory, trackKeywords, categoryTopChartRank, labelApp, aggregateTopCompetitors, compactKeywordResult, type KeywordRankResult, type CategoryRankResult } from '../../lib/rank/track';
+import { parseCategory, trackKeywords, categoryTopChartRank, labelApp, aggregateTopCompetitors, compactKeywordResult, MAX_KEYWORDS, MAX_COMPETITORS, type KeywordRankResult, type CategoryRankResult } from '../../lib/rank/track';
 import { hasGoogleCredentials, serviceAccountEmail, credentialsDiagnosis, getAccessToken } from '../../lib/sheets/auth';
 import { parseSheetUrl, resolveSheetTitle, findKeywordColumn, writeRankColumns, type RankColumn } from '../../lib/sheets/client';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
-
-const MAX_KEYWORDS = 50;
-const MAX_COMPETITORS = 5;
 
 /** Lets the UI show "Sheets connected" (and *why not*, if not) without exposing credentials. */
 export const GET: APIRoute = async () => {

@@ -164,10 +164,28 @@
             <label class="fld" for="t-competitors">Competitor apps <span style="font-weight:400">(one URL or package id per line, up to 5)</span></label>
             <textarea id="t-competitors" placeholder="https://play.google.com/store/apps/details?id=com.competitor.app"></textarea>
 
-            <label class="fld" for="t-keywords">Keywords <span style="font-weight:400">(one per line, up to 50)</span></label>
-            <textarea id="t-keywords" placeholder="instant loan online app
+            <div class="modehead" style="margin-top:12px">
+              <div class="modetabs">
+                <div class="modetab active" id="t-tab-manual" data-mode="manual">✍️ Paste keywords</div>
+                <div class="modetab" id="t-tab-sheet" data-mode="sheet">📄 From Google Sheet</div>
+              </div>
+              <span class="sheetstatus off" id="t-sheet-status" style="display:none">Checking…</span>
+            </div>
+
+            <div id="t-mode-manual">
+              <label class="fld" for="t-keywords">Keywords <span style="font-weight:400">(one per line, up to 50)</span></label>
+              <textarea id="t-keywords" placeholder="instant loan online app
 credit score free check
 emi calculator"></textarea>
+            </div>
+
+            <div id="t-mode-sheet" style="display:none">
+              <label class="fld" for="t-sheetUrl">Google Sheet URL</label>
+              <input id="t-sheetUrl" type="text" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=..." />
+              <label class="fld" for="t-keywordHeader">Keyword column header <span style="font-weight:400">(default — leave as is unless you change it)</span></label>
+              <input id="t-keywordHeader" type="text" value="Focused Keyword" />
+              <div class="hint">Re-reads this column from the sheet on every check (including the daily automatic one), so new keywords added there are picked up on their own. Also writes a dated rank column back into the sheet each time, like the one-off Sheet check.</div>
+            </div>
 
             <div class="three" style="margin-top:4px">
               <div>
@@ -355,7 +373,9 @@ emi calculator"></textarea>
 
       async function checkSheetStatus() {
         const badge = $('sheet-status');
+        const tBadge = $('t-sheet-status');
         badge.style.display = 'inline-block';
+        tBadge.style.display = 'inline-block';
         try {
           const res = await fetch('/api/rank-sheet');
           const data = await res.json();
@@ -363,17 +383,34 @@ emi calculator"></textarea>
           if (sheetsConnected) {
             badge.textContent = '✓ Sheets connected';
             badge.className = 'sheetstatus on';
+            tBadge.textContent = '✓ Sheets connected';
+            tBadge.className = 'sheetstatus on';
             $('sheet-hint').textContent = `Reads every non-empty cell under that column header, checks each keyword, then writes a new dated rank column per app back into this same sheet. Share the sheet (Editor access) with: ${data.serviceAccountEmail || 'the service account'}.`;
           } else {
             badge.textContent = '⚠ Sheets not connected';
             badge.className = 'sheetstatus off';
+            tBadge.textContent = '⚠ Sheets not connected';
+            tBadge.className = 'sheetstatus off';
             $('sheet-hint').textContent = data.reason || 'Google Sheets isn\'t connected on this server yet — see DEPLOY.md.';
           }
         } catch {
           badge.style.display = 'none';
+          tBadge.style.display = 'none';
         }
       }
       checkSheetStatus();
+
+      // ---- new tracker form: keyword-source mode (Paste vs Google Sheet) ----
+      let trackerFormMode = 'manual';
+      function setTrackerFormMode(next) {
+        trackerFormMode = next;
+        $('t-tab-manual').classList.toggle('active', trackerFormMode === 'manual');
+        $('t-tab-sheet').classList.toggle('active', trackerFormMode === 'sheet');
+        $('t-mode-manual').style.display = trackerFormMode === 'manual' ? 'block' : 'none';
+        $('t-mode-sheet').style.display = trackerFormMode === 'sheet' ? 'block' : 'none';
+      }
+      $('t-tab-manual').addEventListener('click', () => setTrackerFormMode('manual'));
+      $('t-tab-sheet').addEventListener('click', () => setTrackerFormMode('sheet'));
 
       function rankClass(pos) {
         if (pos == null) return 'none';
@@ -543,14 +580,19 @@ emi calculator"></textarea>
             list.innerHTML = '<div class="empty">No trackers yet — click "+ New tracker" to add your first app.</div>';
             return;
           }
-          list.innerHTML = trackers.map((t) => `
+          list.innerHTML = trackers.map((t) => {
+            const kwLabel = t.keywordSource === 'sheet'
+              ? (t.keywordCount == null ? '📄 from Sheet' : `📄 ${t.keywordCount} keyword${t.keywordCount === 1 ? '' : 's'} from Sheet`)
+              : `${t.keywordCount} keyword${t.keywordCount === 1 ? '' : 's'}`;
+            return `
             <div class="trackerrow" data-id="${esc(t.id)}">
               <div>
                 <div class="tname">${esc(t.name)}</div>
-                <div class="tmeta">${esc(t.primary)} · ${t.keywordCount} keyword${t.keywordCount === 1 ? '' : 's'}${t.competitorCount ? ' · ' + t.competitorCount + ' competitor' + (t.competitorCount === 1 ? '' : 's') : ''}</div>
+                <div class="tmeta">${esc(t.primary)} · ${kwLabel}${t.competitorCount ? ' · ' + t.competitorCount + ' competitor' + (t.competitorCount === 1 ? '' : 's') : ''}</div>
               </div>
               <div class="tlast">${t.lastRun ? 'Last checked ' + esc(t.lastRun.date) : 'Not checked yet'}</div>
-            </div>`).join('');
+            </div>`;
+          }).join('');
           list.querySelectorAll('.trackerrow').forEach((row) => {
             row.addEventListener('click', () => openTracker(row.getAttribute('data-id')));
           });
@@ -565,11 +607,13 @@ emi calculator"></textarea>
         $('tracker-form-card').style.display = show ? 'block' : 'none';
         $('tracker-list-card').style.display = show ? 'none' : 'block';
         if (show) {
-          ['t-name', 't-primary', 't-competitors', 't-keywords', 't-category'].forEach((id) => { $(id).value = ''; });
+          ['t-name', 't-primary', 't-competitors', 't-keywords', 't-category', 't-sheetUrl'].forEach((id) => { $(id).value = ''; });
+          $('t-keywordHeader').value = 'Focused Keyword';
           $('t-country').value = 'in';
           $('t-lang').value = 'en';
           $('t-err').style.display = 'none';
           $('t-info').style.display = 'none';
+          setTrackerFormMode('manual');
         }
       }
       $('new-tracker-btn').addEventListener('click', () => showTrackerForm(true));
@@ -580,13 +624,25 @@ emi calculator"></textarea>
         const name = $('t-name').value.trim();
         const primary = $('t-primary').value.trim();
         const competitors = $('t-competitors').value;
-        const keywords = $('t-keywords').value;
         const category = $('t-category').value.trim();
         const country = $('t-country').value.trim() || 'in';
         const lang = $('t-lang').value.trim() || 'en';
 
         if (!primary) { $('t-err').textContent = 'Enter your app\'s Play Store URL or package id.'; $('t-err').style.display = 'block'; return; }
-        if (!countLines(keywords)) { $('t-err').textContent = 'Add at least one keyword (one per line).'; $('t-err').style.display = 'block'; return; }
+
+        const payload = { name, primary, competitors, category, country, lang, keywordSource: trackerFormMode };
+        if (trackerFormMode === 'sheet') {
+          const sheetUrl = $('t-sheetUrl').value.trim();
+          const keywordHeader = $('t-keywordHeader').value.trim() || 'Focused Keyword';
+          if (!sheetUrl) { $('t-err').textContent = 'Paste the Google Sheet URL.'; $('t-err').style.display = 'block'; return; }
+          if (!sheetsConnected) { $('t-err').textContent = 'Google Sheets isn\'t connected on this server yet — see the badge above.'; $('t-err').style.display = 'block'; return; }
+          payload.sheetUrl = sheetUrl;
+          payload.keywordHeader = keywordHeader;
+        } else {
+          const keywords = $('t-keywords').value;
+          if (!countLines(keywords)) { $('t-err').textContent = 'Add at least one keyword (one per line).'; $('t-err').style.display = 'block'; return; }
+          payload.keywords = keywords;
+        }
 
         const btn = $('save-tracker-btn');
         btn.disabled = true;
@@ -598,7 +654,7 @@ emi calculator"></textarea>
           const res = await fetch('/api/trackers', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, primary, competitors, keywords, category, country, lang }),
+            body: JSON.stringify(payload),
           });
           const data = await res.json();
           if (!res.ok) {
@@ -645,10 +701,19 @@ emi calculator"></textarea>
 
       function renderTrackerDetail(data) {
         const t = data.tracker;
+        const keywordList = data.keywordList || t.keywords || [];
         $('detail-name').textContent = t.name;
-        $('detail-meta').textContent = `${t.primary} · ${t.keywords.length} keyword(s)${t.competitors.length ? ' · vs ' + t.competitors.length + ' competitor(s)' : ''}${t.category ? ' · category ' + t.category : ''} · ${t.country.toUpperCase()}/${t.lang}`;
+        const kwMeta = t.keywordSource === 'sheet'
+          ? `📄 ${keywordList.length} keyword(s) from Google Sheet ("${t.keywordHeader}" column)`
+          : `${keywordList.length} keyword(s)`;
+        $('detail-meta').textContent = `${t.primary} · ${kwMeta}${t.competitors.length ? ' · vs ' + t.competitors.length + ' competitor(s)' : ''}${t.category ? ' · category ' + t.category : ''} · ${t.country.toUpperCase()}/${t.lang}`;
 
         const run = data.run;
+        if (run && run.sheetError) {
+          $('detail-err').textContent = run.sheetError;
+          $('detail-err').style.display = 'block';
+        }
+
         if (!run) {
           $('detail-lastchecked').textContent = '— not checked yet';
           $('detail-kw-thead').innerHTML = '';
@@ -682,7 +747,7 @@ emi calculator"></textarea>
           $('detail-hist-tbody').innerHTML = '<tr><td>No history yet — check back after the first automatic run.</td></tr>';
         } else {
           $('detail-hist-thead').innerHTML = '<th>Keyword</th>' + history.map((h) => `<th class="histcell">${esc(h.date)}</th>`).join('');
-          $('detail-hist-tbody').innerHTML = t.keywords.map((kw) => {
+          $('detail-hist-tbody').innerHTML = keywordList.map((kw) => {
             const cells = history.map((h) => {
               const pos = Object.prototype.hasOwnProperty.call(h.ranks, kw) ? h.ranks[kw] : undefined;
               return `<td class="histcell">${pos === undefined ? '–' : `<span class="rankpill ${rankClass(pos)}">${rankLabel(pos)}</span>`}</td>`;

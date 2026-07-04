@@ -9,12 +9,17 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { AppLabel, CompactKeywordRankResult, CategoryRankResult, TopCompetitor } from './track';
 
+export const DEFAULT_KEYWORD_HEADER = 'Focused Keyword';
+
 export interface Tracker {
   id: string;
   name: string;
   primary: string; // appId
   competitors: string[]; // appIds
-  keywords: string[];
+  keywordSource: 'manual' | 'sheet';
+  keywords: string[]; // used when keywordSource === 'manual'
+  sheetUrl: string | null; // used when keywordSource === 'sheet'
+  keywordHeader: string; // column header to read keywords from — defaults to "Focused Keyword" and stays that way unless changed
   category: string | null;
   country: string;
   lang: string;
@@ -29,6 +34,7 @@ export interface TrackerRun {
   keywords: CompactKeywordRankResult[]; // raw per-keyword result lists already stripped — see compactKeywordResult
   category: CategoryRankResult | null;
   topCompetitors: TopCompetitor[];
+  sheetError?: string; // set if this tracker reads from a Sheet and that read/write failed
 }
 
 function dataDir(): string {

@@ -114,7 +114,7 @@ app's position in a category's Top Free chart (a separate, non-keyword
 signal — Play doesn't expose "rank within category X for keyword Y" as one
 lookup).
 
-### Saved Trackers (the default view) — checks itself, no setup
+### Saved Trackers (the default view) — checks itself, no setup required
 
 Save your app, competitors, and keyword list **once** and the tool checks
 it **automatically every day** on its own (an in-process scheduler, no
@@ -125,27 +125,34 @@ under `RANK_DATA_DIR` (point it at a Railway Volume so it survives
 redeploys, same pattern as `WBR_DATA_DIR`; defaults to `./.rank-data`,
 lost on redeploy without a Volume).
 
-### One-off Check — no saving, two ways to feed it keywords
+Each tracker's keyword list comes from either:
+- **Paste keywords** — a static list, one per line. No Google setup needed.
+- **From Google Sheet** — point it at a Google Sheet once; the tracker
+  **re-reads the `Focused Keyword` column fresh on every check** (including
+  the automatic daily one), so new keywords added to the sheet are picked
+  up on their own — no need to edit the tracker. It also writes that day's
+  ranks back into the sheet as a `Rank (2026-07-04)` column per app, same
+  as the one-off Sheet check. `Focused Keyword` is the permanent default
+  column name (matches the existing ASO tracker sheets) — only change it if
+  a sheet uses a different header. Requires the Google service account
+  setup in `DEPLOY.md`.
 
-- **Paste keywords** — one per line, straight into the page.
-- **From Google Sheet** — paste a Google Sheet URL and the column header the
-  keywords live under (default `Focused Keyword`); the tool reads every
-  non-empty cell under that header, checks each one, then **writes a new
-  dated rank column per app back into the same sheet** (e.g. `CRED rank
-  (2026-07-04)`). Requires the optional Google service account setup in
-  `DEPLOY.md` — skip it if you don't need this; paste-keywords mode and
-  Saved Trackers both work fully without it.
+### One-off Check — same two keyword sources, nothing saved
+
+Runs once and shows the result without creating a Saved Tracker — useful
+for a quick check. Same **Paste keywords** / **From Google Sheet** choice
+as above.
 
 Engine: `src/lib/rank/track.ts` (Play search + category chart, via
 `google-play-scraper`), `src/lib/rank/store.ts` + `runner.ts` +
-`scheduler.ts` (saved trackers, daily runs, JSON history), and
-`src/lib/sheets/` (a minimal Google Sheets v4 REST client + service-account
-auth — deliberately not the full `googleapis` SDK) →
-`src/pages/api/trackers/`, `src/pages/api/rank.ts`,
+`scheduler.ts` (saved trackers, daily runs including live Sheet re-reads,
+JSON history), and `src/lib/sheets/` (a minimal Google Sheets v4 REST
+client + service-account auth — deliberately not the full `googleapis`
+SDK) → `src/pages/api/trackers/`, `src/pages/api/rank.ts`,
 `src/pages/api/rank-sheet.ts` → `src/pages/rank.astro`. Like the ASO
-Inspector, this needs live outbound access to `play.google.com`; the
-Sheets mode also needs `sheets.googleapis.com` and
-`oauth2.googleapis.com` reachable.
+Inspector, this needs live outbound access to `play.google.com`; Sheet
+mode also needs `sheets.googleapis.com` and `oauth2.googleapis.com`
+reachable.
 
 ## WBR Builder (`/wbr`) — weekly AI-visibility report from SEMrush exports
 
