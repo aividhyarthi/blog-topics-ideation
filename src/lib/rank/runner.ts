@@ -14,7 +14,7 @@ export async function runTracker(tracker: Tracker): Promise<TrackerRun> {
   ]);
 
   const keywords = await trackKeywords(tracker.keywords, targetAppIds, {
-    country: tracker.country, lang: tracker.lang, num: 100,
+    country: tracker.country, lang: tracker.lang, num: 250,
   });
 
   let category = null;

@@ -83,7 +83,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   let keywordResults: KeywordRankResult[] = [];
   try {
-    keywordResults = await trackKeywords(keywords, targetAppIds, { country, lang, num: 100 });
+    keywordResults = await trackKeywords(keywords, targetAppIds, { country, lang, num: 250 });
   } catch (e) {
     return json({ error: `Keyword search failed: ${e instanceof Error ? e.message : String(e)}` }, 502);
   }

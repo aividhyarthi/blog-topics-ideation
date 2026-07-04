@@ -204,6 +204,7 @@ emi calculator"></textarea>
             <div class="alert err" id="detail-err"></div>
 
             <div class="sectitle">🔎 Latest rankings <span class="sub" id="detail-lastchecked"></span></div>
+            <p class="hint" style="margin:-4px 0 10px">Checks up to position <b>250</b> in Play's live search results per keyword. "Not found" means the app isn't in the top 250 for that exact term.</p>
             <div class="tablewrap"><table id="detail-kw-table">
               <thead><tr id="detail-kw-thead"></tr></thead>
               <tbody id="detail-kw-tbody"></tbody>
@@ -282,9 +283,10 @@ emi calculator"></textarea>
           <div class="legend">
             <span class="rankpill top">1–10</span>
             <span class="rankpill mid">11–30</span>
-            <span class="rankpill low">31+</span>
+            <span class="rankpill low">31–250</span>
             <span class="rankpill none">Not found</span>
           </div>
+          <p class="hint" style="margin:-4px 0 10px">Checks up to position <b>250</b> in Play's live search results for each keyword (Play's own scraping ceiling — it doesn't expose deeper results). "Not found" means the app isn't in the top 250 for that exact term, in the chosen country/language.</p>
           <div class="tablewrap"><table id="kw-table">
             <thead><tr id="kw-thead"></tr></thead>
             <tbody id="kw-tbody"></tbody>

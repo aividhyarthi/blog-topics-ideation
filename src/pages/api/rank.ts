@@ -44,7 +44,7 @@ export const POST: APIRoute = async ({ request }) => {
   // Keyword search rank — one request per keyword, run sequentially (Play throttles bursts).
   let keywordResults: KeywordRankResult[] = [];
   try {
-    keywordResults = await trackKeywords(keywordsToRun, targetAppIds, { country, lang, num: 100 });
+    keywordResults = await trackKeywords(keywordsToRun, targetAppIds, { country, lang, num: 250 });
   } catch (e) {
     return json({ error: `Keyword search failed: ${e instanceof Error ? e.message : String(e)}` }, 502);
   }
