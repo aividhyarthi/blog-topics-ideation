@@ -79,6 +79,16 @@
       .caveat { margin-top: 20px; font-size: 12px; color: var(--muted); background: #eef0f7; border-radius: 12px; padding: 12px 14px; }
       .caveat b { color: var(--ink); }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 26px; }
+
+      .modetabs { display: flex; gap: 8px; margin-bottom: 4px; }
+      .modetab { padding: 8px 14px; border-radius: 9px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 13px; font-weight: 700; color: var(--muted); }
+      .modetab.active { border-color: var(--pink); color: var(--pink); background: #f0f1fe; }
+      .sheetstatus { font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; margin-left: auto; }
+      .sheetstatus.on { background: var(--ok-bg); color: var(--ok); }
+      .sheetstatus.off { background: var(--warn-bg); color: var(--warn); }
+      .modehead { display: flex; align-items: center; gap: 10px; }
+      .writeback { margin-top: 16px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; background: var(--ok-bg); color: #0d6b48; border: 1px solid #bfe8d5; display: none; }
+      .writeback a { color: #0d6b48; font-weight: 700; }
     </style>
   </head>
   <body>
@@ -106,6 +116,14 @@
     <main>
       <div class="wrap">
         <div class="card" id="inputcard">
+          <div class="modehead">
+            <div class="modetabs">
+              <div class="modetab active" id="tab-manual" data-mode="manual">✍️ Paste keywords</div>
+              <div class="modetab" id="tab-sheet" data-mode="sheet">📄 From Google Sheet</div>
+            </div>
+            <span class="sheetstatus off" id="sheet-status" style="display:none">Checking…</span>
+          </div>
+
           <label class="fld" for="primary">Your app — Play Store URL or package id</label>
           <input id="primary" type="text" placeholder="https://play.google.com/store/apps/details?id=com.dreamplug.androidapp" />
 
@@ -113,11 +131,25 @@
           <textarea id="competitors" placeholder="https://play.google.com/store/apps/details?id=com.competitor.app
 com.another.competitor"></textarea>
 
-          <label class="fld" for="keywords">Keywords <span style="font-weight:400">(one per line, up to 25)</span></label>
-          <textarea id="keywords" placeholder="instant loan online app
+          <div id="mode-manual">
+            <label class="fld" for="keywords">Keywords <span style="font-weight:400">(one per line, up to 25)</span></label>
+            <textarea id="keywords" placeholder="instant loan online app
 credit score free check
 emi calculator"></textarea>
-          <div class="hint" id="kw-count">0 keywords</div>
+            <div class="hint" id="kw-count">0 keywords</div>
+          </div>
+
+          <div id="mode-sheet" style="display:none">
+            <label class="fld" for="sheetUrl">Google Sheet URL</label>
+            <input id="sheetUrl" type="text" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=..." />
+            <div class="two" style="margin-top:4px">
+              <div>
+                <label class="fld" for="keywordHeader">Keyword column header</label>
+                <input id="keywordHeader" type="text" value="Focused Keyword" />
+              </div>
+            </div>
+            <div class="hint" id="sheet-hint">Reads every non-empty cell under that column header, checks each keyword, then writes a new dated rank column per app back into this same sheet. The sheet must be shared (Editor access) with the service account below.</div>
+          </div>
 
           <div class="three" style="margin-top:4px">
             <div>
@@ -142,6 +174,7 @@ emi calculator"></textarea>
         </div>
 
         <section id="results">
+          <div class="writeback" id="writeback"></div>
           <div class="sectitle">🔎 Keyword search rank <span class="sub">— position in Play's live search results for each keyword</span></div>
           <div class="legend">
             <span class="rankpill top">1–10</span>
@@ -172,6 +205,8 @@ emi calculator"></textarea>
 
     <script>
       const $ = (id) => document.getElementById(id);
+      let mode = 'manual';
+      let sheetsConnected = false;
 
       function esc(s) {
         return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -186,6 +221,40 @@ emi calculator"></textarea>
       function hideAlerts() { $('err').style.display = 'none'; $('info').style.display = 'none'; }
       function showErr(msg) { const e = $('err'); e.textContent = msg; e.style.display = 'block'; }
 
+      function setMode(next) {
+        mode = next;
+        $('tab-manual').classList.toggle('active', mode === 'manual');
+        $('tab-sheet').classList.toggle('active', mode === 'sheet');
+        $('mode-manual').style.display = mode === 'manual' ? 'block' : 'none';
+        $('mode-sheet').style.display = mode === 'sheet' ? 'block' : 'none';
+        $('go').textContent = mode === 'sheet' ? 'Check rankings & write to sheet' : 'Check rankings';
+        $('writeback').style.display = 'none';
+      }
+      $('tab-manual').addEventListener('click', () => setMode('manual'));
+      $('tab-sheet').addEventListener('click', () => setMode('sheet'));
+
+      async function checkSheetStatus() {
+        const badge = $('sheet-status');
+        badge.style.display = 'inline-block';
+        try {
+          const res = await fetch('/api/rank-sheet');
+          const data = await res.json();
+          sheetsConnected = Boolean(data.connected);
+          if (sheetsConnected) {
+            badge.textContent = '✓ Sheets connected';
+            badge.className = 'sheetstatus on';
+            $('sheet-hint').textContent = `Reads every non-empty cell under that column header, checks each keyword, then writes a new dated rank column per app back into this same sheet. Share the sheet (Editor access) with: ${data.serviceAccountEmail || 'the service account'}.`;
+          } else {
+            badge.textContent = '⚠ Sheets not connected';
+            badge.className = 'sheetstatus off';
+            $('sheet-hint').textContent = 'Google Sheets isn\'t connected on this server yet — set GOOGLE_SERVICE_ACCOUNT_JSON (or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) in your environment. See DEPLOY.md.';
+          }
+        } catch {
+          badge.style.display = 'none';
+        }
+      }
+      checkSheetStatus();
+
       function rankClass(pos) {
         if (pos == null) return 'none';
         if (pos <= 10) return 'top';
@@ -196,6 +265,14 @@ emi calculator"></textarea>
 
       function render(data) {
         const apps = [data.primary, ...data.competitors];
+
+        const wb = $('writeback');
+        if (data.sheetUrl) {
+          wb.style.display = 'block';
+          wb.innerHTML = `✅ Wrote ${esc((data.writtenColumns || []).join(', '))} into <a href="${esc(data.sheetUrl)}" target="_blank" rel="noopener">${esc(data.sheetTitle || 'the sheet')}</a>.`;
+        } else {
+          wb.style.display = 'none';
+        }
 
         // Keyword table header
         const thead = $('kw-thead');
@@ -250,29 +327,45 @@ emi calculator"></textarea>
         hideAlerts();
         const primary = $('primary').value.trim();
         const competitors = $('competitors').value;
-        const keywords = $('keywords').value;
         const category = $('category').value.trim();
         const country = $('country').value.trim() || 'in';
         const lang = $('lang').value.trim() || 'en';
 
         if (!primary) { showErr('Enter your app\'s Play Store URL or package id.'); return; }
-        if (!countLines(keywords)) { showErr('Add at least one keyword (one per line).'); return; }
+
+        let endpoint = '/api/rank';
+        let payload = {};
+        if (mode === 'sheet') {
+          const sheetUrl = $('sheetUrl').value.trim();
+          const keywordHeader = $('keywordHeader').value.trim() || 'Focused Keyword';
+          if (!sheetUrl) { showErr('Paste the Google Sheet URL.'); return; }
+          if (!sheetsConnected) { showErr('Google Sheets isn\'t connected on this server yet — see the hint below the tabs.'); return; }
+          endpoint = '/api/rank-sheet';
+          payload = { primary, competitors, sheetUrl, keywordHeader, category, country, lang };
+        } else {
+          const keywords = $('keywords').value;
+          if (!countLines(keywords)) { showErr('Add at least one keyword (one per line).'); return; }
+          payload = { primary, competitors, keywords, category, country, lang };
+        }
 
         const btn = $('go');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span>Checking Play Store search results…';
-        $('info').textContent = 'Querying Play Store for each keyword — this runs one at a time and can take a while for many keywords.';
+        btn.innerHTML = '<span class="spinner"></span>' + (mode === 'sheet' ? 'Reading sheet & checking rankings…' : 'Checking Play Store search results…');
+        $('info').textContent = mode === 'sheet'
+          ? 'Reading keywords from the sheet, querying Play Store one keyword at a time, then writing the results back — this can take a while for many keywords.'
+          : 'Querying Play Store for each keyword — this runs one at a time and can take a while for many keywords.';
         $('info').style.display = 'block';
 
         try {
-          const res = await fetch('/api/rank', {
+          const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ primary, competitors, keywords, category, country, lang }),
+            body: JSON.stringify(payload),
           });
           const data = await res.json();
           if (!res.ok) {
             showErr(data.error || 'Something went wrong. Please try again.');
+            if (data.keywords) render(data);
           } else {
             hideAlerts();
             render(data);
@@ -281,7 +374,7 @@ emi calculator"></textarea>
           showErr('Network error: ' + (e && e.message ? e.message : e));
         } finally {
           btn.disabled = false;
-          btn.textContent = 'Check rankings';
+          btn.textContent = mode === 'sheet' ? 'Check rankings & write to sheet' : 'Check rankings';
         }
       }
 

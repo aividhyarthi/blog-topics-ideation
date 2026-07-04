@@ -105,6 +105,32 @@ rewrites, verdict) is best-effort and degrades gracefully when
 `ANTHROPIC_API_KEY` is unset. Live Play Store access is required at runtime, so
 the host's outbound network must allow `play.google.com`.
 
+## Rank Tracker (`/rank`) — Google Play keyword rank vs competitors
+
+Given **your app + competitor apps + a list of keywords**, checks each
+keyword against Play's live search results and reports where every app
+actually shows up (position, or "not found"). Optionally also checks each
+app's position in a category's Top Free chart (a separate, non-keyword
+signal — Play doesn't expose "rank within category X for keyword Y" as one
+lookup).
+
+Two ways to feed it keywords:
+- **Paste keywords** — one per line, straight into the page.
+- **From Google Sheet** — paste a Google Sheet URL and the column header the
+  keywords live under (default `Focused Keyword`); the tool reads every
+  non-empty cell under that header, checks each one, then **writes a new
+  dated rank column per app back into the same sheet** (e.g. `CRED rank
+  (2026-07-04)`). Requires the optional Google service account setup in
+  `DEPLOY.md` — without it, paste-keywords mode still works fully.
+
+Engine: `src/lib/rank/track.ts` (Play search + category chart, via
+`google-play-scraper`) and `src/lib/sheets/` (a minimal Google Sheets v4
+REST client + service-account auth — deliberately not the full `googleapis`
+SDK) → `src/pages/api/rank.ts` / `src/pages/api/rank-sheet.ts` →
+`src/pages/rank.astro`. Like the ASO Inspector, this needs live outbound
+access to `play.google.com`; the Sheets mode also needs
+`sheets.googleapis.com` and `oauth2.googleapis.com` reachable.
+
 ## WBR Builder (`/wbr`) — weekly AI-visibility report from SEMrush exports
 
 Turns the weekly **SEMrush AI Visibility CSV bundle** into the full Beauty/Fashion
@@ -177,6 +203,7 @@ Run it against a local folder of CSVs with
 | `SITE_USER`          | no       | Username for the password gate. Defaults to `nykaa`. |
 | `ANTHROPIC_API_KEY`  | for AI features | Server-side Claude key. Needed for the AEO Auditor's AI signals and the WBR Claude fallback. Never exposed to the browser. |
 | `WBR_DATA_DIR`       | for WoW trends | Folder where the WBR saves each week's snapshot so it can show week-over-week change. Point it at a **Railway Volume** mount (e.g. `/data`) so history survives redeploys. Defaults to `./.wbr-data` (lost on redeploy). |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | for Rank Tracker's Sheets mode | Full JSON key of a Google service account, used to read keywords from and write rank results into your Google Sheets. See `DEPLOY.md` for setup. Alternatively set `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`. Without it, `/rank`'s paste-keywords mode still works fully. |
 | `PORT`               | no       | Defaults to `4321` (set by Railway).   |
 
 ## Run locally

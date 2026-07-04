@@ -5,6 +5,7 @@
 //   - keyword search rank  -> gplay.search(term)   (what most people mean by "ASO rank")
 //   - category top-chart rank -> gplay.list(category) (installs/engagement chart, NOT keyword-specific)
 import gplay from 'google-play-scraper';
+import { fetchApp, type AsoAppData } from '../aso/fetch';
 
 export interface RankedApp {
   position: number; // 1-based position in the result list
@@ -112,6 +113,18 @@ export async function categoryTopChartRank(
       ranks: ranksFor([], targetAppIds),
       error: e instanceof Error ? e.message : String(e),
     };
+  }
+}
+
+export interface AppLabel { appId: string; title: string; url: string; found: boolean }
+
+/** Resolve an appId to a display title/url. Best-effort — an unresolvable id still gets a usable label. */
+export async function labelApp(appId: string, lang: string, country: string): Promise<AppLabel> {
+  try {
+    const app: AsoAppData = await fetchApp(appId, lang, country);
+    return { appId, title: app.title, url: app.url, found: true };
+  } catch {
+    return { appId, title: appId, url: `https://play.google.com/store/apps/details?id=${appId}`, found: false };
   }
 }
 

@@ -52,6 +52,38 @@ That's it. Visit (you'll be asked for the password once):
 
 ---
 
+## Connecting the Rank Tracker to Google Sheets (optional)
+
+The **Rank Tracker** (`/rank`) can read keywords straight from a Google Sheet
+and write the results back into it as new dated columns, instead of you
+pasting keywords by hand. This needs a **Google service account** — a
+headless robot identity, not your personal Google login — because the server
+has no browser to show you a Google sign-in screen.
+
+1. In **Google Cloud Console**, create (or reuse) a project, then enable the
+   **Google Sheets API** for it (APIs & Services → Library → search "Google
+   Sheets API" → Enable).
+2. **IAM & Admin → Service Accounts → Create Service Account.** Any name is
+   fine (e.g. `rank-tracker`). No project roles are needed — access is
+   granted per-sheet in step 4, not at the project level.
+3. Open the new service account → **Keys → Add Key → Create new key → JSON**.
+   This downloads a `.json` file — treat it like a password.
+4. **Share every Google Sheet you want the tracker to read/write** with the
+   service account's email (it looks like
+   `rank-tracker@your-project.iam.gserviceaccount.com`, shown on the service
+   account's page) — same as sharing a sheet with a coworker. Give it
+   **Editor** access since it writes rank columns back.
+5. Back in **Railway → your service → Variables**, add:
+   - `GOOGLE_SERVICE_ACCOUNT_JSON` → paste the **entire contents** of the
+     downloaded JSON file as one variable. (Alternatively, set
+     `GOOGLE_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
+     separately if you'd rather not paste a JSON blob.)
+6. Redeploy. Open `/rank` — the "From Google Sheet" tab shows a green
+   "✓ Sheets connected" badge once the variable is picked up.
+
+Without this variable, `/rank` still works fully in **paste-keywords mode** —
+the Sheets connection is optional, only needed for the "From Google Sheet" tab.
+
 ## After the first setup
 
 Railway watches the branch you picked. Every time new code lands on that branch,

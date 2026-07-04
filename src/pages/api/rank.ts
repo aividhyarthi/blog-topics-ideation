@@ -1,23 +1,12 @@
 import type { APIRoute } from 'astro';
-import { parseAppId, fetchApp, type AsoAppData } from '../../lib/aso/fetch';
-import { parseCategory, trackKeywords, categoryTopChartRank, type KeywordRankResult, type CategoryRankResult } from '../../lib/rank/track';
+import { parseAppId } from '../../lib/aso/fetch';
+import { parseCategory, trackKeywords, categoryTopChartRank, labelApp, type KeywordRankResult, type CategoryRankResult } from '../../lib/rank/track';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
 const MAX_KEYWORDS = 25;
 const MAX_COMPETITORS = 5;
-
-interface AppLabel { appId: string; title: string; url: string; found: boolean }
-
-async function labelApp(appId: string, lang: string, country: string): Promise<AppLabel> {
-  try {
-    const app: AsoAppData = await fetchApp(appId, lang, country);
-    return { appId, title: app.title, url: app.url, found: true };
-  } catch {
-    return { appId, title: appId, url: `https://play.google.com/store/apps/details?id=${appId}`, found: false };
-  }
-}
 
 export const POST: APIRoute = async ({ request }) => {
   let body: { primary?: string; competitors?: string; keywords?: string; category?: string; lang?: string; country?: string };
