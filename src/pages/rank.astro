@@ -89,6 +89,26 @@
       .modehead { display: flex; align-items: center; gap: 10px; }
       .writeback { margin-top: 16px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; background: var(--ok-bg); color: #0d6b48; border: 1px solid #bfe8d5; display: none; }
       .writeback a { color: #0d6b48; font-weight: 700; }
+
+      .pagetabs { display: flex; gap: 10px; margin-bottom: 18px; }
+      .pagetab { padding: 10px 18px; border-radius: 10px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 14px; font-weight: 700; color: var(--muted); }
+      .pagetab.active { border-color: var(--pink); color: var(--pink); background: #f0f1fe; }
+      .trackerlist { display: grid; gap: 10px; margin-top: 10px; }
+      .trackerrow { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; cursor: pointer; }
+      .trackerrow:hover { border-color: var(--pink); }
+      .trackerrow .tname { font-weight: 800; font-size: 14.5px; }
+      .trackerrow .tmeta { font-size: 12px; color: var(--muted); }
+      .trackerrow .tlast { margin-left: auto; font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
+      .empty { text-align: center; color: var(--muted); font-size: 13.5px; padding: 30px 10px; }
+      .cardhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      .cardhead h3 { margin: 0; font-size: 16px; }
+      .backlink { color: var(--pink-dark); font-weight: 700; font-size: 13px; cursor: pointer; }
+      .detailhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+      .detailhead h2 { margin: 0; font-size: 19px; }
+      .detailactions { margin-left: auto; display: flex; gap: 8px; }
+      .dangerbtn { background: #fff; color: var(--bad); border: 1px solid #f6c9c6; border-radius: 9px; padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+      .dangerbtn:hover { background: var(--bad-bg); }
+      .histcell { text-align: center; }
     </style>
   </head>
   <body>
@@ -100,7 +120,7 @@
           <span class="by">By Rudra Kasturi Inc</span>
         </div>
         <h1>Keyword Rank Tracker — Google Play</h1>
-        <p>Enter your app, its competitors, and a list of keywords. This checks Play's live search results for each keyword and reports where every app actually shows up — plus, optionally, each app's position in a category's Top Free chart.</p>
+        <p>Save your app, its competitors, and a list of keywords once — the tool checks Play's live search results automatically every day and keeps the history, so you can just come back and see where you rank.</p>
         <nav class="top">
           <a href="/">✍️ Topic Engine</a>
           <a href="/audit">🔎 AEO Auditor</a>
@@ -115,6 +135,89 @@
 
     <main>
       <div class="wrap">
+        <div class="pagetabs">
+          <div class="pagetab active" id="pagetab-trackers" data-page="trackers">📌 Saved Trackers</div>
+          <div class="pagetab" id="pagetab-oneoff" data-page="oneoff">🔍 One-off Check</div>
+        </div>
+
+        <div id="page-trackers">
+          <div class="card" id="tracker-list-card">
+            <div class="cardhead">
+              <h3>Your trackers</h3>
+              <button class="primary" id="new-tracker-btn" style="padding:9px 16px;font-size:13.5px">+ New tracker</button>
+            </div>
+            <p class="hint" style="margin-top:6px">Each tracker is checked automatically once a day. No setup beyond saving it here — no Sheets, no service account.</p>
+            <div class="trackerlist" id="tracker-list"><div class="empty">Loading…</div></div>
+          </div>
+
+          <div class="card" id="tracker-form-card" style="display:none;margin-top:16px">
+            <div class="cardhead">
+              <h3>New tracker</h3>
+              <span class="backlink" id="cancel-tracker-form">Cancel</span>
+            </div>
+            <label class="fld" for="t-name">Name <span style="font-weight:400">(just a label for you)</span></label>
+            <input id="t-name" type="text" placeholder="e.g. CRED" />
+
+            <label class="fld" for="t-primary">Your app — Play Store URL or package id</label>
+            <input id="t-primary" type="text" placeholder="https://play.google.com/store/apps/details?id=com.dreamplug.androidapp" />
+
+            <label class="fld" for="t-competitors">Competitor apps <span style="font-weight:400">(one URL or package id per line, up to 5)</span></label>
+            <textarea id="t-competitors" placeholder="https://play.google.com/store/apps/details?id=com.competitor.app"></textarea>
+
+            <label class="fld" for="t-keywords">Keywords <span style="font-weight:400">(one per line, up to 25)</span></label>
+            <textarea id="t-keywords" placeholder="instant loan online app
+credit score free check
+emi calculator"></textarea>
+
+            <div class="three" style="margin-top:4px">
+              <div>
+                <label class="fld" for="t-category">Category <span style="font-weight:400">(optional)</span></label>
+                <input id="t-category" type="text" placeholder="FINANCE" />
+              </div>
+              <div>
+                <label class="fld" for="t-country">Country</label>
+                <input id="t-country" type="text" value="in" />
+              </div>
+              <div>
+                <label class="fld" for="t-lang">Language</label>
+                <input id="t-lang" type="text" value="en" />
+              </div>
+            </div>
+
+            <div class="row">
+              <button class="primary" id="save-tracker-btn">Save & check now</button>
+            </div>
+            <div class="alert err" id="t-err"></div>
+            <div class="alert info" id="t-info"></div>
+          </div>
+
+          <div id="tracker-detail" style="display:none;margin-top:16px">
+            <div class="detailhead">
+              <span class="backlink" id="detail-back">← All trackers</span>
+              <h2 id="detail-name"></h2>
+              <div class="detailactions">
+                <button class="ghostbtn" id="detail-recheck">🔄 Recheck now</button>
+                <button class="dangerbtn" id="detail-delete">Delete</button>
+              </div>
+            </div>
+            <p class="hint" id="detail-meta"></p>
+            <div class="alert err" id="detail-err"></div>
+
+            <div class="sectitle">🔎 Latest rankings <span class="sub" id="detail-lastchecked"></span></div>
+            <div class="tablewrap"><table id="detail-kw-table">
+              <thead><tr id="detail-kw-thead"></tr></thead>
+              <tbody id="detail-kw-tbody"></tbody>
+            </table></div>
+
+            <div class="sectitle">📈 History <span class="sub">— your app's rank per keyword, one column per day checked</span></div>
+            <div class="tablewrap"><table id="detail-hist-table">
+              <thead><tr id="detail-hist-thead"></tr></thead>
+              <tbody id="detail-hist-tbody"></tbody>
+            </table></div>
+          </div>
+        </div>
+
+        <div id="page-oneoff" style="display:none">
         <div class="card" id="inputcard">
           <div class="modehead">
             <div class="modetabs">
@@ -198,6 +301,7 @@ emi calculator"></textarea>
 
           <div class="caveat" id="caveat"></div>
         </section>
+        </div>
       </div>
     </main>
 
@@ -380,6 +484,212 @@ emi calculator"></textarea>
       }
 
       $('go').addEventListener('click', run);
+
+      // ---- page-level tabs (Saved Trackers vs One-off Check) ----
+      function setPage(page) {
+        $('pagetab-trackers').classList.toggle('active', page === 'trackers');
+        $('pagetab-oneoff').classList.toggle('active', page === 'oneoff');
+        $('page-trackers').style.display = page === 'trackers' ? 'block' : 'none';
+        $('page-oneoff').style.display = page === 'oneoff' ? 'block' : 'none';
+      }
+      $('pagetab-trackers').addEventListener('click', () => setPage('trackers'));
+      $('pagetab-oneoff').addEventListener('click', () => setPage('oneoff'));
+
+      // ---- saved trackers list ----
+      let trackers = [];
+
+      async function loadTrackers() {
+        const list = $('tracker-list');
+        try {
+          const res = await fetch('/api/trackers');
+          const data = await res.json();
+          trackers = data.trackers || [];
+          if (!trackers.length) {
+            list.innerHTML = '<div class="empty">No trackers yet — click "+ New tracker" to add your first app.</div>';
+            return;
+          }
+          list.innerHTML = trackers.map((t) => `
+            <div class="trackerrow" data-id="${esc(t.id)}">
+              <div>
+                <div class="tname">${esc(t.name)}</div>
+                <div class="tmeta">${esc(t.primary)} · ${t.keywordCount} keyword${t.keywordCount === 1 ? '' : 's'}${t.competitorCount ? ' · ' + t.competitorCount + ' competitor' + (t.competitorCount === 1 ? '' : 's') : ''}</div>
+              </div>
+              <div class="tlast">${t.lastRun ? 'Last checked ' + esc(t.lastRun.date) : 'Not checked yet'}</div>
+            </div>`).join('');
+          list.querySelectorAll('.trackerrow').forEach((row) => {
+            row.addEventListener('click', () => openTracker(row.getAttribute('data-id')));
+          });
+        } catch (e) {
+          list.innerHTML = '<div class="empty">Couldn\'t load trackers: ' + esc(e && e.message ? e.message : e) + '</div>';
+        }
+      }
+      loadTrackers();
+
+      // ---- new tracker form ----
+      function showTrackerForm(show) {
+        $('tracker-form-card').style.display = show ? 'block' : 'none';
+        $('tracker-list-card').style.display = show ? 'none' : 'block';
+        if (show) {
+          ['t-name', 't-primary', 't-competitors', 't-keywords', 't-category'].forEach((id) => { $(id).value = ''; });
+          $('t-country').value = 'in';
+          $('t-lang').value = 'en';
+          $('t-err').style.display = 'none';
+          $('t-info').style.display = 'none';
+        }
+      }
+      $('new-tracker-btn').addEventListener('click', () => showTrackerForm(true));
+      $('cancel-tracker-form').addEventListener('click', () => showTrackerForm(false));
+
+      $('save-tracker-btn').addEventListener('click', async () => {
+        $('t-err').style.display = 'none';
+        const name = $('t-name').value.trim();
+        const primary = $('t-primary').value.trim();
+        const competitors = $('t-competitors').value;
+        const keywords = $('t-keywords').value;
+        const category = $('t-category').value.trim();
+        const country = $('t-country').value.trim() || 'in';
+        const lang = $('t-lang').value.trim() || 'en';
+
+        if (!primary) { $('t-err').textContent = 'Enter your app\'s Play Store URL or package id.'; $('t-err').style.display = 'block'; return; }
+        if (!countLines(keywords)) { $('t-err').textContent = 'Add at least one keyword (one per line).'; $('t-err').style.display = 'block'; return; }
+
+        const btn = $('save-tracker-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Saving & checking…';
+        $('t-info').textContent = 'Saving the tracker and running the first check now — this can take a bit for many keywords.';
+        $('t-info').style.display = 'block';
+
+        try {
+          const res = await fetch('/api/trackers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, primary, competitors, keywords, category, country, lang }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            $('t-err').textContent = data.error || 'Something went wrong.';
+            $('t-err').style.display = 'block';
+            $('t-info').style.display = 'none';
+            return;
+          }
+          showTrackerForm(false);
+          await loadTrackers();
+          openTracker(data.tracker.id);
+        } catch (e) {
+          $('t-err').textContent = 'Network error: ' + (e && e.message ? e.message : e);
+          $('t-err').style.display = 'block';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Save & check now';
+          $('t-info').style.display = 'none';
+        }
+      });
+
+      // ---- tracker detail ----
+      let currentTrackerId = null;
+
+      async function openTracker(id) {
+        currentTrackerId = id;
+        $('tracker-list-card').style.display = 'none';
+        $('tracker-form-card').style.display = 'none';
+        $('tracker-detail').style.display = 'block';
+        $('detail-err').style.display = 'none';
+        $('detail-name').textContent = 'Loading…';
+        $('detail-kw-tbody').innerHTML = '';
+        $('detail-hist-tbody').innerHTML = '';
+        try {
+          const res = await fetch('/api/trackers/' + id);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to load tracker.');
+          renderTrackerDetail(data);
+        } catch (e) {
+          $('detail-err').textContent = e && e.message ? e.message : String(e);
+          $('detail-err').style.display = 'block';
+        }
+      }
+
+      function renderTrackerDetail(data) {
+        const t = data.tracker;
+        $('detail-name').textContent = t.name;
+        $('detail-meta').textContent = `${t.primary} · ${t.keywords.length} keyword(s)${t.competitors.length ? ' · vs ' + t.competitors.length + ' competitor(s)' : ''}${t.category ? ' · category ' + t.category : ''} · ${t.country.toUpperCase()}/${t.lang}`;
+
+        const run = data.run;
+        if (!run) {
+          $('detail-lastchecked').textContent = '— not checked yet';
+          $('detail-kw-thead').innerHTML = '';
+          $('detail-kw-tbody').innerHTML = '<tr><td>No data yet — click Recheck now.</td></tr>';
+        } else {
+          $('detail-lastchecked').textContent = '— as of ' + run.date;
+          const apps = [run.primary, ...run.competitors];
+          $('detail-kw-thead').innerHTML = '<th>Keyword</th>' + apps.map((a, i) => `
+            <th class="${i === 0 ? 'me-col' : ''}">
+              <div class="apphead">
+                <span class="atitle">${esc(a.title)}${i === 0 ? ' (you)' : ''}</span>
+                <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.appId)}</a>
+              </div>
+            </th>`).join('');
+          $('detail-kw-tbody').innerHTML = run.keywords.map((k) => {
+            const cells = apps.map((a, i) => {
+              if (k.error) return `<td class="rankcell ${i === 0 ? 'me-col' : ''}"><span class="rankpill err" title="${esc(k.error)}">error</span></td>`;
+              const pos = k.ranks[a.appId];
+              return `<td class="rankcell ${i === 0 ? 'me-col' : ''}"><span class="rankpill ${rankClass(pos)}">${rankLabel(pos)}</span></td>`;
+            }).join('');
+            return `<tr><td class="kwcell">${esc(k.keyword)}</td>${cells}</tr>`;
+          }).join('');
+        }
+
+        // History: rows = keywords, columns = dates (oldest -> newest), cell = primary app's rank that day.
+        const history = data.history || [];
+        if (!history.length) {
+          $('detail-hist-thead').innerHTML = '';
+          $('detail-hist-tbody').innerHTML = '<tr><td>No history yet — check back after the first automatic run.</td></tr>';
+        } else {
+          $('detail-hist-thead').innerHTML = '<th>Keyword</th>' + history.map((h) => `<th class="histcell">${esc(h.date)}</th>`).join('');
+          $('detail-hist-tbody').innerHTML = t.keywords.map((kw) => {
+            const cells = history.map((h) => {
+              const pos = Object.prototype.hasOwnProperty.call(h.ranks, kw) ? h.ranks[kw] : undefined;
+              return `<td class="histcell">${pos === undefined ? '–' : `<span class="rankpill ${rankClass(pos)}">${rankLabel(pos)}</span>`}</td>`;
+            }).join('');
+            return `<tr><td class="kwcell">${esc(kw)}</td>${cells}</tr>`;
+          }).join('');
+        }
+      }
+
+      $('detail-back').addEventListener('click', () => {
+        $('tracker-detail').style.display = 'none';
+        $('tracker-list-card').style.display = 'block';
+        loadTrackers();
+      });
+
+      $('detail-recheck').addEventListener('click', async () => {
+        if (!currentTrackerId) return;
+        const btn = $('detail-recheck');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Checking…';
+        try {
+          const res = await fetch('/api/trackers/' + currentTrackerId, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Recheck failed.');
+          await openTracker(currentTrackerId);
+        } catch (e) {
+          $('detail-err').textContent = e && e.message ? e.message : String(e);
+          $('detail-err').style.display = 'block';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '🔄 Recheck now';
+        }
+      });
+
+      $('detail-delete').addEventListener('click', async () => {
+        if (!currentTrackerId) return;
+        if (!confirm('Delete this tracker and all its history?')) return;
+        try {
+          await fetch('/api/trackers/' + currentTrackerId, { method: 'DELETE' });
+        } catch {}
+        $('tracker-detail').style.display = 'none';
+        $('tracker-list-card').style.display = 'block';
+        loadTrackers();
+      });
     </script>
   </body>
 </html>

@@ -5,6 +5,11 @@
 // If SITE_PASSWORD is NOT set, the site stays open (handy for local dev) — so
 // always set it on the deployed (Railway) environment.
 import { defineMiddleware } from 'astro:middleware';
+import { startScheduler } from './lib/rank/scheduler';
+
+// Kicks off the Rank Tracker's daily auto-check loop once per server process.
+// Module-level (not per-request) — this file is loaded once at server boot.
+startScheduler();
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const password = process.env.SITE_PASSWORD;

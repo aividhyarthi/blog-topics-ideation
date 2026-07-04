@@ -7,3 +7,5 @@ dist/
 .data/
 # Local week-over-week history store (use a Railway Volume in prod)
 .wbr-data/
+# Local rank tracker store (use a Railway Volume in prod)
+.rank-data/

@@ -37,10 +37,14 @@ tools will be live on that one project's URL.
    - `WBR_DATA_DIR` → `/data`. This is where the WBR remembers each week so it can
      show week-over-week change. Pair it with a Volume (next step) so it survives
      redeploys.
+   - `RANK_DATA_DIR` → `/data`. This is where the Rank Tracker's **Saved
+     Trackers** keep their config + daily rank history. Same Volume as
+     `WBR_DATA_DIR` works fine (they write to different subfolders) — just
+     point both at the same mount path.
    - **Do NOT add a `PORT` variable** — Railway sets that automatically.
-7. **Add a Volume for the weekly history** (so saved weeks aren't lost on redeploy):
+7. **Add a Volume** (so saved weeks and saved trackers aren't lost on redeploy):
    open the service → **Variables/Settings → Volumes → New Volume**, and set the
-   **mount path** to `/data` (matching `WBR_DATA_DIR`). One-time setup.
+   **mount path** to `/data` (matching `WBR_DATA_DIR` and `RANK_DATA_DIR`). One-time setup.
 8. Railway builds and deploys. When it's done, open **Settings → Networking →
    Generate Domain** to get a public URL.
 

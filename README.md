@@ -114,22 +114,38 @@ app's position in a category's Top Free chart (a separate, non-keyword
 signal — Play doesn't expose "rank within category X for keyword Y" as one
 lookup).
 
-Two ways to feed it keywords:
+### Saved Trackers (the default view) — checks itself, no setup
+
+Save your app, competitors, and keyword list **once** and the tool checks
+it **automatically every day** on its own (an in-process scheduler, no
+external cron or config needed) and keeps a per-keyword rank history —
+open the tracker any time to see the trend. A "Recheck now" button forces
+an immediate check between automatic runs. History is stored as JSON files
+under `RANK_DATA_DIR` (point it at a Railway Volume so it survives
+redeploys, same pattern as `WBR_DATA_DIR`; defaults to `./.rank-data`,
+lost on redeploy without a Volume).
+
+### One-off Check — no saving, two ways to feed it keywords
+
 - **Paste keywords** — one per line, straight into the page.
 - **From Google Sheet** — paste a Google Sheet URL and the column header the
   keywords live under (default `Focused Keyword`); the tool reads every
   non-empty cell under that header, checks each one, then **writes a new
   dated rank column per app back into the same sheet** (e.g. `CRED rank
   (2026-07-04)`). Requires the optional Google service account setup in
-  `DEPLOY.md` — without it, paste-keywords mode still works fully.
+  `DEPLOY.md` — skip it if you don't need this; paste-keywords mode and
+  Saved Trackers both work fully without it.
 
 Engine: `src/lib/rank/track.ts` (Play search + category chart, via
-`google-play-scraper`) and `src/lib/sheets/` (a minimal Google Sheets v4
-REST client + service-account auth — deliberately not the full `googleapis`
-SDK) → `src/pages/api/rank.ts` / `src/pages/api/rank-sheet.ts` →
-`src/pages/rank.astro`. Like the ASO Inspector, this needs live outbound
-access to `play.google.com`; the Sheets mode also needs
-`sheets.googleapis.com` and `oauth2.googleapis.com` reachable.
+`google-play-scraper`), `src/lib/rank/store.ts` + `runner.ts` +
+`scheduler.ts` (saved trackers, daily runs, JSON history), and
+`src/lib/sheets/` (a minimal Google Sheets v4 REST client + service-account
+auth — deliberately not the full `googleapis` SDK) →
+`src/pages/api/trackers/`, `src/pages/api/rank.ts`,
+`src/pages/api/rank-sheet.ts` → `src/pages/rank.astro`. Like the ASO
+Inspector, this needs live outbound access to `play.google.com`; the
+Sheets mode also needs `sheets.googleapis.com` and
+`oauth2.googleapis.com` reachable.
 
 ## WBR Builder (`/wbr`) — weekly AI-visibility report from SEMrush exports
 
@@ -203,7 +219,8 @@ Run it against a local folder of CSVs with
 | `SITE_USER`          | no       | Username for the password gate. Defaults to `nykaa`. |
 | `ANTHROPIC_API_KEY`  | for AI features | Server-side Claude key. Needed for the AEO Auditor's AI signals and the WBR Claude fallback. Never exposed to the browser. |
 | `WBR_DATA_DIR`       | for WoW trends | Folder where the WBR saves each week's snapshot so it can show week-over-week change. Point it at a **Railway Volume** mount (e.g. `/data`) so history survives redeploys. Defaults to `./.wbr-data` (lost on redeploy). |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | for Rank Tracker's Sheets mode | Full JSON key of a Google service account, used to read keywords from and write rank results into your Google Sheets. See `DEPLOY.md` for setup. Alternatively set `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`. Without it, `/rank`'s paste-keywords mode still works fully. |
+| `RANK_DATA_DIR`      | for Saved Trackers' history | Folder where the Rank Tracker saves each saved tracker + its daily runs. Point it at a **Railway Volume** mount so trackers and rank history survive redeploys. Defaults to `./.rank-data` (lost on redeploy). |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | for Rank Tracker's Sheets mode | Full JSON key of a Google service account, used to read keywords from and write rank results into your Google Sheets. See `DEPLOY.md` for setup. Alternatively set `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`. Optional — Saved Trackers and paste-keywords mode both work fully without it. |
 | `PORT`               | no       | Defaults to `4321` (set by Railway).   |
 
 ## Run locally
