@@ -1,11 +1,11 @@
 import type { APIRoute } from 'astro';
 import { parseAppId } from '../../lib/aso/fetch';
-import { parseCategory, trackKeywords, categoryTopChartRank, labelApp, type KeywordRankResult, type CategoryRankResult } from '../../lib/rank/track';
+import { parseCategory, trackKeywords, categoryTopChartRank, labelApp, aggregateTopCompetitors, compactKeywordResult, type KeywordRankResult, type CategoryRankResult } from '../../lib/rank/track';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
-const MAX_KEYWORDS = 25;
+const MAX_KEYWORDS = 50;
 const MAX_COMPETITORS = 5;
 
 export const POST: APIRoute = async ({ request }) => {
@@ -61,12 +61,14 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const keywordErrors = keywordResults.filter((k) => k.error).length;
+  const topCompetitors = aggregateTopCompetitors(keywordResults, targetAppIds);
 
   return json({
     primary,
     competitors,
-    keywords: keywordResults,
+    keywords: keywordResults.map(compactKeywordResult),
     category,
+    topCompetitors,
     meta: {
       country, lang,
       keywordCount: keywords.length,

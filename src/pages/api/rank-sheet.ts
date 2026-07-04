@@ -1,13 +1,13 @@
 import type { APIRoute } from 'astro';
 import { parseAppId } from '../../lib/aso/fetch';
-import { parseCategory, trackKeywords, categoryTopChartRank, labelApp, type KeywordRankResult, type CategoryRankResult } from '../../lib/rank/track';
+import { parseCategory, trackKeywords, categoryTopChartRank, labelApp, aggregateTopCompetitors, compactKeywordResult, type KeywordRankResult, type CategoryRankResult } from '../../lib/rank/track';
 import { hasGoogleCredentials, serviceAccountEmail, credentialsDiagnosis, getAccessToken } from '../../lib/sheets/auth';
 import { parseSheetUrl, resolveSheetTitle, findKeywordColumn, writeRankColumns, type RankColumn } from '../../lib/sheets/client';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
-const MAX_KEYWORDS = 25;
+const MAX_KEYWORDS = 50;
 const MAX_COMPETITORS = 5;
 
 /** Lets the UI show "Sheets connected" (and *why not*, if not) without exposing credentials. */
@@ -107,7 +107,7 @@ export const POST: APIRoute = async ({ request }) => {
       const kr = keywordResults[i];
       valuesByRow[r.row] = kr.error ? 'error' : (kr.ranks[a.appId] != null ? String(kr.ranks[a.appId]) : 'Not found');
     });
-    return { header: `${a.title} rank (${dateStr})`, valuesByRow };
+    return { header: `Rank (${dateStr})`, valuesByRow };
   });
 
   try {
@@ -115,12 +115,13 @@ export const POST: APIRoute = async ({ request }) => {
   } catch (e) {
     return json({
       error: `Ranked ${keywords.length} keyword(s) but couldn't write the results back to the sheet: ${e instanceof Error ? e.message : String(e)}`,
-      primary, competitors, keywords: keywordResults, category,
+      primary, competitors, keywords: keywordResults.map(compactKeywordResult), category,
       meta: { keywordCount: keywordCol.rows.length, keywordsRun: rowsToRun.length, truncated, country, lang },
     }, 502);
   }
 
   const keywordErrors = keywordResults.filter((k) => k.error).length;
+  const topCompetitors = aggregateTopCompetitors(keywordResults, targetAppIds);
 
   return json({
     sheetUrl: `https://docs.google.com/spreadsheets/d/${sheet.spreadsheetId}/edit${sheet.gid != null ? `#gid=${sheet.gid}` : ''}`,
@@ -128,8 +129,9 @@ export const POST: APIRoute = async ({ request }) => {
     writtenColumns: columns.map((c) => c.header),
     primary,
     competitors,
-    keywords: keywordResults,
+    keywords: keywordResults.map(compactKeywordResult),
     category,
+    topCompetitors,
     meta: {
       country, lang,
       keywordCount: keywordCol.rows.length,

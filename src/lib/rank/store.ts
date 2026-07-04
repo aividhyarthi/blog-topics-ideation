@@ -7,7 +7,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { AppLabel, KeywordRankResult, CategoryRankResult } from './track';
+import type { AppLabel, CompactKeywordRankResult, CategoryRankResult, TopCompetitor } from './track';
 
 export interface Tracker {
   id: string;
@@ -26,8 +26,9 @@ export interface TrackerRun {
   ranAt: string; // ISO timestamp
   primary: AppLabel;
   competitors: AppLabel[];
-  keywords: KeywordRankResult[];
+  keywords: CompactKeywordRankResult[]; // raw per-keyword result lists already stripped — see compactKeywordResult
   category: CategoryRankResult | null;
+  topCompetitors: TopCompetitor[];
 }
 
 function dataDir(): string {

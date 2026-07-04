@@ -140,3 +140,62 @@ export async function trackKeywords(
   }
   return out;
 }
+
+export interface TopCompetitor {
+  appId: string;
+  title: string;
+  appearances: number; // # of the checked keywords where this app placed in the top `positionThreshold`
+  outOf: number; // total keywords considered (successful searches only)
+  avgPosition: number;
+  bestPosition: number;
+}
+
+/**
+ * Which OTHER apps (not the ones you're already tracking) keep showing up
+ * near the top across your keyword list — i.e. who's actually dominating
+ * these search terms, whether or not you added them as a competitor.
+ * Ranked by how often they appear in the top `positionThreshold`, then by
+ * how high up they tend to be.
+ */
+export function aggregateTopCompetitors(
+  keywordResults: KeywordRankResult[],
+  excludeAppIds: string[],
+  opts: { topN?: number; positionThreshold?: number } = {},
+): TopCompetitor[] {
+  const topN = opts.topN ?? 5;
+  const threshold = opts.positionThreshold ?? 10;
+  const exclude = new Set(excludeAppIds);
+  const tally = new Map<string, { title: string; positions: number[] }>();
+  const outOf = keywordResults.filter((k) => !k.error).length;
+
+  for (const kr of keywordResults) {
+    if (kr.error) continue;
+    for (const r of kr.results) {
+      if (r.position > threshold) break; // results are already position-ordered
+      if (exclude.has(r.appId)) continue;
+      const entry = tally.get(r.appId) || { title: r.title, positions: [] };
+      entry.positions.push(r.position);
+      tally.set(r.appId, entry);
+    }
+  }
+
+  return Array.from(tally.entries())
+    .map(([appId, v]) => ({
+      appId,
+      title: v.title,
+      appearances: v.positions.length,
+      outOf,
+      avgPosition: Math.round((v.positions.reduce((a, b) => a + b, 0) / v.positions.length) * 10) / 10,
+      bestPosition: Math.min(...v.positions),
+    }))
+    .sort((a, b) => b.appearances - a.appearances || a.avgPosition - b.avgPosition)
+    .slice(0, topN);
+}
+
+export type CompactKeywordRankResult = Omit<KeywordRankResult, 'results'>;
+
+/** Drops the raw (up to 250-entry) result list once ranks + top competitors are computed from it — no reason to carry that weight into a saved run or an API response. */
+export function compactKeywordResult(kr: KeywordRankResult): CompactKeywordRankResult {
+  const { results, ...rest } = kr;
+  return rest;
+}

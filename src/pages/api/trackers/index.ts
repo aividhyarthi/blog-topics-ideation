@@ -7,7 +7,7 @@ import { runTracker } from '../../../lib/rank/runner';
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
-const MAX_KEYWORDS = 25;
+const MAX_KEYWORDS = 50;
 const MAX_COMPETITORS = 5;
 
 export const GET: APIRoute = async () => {

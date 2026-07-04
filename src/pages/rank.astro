@@ -164,7 +164,7 @@
             <label class="fld" for="t-competitors">Competitor apps <span style="font-weight:400">(one URL or package id per line, up to 5)</span></label>
             <textarea id="t-competitors" placeholder="https://play.google.com/store/apps/details?id=com.competitor.app"></textarea>
 
-            <label class="fld" for="t-keywords">Keywords <span style="font-weight:400">(one per line, up to 25)</span></label>
+            <label class="fld" for="t-keywords">Keywords <span style="font-weight:400">(one per line, up to 50)</span></label>
             <textarea id="t-keywords" placeholder="instant loan online app
 credit score free check
 emi calculator"></textarea>
@@ -210,6 +210,12 @@ emi calculator"></textarea>
               <tbody id="detail-kw-tbody"></tbody>
             </table></div>
 
+            <div class="sectitle">🏁 Top competing apps <span class="sub">— apps you didn't add, that keep showing up near the top of your keywords</span></div>
+            <div class="tablewrap"><table id="detail-comp-table">
+              <thead><tr><th>App</th><th class="rankcell">Appears in</th><th class="rankcell">Avg. position</th><th class="rankcell">Best position</th></tr></thead>
+              <tbody id="detail-comp-tbody"></tbody>
+            </table></div>
+
             <div class="sectitle">📈 History <span class="sub">— your app's rank per keyword, one column per day checked</span></div>
             <div class="tablewrap"><table id="detail-hist-table">
               <thead><tr id="detail-hist-thead"></tr></thead>
@@ -236,7 +242,7 @@ emi calculator"></textarea>
 com.another.competitor"></textarea>
 
           <div id="mode-manual">
-            <label class="fld" for="keywords">Keywords <span style="font-weight:400">(one per line, up to 25)</span></label>
+            <label class="fld" for="keywords">Keywords <span style="font-weight:400">(one per line, up to 50)</span></label>
             <textarea id="keywords" placeholder="instant loan online app
 credit score free check
 emi calculator"></textarea>
@@ -298,6 +304,14 @@ emi calculator"></textarea>
             <div class="tablewrap"><table id="cat-table">
               <thead><tr><th>App</th><th class="rankcell">Chart position</th></tr></thead>
               <tbody id="cat-tbody"></tbody>
+            </table></div>
+          </div>
+
+          <div id="comp-section" style="display:none">
+            <div class="sectitle">🏁 Top competing apps <span class="sub">— apps you didn't add, that keep showing up near the top of your keywords</span></div>
+            <div class="tablewrap"><table id="comp-table">
+              <thead><tr><th>App</th><th class="rankcell">Appears in</th><th class="rankcell">Avg. position</th><th class="rankcell">Best position</th></tr></thead>
+              <tbody id="comp-tbody"></tbody>
             </table></div>
           </div>
 
@@ -369,6 +383,23 @@ emi calculator"></textarea>
       }
       function rankLabel(pos) { return pos == null ? 'Not found' : '#' + pos; }
 
+      function renderTopCompetitors(tbodyId, sectionId, list) {
+        const section = sectionId ? $(sectionId) : null;
+        if (!list || !list.length) {
+          if (section) { section.style.display = 'none'; $(tbodyId).innerHTML = ''; }
+          else { $(tbodyId).innerHTML = '<tr><td colspan="4">No other apps showed up in the top 10 across these keywords.</td></tr>'; }
+          return;
+        }
+        if (section) section.style.display = 'block';
+        $(tbodyId).innerHTML = list.map((c) => `
+          <tr>
+            <td><a href="https://play.google.com/store/apps/details?id=${esc(c.appId)}" target="_blank" rel="noopener">${esc(c.title)}</a></td>
+            <td class="rankcell">${c.appearances}/${c.outOf}</td>
+            <td class="rankcell">${c.avgPosition}</td>
+            <td class="rankcell">#${c.bestPosition}</td>
+          </tr>`).join('');
+      }
+
       function render(data) {
         const apps = [data.primary, ...data.competitors];
 
@@ -417,6 +448,8 @@ emi calculator"></textarea>
         } else {
           catSection.style.display = 'none';
         }
+
+        renderTopCompetitors('comp-tbody', 'comp-section', data.topCompetitors);
 
         // Caveats
         const notes = [];
@@ -639,6 +672,8 @@ emi calculator"></textarea>
             return `<tr><td class="kwcell">${esc(k.keyword)}</td>${cells}</tr>`;
           }).join('');
         }
+
+        renderTopCompetitors('detail-comp-tbody', null, run ? run.topCompetitors : []);
 
         // History: rows = keywords, columns = dates (oldest -> newest), cell = primary app's rank that day.
         const history = data.history || [];

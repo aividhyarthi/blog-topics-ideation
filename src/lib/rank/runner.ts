@@ -2,7 +2,7 @@
 // category chart if set, and saves the result as that day's run. Shared by
 // the manual "Recheck now" button and the automatic daily scheduler so both
 // paths produce identical, comparable history entries.
-import { labelApp, trackKeywords, categoryTopChartRank } from './track';
+import { labelApp, trackKeywords, categoryTopChartRank, aggregateTopCompetitors, compactKeywordResult } from './track';
 import { saveRun, type Tracker, type TrackerRun } from './store';
 
 export async function runTracker(tracker: Tracker): Promise<TrackerRun> {
@@ -16,6 +16,7 @@ export async function runTracker(tracker: Tracker): Promise<TrackerRun> {
   const keywords = await trackKeywords(tracker.keywords, targetAppIds, {
     country: tracker.country, lang: tracker.lang, num: 250,
   });
+  const topCompetitors = aggregateTopCompetitors(keywords, targetAppIds);
 
   let category = null;
   if (tracker.category) {
@@ -27,7 +28,9 @@ export async function runTracker(tracker: Tracker): Promise<TrackerRun> {
   const run: TrackerRun = {
     date: new Date().toISOString().slice(0, 10),
     ranAt: new Date().toISOString(),
-    primary, competitors, keywords, category,
+    primary, competitors,
+    keywords: keywords.map(compactKeywordResult),
+    category, topCompetitors,
   };
   saveRun(tracker.id, run);
   return run;
