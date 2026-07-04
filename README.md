@@ -141,6 +141,15 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
   (mount a Railway Volume so it persists). Check on demand from the UI, or run
   `npx tsx scripts/rank-check.ts` on a **daily cron** (Railway cron schedule
   `0 6 * * *`) so trends accrue automatically.
+
+  ⚠️ **Set the cron up as its own separate Railway service** (a second service
+  in the same project, pointed at this same repo), and set its Start Command
+  (`npx tsx scripts/rank-check.ts`) **only in that service's own dashboard
+  Settings → Deploy**. Do **not** put it in the repo's `railway.json`
+  `startCommand` — that file is shared by every service built from this repo,
+  so editing it there overrides the *website's* start command too and takes
+  the whole site down (`node dist/server/entry.mjs` is the correct value for
+  `railway.json`; it must stay as the website's command).
 - **Export CSV** of the current ranking table.
 
 Data sources are keyless and free: `google-play-scraper` (already used by
