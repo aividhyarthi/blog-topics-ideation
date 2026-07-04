@@ -65,6 +65,7 @@ export interface KeywordColumn {
   colIndex: number; // 1-indexed
   rows: { row: number; keyword: string }[]; // non-empty cells below the header, in sheet order
   lastCol: number; // widest row in the sheet, 1-indexed — new columns start after this
+  skippedDuplicateHeader: number; // cells that just repeated the header text — ignored, not counted as keywords
 }
 
 /**
@@ -96,14 +97,20 @@ export async function findKeywordColumn(
 
   const rows: { row: number; keyword: string }[] = [];
   let lastCol = 0;
+  let skippedDuplicateHeader = 0;
   for (let r = 0; r < values.length; r++) {
     lastCol = Math.max(lastCol, (values[r] || []).length);
     if (r + 1 <= headerRow) continue;
     const cell = (values[r] || [])[colIndex - 1];
     const keyword = String(cell ?? '').trim();
-    if (keyword) rows.push({ row: r + 1, keyword });
+    if (!keyword) continue;
+    // Skip cells that just repeat the header text — a duplicated header row
+    // further down the sheet (e.g. a copy-pasted template block) is not a
+    // real keyword to search for.
+    if (keyword.toLowerCase() === target) { skippedDuplicateHeader++; continue; }
+    rows.push({ row: r + 1, keyword });
   }
-  return { headerRow, colIndex, rows, lastCol };
+  return { headerRow, colIndex, rows, lastCol, skippedDuplicateHeader };
 }
 
 export interface RankColumn {

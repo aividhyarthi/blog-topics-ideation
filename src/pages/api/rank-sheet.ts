@@ -137,6 +137,7 @@ export const POST: APIRoute = async ({ request }) => {
       truncated,
       keywordErrors,
       competitorsRequested: competitorIds.length,
+      skippedDuplicateHeader: keywordCol.skippedDuplicateHeader,
     },
   });
 };

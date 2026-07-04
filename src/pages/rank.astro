@@ -316,6 +316,7 @@ emi calculator"></textarea>
         const notes = [];
         if (data.meta.truncated) notes.push(`Only the first ${data.meta.keywordsRun} of ${data.meta.keywordCount} keywords were checked (limit ${data.meta.keywordsRun}/run).`);
         if (data.meta.keywordErrors) notes.push(`${data.meta.keywordErrors} keyword(s) failed to load from Play Store search (shown as "error" above) — usually a temporary block/throttle; try again in a bit.`);
+        if (data.meta.skippedDuplicateHeader) notes.push(`Skipped ${data.meta.skippedDuplicateHeader} row(s) in the sheet where the keyword cell just repeated the column header text ("${esc($('keywordHeader').value.trim() || 'Focused Keyword')}") instead of a real keyword — check that column for accidentally duplicated/copy-pasted header cells.`);
         notes.push('<b>Keyword search rank</b> = each app\'s position in Play\'s own search results for that exact term, in the chosen country/language. <b>Category Top Chart</b> is a separate, non-keyword signal (installs/engagement based) — Play does not expose "rank within a category, for this keyword" as a single lookup.');
         $('caveat').innerHTML = notes.map((n) => `<div>${n}</div>`).join('');
 
