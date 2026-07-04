@@ -105,6 +105,40 @@ rewrites, verdict) is best-effort and degrades gracefully when
 `ANTHROPIC_API_KEY` is unset. Live Play Store access is required at runtime, so
 the host's outbound network must allow `play.google.com`.
 
+## Rank Tracker (`/rank`) — App Radar-style keyword rank tracking
+
+Tracks **where your apps rank in store search** for the keywords you care about,
+on **Google Play** and the **Apple App Store**, with history so you can see
+movement over time — the core of what App Radar / AppTweak / Sensor Tower sell.
+
+- **Track apps** by Play URL / package id (`com.whatsapp`) or App Store URL /
+  numeric id (`id310633997`), per **country** (add the same app twice to watch
+  two markets). Track competitors' apps on the same keywords too.
+- **Keyword rankings** — for each keyword, the app's 1-based position in store
+  search (top 100 scanned), the **Δ vs the previous check**, the **best
+  position ever recorded**, a **trend sparkline**, and **who holds #1** for
+  that keyword right now.
+- **Top-chart position** — the app's spot in Play's **Top Free chart for its
+  category** (iOS: the storefront's overall Top Free, via Apple's public RSS).
+- **History** — every check is saved as a per-day snapshot in `RANK_DATA_DIR`
+  (mount a Railway Volume so it persists). Check on demand from the UI, or run
+  `npx tsx scripts/rank-check.ts` on a **daily cron** (Railway cron schedule
+  `0 6 * * *`) so trends accrue automatically.
+- **Export CSV** of the current ranking table.
+
+Data sources are keyless and free: `google-play-scraper` (already used by
+`/aso`) for Play search/charts, Apple's **iTunes Search API** + marketing RSS
+for iOS. Note that store search APIs approximate on-device results (live
+rankings are personalized/experiment-bucketed) — positions are a consistent,
+comparable-over-time signal, which is also true of commercial rank trackers.
+
+The engine is split like the others: `src/lib/rank/fetch.ts` (all network) →
+`src/lib/rank/track.ts` (pure position/trend math, tested by
+`npx tsx scripts/validate-rank.ts`) → `src/lib/rank/check.ts` (check runner) →
+`src/lib/rank/store.ts` (config + snapshots) → `src/pages/api/rank.ts` →
+`src/pages/rank.astro` (UI). Live store access is required at runtime
+(`play.google.com`, `itunes.apple.com`, `rss.marketingtools.apple.com`).
+
 ## WBR Builder (`/wbr`) — weekly AI-visibility report from SEMrush exports
 
 Turns the weekly **SEMrush AI Visibility CSV bundle** into the full Beauty/Fashion
@@ -177,6 +211,7 @@ Run it against a local folder of CSVs with
 | `SITE_USER`          | no       | Username for the password gate. Defaults to `nykaa`. |
 | `ANTHROPIC_API_KEY`  | for AI features | Server-side Claude key. Needed for the AEO Auditor's AI signals and the WBR Claude fallback. Never exposed to the browser. |
 | `WBR_DATA_DIR`       | for WoW trends | Folder where the WBR saves each week's snapshot so it can show week-over-week change. Point it at a **Railway Volume** mount (e.g. `/data`) so history survives redeploys. Defaults to `./.wbr-data` (lost on redeploy). |
+| `RANK_DATA_DIR`      | for rank history | Folder where the Rank Tracker saves tracked apps + daily ranking snapshots. Point it at a **Railway Volume** mount (e.g. `/data/rank`) so history survives redeploys. Defaults to `./.rank-data` (lost on redeploy). |
 | `PORT`               | no       | Defaults to `4321` (set by Railway).   |
 
 ## Run locally
