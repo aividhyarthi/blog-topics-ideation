@@ -101,6 +101,13 @@
       .who { font-size: 12.5px; color: var(--muted); }
       .kwedit { margin-top: 12px; display: none; }
       .kwedit.open { display: block; }
+      .discover { margin-top: 12px; border: 1px solid #d6d3f5; background: #f8f7ff; border-radius: 11px; padding: 12px 14px; }
+      .discover h4 { margin: 0 0 8px; font-size: 13px; }
+      .disc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; max-height: 300px; overflow-y: auto; }
+      .disc-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; border-radius: 7px; cursor: pointer; }
+      .disc-row:hover { background: #efedfc; }
+      .disc-row .kw { flex: 1; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink-dark); }
+      .disc-row b { font-variant-numeric: tabular-nums; }
       .lastcheck { font-size: 12.5px; color: var(--muted); }
       .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 16px; }
       .empty { text-align: center; color: var(--muted); padding: 26px 10px; font-size: 14px; }
@@ -159,7 +166,7 @@ collage maker
 ai photo enhancer"></textarea>
           <div class="row" style="margin-top:10px;">
             <button class="primary" id="add-btn">Add app</button>
-            <span class="hint" style="margin:0;">Up to 15 apps, 25 keywords each.</span>
+            <span class="hint" style="margin:0;">Up to 15 apps, 60 keywords each. No keywords yet? Add the app, then hit <b>🔍 Discover keywords</b>.</span>
           </div>
         </div>
 
@@ -301,6 +308,34 @@ ai photo enhancer"></textarea>
         return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
       }
 
+      // --- keyword discovery panel -------------------------------------------
+      const DISCOVER = {}; // key -> discovery result, shown until tracked/dismissed
+
+      function discoverHtml(app) {
+        const d = DISCOVER[app.key];
+        if (!d) return '';
+        const items = d.discovery.discovered;
+        const srcPill = { listing: 'from listing', autocomplete: 'autocomplete', ai: 'AI idea' };
+        const rows = items.map((k, i) => `
+          <label class="disc-row">
+            <input type="checkbox" data-role="disc-kw" value="${escAttr(k.keyword)}" ${k.position <= 100 ? 'checked' : ''} />
+            <span class="kw">${esc(k.keyword)}</span>
+            <b>#${k.position}</b>
+            <span class="pill cc">${srcPill[k.source] || esc(k.source)}</span>
+          </label>`).join('');
+        const errNote = d.discovery.errors && d.discovery.errors.length
+          ? `<p class="hint" style="margin:8px 0 0;">⚠︎ ${esc(d.discovery.errors[0])}${d.discovery.errors.length > 1 ? ` (+${d.discovery.errors.length - 1} more)` : ''}</p>` : '';
+        return `<div class="discover" data-role="discover">
+          <h4>🔍 Found ${items.length} keyword${items.length === 1 ? '' : 's'} this app ranks for (top 200) — scanned ${d.discovery.scanned} candidates</h4>
+          ${items.length ? `<div class="disc-list">${rows}</div>` : '<p class="hint">No new ranking keywords found beyond the ones already tracked.</p>'}
+          <div class="row" style="margin-top:10px;">
+            ${items.length ? '<button class="primary" data-act="track-selected" style="padding:9px 16px;font-size:13.5px;">Track selected keywords</button>' : ''}
+            <button class="ghost" data-act="dismiss-discover">Dismiss</button>
+          </div>
+          ${errNote}
+        </div>`;
+      }
+
       function overviewHtml(app) {
         const ov = app.overview;
         if (!ov || !ov.days || !ov.days.length) return '';
@@ -382,16 +417,19 @@ ai photo enhancer"></textarea>
             </div>
             <div class="btns">
               <button class="ghost" data-act="check-one">Check now</button>
-              <button class="ghost" data-act="edit-kw">Edit keywords</button>
+              <button class="ghost" data-act="discover">🔍 Discover keywords</button>
+              <button class="ghost" data-act="edit-kw">＋ Add / edit keywords</button>
               <button class="ghost danger" data-act="remove">Remove</button>
             </div>
           </div>
           <div class="kwedit" data-role="kwedit">
+            <p class="hint" style="margin:10px 0 6px;">One keyword per line (or comma-separated). Saving re-checks this app's rankings right away.</p>
             <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
-              <button class="ghost" data-act="save-kw">Save keywords</button>
+              <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
             </div>
           </div>
+          ${discoverHtml(app)}
           ${overviewHtml(app)}
           ${table}
         </div>`;
@@ -452,8 +490,9 @@ ai photo enhancer"></textarea>
             keywords: $('add-keywords').value,
           });
           if (data.metaError) showInfo('App added, but its listing could not be read right now: ' + data.metaError);
+          else if (data.checkError) showInfo(data.checkError);
           $('add-app').value = ''; $('add-keywords').value = '';
-          showToast('App added — now run a check');
+          showToast('App added');
           return data;
         }));
 
@@ -468,10 +507,35 @@ ai photo enhancer"></textarea>
         const act = btn.getAttribute('data-act');
         if (act === 'edit-kw') { card.querySelector('[data-role="kwedit"]').classList.toggle('open'); return; }
         if (act === 'save-kw') {
-          withBusy(btn, 'Saving…', () => api({ action: 'set-keywords', key, keywords: card.querySelector('[data-role="kwtext"]').value }));
+          withBusy(btn, 'Saving & checking ranks…', async () => {
+            const data = await api({ action: 'set-keywords', key, keywords: card.querySelector('[data-role="kwtext"]').value });
+            if (data.checkError) showInfo(data.checkError); else showToast('Keywords saved — fresh ranks below');
+            return data;
+          });
           return;
         }
         if (act === 'check-one') { withBusy(btn, 'Checking…', () => api({ action: 'check', key })); return; }
+        if (act === 'discover') {
+          withBusy(btn, 'Scanning stores… 1–2 min', async () => {
+            const data = await api({ action: 'discover', key });
+            DISCOVER[key] = data;
+            render();
+            return null;
+          });
+          return;
+        }
+        if (act === 'dismiss-discover') { delete DISCOVER[key]; render(); return; }
+        if (act === 'track-selected') {
+          const selected = [...card.querySelectorAll('[data-role="disc-kw"]:checked')].map((el) => el.value);
+          if (!selected.length) { showErr('Tick at least one keyword to track.'); return; }
+          withBusy(btn, 'Adding & checking ranks…', async () => {
+            const data = await api({ action: 'add-keywords', key, keywords: selected.join('\n') });
+            delete DISCOVER[key];
+            if (data.checkError) showInfo(data.checkError); else showToast(selected.length + ' keyword(s) now tracked');
+            return data;
+          });
+          return;
+        }
         if (act === 'remove') {
           if (!confirm('Stop tracking this app? Its saved history stays on disk but will no longer be shown.')) return;
           withBusy(btn, 'Removing…', () => api({ action: 'remove-app', key }));

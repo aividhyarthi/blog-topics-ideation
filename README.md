@@ -113,7 +113,17 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
 
 - **Track apps** by Play URL / package id (`com.whatsapp`) or App Store URL /
   numeric id (`id310633997`), per **country** (add the same app twice to watch
-  two markets). Track competitors' apps on the same keywords too.
+  two markets). Track competitors' apps on the same keywords too. Up to 15
+  apps × 60 keywords; adding/editing keywords re-checks the app immediately so
+  new keywords show real ranks right away.
+- **Keyword discovery** (`src/lib/rank/discover.ts`) — finds the keywords an
+  app *already ranks for* in the top 200, no App Radar export needed. It builds
+  a candidate universe from three free sources — the listing's own text
+  (n-grams), **store autocomplete** (Play suggest API / Apple search hints:
+  real queries users type), and **Claude keyword ideas** — then runs every
+  candidate through store search and keeps the ones where the app appears.
+  Results show rank + source; tick the ones to track. A full scan is ~90
+  candidates ≈ 1–2 minutes.
 - **Keyword rankings** — for each keyword, the app's 1-based position in store
   search (top 200 scanned), the **Δ vs the previous check**, the **best
   position ever recorded**, a **trend sparkline**, and **who holds #1** for

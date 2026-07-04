@@ -6,16 +6,26 @@ import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots } from '../../lib/rank/store';
-import { runCheck, checkApp } from '../../lib/rank/check';
-import { mergeIntoSnapshot, todayKey } from '../../lib/rank/track';
-import { loadSnapshot, saveSnapshot } from '../../lib/rank/store';
+import { runCheck, checkOne } from '../../lib/rank/check';
+import { discoverKeywords } from '../../lib/rank/discover';
 import type { TrackedApp } from '../../lib/rank/types';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
 const MAX_APPS = 15;
-const MAX_KEYWORDS = 25;
+const MAX_KEYWORDS = 60;
+
+/**
+ * Re-check an app right after its keywords change so new keywords show real
+ * ranks immediately instead of sitting blank until the next scheduled check.
+ * Best-effort: a store hiccup never blocks saving the keywords themselves.
+ */
+async function checkAfterEdit(app: TrackedApp): Promise<string | undefined> {
+  if (!app.keywords.length) return undefined;
+  try { await checkOne(app); return undefined; }
+  catch (e) { return `Keywords saved, but the rank check failed: ${e instanceof Error ? e.message : String(e)}`; }
+}
 
 function parseKeywords(blob: unknown): string[] {
   return String(blob || '')
@@ -94,7 +104,8 @@ export const POST: APIRoute = async ({ request }) => {
     };
     cfg.apps.push(app);
     saveConfig(cfg);
-    return json({ ok: true, metaError, ...statePayload() });
+    const checkError = metaError ? undefined : await checkAfterEdit(app);
+    return json({ ok: true, metaError, checkError, ...statePayload() });
   }
 
   if (action === 'remove-app') {
@@ -106,12 +117,27 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ ok: true, ...statePayload() });
   }
 
-  if (action === 'set-keywords') {
+  if (action === 'set-keywords' || action === 'add-keywords') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
-    app.keywords = parseKeywords(body.keywords);
+    const incoming = parseKeywords(body.keywords);
+    app.keywords = action === 'add-keywords'
+      ? [...app.keywords, ...incoming.filter((k) => !app.keywords.includes(k))].slice(0, MAX_KEYWORDS)
+      : incoming;
     saveConfig(cfg);
-    return json({ ok: true, ...statePayload() });
+    const checkError = await checkAfterEdit(app);
+    return json({ ok: true, checkError, ...statePayload() });
+  }
+
+  if (action === 'discover') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    try {
+      const result = await discoverKeywords(app);
+      return json({ ok: true, discovery: result });
+    } catch (e) {
+      return json({ error: `Discovery failed: ${e instanceof Error ? e.message : String(e)}` }, 502);
+    }
   }
 
   if (action === 'check') {
@@ -119,14 +145,8 @@ export const POST: APIRoute = async ({ request }) => {
     const targets = key ? cfg.apps.filter((a) => a.key === key) : cfg.apps;
     if (!targets.length) return json({ error: key ? 'App not found.' : 'No apps tracked yet — add one first.' }, 400);
     try {
-      if (key) {
-        // Single-app re-check: merge just this app into today's snapshot.
-        const result = await checkApp(targets[0]);
-        const dateKey = todayKey();
-        saveSnapshot(mergeIntoSnapshot(loadSnapshot(dateKey), dateKey, [result]));
-      } else {
-        await runCheck(targets);
-      }
+      if (key) await checkOne(targets[0]); // single-app re-check merges into today's snapshot
+      else await runCheck(targets);
     } catch (e) {
       return json({ error: `Check failed: ${e instanceof Error ? e.message : String(e)}` }, 502);
     }

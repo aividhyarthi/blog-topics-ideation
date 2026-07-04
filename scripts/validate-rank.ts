@@ -99,5 +99,17 @@ eq('overview last day buckets (27→11-30, null, null unranked)', ov[2].buckets,
 eq('overview tracked', ov[2].tracked, 3);
 eq('overview visibility > 0', ov[2].visibility > 0 && ov[2].visibility < 100, true);
 
+// --- keyword discovery: candidate extraction ---------------------------------
+const { candidatesFromListing } = await import('../src/lib/rank/discover');
+const cands = candidatesFromListing(
+  'CRED: UPI, Credit Cards, Bills',
+  'Pay credit card bills, use UPI payments, earn rewards',
+  'CRED is a payments app. Pay your credit card bills on time. UPI payments made simple. Credit card bill payment earns rewards. Track credit score.',
+);
+eq('candidates include bigram', cands.includes('credit card'), true);
+eq('candidates include upi term', cands.some((c) => c.includes('upi')), true);
+eq('candidates drop stopwords', cands.some((c) => /\b(the|and|your|app)\b/.test(c)), false);
+eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');
