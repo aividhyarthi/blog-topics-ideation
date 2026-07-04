@@ -1,6 +1,6 @@
 ---
 // AppRankr landing page — served at "/" in product mode (middleware rewrite).
-import { BRAND, PLANS, TRIAL_DAYS } from '../lib/saas/plans';
+import { BRAND, PLANS, TRIAL_DAYS, CURRENCY, formatPrice } from '../lib/saas/plans';
 const user = Astro.locals.user;
 ---
 
@@ -95,11 +95,11 @@ const user = Astro.locals.user;
     <div class="wrap">
       <section class="pricing">
         <h2>Simple pricing</h2>
-        <p class="sub">Every plan starts with a {TRIAL_DAYS}-day free trial. Cancel anytime.</p>
+        <p class="sub">Every plan starts with a {TRIAL_DAYS}-day free trial. Pay by UPI, card or netbanking. Cancel anytime.</p>
         <div class="cards">
           <div class="plan">
             <h3>{PLANS.starter.name}</h3>
-            <div class="price">${PLANS.starter.priceMonthly}<span>/month</span></div>
+            <div class="price">{CURRENCY}{formatPrice(PLANS.starter.priceMonthly)}<span>/month</span></div>
             <p class="blurb">{PLANS.starter.blurb}</p>
             <ul>
               <li>{PLANS.starter.maxApps} apps (yours or competitors')</li>
@@ -113,7 +113,7 @@ const user = Astro.locals.user;
           <div class="plan hot">
             <span class="tag">MOST POPULAR</span>
             <h3>{PLANS.pro.name}</h3>
-            <div class="price">${PLANS.pro.priceMonthly}<span>/month</span></div>
+            <div class="price">{CURRENCY}{formatPrice(PLANS.pro.priceMonthly)}<span>/month</span></div>
             <p class="blurb">{PLANS.pro.blurb}</p>
             <ul>
               <li>{PLANS.pro.maxApps} apps (yours or competitors')</li>

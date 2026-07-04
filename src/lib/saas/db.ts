@@ -14,8 +14,8 @@ export interface User {
   plan: PlanId;
   status: UserStatus;
   trialEndsAt: string | null;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
+  /** Payment-provider subscription id (Razorpay sub_...). */
+  subscriptionId: string | null;
   createdAt: string;
 }
 
@@ -40,8 +40,7 @@ export function getDb(): DatabaseSync {
       plan TEXT NOT NULL DEFAULT 'starter',
       status TEXT NOT NULL DEFAULT 'trialing',
       trial_ends_at TEXT,
-      stripe_customer_id TEXT,
-      stripe_subscription_id TEXT,
+      subscription_id TEXT,
       created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS sessions (
@@ -65,8 +64,7 @@ const rowToUser = (r: Record<string, any>): User => ({
   id: String(r.id), email: String(r.email), name: String(r.name || ''),
   plan: (r.plan as PlanId) || 'starter', status: (r.status as UserStatus) || 'trialing',
   trialEndsAt: r.trial_ends_at ?? null,
-  stripeCustomerId: r.stripe_customer_id ?? null,
-  stripeSubscriptionId: r.stripe_subscription_id ?? null,
+  subscriptionId: r.subscription_id ?? null,
   createdAt: String(r.created_at),
 });
 
@@ -87,8 +85,8 @@ export function findUserById(id: string): User | null {
   return r ? rowToUser(r as Record<string, any>) : null;
 }
 
-export function findUserByStripeCustomer(customerId: string): User | null {
-  const r = getDb().prepare('SELECT * FROM users WHERE stripe_customer_id = ?').get(customerId);
+export function findUserBySubscription(subscriptionId: string): User | null {
+  const r = getDb().prepare('SELECT * FROM users WHERE subscription_id = ?').get(subscriptionId);
   return r ? rowToUser(r as Record<string, any>) : null;
 }
 
@@ -98,14 +96,13 @@ export function getPwHash(email: string): string | null {
 }
 
 export function updateUserBilling(userId: string, fields: {
-  plan?: PlanId; status?: UserStatus; stripeCustomerId?: string; stripeSubscriptionId?: string;
+  plan?: PlanId; status?: UserStatus; subscriptionId?: string;
 }): void {
   const sets: string[] = [];
   const vals: (string | null)[] = [];
   if (fields.plan) { sets.push('plan = ?'); vals.push(fields.plan); }
   if (fields.status) { sets.push('status = ?'); vals.push(fields.status); }
-  if (fields.stripeCustomerId) { sets.push('stripe_customer_id = ?'); vals.push(fields.stripeCustomerId); }
-  if (fields.stripeSubscriptionId) { sets.push('stripe_subscription_id = ?'); vals.push(fields.stripeSubscriptionId); }
+  if (fields.subscriptionId) { sets.push('subscription_id = ?'); vals.push(fields.subscriptionId); }
   if (!sets.length) return;
   vals.push(userId);
   getDb().prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...vals);

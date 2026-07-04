@@ -168,12 +168,16 @@ site becomes the product:
   this deployment and are untouched on the internal one.
 - **Paid-only**: every signup starts a 7-day trial (`TRIAL_DAYS` to change);
   when it ends the dashboard locks until the user subscribes on `/account`.
-- **Plans** (`src/lib/saas/plans.ts`): Starter $29/mo (3 apps × 30 keywords),
-  Pro $79/mo (10 apps × 60 keywords). Limits are enforced server-side.
-- **Stripe billing**: `/account` starts Checkout; webhooks
-  (`/api/billing/webhook`) keep subscription status in sync; the Stripe
-  customer portal handles card changes/cancellation. Until the Stripe env
-  vars are set, checkout shows a friendly "payments not switched on yet".
+- **Plans** (`src/lib/saas/plans.ts`): Starter ₹2,499/mo (3 apps × 30
+  keywords), Pro ₹6,499/mo (10 apps × 60 keywords). Limits enforced
+  server-side.
+- **Razorpay billing** (India-first: UPI, cards, netbanking): `/account`
+  creates a Razorpay Subscription and opens the Checkout modal; the success
+  signature is verified server-side (`/api/billing/verify`) for instant
+  activation, and webhooks (`/api/billing/webhook`) keep the status in sync
+  (charged / halted / cancelled). Cancellation is first-party
+  (`/api/billing/cancel`, end of billing cycle). Until the Razorpay env vars
+  are set, checkout shows a friendly "payments not switched on yet".
 - **Per-user data isolation**: each user's tracked apps + snapshots live in
   `RANK_DATA_DIR/users/<id>`; the user DB is `RANK_DATA_DIR/apprankr.db` —
   one mounted Volume persists everything.
@@ -189,10 +193,9 @@ site becomes the product:
 | -------- | -------- | ----- |
 | `PRODUCT_MODE` | yes (product deploy only) | `1` switches this deployment to AppRankr. Leave unset on the internal deployment. |
 | `RANK_DATA_DIR` | yes | Volume mount path — holds the user DB and all rank data. |
-| `PUBLIC_URL` | for billing | e.g. `https://apprankr.com` — used in Stripe redirect URLs. |
-| `STRIPE_SECRET_KEY` | for billing | `sk_live_…` from the Stripe dashboard. |
-| `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_PRO` | for billing | Stripe **price ids** of the $29 and $79 monthly subscriptions. |
-| `STRIPE_WEBHOOK_SECRET` | for billing | Signing secret of the webhook endpoint `POST /api/billing/webhook`. |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | for billing | API keys from the Razorpay dashboard (Settings → API Keys). |
+| `RAZORPAY_PLAN_STARTER` / `RAZORPAY_PLAN_PRO` | for billing | Razorpay **plan ids** (`plan_…`): create two monthly plans (₹2,499 and ₹6,499) under Subscriptions → Plans. |
+| `RAZORPAY_WEBHOOK_SECRET` | for billing | Secret you set on the webhook `POST {domain}/api/billing/webhook` (enable the `subscription.*` events). |
 | `TRIAL_DAYS` | no | Defaults to 7. |
 | `BRAND_NAME` | no | Defaults to `AppRankr`. |
 | `ANTHROPIC_API_KEY` | recommended | Powers AI keyword ideas in discovery. |

@@ -1,22 +1,19 @@
-// Stripe webhook receiver. Configure the endpoint in the Stripe dashboard as
-// POST {PUBLIC_URL}/api/billing/webhook with events:
-//   checkout.session.completed, customer.subscription.updated,
-//   customer.subscription.deleted
-// and put the signing secret in STRIPE_WEBHOOK_SECRET.
+// Razorpay webhook receiver. Configure in the Razorpay dashboard as
+// POST {your-domain}/api/billing/webhook with the subscription events
+// (activated, charged, halted, pending, cancelled, completed, expired,
+// resumed) and put the same secret in RAZORPAY_WEBHOOK_SECRET.
 import type { APIRoute } from 'astro';
-import { handleWebhook } from '../../../lib/saas/billing';
+import { webhookSignatureValid, applyWebhookEvent } from '../../../lib/saas/billing';
 
 export const POST: APIRoute = async ({ request }) => {
-  const signature = request.headers.get('stripe-signature');
-  if (!signature || !process.env.STRIPE_WEBHOOK_SECRET) {
-    return new Response('Webhook not configured.', { status: 400 });
+  const signature = request.headers.get('x-razorpay-signature') || '';
+  const raw = await request.text();
+  if (!webhookSignatureValid(raw, signature)) {
+    return new Response('Bad signature.', { status: 400 });
   }
-  try {
-    const summary = await handleWebhook(await request.text(), signature);
-    console.log(`[stripe webhook] ${summary}`);
-    return new Response(JSON.stringify({ received: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  } catch (e) {
-    // Bad signature or malformed payload — reject so Stripe retries/flags it.
-    return new Response(`Webhook error: ${e instanceof Error ? e.message : String(e)}`, { status: 400 });
-  }
+  let event: Record<string, any>;
+  try { event = JSON.parse(raw); } catch { return new Response('Bad payload.', { status: 400 }); }
+  const summary = applyWebhookEvent(event);
+  console.log(`[razorpay webhook] ${summary}`);
+  return new Response(JSON.stringify({ received: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 };

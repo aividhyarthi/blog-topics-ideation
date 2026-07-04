@@ -3,14 +3,16 @@
 // without hunting through the codebase.
 
 export const BRAND = process.env.BRAND_NAME || 'AppRankr';
-export const TRIAL_DAYS = 7;
+export const TRIAL_DAYS = Number(process.env.TRIAL_DAYS ?? 7);
+/** Display currency. Billing runs on Razorpay in INR. */
+export const CURRENCY = '₹';
 
 export type PlanId = 'starter' | 'pro';
 
 export interface Plan {
   id: PlanId;
   name: string;
-  priceMonthly: number; // USD, display only — Stripe price ids are the source of truth for billing
+  priceMonthly: number; // INR, display only — Razorpay plan ids are the source of truth for billing
   maxApps: number;
   maxKeywordsPerApp: number;
   blurb: string;
@@ -18,16 +20,19 @@ export interface Plan {
 
 export const PLANS: Record<PlanId, Plan> = {
   starter: {
-    id: 'starter', name: 'Starter', priceMonthly: 29,
+    id: 'starter', name: 'Starter', priceMonthly: 2499,
     maxApps: 3, maxKeywordsPerApp: 30,
     blurb: 'For a single app or side project',
   },
   pro: {
-    id: 'pro', name: 'Pro', priceMonthly: 79,
+    id: 'pro', name: 'Pro', priceMonthly: 6499,
     maxApps: 10, maxKeywordsPerApp: 60,
     blurb: 'For studios and agencies tracking a portfolio',
   },
 };
+
+/** "2,499" — Indian digit grouping for price display. */
+export const formatPrice = (n: number) => n.toLocaleString('en-IN');
 
 export const planOf = (id: string | null | undefined): Plan => PLANS[(id as PlanId) || 'starter'] || PLANS.starter;
 

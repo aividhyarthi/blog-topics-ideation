@@ -1,89 +1,117 @@
-// AppRankr billing — thin Stripe wrapper. Everything degrades gracefully when
-// Stripe isn't configured yet (env keys unset): trials still work, and the
-// account page explains that checkout isn't live. Required env once ready:
-//   STRIPE_SECRET_KEY       sk_live_... / sk_test_...
-//   STRIPE_PRICE_STARTER    price id of the $29/mo subscription
-//   STRIPE_PRICE_PRO        price id of the $79/mo subscription
-//   STRIPE_WEBHOOK_SECRET   whsec_... (webhook endpoint: POST /api/billing/webhook)
-//   PUBLIC_URL              https://your-domain.com (for redirect URLs)
-import Stripe from 'stripe';
-import { findUserByStripeCustomer, updateUserBilling, type User } from './db';
+// AppRankr billing — Razorpay Subscriptions (India-first: INR, UPI, cards).
+// Plain REST via fetch, no SDK dependency. Everything degrades gracefully when
+// Razorpay isn't configured yet (env unset): trials still work and the account
+// page says checkout isn't live. Required env once ready:
+//   RAZORPAY_KEY_ID          rzp_live_... (or rzp_test_...)
+//   RAZORPAY_KEY_SECRET      the matching secret
+//   RAZORPAY_PLAN_STARTER    plan id (plan_...) of the ₹2,499/mo subscription
+//   RAZORPAY_PLAN_PRO        plan id (plan_...) of the ₹6,499/mo subscription
+//   RAZORPAY_WEBHOOK_SECRET  secret set on the webhook (POST /api/billing/webhook)
+//
+// Flow: /account creates a subscription server-side → Razorpay Checkout modal
+// collects payment → the client posts the returned signature to
+// /api/billing/verify for instant activation → webhooks keep the status in
+// sync afterwards (charged / halted / cancelled).
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { updateUserBilling, findUserBySubscription, type User } from './db';
 import type { PlanId, UserStatus } from './plans';
 
-export function stripeConfigured(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_STARTER && process.env.STRIPE_PRICE_PRO);
+const API = 'https://api.razorpay.com/v1';
+
+export function razorpayConfigured(): boolean {
+  return Boolean(
+    process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET &&
+    process.env.RAZORPAY_PLAN_STARTER && process.env.RAZORPAY_PLAN_PRO,
+  );
 }
 
-function client(): Stripe {
-  return new Stripe(process.env.STRIPE_SECRET_KEY || '');
-}
+export const razorpayKeyId = () => process.env.RAZORPAY_KEY_ID || '';
 
-const baseUrl = () => (process.env.PUBLIC_URL || 'http://localhost:4321').replace(/\/$/, '');
-
-export async function createCheckoutUrl(user: User, plan: PlanId): Promise<string> {
-  const price = plan === 'pro' ? process.env.STRIPE_PRICE_PRO : process.env.STRIPE_PRICE_STARTER;
-  const session = await client().checkout.sessions.create({
-    mode: 'subscription',
-    line_items: [{ price: price!, quantity: 1 }],
-    client_reference_id: user.id,
-    customer_email: user.stripeCustomerId ? undefined : user.email,
-    customer: user.stripeCustomerId || undefined,
-    metadata: { userId: user.id, plan },
-    subscription_data: { metadata: { userId: user.id, plan } },
-    allow_promotion_codes: true,
-    success_url: `${baseUrl()}/account?upgraded=1`,
-    cancel_url: `${baseUrl()}/account`,
+async function rzp(path: string, body?: Record<string, unknown>): Promise<any> {
+  const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
+  const res = await fetch(`${API}${path}`, {
+    method: body ? 'POST' : 'GET',
+    headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
   });
-  return session.url!;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.description || `Razorpay error (HTTP ${res.status})`);
+  return data;
 }
 
-export async function createPortalUrl(user: User): Promise<string | null> {
-  if (!user.stripeCustomerId) return null;
-  const session = await client().billingPortal.sessions.create({
-    customer: user.stripeCustomerId,
-    return_url: `${baseUrl()}/account`,
+/**
+ * Create a subscription the Checkout modal can collect payment for.
+ * total_count is Razorpay's max billing cycles — 120 months ≈ "until cancelled".
+ */
+export async function createSubscription(user: User, plan: PlanId): Promise<{ subscriptionId: string }> {
+  const planId = plan === 'pro' ? process.env.RAZORPAY_PLAN_PRO : process.env.RAZORPAY_PLAN_STARTER;
+  const sub = await rzp('/subscriptions', {
+    plan_id: planId,
+    total_count: 120,
+    customer_notify: 1,
+    notes: { userId: user.id, plan, email: user.email },
   });
-  return session.url;
+  return { subscriptionId: String(sub.id) };
 }
+
+/** Cancel at the end of the current billing cycle (the user keeps what they paid for). */
+export async function cancelSubscription(subscriptionId: string): Promise<void> {
+  await rzp(`/subscriptions/${subscriptionId}/cancel`, { cancel_at_cycle_end: 1 });
+}
+
+/* ------------------------------- signatures ------------------------------- */
+
+const hmacHex = (secret: string, payload: string) => createHmac('sha256', secret).update(payload).digest('hex');
+
+const safeEq = (a: string, b: string) => {
+  const ba = Buffer.from(a), bb = Buffer.from(b);
+  return ba.length === bb.length && timingSafeEqual(ba, bb);
+};
+
+/** Checkout success handler signature: HMAC(payment_id|subscription_id, key secret). */
+export function paymentSignatureValid(paymentId: string, subscriptionId: string, signature: string, secret = process.env.RAZORPAY_KEY_SECRET || ''): boolean {
+  if (!paymentId || !subscriptionId || !signature || !secret) return false;
+  return safeEq(hmacHex(secret, `${paymentId}|${subscriptionId}`), signature);
+}
+
+/** Webhook signature: HMAC of the raw request body with the webhook secret. */
+export function webhookSignatureValid(rawBody: string, signature: string, secret = process.env.RAZORPAY_WEBHOOK_SECRET || ''): boolean {
+  if (!rawBody || !signature || !secret) return false;
+  return safeEq(hmacHex(secret, rawBody), signature);
+}
+
+/* -------------------------------- webhooks -------------------------------- */
 
 const STATUS_MAP: Record<string, UserStatus> = {
-  active: 'active', trialing: 'active', past_due: 'past_due',
-  canceled: 'canceled', unpaid: 'canceled', incomplete_expired: 'canceled',
+  'subscription.activated': 'active',
+  'subscription.charged': 'active',
+  'subscription.resumed': 'active',
+  'subscription.halted': 'past_due',
+  'subscription.pending': 'past_due',
+  'subscription.cancelled': 'canceled',
+  'subscription.completed': 'canceled',
+  'subscription.expired': 'canceled',
 };
 
 /**
- * Verify + apply a Stripe webhook event. Returns a short description of what
- * was applied (for logs) or throws on bad signatures.
+ * Apply a (signature-verified) webhook event. Returns a short description for
+ * logs. Unknown events are ignored.
  */
-export async function handleWebhook(rawBody: string, signature: string): Promise<string> {
-  const event = await client().webhooks.constructEventAsync(
-    rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET || '',
-  );
+export function applyWebhookEvent(event: { event?: string; payload?: any }): string {
+  const kind = String(event.event || '');
+  const status = STATUS_MAP[kind];
+  if (!status) return `ignored event ${kind || '(unknown)'}`;
 
-  if (event.type === 'checkout.session.completed') {
-    const s = event.data.object as Stripe.Checkout.Session;
-    const userId = s.client_reference_id || s.metadata?.userId;
-    if (!userId) return 'checkout completed but no user reference — ignored';
-    updateUserBilling(userId, {
-      status: 'active',
-      plan: (s.metadata?.plan as PlanId) || undefined,
-      stripeCustomerId: typeof s.customer === 'string' ? s.customer : undefined,
-      stripeSubscriptionId: typeof s.subscription === 'string' ? s.subscription : undefined,
-    });
-    return `activated user ${userId}`;
-  }
+  const sub = event.payload?.subscription?.entity;
+  if (!sub) return `event ${kind} had no subscription payload — ignored`;
+  const subId = String(sub.id || '');
+  const userId = sub.notes?.userId ? String(sub.notes.userId) : findUserBySubscription(subId)?.id;
+  if (!userId) return `event ${kind} for unknown subscription ${subId} — ignored`;
 
-  if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
-    const sub = event.data.object as Stripe.Subscription;
-    const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
-    const user = (sub.metadata?.userId && { id: sub.metadata.userId }) || findUserByStripeCustomer(customerId);
-    if (!user) return `subscription event for unknown customer ${customerId} — ignored`;
-    const status: UserStatus = event.type === 'customer.subscription.deleted'
-      ? 'canceled'
-      : STATUS_MAP[sub.status] || 'past_due';
-    updateUserBilling(user.id, { status, plan: (sub.metadata?.plan as PlanId) || undefined });
-    return `subscription ${sub.status} → user status ${status}`;
-  }
-
-  return `ignored event ${event.type}`;
+  updateUserBilling(userId, {
+    status,
+    plan: (sub.notes?.plan as PlanId) || undefined,
+    subscriptionId: subId,
+  });
+  return `${kind} → user ${userId} status ${status}`;
 }

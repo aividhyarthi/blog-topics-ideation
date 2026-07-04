@@ -1,6 +1,6 @@
 ---
 // Account & billing page (product mode, login required via middleware).
-import { BRAND, PLANS, planOf, checkAccess } from '../lib/saas/plans';
+import { BRAND, PLANS, planOf, checkAccess, CURRENCY, formatPrice } from '../lib/saas/plans';
 const user = Astro.locals.user!;
 const access = checkAccess(user.status, user.trialEndsAt);
 const plan = planOf(user.plan);
@@ -20,6 +20,7 @@ const statusLabel =
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{BRAND} — Account</title>
+    <script is:inline src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <style>
       :root { --pink: #6366f1; --pink-dark: #4f46e5; --ink: #1d1f2b; --muted: #6b6f80; --line: #e7e8ef; --bg: #f6f6fa; --ok: #15a06a; --bad: #c0392b; }
       * { box-sizing: border-box; }
@@ -79,7 +80,7 @@ const statusLabel =
           <div class="kv"><span class="k">Name</span><span>{user.name || '—'}</span></div>
           <div class="kv"><span class="k">Email</span><span>{user.email}</span></div>
           <div class="kv"><span class="k">Status</span><span class={`status ${access.allowed || user.status === 'active' ? 'ok' : 'bad'}`}>{statusLabel}</span></div>
-          {user.status === 'active' && <div style="margin-top:10px;"><button class="ghost" id="portal">Manage billing / cancel</button></div>}
+          {user.status === 'active' && <div style="margin-top:10px;"><button class="ghost" id="cancel">Cancel subscription</button></div>}
         </div>
 
         <div class="card">
@@ -88,7 +89,7 @@ const statusLabel =
             {Object.values(PLANS).map((p) => (
               <div class={`plan ${user.status === 'active' && user.plan === p.id ? 'current' : ''}`}>
                 <h3>{p.name}</h3>
-                <div class="price">${p.priceMonthly}<span>/month</span></div>
+                <div class="price">{CURRENCY}{formatPrice(p.priceMonthly)}<span>/month</span></div>
                 <ul>
                   <li>{p.maxApps} apps</li>
                   <li>{p.maxKeywordsPerApp} keywords per app</li>
@@ -96,7 +97,7 @@ const statusLabel =
                 </ul>
                 {user.status === 'active' && user.plan === p.id
                   ? <button class="ghost" disabled>Current plan</button>
-                  : <button class="primary" data-plan={p.id}>{user.status === 'active' ? `Switch to ${p.name}` : `Subscribe — $${p.priceMonthly}/mo`}</button>}
+                  : <button class="primary" data-plan={p.id}>{user.status === 'active' ? `Switch to ${p.name}` : `Subscribe — ${CURRENCY}${formatPrice(p.priceMonthly)}/mo`}</button>}
               </div>
             ))}
           </div>
@@ -117,15 +118,43 @@ const statusLabel =
           err.style.display = 'none';
           btn.disabled = true;
           try {
+            // 1) create the subscription server-side, 2) collect payment in the
+            // Razorpay modal (UPI / cards / netbanking), 3) verify + activate.
             const data = await post('/api/billing/checkout', { plan: btn.getAttribute('data-plan') });
-            location.href = data.url;
+            const rzp = new Razorpay({
+              key: data.keyId,
+              subscription_id: data.subscriptionId,
+              name: data.brand,
+              description: data.planName,
+              prefill: data.prefill,
+              theme: { color: '#6366f1' },
+              handler: async (resp) => {
+                try {
+                  await post('/api/billing/verify', {
+                    paymentId: resp.razorpay_payment_id,
+                    subscriptionId: resp.razorpay_subscription_id,
+                    signature: resp.razorpay_signature,
+                    plan: data.plan,
+                  });
+                  location.href = '/account?upgraded=1';
+                } catch (e) { err.textContent = e.message; err.style.display = 'block'; }
+              },
+              modal: { ondismiss: () => { btn.disabled = false; } },
+            });
+            rzp.on('payment.failed', (resp) => {
+              err.textContent = 'Payment failed: ' + (resp.error && resp.error.description || 'please try again.');
+              err.style.display = 'block';
+              btn.disabled = false;
+            });
+            rzp.open();
           } catch (e) { err.textContent = e.message; err.style.display = 'block'; btn.disabled = false; }
         });
       });
-      const portal = document.getElementById('portal');
-      if (portal) portal.addEventListener('click', async () => {
+      const cancelBtn = document.getElementById('cancel');
+      if (cancelBtn) cancelBtn.addEventListener('click', async () => {
+        if (!confirm('Cancel your subscription? You keep access until the end of the period you already paid for.')) return;
         err.style.display = 'none';
-        try { const data = await post('/api/billing/portal'); location.href = data.url; }
+        try { const data = await post('/api/billing/cancel'); alert(data.message); }
         catch (e) { err.textContent = e.message; err.style.display = 'block'; }
       });
       document.getElementById('logout').addEventListener('click', async (e) => {
