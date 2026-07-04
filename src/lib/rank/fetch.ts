@@ -30,9 +30,9 @@ export interface AppMeta {
   ratings: number | null;
 }
 
-/** How deep we scan search results for a tracked app. */
-export const SEARCH_DEPTH_PLAY = 100;
-export const SEARCH_DEPTH_IOS = 100; // iTunes Search API caps at 200; 100 keeps checks fast
+/** How deep we scan search results for a tracked app (iTunes Search API caps at 200). */
+export const SEARCH_DEPTH_PLAY = 200;
+export const SEARCH_DEPTH_IOS = 200;
 export const CHART_DEPTH = 200;
 
 const IOS_UA = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };

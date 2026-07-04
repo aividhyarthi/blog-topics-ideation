@@ -65,6 +65,27 @@
       .pill.ios { background: #eef3ff; color: #2f4b9e; }
       .pill.chart { background: #f0eefc; color: #5b46c9; }
       .pill.cc { background: #f4f4f8; color: var(--muted); }
+      /* --- overview (tiles + charts) --- */
+      .ov { margin-top: 14px; }
+      .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
+      .tile { flex: 1; min-width: 128px; background: #fafafe; border: 1px solid var(--line); border-radius: 11px; padding: 10px 13px; }
+      .tile .lbl { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 700; }
+      .tile .val { font-size: 22px; font-weight: 800; line-height: 1.2; display: flex; align-items: baseline; gap: 7px; }
+      .tile .val .d { font-size: 12.5px; font-weight: 700; }
+      .tile .val .d.up { color: #006300; }
+      .tile .val .d.down { color: var(--bad); }
+      .tile .val .d.flat { color: var(--muted); }
+      .charts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-top: 12px; }
+      @media (max-width: 880px) { .charts { grid-template-columns: 1fr; } }
+      .chartbox { background: #fff; border: 1px solid var(--line); border-radius: 11px; padding: 12px 12px 8px; }
+      .chartbox h4 { margin: 0 0 8px; font-size: 12.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+      .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+      .legend .li { display: flex; align-items: center; gap: 5px; }
+      .legend .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+      .viztip { position: fixed; z-index: 60; pointer-events: none; background: #fff; border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 4px 16px rgba(20,20,40,0.13); padding: 8px 11px; font-size: 12px; display: none; min-width: 130px; }
+      .viztip .tt-d { font-weight: 700; margin-bottom: 4px; }
+      .viztip .tt-r { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
+      .viztip .tt-r b { color: var(--ink); font-variant-numeric: tabular-nums; }
       .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: #fff; margin-top: 12px; }
       table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 13.5px; }
       th, td { text-align: left; padding: 10px 12px; vertical-align: middle; border-bottom: 1px solid var(--line); }
@@ -156,6 +177,7 @@ ai photo enhancer"></textarea>
 
     <footer><b>CiteRank</b> · By Rudra Kasturi Inc · App keyword rank tracking</footer>
     <div class="toast" id="toast"></div>
+    <div class="viztip" id="viztip"></div>
 
     <script>
       const $ = (id) => document.getElementById(id);
@@ -189,6 +211,128 @@ ai photo enhancer"></textarea>
         </svg>`;
       }
 
+      // --- overview charts (App Radar-style) ---------------------------------
+      // Ordered rank buckets share one indigo ramp (darkest = best); "Unranked"
+      // is neutral gray because it means absence, not a rank. Ramp validated
+      // for lightness monotony + surface contrast.
+      const BUCKET_COLORS = ['#2c2a75', '#4038c4', '#5655e6', '#7472f0', '#9091f5', '#a9aaf8', '#cbccd6'];
+      const BUCKET_LABELS = () => [...(state.buckets || ['Top 1', 'Top 2–3', 'Top 4–10', 'Top 11–30', 'Top 31–100', 'Top 101–200']), 'Unranked'];
+      const TIPS = {}; let tipSeq = 0;
+      const fmtDay = (dk) => { const d = new Date(dk + 'T00:00:00Z'); return d.getUTCDate() + ' ' + d.toLocaleString('en', { month: 'short', timeZone: 'UTC' }); };
+
+      function tipId(html) { const id = 't' + (++tipSeq); TIPS[id] = html; return id; }
+
+      function tileHtml(label, val, prev, decimals) {
+        let d = '<span class="d flat">–</span>';
+        if (val != null && prev != null) {
+          const diff = Math.round((val - prev) * 10) / 10;
+          if (diff > 0) d = `<span class="d up">▲ ${diff}</span>`;
+          else if (diff < 0) d = `<span class="d down">▼ ${-diff}</span>`;
+          else d = '<span class="d flat">＝</span>';
+        }
+        const shown = val == null ? '–' : (decimals ? val.toFixed(1) : val);
+        return `<div class="tile"><div class="lbl">${esc(label)}</div><div class="val">${shown} ${d}</div></div>`;
+      }
+
+      // Stacked bars: one bar per checked day, best bucket at the bottom,
+      // 2px surface gaps between segments/bars, rounded cap on the top segment.
+      function stackChart(days) {
+        const W = 560, H = 170, padL = 26, padB = 18, padT = 6;
+        const plotW = W - padL - 6, plotH = H - padT - padB;
+        const maxY = Math.max(1, ...days.map((d) => d.tracked));
+        const n = days.length;
+        const slot = plotW / n, bw = Math.min(46, Math.max(8, slot * 0.62));
+        let out = '';
+        // recessive grid: baseline + one midline + top
+        const gy = (v) => padT + plotH - (v / maxY) * plotH;
+        for (const v of [maxY, Math.round(maxY / 2)]) {
+          if (v > 0) out += `<line x1="${padL}" y1="${gy(v)}" x2="${W - 4}" y2="${gy(v)}" stroke="#e7e8ef" stroke-width="1"/>
+            <text x="${padL - 5}" y="${gy(v) + 3.5}" text-anchor="end" font-size="9.5" fill="#898781">${v}</text>`;
+        }
+        out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - 4}" y2="${padT + plotH}" stroke="#c3c2b7" stroke-width="1"/>`;
+        const labelEvery = Math.ceil(n / 8);
+        days.forEach((d, i) => {
+          const x = padL + slot * i + (slot - bw) / 2;
+          let y = padT + plotH;
+          let segs = '';
+          let topSegY = null, topBi = null;
+          d.buckets.forEach((v, bi) => {
+            if (!v) return;
+            const h = (v / maxY) * plotH;
+            y -= h;
+            segs += `<rect x="${x.toFixed(1)}" y="${(y + 1).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, h - 2).toFixed(1)}" fill="${BUCKET_COLORS[bi]}"/>`;
+            topSegY = y; topBi = bi;
+          });
+          // rounded cap on the top of the stack
+          if (topSegY != null) segs += `<rect x="${x.toFixed(1)}" y="${(topSegY + 1).toFixed(1)}" width="${bw.toFixed(1)}" height="6" rx="3" fill="${BUCKET_COLORS[topBi]}"/>`;
+          const rows = d.buckets.map((v, bi) => v ? `<div class="tt-r"><span><span class="sw" style="background:${BUCKET_COLORS[bi]};display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;"></span>${esc(BUCKET_LABELS()[bi])}</span><b>${v}</b></div>` : '').join('');
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(d.dateKey))} · ${d.tracked} keywords</div>${rows}<div class="tt-r"><span>Visibility</span><b>${d.visibility.toFixed(1)}</b></div>`);
+          out += segs;
+          out += `<rect class="hcol" data-tip="${tid}" x="${(padL + slot * i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
+          if (i % labelEvery === 0) out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#898781">${esc(fmtDay(d.dateKey))}</text>`;
+        });
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+      }
+
+      // Visibility score: single indigo line on a 0-based scale.
+      function visChart(days) {
+        const W = 400, H = 170, padL = 30, padB = 18, padT = 8;
+        const plotW = W - padL - 8, plotH = H - padT - padB;
+        const vals = days.map((d) => d.visibility);
+        const maxY = Math.max(10, Math.ceil(Math.max(...vals) / 10) * 10);
+        const x = (i) => padL + (days.length === 1 ? plotW / 2 : (i / (days.length - 1)) * plotW);
+        const y = (v) => padT + plotH - (v / maxY) * plotH;
+        let out = '';
+        for (const v of [maxY, maxY / 2]) {
+          out += `<line x1="${padL}" y1="${y(v)}" x2="${W - 6}" y2="${y(v)}" stroke="#e7e8ef" stroke-width="1"/>
+            <text x="${padL - 5}" y="${y(v) + 3.5}" text-anchor="end" font-size="9.5" fill="#898781">${v}</text>`;
+        }
+        out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - 6}" y2="${padT + plotH}" stroke="#c3c2b7" stroke-width="1"/>`;
+        const d = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+        out += `<path d="${d}" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        const labelEvery = Math.ceil(days.length / 6);
+        days.forEach((day, i) => {
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3" fill="#4f46e5" stroke="#fff" stroke-width="2"/>`;
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(day.dateKey))}</div><div class="tt-r"><span>Visibility score</span><b>${vals[i].toFixed(1)}</b></div>`);
+          const cw = days.length === 1 ? plotW : plotW / (days.length - 1);
+          out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
+          if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#898781">${esc(fmtDay(day.dateKey))}</text>`;
+        });
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+      }
+
+      function overviewHtml(app) {
+        const ov = app.overview;
+        if (!ov || !ov.days || !ov.days.length) return '';
+        const c = ov.counts || {}, p = ov.prevCounts || null;
+        const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
+        return `<div class="ov">
+          <div class="tiles">
+            ${tileHtml('Top 1 rankings', c.top1, p && p.top1)}
+            ${tileHtml('Top 10 rankings', c.top10, p && p.top10)}
+            ${tileHtml('Top 30 rankings', c.top30, p && p.top30)}
+            ${tileHtml('Top 100 rankings', c.top100, p && p.top100)}
+            ${tileHtml('Visibility score', ov.visibility, ov.prevVisibility, true)}
+          </div>
+          <div class="charts">
+            <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div></div>
+            <div class="chartbox"><h4>Search visibility score (0–100)</h4>${visChart(ov.days)}</div>
+          </div>
+        </div>`;
+      }
+
+      // Shared hover tooltip for both charts.
+      const viztip = $('viztip');
+      document.addEventListener('mousemove', (ev) => {
+        const col = ev.target.closest && ev.target.closest('.hcol');
+        if (!col) { viztip.style.display = 'none'; return; }
+        viztip.innerHTML = TIPS[col.getAttribute('data-tip')] || '';
+        viztip.style.display = 'block';
+        const vw = window.innerWidth, rect = viztip.getBoundingClientRect();
+        viztip.style.left = Math.min(ev.clientX + 14, vw - rect.width - 10) + 'px';
+        viztip.style.top = Math.max(8, ev.clientY - rect.height - 12) + 'px';
+      });
+
       function deltaCell(t) {
         if (t.position != null && t.prevPosition == null) return '<span class="delta up">new</span>';
         if (t.position == null && t.prevPosition != null) return '<span class="delta down">out</span>';
@@ -200,7 +344,7 @@ ai photo enhancer"></textarea>
 
       function posCell(t) {
         if (t.error) return `<span class="un" title="${escAttr(t.error)}">⚠︎ err</span>`;
-        return t.position != null ? `#${t.position}` : `<span class="un">&gt;${t.depth || 100}</span>`;
+        return t.position != null ? `#${t.position}` : `<span class="un">&gt;${t.depth || 200}</span>`;
       }
 
       function renderApp(app) {
@@ -248,6 +392,7 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="save-kw">Save keywords</button>
             </div>
           </div>
+          ${overviewHtml(app)}
           ${table}
         </div>`;
       }

@@ -1,6 +1,6 @@
 // Fixture tests for the Rank Tracker's pure engine (src/lib/rank/track.ts) —
 // no network needed, so this runs anywhere: npx tsx scripts/validate-rank.ts
-import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot } from '../src/lib/rank/track';
+import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, RANK_BUCKETS } from '../src/lib/rank/track';
 import { parseAppInput } from '../src/lib/rank/fetch';
 import type { RankSnapshot, TrackedApp } from '../src/lib/rank/types';
 
@@ -71,6 +71,33 @@ eq('merge keeps other app', merged.apps.map((a) => a.key).sort(), ['ios:123:us',
 const remerged = mergeIntoSnapshot(merged, '2026-07-03', [snap('2026-07-03', 9, 12, 4).apps[0]]);
 eq('re-check replaces same app', remerged.apps.find((a) => a.key === app.key)?.keywords[0].position, 9);
 eq('new day drops old apps', mergeIntoSnapshot(day, '2026-07-04', []).apps, []);
+
+// --- overview: buckets, counts, visibility -----------------------------------
+eq('bucket #1', bucketIndex(1), 0);
+eq('bucket #3', bucketIndex(3), 1);
+eq('bucket #10', bucketIndex(10), 2);
+eq('bucket #30', bucketIndex(30), 3);
+eq('bucket #100', bucketIndex(100), 4);
+eq('bucket #200', bucketIndex(200), 5);
+eq('bucket unranked', bucketIndex(null), -1);
+
+const positions = [1, 2, 9, 25, 80, 150, null];
+eq('topCounts', topCounts(positions), { top1: 1, top10: 3, top30: 4, top100: 5 });
+// countsFromBuckets must agree with topCounts for the same positions
+const bkt = new Array(RANK_BUCKETS.length + 1).fill(0);
+for (const p of positions) { const i = bucketIndex(p); bkt[i === -1 ? RANK_BUCKETS.length : i]++; }
+eq('countsFromBuckets matches topCounts', countsFromBuckets(bkt), topCounts(positions));
+
+eq('visibility of #1 only', visibilityScore([1]), 100);
+eq('visibility unranked only', visibilityScore([null, null]), 0);
+eq('visibility empty', visibilityScore([]), 0);
+eq('visibility monotone', visibilityScore([1]) > visibilityScore([10]) && visibilityScore([10]) > visibilityScore([100]), true);
+
+const ov = overviewSeries(app, snaps);
+eq('overview day count', ov.length, 3);
+eq('overview last day buckets (27→11-30, null, null unranked)', ov[2].buckets, [0, 0, 0, 1, 0, 0, 2]);
+eq('overview tracked', ov[2].tracked, 3);
+eq('overview visibility > 0', ov[2].visibility > 0 && ov[2].visibility < 100, true);
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');

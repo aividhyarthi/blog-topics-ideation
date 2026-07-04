@@ -4,7 +4,7 @@
 // Sits behind the same SITE_PASSWORD gate as the rest of the site (middleware).
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend } from '../../lib/rank/track';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots } from '../../lib/rank/store';
 import { runCheck, checkApp } from '../../lib/rank/check';
 import { mergeIntoSnapshot, todayKey } from '../../lib/rank/track';
@@ -32,12 +32,25 @@ function statePayload() {
   const snapshots = loadSnapshots();
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null;
   return {
-    apps: cfg.apps.map((app) => ({
-      ...app,
-      trends: keywordTrends(app, snapshots),
-      chart: chartTrend(app, snapshots),
-      latestResult: latest?.apps.find((a) => a.key === app.key) || null,
-    })),
+    apps: cfg.apps.map((app) => {
+      const overview = overviewSeries(app, snapshots);
+      const today = overview.length ? overview[overview.length - 1] : null;
+      const prev = overview.length > 1 ? overview[overview.length - 2] : null;
+      return {
+        ...app,
+        trends: keywordTrends(app, snapshots),
+        chart: chartTrend(app, snapshots),
+        overview: {
+          days: overview,
+          counts: today ? countsFromBuckets(today.buckets) : null,
+          prevCounts: prev ? countsFromBuckets(prev.buckets) : null,
+          visibility: today?.visibility ?? null,
+          prevVisibility: prev?.visibility ?? null,
+        },
+        latestResult: latest?.apps.find((a) => a.key === app.key) || null,
+      };
+    }),
+    buckets: RANK_BUCKETS.map((b) => b.label),
     lastCheckedAt: latest?.checkedAt || null,
     snapshotDays: snapshots.map((s) => s.dateKey),
   };

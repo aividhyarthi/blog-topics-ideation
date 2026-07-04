@@ -115,9 +115,16 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
   numeric id (`id310633997`), per **country** (add the same app twice to watch
   two markets). Track competitors' apps on the same keywords too.
 - **Keyword rankings** — for each keyword, the app's 1-based position in store
-  search (top 100 scanned), the **Δ vs the previous check**, the **best
+  search (top 200 scanned), the **Δ vs the previous check**, the **best
   position ever recorded**, a **trend sparkline**, and **who holds #1** for
   that keyword right now.
+- **Overview dashboard (App Radar-style)** — per app: **Top 1 / Top 10 /
+  Top 30 / Top 100** headline counts with day-over-day movement, a **keyword
+  rank distribution** stacked-bar chart by day (Top 1 → Top 101–200 →
+  Unranked), and a **Search Visibility Score** (0–100) trend line — each
+  keyword contributes on a log curve (#1 = 100, #10 ≈ 57, #100 ≈ 13,
+  unranked = 0), averaged over tracked keywords. (Commercial tools also weight
+  by keyword search volume, which needs paid data.)
 - **Top-chart position** — the app's spot in Play's **Top Free chart for its
   category** (iOS: the storefront's overall Top Free, via Apple's public RSS).
 - **History** — every check is saved as a per-day snapshot in `RANK_DATA_DIR`
