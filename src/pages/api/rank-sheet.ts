@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { parseAppId } from '../../lib/aso/fetch';
 import { parseCategory, trackKeywords, categoryTopChartRank, labelApp, type KeywordRankResult, type CategoryRankResult } from '../../lib/rank/track';
-import { hasGoogleCredentials, serviceAccountEmail, getAccessToken } from '../../lib/sheets/auth';
+import { hasGoogleCredentials, serviceAccountEmail, credentialsDiagnosis, getAccessToken } from '../../lib/sheets/auth';
 import { parseSheetUrl, resolveSheetTitle, findKeywordColumn, writeRankColumns, type RankColumn } from '../../lib/sheets/client';
 
 const json = (data: unknown, status = 200) =>
@@ -10,15 +10,16 @@ const json = (data: unknown, status = 200) =>
 const MAX_KEYWORDS = 25;
 const MAX_COMPETITORS = 5;
 
-/** Lets the UI show "Sheets connected" without exposing the actual credentials. */
+/** Lets the UI show "Sheets connected" (and *why not*, if not) without exposing credentials. */
 export const GET: APIRoute = async () => {
-  return json({ connected: hasGoogleCredentials(), serviceAccountEmail: serviceAccountEmail() });
+  const connected = hasGoogleCredentials();
+  return json({ connected, serviceAccountEmail: serviceAccountEmail(), reason: connected ? null : credentialsDiagnosis() });
 };
 
 export const POST: APIRoute = async ({ request }) => {
   if (!hasGoogleCredentials()) {
     return json({
-      error: 'Google Sheets isn\'t connected on this server yet. Set GOOGLE_SERVICE_ACCOUNT_JSON (or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) — see DEPLOY.md for the one-time setup.',
+      error: credentialsDiagnosis() || 'Google Sheets isn\'t connected on this server yet — see DEPLOY.md for the one-time setup.',
     }, 501);
   }
 

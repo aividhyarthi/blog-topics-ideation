@@ -247,7 +247,7 @@ emi calculator"></textarea>
           } else {
             badge.textContent = '⚠ Sheets not connected';
             badge.className = 'sheetstatus off';
-            $('sheet-hint').textContent = 'Google Sheets isn\'t connected on this server yet — set GOOGLE_SERVICE_ACCOUNT_JSON (or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) in your environment. See DEPLOY.md.';
+            $('sheet-hint').textContent = data.reason || 'Google Sheets isn\'t connected on this server yet — see DEPLOY.md.';
           }
         } catch {
           badge.style.display = 'none';
