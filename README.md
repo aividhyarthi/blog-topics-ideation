@@ -137,6 +137,18 @@ Each tracker's keyword list comes from either:
   a sheet uses a different header. Requires the Google service account
   setup in `DEPLOY.md`.
 
+Each tracker's detail page also shows a **summary** (keyword counts bucketed
+into #1 / Top 3 / Top 10 / Top 50 / Not Found) and **Movers** — keywords
+whose position changed since the previous check, split into gains and
+drops — both computed from data already on disk, no extra Play requests.
+
+### Dashboard (`/rank` → 📊 Dashboard tab)
+
+A cross-tracker comparison table — one row per saved tracker with its
+Keywords / #1 / Top 3 / Top 10 / Top 50 / Not Found counts and last-checked
+date side by side, so multiple apps (e.g. CRED / Kuvera / Cash by Cred) can
+be compared at a glance. Click a row to open that tracker's full detail.
+
 ### One-off Check — same two keyword sources, nothing saved
 
 Runs once and shows the result without creating a Saved Tracker — useful

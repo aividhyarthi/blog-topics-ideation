@@ -109,6 +109,24 @@
       .dangerbtn { background: #fff; color: var(--bad); border: 1px solid #f6c9c6; border-radius: 9px; padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
       .dangerbtn:hover { background: var(--bad-bg); }
       .histcell { text-align: center; }
+
+      .statgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 10px 0 22px; }
+      @media (max-width: 760px) { .statgrid { grid-template-columns: repeat(3, 1fr); } }
+      @media (max-width: 460px) { .statgrid { grid-template-columns: repeat(2, 1fr); } }
+      .stattile { border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px; background: #fff; text-align: center; border-top: 3px solid var(--sc, var(--pink)); }
+      .stattile b { display: block; font-size: 22px; font-weight: 800; color: var(--sc, var(--pink)); }
+      .stattile span { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+      .moverwrap { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 8px; }
+      @media (max-width: 700px) { .moverwrap { grid-template-columns: 1fr; } }
+      .moverlist { border: 1px solid var(--line); border-radius: 12px; background: #fff; overflow: hidden; }
+      .moverlist .mhead { padding: 9px 13px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+      .moverlist.up .mhead { background: var(--ok-bg); color: var(--ok); }
+      .moverlist.down .mhead { background: var(--bad-bg); color: var(--bad); }
+      .moverrow { display: flex; justify-content: space-between; align-items: center; padding: 8px 13px; border-top: 1px solid var(--line); font-size: 13px; }
+      .moverrow .mdelta { font-weight: 800; white-space: nowrap; margin-left: 10px; }
+      .moverrow .mdelta.up { color: var(--ok); }
+      .moverrow .mdelta.down { color: var(--bad); }
+      .moverempty { padding: 10px 13px; font-size: 12.5px; color: var(--muted); }
     </style>
   </head>
   <body>
@@ -137,7 +155,21 @@
       <div class="wrap">
         <div class="pagetabs">
           <div class="pagetab active" id="pagetab-trackers" data-page="trackers">📌 Saved Trackers</div>
+          <div class="pagetab" id="pagetab-dashboard" data-page="dashboard">📊 Dashboard</div>
           <div class="pagetab" id="pagetab-oneoff" data-page="oneoff">🔍 One-off Check</div>
+        </div>
+
+        <div id="page-dashboard" style="display:none">
+          <div class="card">
+            <div class="cardhead">
+              <h3>All trackers at a glance</h3>
+            </div>
+            <p class="hint" style="margin-top:6px">Ranking counts from each tracker's most recent check. Click a row to open that tracker.</p>
+            <div class="tablewrap" style="margin-top:12px"><table id="dash-table">
+              <thead><tr><th>App</th><th class="rankcell">Keywords</th><th class="rankcell">#1</th><th class="rankcell">Top 3</th><th class="rankcell">Top 10</th><th class="rankcell">Top 50</th><th class="rankcell">Not Found</th><th>Last checked</th></tr></thead>
+              <tbody id="dash-tbody"><tr><td colspan="8">Loading…</td></tr></tbody>
+            </table></div>
+          </div>
         </div>
 
         <div id="page-trackers">
@@ -220,6 +252,22 @@ emi calculator"></textarea>
             </div>
             <p class="hint" id="detail-meta"></p>
             <div class="alert err" id="detail-err"></div>
+
+            <div class="statgrid" id="detail-stats" style="display:none"></div>
+
+            <div id="detail-movers-section" style="display:none">
+              <div class="sectitle">📈 Movers <span class="sub">— vs the previous check</span></div>
+              <div class="moverwrap">
+                <div class="moverlist up">
+                  <div class="mhead">▲ Gained</div>
+                  <div id="detail-movers-up"></div>
+                </div>
+                <div class="moverlist down">
+                  <div class="mhead">▼ Lost</div>
+                  <div id="detail-movers-down"></div>
+                </div>
+              </div>
+            </div>
 
             <div class="sectitle">🔎 Latest rankings <span class="sub" id="detail-lastchecked"></span></div>
             <p class="hint" style="margin:-4px 0 10px">Checks up to position <b>250</b> in Play's live search results per keyword. "Not found" means the app isn't in the top 250 for that exact term.</p>
@@ -557,15 +605,86 @@ emi calculator"></textarea>
 
       $('go').addEventListener('click', run);
 
-      // ---- page-level tabs (Saved Trackers vs One-off Check) ----
+      // ---- page-level tabs (Saved Trackers / Dashboard / One-off Check) ----
       function setPage(page) {
         $('pagetab-trackers').classList.toggle('active', page === 'trackers');
+        $('pagetab-dashboard').classList.toggle('active', page === 'dashboard');
         $('pagetab-oneoff').classList.toggle('active', page === 'oneoff');
         $('page-trackers').style.display = page === 'trackers' ? 'block' : 'none';
+        $('page-dashboard').style.display = page === 'dashboard' ? 'block' : 'none';
         $('page-oneoff').style.display = page === 'oneoff' ? 'block' : 'none';
+        if (page === 'dashboard') loadDashboard();
       }
       $('pagetab-trackers').addEventListener('click', () => setPage('trackers'));
+      $('pagetab-dashboard').addEventListener('click', () => setPage('dashboard'));
       $('pagetab-oneoff').addEventListener('click', () => setPage('oneoff'));
+
+      async function loadDashboard() {
+        const tbody = $('dash-tbody');
+        tbody.innerHTML = '<tr><td colspan="8">Loading…</td></tr>';
+        try {
+          const res = await fetch('/api/trackers');
+          const data = await res.json();
+          const list = data.trackers || [];
+          if (!list.length) {
+            tbody.innerHTML = '<tr><td colspan="8">No trackers yet — add one from Saved Trackers first.</td></tr>';
+            return;
+          }
+          tbody.innerHTML = list.map((t) => {
+            const s = t.summary;
+            const cell = (n) => s ? `<td class="rankcell">${n}</td>` : '<td class="rankcell">–</td>';
+            return `
+              <tr class="trackerrow" data-id="${esc(t.id)}" style="cursor:pointer">
+                <td>${esc(t.name)}</td>
+                ${cell(s ? s.total : '–')}
+                ${cell(s ? s.rank1 : '–')}
+                ${cell(s ? s.top3 : '–')}
+                ${cell(s ? s.top10 : '–')}
+                ${cell(s ? s.top50 : '–')}
+                ${cell(s ? s.notFound : '–')}
+                <td>${t.lastRun ? esc(t.lastRun.date) : 'Not checked yet'}</td>
+              </tr>`;
+          }).join('');
+          tbody.querySelectorAll('.trackerrow').forEach((row) => {
+            row.addEventListener('click', () => { setPage('trackers'); openTracker(row.getAttribute('data-id')); });
+          });
+        } catch (e) {
+          tbody.innerHTML = '<tr><td colspan="8">Couldn\'t load: ' + esc(e && e.message ? e.message : e) + '</td></tr>';
+        }
+      }
+
+      function renderStatTiles(containerId, summary) {
+        const el = $(containerId);
+        if (!summary) { el.style.display = 'none'; return; }
+        el.style.display = 'grid';
+        const tiles = [
+          { n: summary.total, label: 'Keywords', c: 'var(--indigo)' },
+          { n: summary.rank1, label: '#1', c: 'var(--ok)' },
+          { n: summary.top3, label: 'Top 3', c: 'var(--ok)' },
+          { n: summary.top10, label: 'Top 10', c: 'var(--warn)' },
+          { n: summary.notFound, label: 'Not Found', c: 'var(--bad)' },
+        ];
+        el.innerHTML = tiles.map((x) => `<div class="stattile" style="--sc:${x.c}"><b>${x.n}</b><span>${x.label}</span></div>`).join('');
+      }
+
+      function renderMovers(sectionId, upId, downId, movers) {
+        const section = $(sectionId);
+        if (!movers || (!movers.gained.length && !movers.lost.length)) { section.style.display = 'none'; return; }
+        section.style.display = 'block';
+        const row = (m, cls, arrow) => {
+          let detail;
+          if (m.from == null) detail = `new at #${m.to}`;
+          else if (m.to == null) detail = `dropped out (was #${m.from})`;
+          else detail = `#${m.from} → #${m.to} ${arrow}${Math.abs(m.delta)}`;
+          return `<div class="moverrow"><span>${esc(m.keyword)}</span><span class="mdelta ${cls}">${detail}</span></div>`;
+        };
+        $(upId).innerHTML = movers.gained.length
+          ? movers.gained.map((m) => row(m, 'up', '▲')).join('')
+          : '<div class="moverempty">No gains since last check.</div>';
+        $(downId).innerHTML = movers.lost.length
+          ? movers.lost.map((m) => row(m, 'down', '▼')).join('')
+          : '<div class="moverempty">No drops since last check.</div>';
+      }
 
       // ---- saved trackers list ----
       let trackers = [];
@@ -713,6 +832,9 @@ emi calculator"></textarea>
           $('detail-err').textContent = run.sheetError;
           $('detail-err').style.display = 'block';
         }
+
+        renderStatTiles('detail-stats', data.summary);
+        renderMovers('detail-movers-section', 'detail-movers-up', 'detail-movers-down', data.movers);
 
         if (!run) {
           $('detail-lastchecked').textContent = '— not checked yet';

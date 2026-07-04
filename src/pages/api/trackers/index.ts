@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { parseAppId } from '../../../lib/aso/fetch';
-import { parseCategory, MAX_KEYWORDS, MAX_COMPETITORS } from '../../../lib/rank/track';
+import { parseCategory, summarizeRanks, MAX_KEYWORDS, MAX_COMPETITORS } from '../../../lib/rank/track';
 import { hasGoogleCredentials, credentialsDiagnosis } from '../../../lib/sheets/auth';
 import { parseSheetUrl } from '../../../lib/sheets/client';
 import { listTrackers, createTracker, latestRun, DEFAULT_KEYWORD_HEADER } from '../../../lib/rank/store';
@@ -24,6 +24,7 @@ export const GET: APIRoute = async () => {
       lang: t.lang,
       createdAt: t.createdAt,
       lastRun: run ? { date: run.date, primaryTitle: run.primary.title } : null,
+      summary: run ? summarizeRanks(run.keywords, t.primary) : null,
     };
   });
   return json({ trackers });

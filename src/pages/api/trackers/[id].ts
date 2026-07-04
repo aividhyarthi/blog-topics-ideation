@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getTracker, deleteTracker, listRunDates, loadRun } from '../../../lib/rank/store';
 import { runTracker } from '../../../lib/rank/runner';
+import { summarizeRanks, computeMovers } from '../../../lib/rank/track';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -27,7 +28,16 @@ export const GET: APIRoute = async ({ params, url }) => {
   // of truth), for manual trackers it's the same as the static list either way.
   const keywordList = run ? run.keywords.map((k) => k.keyword) : tracker.keywords;
 
-  return json({ tracker, dates, run, history, keywordList });
+  const summary = run ? summarizeRanks(run.keywords, tracker.primary) : null;
+  let movers = null;
+  if (run) {
+    const idx = dates.indexOf(run.date);
+    const prevDate = idx !== -1 ? dates[idx + 1] : undefined;
+    const previous = prevDate ? loadRun(id, prevDate) : null;
+    if (previous) movers = computeMovers(run.keywords, previous.keywords, tracker.primary);
+  }
+
+  return json({ tracker, dates, run, history, keywordList, summary, movers });
 };
 
 /** Manual "Recheck now" — same logic the daily scheduler runs automatically. */

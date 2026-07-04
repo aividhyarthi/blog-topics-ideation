@@ -202,3 +202,68 @@ export function compactKeywordResult(kr: KeywordRankResult): CompactKeywordRankR
   const { results, ...rest } = kr;
   return rest;
 }
+
+export interface RankSummary {
+  total: number; // keywords successfully checked (search didn't error)
+  rank1: number;
+  top3: number; // cumulative — includes rank1
+  top10: number; // cumulative — includes top3
+  top50: number; // cumulative — includes top10
+  notFound: number;
+  errors: number;
+}
+
+/** Bucket one app's ranks across a run's keywords into #1 / top 3 / top 10 / top 50 / not found. */
+export function summarizeRanks(keywords: CompactKeywordRankResult[], appId: string): RankSummary {
+  let rank1 = 0, top3 = 0, top10 = 0, top50 = 0, notFound = 0, errors = 0;
+  for (const k of keywords) {
+    if (k.error) { errors++; continue; }
+    const pos = k.ranks[appId];
+    if (pos == null) { notFound++; continue; }
+    if (pos <= 50) top50++;
+    if (pos <= 10) top10++;
+    if (pos <= 3) top3++;
+    if (pos === 1) rank1++;
+  }
+  return { total: keywords.length - errors, rank1, top3, top10, top50, notFound, errors };
+}
+
+export interface Mover {
+  keyword: string;
+  from: number | null; // null = wasn't found last time
+  to: number | null; // null = not found this time
+  delta: number; // positive = improved (moved to a lower/better position number)
+}
+
+/**
+ * Keywords whose position for `appId` changed between two runs. "Not found"
+ * is treated as a large-but-finite position (300) so appearing/disappearing
+ * from the results still registers as a real move, not an untracked no-op.
+ */
+export function computeMovers(
+  current: CompactKeywordRankResult[],
+  previous: CompactKeywordRankResult[],
+  appId: string,
+  opts: { limit?: number } = {},
+): { gained: Mover[]; lost: Mover[] } {
+  const NOT_FOUND_POS = 300;
+  const prevByKeyword = new Map(previous.filter((k) => !k.error).map((k) => [k.keyword, k]));
+  const movers: Mover[] = [];
+
+  for (const k of current) {
+    if (k.error) continue;
+    const prev = prevByKeyword.get(k.keyword);
+    if (!prev) continue; // no baseline for this keyword yet
+    const to = k.ranks[appId] ?? null;
+    const from = prev.ranks[appId] ?? null;
+    const delta = (from ?? NOT_FOUND_POS) - (to ?? NOT_FOUND_POS);
+    if (delta === 0) continue;
+    movers.push({ keyword: k.keyword, from, to, delta });
+  }
+
+  const limit = opts.limit ?? 5;
+  return {
+    gained: movers.filter((m) => m.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, limit),
+    lost: movers.filter((m) => m.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, limit),
+  };
+}
