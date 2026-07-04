@@ -23,10 +23,13 @@ async function sheetsFetch(path: string, token: string, init: RequestInit = {}):
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    const hint = res.status === 403 || res.status === 404
-      ? ' — make sure the sheet is shared with the service account email (Editor access).'
-      : '';
-    throw new Error(`Google Sheets API ${res.status}${hint} ${text.slice(0, 300)}`.trim());
+    let hint = '';
+    if (/has not been used|it is disabled|API has not been enabled/i.test(text)) {
+      hint = ' — the Google Sheets API isn\'t enabled on this service account\'s Google Cloud project yet. Open the URL in the error below and click Enable, then wait a minute and retry.';
+    } else if (res.status === 403 || res.status === 404) {
+      hint = ' — make sure the sheet is shared with the service account email (Editor access).';
+    }
+    throw new Error(`Google Sheets API ${res.status}${hint} ${text.slice(0, 500)}`.trim());
   }
   return res.json();
 }
