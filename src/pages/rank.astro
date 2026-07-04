@@ -1,0 +1,291 @@
+---
+// Keyword Rank Tracker — Google Play (Android).
+// Given your app + competitor apps + a keyword list, checks each keyword's live
+// Play Store search results and reports the position of every app (or "not found").
+// Optionally also checks a category's Top Free chart as a separate, non-keyword signal.
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>CiteRank — Keyword Rank Tracker for Google Play</title>
+    <meta name="description" content="Check where your Google Play app ranks vs competitors for a list of keywords, plus category Top Chart position." />
+    <style is:global>
+      :root {
+        --pink: #6366f1; --pink-dark: #4f46e5; --ink: #1d1f2b; --muted: #6b6f80;
+        --line: #e7e8ef; --bg: #f4f5fb; --card: #ffffff;
+        --ok: #15a06a; --ok-bg: #e7f6ef; --warn: #c98a00; --warn-bg: #fdf3dd;
+        --bad: #d63a3a; --bad-bg: #fdecec; --na: #9aa0ad; --indigo: #5b46c9;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+      header { background: linear-gradient(125deg, #6366f1 0%, #8b5cf6 60%, #a78bfa 100%); color: #fff; padding: 30px 20px 34px; }
+      .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+      header h1 { margin: 0 0 8px; font-size: 27px; font-weight: 800; letter-spacing: -0.02em; }
+      header p { margin: 0; opacity: 0.96; font-size: 15px; max-width: 780px; }
+      .brandbar { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; flex-wrap: wrap; }
+      .brandbar .logo { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
+      .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+      .brandbar .by { font-size: 11.5px; font-weight: 600; opacity: 0.9; }
+      nav.top { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+      nav.top a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 7px 13px; border-radius: 9px; }
+      nav.top a.active { background: #fff; color: var(--pink-dark); }
+      main { padding: 26px 0 64px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: 0 2px 8px rgba(20,20,40,0.05); }
+      label.fld { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin: 12px 0 5px; }
+      input[type=text], textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; color: var(--ink); background: #fcfcfe; outline: none; font-family: inherit; }
+      textarea { min-height: 90px; resize: vertical; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      input:focus, textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
+      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .three { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
+      @media (max-width: 720px) { .two, .three { grid-template-columns: 1fr; } }
+      .hint { font-size: 11.5px; color: var(--muted); margin-top: 5px; }
+      .row { display: flex; align-items: center; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
+      button.primary { background: var(--pink); color: #fff; border: none; border-radius: 11px; padding: 13px 24px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 10px rgba(99,102,241,0.35); }
+      button.primary:hover { background: var(--pink-dark); }
+      button.primary:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+      .ghostbtn { background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+      .ghostbtn:hover { border-color: var(--pink); color: var(--pink); }
+      .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; display: inline-block; vertical-align: -3px; margin-right: 8px; animation: spin 0.7s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .alert { margin-top: 16px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; display: none; }
+      .alert.err { background: var(--bad-bg); color: #b3261e; border: 1px solid #f6c9c6; }
+      .alert.info { background: var(--warn-bg); color: #8a5d00; border: 1px solid #f3e0b0; }
+      #results { margin-top: 26px; display: none; }
+      .sectitle { font-size: 15px; font-weight: 800; margin: 26px 0 12px; display: flex; align-items: center; gap: 8px; }
+      .sectitle .sub { font-weight: 500; color: var(--muted); font-size: 12.5px; }
+      .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+      .legend b { color: var(--ink); }
+      .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+      th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      th { background: #f6f7fb; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); position: sticky; top: 0; }
+      tr:last-child td { border-bottom: none; }
+      td.kwcell { white-space: normal; font-weight: 600; min-width: 160px; }
+      td.rankcell { text-align: center; font-weight: 800; }
+      .rankpill { display: inline-block; min-width: 30px; padding: 3px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 800; }
+      .rankpill.top { background: var(--ok-bg); color: var(--ok); }
+      .rankpill.mid { background: var(--warn-bg); color: var(--warn); }
+      .rankpill.low { background: #eef0f5; color: var(--muted); }
+      .rankpill.none { background: var(--bad-bg); color: var(--bad); }
+      .rankpill.err { background: #eef0f5; color: var(--na); font-weight: 600; font-size: 11px; }
+      .apphead { display: flex; gap: 6px; align-items: baseline; font-size: 12px; font-weight: 700; color: var(--muted); flex-direction: column; }
+      .apphead .atitle { font-size: 13px; color: var(--ink); }
+      .apphead a { color: var(--pink-dark); text-decoration: none; font-size: 10.5px; font-weight: 600; }
+      .me-col { background: #f3f1ff; }
+      .caveat { margin-top: 20px; font-size: 12px; color: var(--muted); background: #eef0f7; border-radius: 12px; padding: 12px 14px; }
+      .caveat b { color: var(--ink); }
+      footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 26px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <div class="brandbar">
+          <span class="logo">◆</span>
+          <span class="wordmark">CiteRank</span>
+          <span class="by">By Rudra Kasturi Inc</span>
+        </div>
+        <h1>Keyword Rank Tracker — Google Play</h1>
+        <p>Enter your app, its competitors, and a list of keywords. This checks Play's live search results for each keyword and reports where every app actually shows up — plus, optionally, each app's position in a category's Top Free chart.</p>
+        <nav class="top">
+          <a href="/">✍️ Topic Engine</a>
+          <a href="/audit">🔎 AEO Auditor</a>
+          <a href="/aso">📱 ASO Inspector</a>
+          <a href="/rank" class="active">📶 Rank Tracker</a>
+          <a href="/wbr">📊 WBR Builder</a>
+          <a href="/snapshot">🎯 Snapshot</a>
+          <a href="/measure">📡 Live AEO</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="wrap">
+        <div class="card" id="inputcard">
+          <label class="fld" for="primary">Your app — Play Store URL or package id</label>
+          <input id="primary" type="text" placeholder="https://play.google.com/store/apps/details?id=com.dreamplug.androidapp" />
+
+          <label class="fld" for="competitors">Competitor apps <span style="font-weight:400">(one URL or package id per line, up to 5)</span></label>
+          <textarea id="competitors" placeholder="https://play.google.com/store/apps/details?id=com.competitor.app
+com.another.competitor"></textarea>
+
+          <label class="fld" for="keywords">Keywords <span style="font-weight:400">(one per line, up to 25)</span></label>
+          <textarea id="keywords" placeholder="instant loan online app
+credit score free check
+emi calculator"></textarea>
+          <div class="hint" id="kw-count">0 keywords</div>
+
+          <div class="three" style="margin-top:4px">
+            <div>
+              <label class="fld" for="category">Category <span style="font-weight:400">(optional — for Top Chart check)</span></label>
+              <input id="category" type="text" placeholder="https://play.google.com/store/apps/category/FINANCE  —or—  FINANCE" />
+            </div>
+            <div>
+              <label class="fld" for="country">Country</label>
+              <input id="country" type="text" value="in" />
+            </div>
+            <div>
+              <label class="fld" for="lang">Language</label>
+              <input id="lang" type="text" value="en" />
+            </div>
+          </div>
+
+          <div class="row">
+            <button class="primary" id="go">Check rankings</button>
+          </div>
+          <div class="alert err" id="err"></div>
+          <div class="alert info" id="info"></div>
+        </div>
+
+        <section id="results">
+          <div class="sectitle">🔎 Keyword search rank <span class="sub">— position in Play's live search results for each keyword</span></div>
+          <div class="legend">
+            <span class="rankpill top">1–10</span>
+            <span class="rankpill mid">11–30</span>
+            <span class="rankpill low">31+</span>
+            <span class="rankpill none">Not found</span>
+          </div>
+          <div class="tablewrap"><table id="kw-table">
+            <thead><tr id="kw-thead"></tr></thead>
+            <tbody id="kw-tbody"></tbody>
+          </table></div>
+
+          <div id="cat-section" style="display:none">
+            <div class="sectitle">🏆 Category Top Chart <span class="sub" id="cat-sub"></span></div>
+            <p class="hint" style="margin:-4px 0 10px">This is <b>not</b> keyword-specific — it's Play's Top Free chart position for the whole category.</p>
+            <div class="tablewrap"><table id="cat-table">
+              <thead><tr><th>App</th><th class="rankcell">Chart position</th></tr></thead>
+              <tbody id="cat-tbody"></tbody>
+            </table></div>
+          </div>
+
+          <div class="caveat" id="caveat"></div>
+        </section>
+      </div>
+    </main>
+
+    <footer><b>CiteRank</b> · By Rudra Kasturi Inc · Google Play keyword rank tracking</footer>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+      function countLines(blob) {
+        return blob.split(/\n+/).map((s) => s.trim()).filter(Boolean).length;
+      }
+      $('keywords').addEventListener('input', () => {
+        $('kw-count').textContent = countLines($('keywords').value) + ' keywords';
+      });
+
+      function hideAlerts() { $('err').style.display = 'none'; $('info').style.display = 'none'; }
+      function showErr(msg) { const e = $('err'); e.textContent = msg; e.style.display = 'block'; }
+
+      function rankClass(pos) {
+        if (pos == null) return 'none';
+        if (pos <= 10) return 'top';
+        if (pos <= 30) return 'mid';
+        return 'low';
+      }
+      function rankLabel(pos) { return pos == null ? 'Not found' : '#' + pos; }
+
+      function render(data) {
+        const apps = [data.primary, ...data.competitors];
+
+        // Keyword table header
+        const thead = $('kw-thead');
+        thead.innerHTML = '<th>Keyword</th>' + apps.map((a, i) => `
+          <th class="${i === 0 ? 'me-col' : ''}">
+            <div class="apphead">
+              <span class="atitle">${esc(a.title)}${i === 0 ? ' (you)' : ''}</span>
+              <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.appId)}</a>
+            </div>
+          </th>`).join('');
+
+        const tbody = $('kw-tbody');
+        tbody.innerHTML = data.keywords.map((k) => {
+          const cells = apps.map((a, i) => {
+            if (k.error) return `<td class="rankcell ${i === 0 ? 'me-col' : ''}"><span class="rankpill err" title="${esc(k.error)}">error</span></td>`;
+            const pos = k.ranks[a.appId];
+            return `<td class="rankcell ${i === 0 ? 'me-col' : ''}"><span class="rankpill ${rankClass(pos)}">${rankLabel(pos)}</span></td>`;
+          }).join('');
+          return `<tr><td class="kwcell">${esc(k.keyword)}</td>${cells}</tr>`;
+        }).join('');
+
+        // Category table
+        const catSection = $('cat-section');
+        if (data.category) {
+          catSection.style.display = 'block';
+          $('cat-sub').textContent = `— ${data.category.category} · ${data.category.collection}`;
+          const catBody = $('cat-tbody');
+          if (data.category.error) {
+            catBody.innerHTML = `<tr><td colspan="2">Couldn't load the category chart: ${esc(data.category.error)}</td></tr>`;
+          } else {
+            catBody.innerHTML = apps.map((a) => {
+              const pos = data.category.ranks[a.appId];
+              return `<tr><td>${esc(a.title)}</td><td class="rankcell"><span class="rankpill ${rankClass(pos)}">${rankLabel(pos)}</span></td></tr>`;
+            }).join('');
+          }
+        } else {
+          catSection.style.display = 'none';
+        }
+
+        // Caveats
+        const notes = [];
+        if (data.meta.truncated) notes.push(`Only the first ${data.meta.keywordsRun} of ${data.meta.keywordCount} keywords were checked (limit ${data.meta.keywordsRun}/run).`);
+        if (data.meta.keywordErrors) notes.push(`${data.meta.keywordErrors} keyword(s) failed to load from Play Store search (shown as "error" above) — usually a temporary block/throttle; try again in a bit.`);
+        notes.push('<b>Keyword search rank</b> = each app\'s position in Play\'s own search results for that exact term, in the chosen country/language. <b>Category Top Chart</b> is a separate, non-keyword signal (installs/engagement based) — Play does not expose "rank within a category, for this keyword" as a single lookup.');
+        $('caveat').innerHTML = notes.map((n) => `<div>${n}</div>`).join('');
+
+        $('results').style.display = 'block';
+        $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      async function run() {
+        hideAlerts();
+        const primary = $('primary').value.trim();
+        const competitors = $('competitors').value;
+        const keywords = $('keywords').value;
+        const category = $('category').value.trim();
+        const country = $('country').value.trim() || 'in';
+        const lang = $('lang').value.trim() || 'en';
+
+        if (!primary) { showErr('Enter your app\'s Play Store URL or package id.'); return; }
+        if (!countLines(keywords)) { showErr('Add at least one keyword (one per line).'); return; }
+
+        const btn = $('go');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Checking Play Store search results…';
+        $('info').textContent = 'Querying Play Store for each keyword — this runs one at a time and can take a while for many keywords.';
+        $('info').style.display = 'block';
+
+        try {
+          const res = await fetch('/api/rank', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ primary, competitors, keywords, category, country, lang }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showErr(data.error || 'Something went wrong. Please try again.');
+          } else {
+            hideAlerts();
+            render(data);
+          }
+        } catch (e) {
+          showErr('Network error: ' + (e && e.message ? e.message : e));
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Check rankings';
+        }
+      }
+
+      $('go').addEventListener('click', run);
+    </script>
+  </body>
+</html>
