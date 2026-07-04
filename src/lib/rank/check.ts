@@ -63,20 +63,19 @@ export async function checkApp(
 }
 
 /** Check a single app and merge the result into today's snapshot. */
-export async function checkOne(app: TrackedApp): Promise<AppRankResult> {
+export async function checkOne(app: TrackedApp, userId?: string): Promise<AppRankResult> {
   const result = await checkApp(app);
   const dateKey = todayKey();
-  saveSnapshot(mergeIntoSnapshot(loadSnapshot(dateKey), dateKey, [result]));
+  saveSnapshot(mergeIntoSnapshot(loadSnapshot(dateKey, userId), dateKey, [result]), userId);
   return result;
 }
 
 /** Run a check for the given apps and merge the results into today's snapshot. */
-export async function runCheck(apps: TrackedApp[]): Promise<RankSnapshot> {
-  const cache = new Map<string, SearchHit[]>();
+export async function runCheck(apps: TrackedApp[], userId?: string, cache = new Map<string, SearchHit[]>()): Promise<RankSnapshot> {
   const results: AppRankResult[] = [];
   for (const app of apps) results.push(await checkApp(app, cache));
   const dateKey = todayKey();
-  const snap = mergeIntoSnapshot(loadSnapshot(dateKey), dateKey, results);
-  saveSnapshot(snap);
+  const snap = mergeIntoSnapshot(loadSnapshot(dateKey, userId), dateKey, results);
+  saveSnapshot(snap, userId);
   return snap;
 }

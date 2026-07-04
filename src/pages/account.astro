@@ -1,0 +1,138 @@
+---
+// Account & billing page (product mode, login required via middleware).
+import { BRAND, PLANS, planOf, checkAccess } from '../lib/saas/plans';
+const user = Astro.locals.user!;
+const access = checkAccess(user.status, user.trialEndsAt);
+const plan = planOf(user.plan);
+const expired = Astro.url.searchParams.get('expired') === '1';
+const upgraded = Astro.url.searchParams.get('upgraded') === '1';
+const statusLabel =
+  user.status === 'active' ? `Active — ${plan.name} plan`
+  : user.status === 'trialing' && access.allowed ? `Free trial — ${access.trialDaysLeft} day${access.trialDaysLeft === 1 ? '' : 's'} left`
+  : user.status === 'past_due' ? 'Payment problem — please update your card'
+  : 'No active subscription';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{BRAND} — Account</title>
+    <style>
+      :root { --pink: #6366f1; --pink-dark: #4f46e5; --ink: #1d1f2b; --muted: #6b6f80; --line: #e7e8ef; --bg: #f6f6fa; --ok: #15a06a; --bad: #c0392b; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+      header { background: linear-gradient(120deg, #6366f1 0%, #8b5cf6 100%); color: #fff; padding: 22px 20px; }
+      .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; }
+      .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 18px; }
+      .logo .mark { width: 26px; height: 26px; border-radius: 7px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
+      nav a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; margin-left: 8px; }
+      main { padding: 26px 0 60px; }
+      .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+      h2 { margin: 0 0 12px; font-size: 17px; }
+      .kv { display: flex; gap: 10px; font-size: 14px; padding: 5px 0; }
+      .kv .k { color: var(--muted); min-width: 120px; }
+      .status { font-weight: 700; }
+      .status.ok { color: var(--ok); }
+      .status.bad { color: var(--bad); }
+      .alert { padding: 12px 14px; border-radius: 10px; font-size: 13.5px; margin-bottom: 16px; }
+      .alert.warn { background: #fff6e6; color: #8a5d00; border: 1px solid #f3e0b0; }
+      .alert.good { background: #e9f8f1; color: #0c6b46; border: 1px solid #bfe8d4; }
+      .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      @media (max-width: 700px) { .plans { grid-template-columns: 1fr; } }
+      .plan { border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+      .plan.current { border-color: var(--pink); }
+      .plan h3 { margin: 0 0 2px; font-size: 15px; }
+      .plan .price { font-size: 26px; font-weight: 800; }
+      .plan .price span { font-size: 13px; font-weight: 600; color: var(--muted); }
+      .plan ul { list-style: none; padding: 0; margin: 8px 0 14px; font-size: 13px; color: var(--muted); }
+      .plan li::before { content: '✓ '; color: var(--pink-dark); font-weight: 800; }
+      button { border: none; border-radius: 10px; padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer; }
+      button.primary { background: var(--pink); color: #fff; }
+      button.primary:hover { background: var(--pink-dark); }
+      button.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+      button.ghost:hover { border-color: var(--pink); color: var(--pink); }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .err { display: none; margin-top: 12px; padding: 10px 12px; border-radius: 9px; font-size: 13px; background: #fdecec; color: #b3261e; border: 1px solid #f6c9c6; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap topbar">
+        <div class="logo"><span class="mark">▲</span>{BRAND}</div>
+        <nav>
+          <a href="/rank">📈 Dashboard</a>
+          <a href="#" id="logout">Log out</a>
+        </nav>
+      </div>
+    </header>
+    <main>
+      <div class="wrap">
+        {expired && <div class="alert warn">Your free trial has ended. Choose a plan below to keep your rank history and continue tracking — your data is saved and waiting.</div>}
+        {upgraded && <div class="alert good">🎉 You're subscribed! Your plan is being activated (this takes a few seconds) — head back to the dashboard.</div>}
+
+        <div class="card">
+          <h2>Account</h2>
+          <div class="kv"><span class="k">Name</span><span>{user.name || '—'}</span></div>
+          <div class="kv"><span class="k">Email</span><span>{user.email}</span></div>
+          <div class="kv"><span class="k">Status</span><span class={`status ${access.allowed || user.status === 'active' ? 'ok' : 'bad'}`}>{statusLabel}</span></div>
+          {user.status === 'active' && <div style="margin-top:10px;"><button class="ghost" id="portal">Manage billing / cancel</button></div>}
+        </div>
+
+        <div class="card">
+          <h2>{user.status === 'active' ? 'Change plan' : 'Choose your plan'}</h2>
+          <div class="plans">
+            {Object.values(PLANS).map((p) => (
+              <div class={`plan ${user.status === 'active' && user.plan === p.id ? 'current' : ''}`}>
+                <h3>{p.name}</h3>
+                <div class="price">${p.priceMonthly}<span>/month</span></div>
+                <ul>
+                  <li>{p.maxApps} apps</li>
+                  <li>{p.maxKeywordsPerApp} keywords per app</li>
+                  <li>Both stores · daily checks · discovery</li>
+                </ul>
+                {user.status === 'active' && user.plan === p.id
+                  ? <button class="ghost" disabled>Current plan</button>
+                  : <button class="primary" data-plan={p.id}>{user.status === 'active' ? `Switch to ${p.name}` : `Subscribe — $${p.priceMonthly}/mo`}</button>}
+              </div>
+            ))}
+          </div>
+          <div class="err" id="err"></div>
+        </div>
+      </div>
+    </main>
+    <script>
+      const err = document.getElementById('err');
+      async function post(url, body) {
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Request failed.');
+        return data;
+      }
+      document.querySelectorAll('button[data-plan]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          err.style.display = 'none';
+          btn.disabled = true;
+          try {
+            const data = await post('/api/billing/checkout', { plan: btn.getAttribute('data-plan') });
+            location.href = data.url;
+          } catch (e) { err.textContent = e.message; err.style.display = 'block'; btn.disabled = false; }
+        });
+      });
+      const portal = document.getElementById('portal');
+      if (portal) portal.addEventListener('click', async () => {
+        err.style.display = 'none';
+        try { const data = await post('/api/billing/portal'); location.href = data.url; }
+        catch (e) { err.textContent = e.message; err.style.display = 'block'; }
+      });
+      document.getElementById('logout').addEventListener('click', async (e) => {
+        e.preventDefault();
+        await post('/api/auth/logout');
+        location.href = '/';
+      });
+    </script>
+  </body>
+</html>

@@ -1,5 +1,16 @@
 ---
 // Rank Tracker — App Radar-style keyword rank tracking for Google Play + App Store.
+// Serves two audiences from one page: the internal (Nykaa) toolset, and the
+// AppRankr product dashboard (product mode: branded header, trial banner,
+// plan-based limits).
+import { BRAND, planOf, checkAccess } from '../lib/saas/plans';
+const product = Boolean(Astro.locals.productMode);
+const user = Astro.locals.user || null;
+const plan = user ? planOf(user.plan) : null;
+const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
+const limitsText = product && plan
+  ? `Your ${plan.name} plan tracks up to ${plan.maxApps} apps, ${plan.maxKeywordsPerApp} keywords each.`
+  : 'Up to 15 apps, 60 keywords each.';
 ---
 
 <!doctype html>
@@ -120,28 +131,56 @@
   <body>
     <header>
       <div class="wrap">
-        <div class="brandbar">
-          <span class="logo">◆</span>
-          <span class="wordmark">CiteRank</span>
-          <span class="by">By Rudra Kasturi Inc</span>
-        </div>
-        <h1>Rank Tracker</h1>
-        <p>
-          Track where your apps rank in <b>Google Play</b> and <b>App Store</b> search for the keywords
-          you care about — checked on demand or daily, with position history, movement vs the last
-          check, and the top-chart position. Add competitors' apps too to watch them on the same keywords.
-        </p>
-        <nav class="top">
-          <a href="/">✍️ Topic Engine</a>
-          <a href="/audit">🔎 AEO Auditor</a>
-          <a href="/aso">📱 ASO Inspector</a>
-          <a href="/rank" class="active">🏆 Rank Tracker</a>
-          <a href="/wbr">📊 WBR Builder</a>
-          <a href="/snapshot">🎯 Snapshot</a>
-          <a href="/measure">📡 Live AEO</a>
-        </nav>
+        {product ? (
+          <>
+            <div class="brandbar">
+              <span class="logo">▲</span>
+              <span class="wordmark">{BRAND}</span>
+              <span class="aipill" style="margin-left:auto;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);">{user?.email}</span>
+            </div>
+            <h1>Your rank dashboard</h1>
+            <p>
+              Where your apps rank in <b>Google Play</b> and <b>App Store</b> search — position history,
+              movement vs the last check, keyword discovery, and top-chart positions. Checked daily.
+            </p>
+            <nav class="top">
+              <a href="/rank" class="active">📈 Dashboard</a>
+              <a href="/account">⚙️ Account &amp; billing</a>
+            </nav>
+          </>
+        ) : (
+          <>
+            <div class="brandbar">
+              <span class="logo">◆</span>
+              <span class="wordmark">CiteRank</span>
+              <span class="by">By Rudra Kasturi Inc</span>
+            </div>
+            <h1>Rank Tracker</h1>
+            <p>
+              Track where your apps rank in <b>Google Play</b> and <b>App Store</b> search for the keywords
+              you care about — checked on demand or daily, with position history, movement vs the last
+              check, and the top-chart position. Add competitors' apps too to watch them on the same keywords.
+            </p>
+            <nav class="top">
+              <a href="/">✍️ Topic Engine</a>
+              <a href="/audit">🔎 AEO Auditor</a>
+              <a href="/aso">📱 ASO Inspector</a>
+              <a href="/rank" class="active">🏆 Rank Tracker</a>
+              <a href="/wbr">📊 WBR Builder</a>
+              <a href="/snapshot">🎯 Snapshot</a>
+              <a href="/measure">📡 Live AEO</a>
+            </nav>
+          </>
+        )}
       </div>
     </header>
+
+    {product && access?.trialDaysLeft && (
+      <div style="background:#fff6e6;border-bottom:1px solid #f3e0b0;color:#8a5d00;font-size:13.5px;padding:9px 20px;text-align:center;">
+        ⏳ <b>{access.trialDaysLeft} day{access.trialDaysLeft === 1 ? '' : 's'}</b> left in your free trial —
+        <a href="/account" style="color:#8a5d00;font-weight:700;">choose a plan</a> to keep your rank history running.
+      </div>
+    )}
 
     <main>
       <div class="wrap">
@@ -166,7 +205,7 @@ collage maker
 ai photo enhancer"></textarea>
           <div class="row" style="margin-top:10px;">
             <button class="primary" id="add-btn">Add app</button>
-            <span class="hint" style="margin:0;">Up to 15 apps, 60 keywords each. No keywords yet? Add the app, then hit <b>🔍 Discover keywords</b>.</span>
+            <span class="hint" style="margin:0;">{limitsText} No keywords yet? Add the app, then hit <b>🔍 Discover keywords</b>.</span>
           </div>
         </div>
 
@@ -182,7 +221,7 @@ ai photo enhancer"></textarea>
       </div>
     </main>
 
-    <footer><b>CiteRank</b> · By Rudra Kasturi Inc · App keyword rank tracking</footer>
+    <footer>{product ? <><b>{BRAND}</b> · App keyword rank tracking</> : <><b>CiteRank</b> · By Rudra Kasturi Inc · App keyword rank tracking</>}</footer>
     <div class="toast" id="toast"></div>
     <div class="viztip" id="viztip"></div>
 
@@ -438,7 +477,7 @@ ai photo enhancer"></textarea>
       function render() {
         const box = $('apps');
         if (!state.apps.length) {
-          box.innerHTML = '<div class="card"><div class="empty">No apps tracked yet. Add your app (and your competitors\\u2019 apps) above to start tracking rankings.</div></div>';
+          box.innerHTML = '<div class="card"><div class="empty">No apps tracked yet. Add your app (and your competitors’ apps) above to start tracking rankings.</div></div>';
         } else {
           box.innerHTML = state.apps.map(renderApp).join('');
         }
