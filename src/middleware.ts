@@ -16,9 +16,9 @@ import { defineMiddleware } from 'astro:middleware';
 import { userFromSessionToken, readCookie, SESSION_COOKIE } from './lib/saas/auth';
 import { checkAccess } from './lib/saas/plans';
 
-const PUBLIC_PREFIXES = ['/login', '/signup', '/api/auth/', '/api/billing/webhook', '/_astro/', '/favicon', '/robots'];
+const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/api/auth/', '/api/billing/webhook', '/_astro/', '/favicon', '/robots'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.
-const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/account', '/rank', '/aso', '/api/auth/', '/api/billing/', '/api/rank', '/api/aso', '/api/aso-variants', '/_astro/', '/favicon', '/robots'];
+const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/account', '/rank', '/aso', '/api/auth/', '/api/billing/', '/api/rank', '/api/aso', '/api/aso-variants', '/_astro/', '/favicon', '/robots'];
 // The two paid tools — gated on a live trial/subscription (checked below).
 const PAID_TOOL_PREFIXES = ['/rank', '/api/rank', '/aso', '/api/aso', '/api/aso-variants'];
 

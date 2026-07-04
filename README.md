@@ -116,6 +116,12 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
   two markets). Track competitors' apps on the same keywords too. Up to 15
   apps × 60 keywords; adding/editing keywords re-checks the app immediately so
   new keywords show real ranks right away.
+- **Tab switcher + filter** — with several tracked apps, a tab bar (not a long
+  vertical list) switches which app's full report is shown; a filter box above
+  it narrows the tabs by name/id. Adding an app selects its tab automatically.
+- **Export PDF** — each app has an "Export PDF" button that opens the browser
+  print dialog with a print-only layout (report only — no buttons, tabs, or
+  forms); choose "Save as PDF". No server-side PDF library needed.
 - **Keyword discovery** (`src/lib/rank/discover.ts`) — finds the keywords an
   app *already ranks for* in the top 200, no App Radar export needed. It builds
   a candidate universe from three free sources — the listing's own text

@@ -122,10 +122,28 @@ const limitsText = product && plan
       .lastcheck { font-size: 12.5px; color: var(--muted); }
       .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 16px; }
       .empty { text-align: center; color: var(--muted); padding: 26px 10px; font-size: 14px; }
+      .app-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+      .app-tab { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line); border-radius: 11px; padding: 7px 13px 7px 8px; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--ink); transition: border-color 0.15s; max-width: 220px; }
+      .app-tab:hover { border-color: var(--pink); }
+      .app-tab.selected { border-color: var(--pink); background: #f0eefc; color: var(--pink-dark); }
+      .app-tab img, .app-tab .fi { width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; }
+      .app-tab .fi { display: grid; place-items: center; background: #f0eefc; font-size: 11px; }
+      .app-tab .tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .app-tab .tick { font-size: 11px; color: var(--muted); font-weight: 700; flex-shrink: 0; }
       svg.spark { display: block; }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px; }
       .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13.5px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 50; }
       .toast.show { opacity: 1; }
+      .print-only { display: none; }
+      @media print {
+        .no-print, header nav.top, footer, .toast { display: none !important; }
+        header { background: none !important; color: var(--ink) !important; padding: 0 0 14px; }
+        header .aipill, header .by { display: none !important; }
+        body { background: #fff; }
+        .card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+        .table-wrap { border: 1px solid #ddd; }
+        .print-only { display: block; font-size: 12px; color: var(--muted); margin: -6px 0 14px; }
+      }
     </style>
   </head>
   <body>
@@ -133,20 +151,22 @@ const limitsText = product && plan
       <div class="wrap">
         {product ? (
           <>
-            <div class="brandbar">
+            <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
               <span class="logo">▲</span>
               <span class="wordmark">{BRAND}</span>
               <span class="aipill" style="margin-left:auto;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);">{user?.email}</span>
-            </div>
+            </a>
             <h1>Your rank dashboard</h1>
             <p>
               Where your apps rank in <b>Google Play</b> and <b>App Store</b> search — position history,
               movement vs the last check, keyword discovery, and top-chart positions. Checked daily.
             </p>
             <nav class="top">
+              <a href="/">🏠 Home</a>
               <a href="/rank" class="active">🏆 Rank Tracker</a>
               <a href="/aso">📱 ASO Inspector</a>
               <a href="/account">⚙️ Account &amp; billing</a>
+              <a href="#" id="logout">↪ Log out</a>
             </nav>
           </>
         ) : (
@@ -172,7 +192,7 @@ const limitsText = product && plan
     </header>
 
     {product && access?.trialDaysLeft && (
-      <div style="background:#fff6e6;border-bottom:1px solid #f3e0b0;color:#8a5d00;font-size:13.5px;padding:9px 20px;text-align:center;">
+      <div class="no-print" style="background:#fff6e6;border-bottom:1px solid #f3e0b0;color:#8a5d00;font-size:13.5px;padding:9px 20px;text-align:center;">
         ⏳ <b>{access.trialDaysLeft} day{access.trialDaysLeft === 1 ? '' : 's'}</b> left in your free trial —
         <a href="/account" style="color:#8a5d00;font-weight:700;">choose a plan</a> to keep your rank history running.
       </div>
@@ -180,10 +200,10 @@ const limitsText = product && plan
 
     <main>
       <div class="wrap">
-        <div class="alert err" id="err"></div>
-        <div class="alert info" id="info"></div>
+        <div class="alert err no-print" id="err"></div>
+        <div class="alert info no-print" id="info"></div>
 
-        <div class="card">
+        <div class="card no-print" id="add-app-card">
           <h3>➕ Track an app</h3>
           <p class="hint">
             Paste a <b>Google Play URL / package id</b> (e.g. <code>com.whatsapp</code>) or an
@@ -205,7 +225,7 @@ ai photo enhancer"></textarea>
           </div>
         </div>
 
-        <div class="toolbar">
+        <div class="toolbar no-print">
           <span class="lastcheck" id="lastcheck"></span>
           <div class="row">
             <button class="ghost" id="csv-btn">⬇️ Export CSV</button>
@@ -213,6 +233,12 @@ ai photo enhancer"></textarea>
           </div>
         </div>
 
+        <div id="app-tabs-wrap" class="no-print" style="display:none;">
+          <div class="row" style="margin-bottom:10px;">
+            <input type="text" id="app-filter" placeholder="🔍 Filter your tracked apps…" style="flex:1;min-width:200px;" />
+          </div>
+          <div id="app-tabs" class="app-tabs"></div>
+        </div>
         <div id="apps"></div>
       </div>
     </main>
@@ -221,9 +247,11 @@ ai photo enhancer"></textarea>
     <div class="toast" id="toast"></div>
     <div class="viztip" id="viztip"></div>
 
-    <script>
+    <script define:vars={{ BRAND_NAME: product ? BRAND : 'CiteRank' }}>
       const $ = (id) => document.getElementById(id);
       let state = { apps: [], lastCheckedAt: null, snapshotDays: [] };
+      let selectedAppKey = null;
+      let tabFilter = '';
 
       const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const escAttr = (s) => esc(s).replace(/"/g, '&quot;');
@@ -444,38 +472,64 @@ ai photo enhancer"></textarea>
           : '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>';
         return `
         <div class="card appcard" data-key="${escAttr(app.key)}">
+          <div class="print-only">${esc(BRAND_NAME)} — Rank Report · generated ${new Date().toLocaleDateString()}</div>
           <div class="apphead">
             ${icon}
             <div class="names">
               <div class="t">${app.url ? `<a href="${escAttr(app.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${esc(app.title)}</a>` : esc(app.title)}</div>
               <div class="d">${esc(app.developer || app.appId)} · ${storePill} <span class="pill cc">${esc((app.country || '').toUpperCase())}</span> ${chart}</div>
             </div>
-            <div class="btns">
+            <div class="btns no-print">
               <button class="ghost" data-act="check-one">Check now</button>
               <button class="ghost" data-act="discover">🔍 Discover keywords</button>
               <button class="ghost" data-act="edit-kw">＋ Add / edit keywords</button>
+              <button class="ghost" data-act="pdf">📄 Export PDF</button>
               <button class="ghost danger" data-act="remove">Remove</button>
             </div>
           </div>
-          <div class="kwedit" data-role="kwedit">
+          <div class="kwedit no-print" data-role="kwedit">
             <p class="hint" style="margin:10px 0 6px;">One keyword per line (or comma-separated). Saving re-checks this app's rankings right away.</p>
             <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
             </div>
           </div>
-          ${discoverHtml(app)}
+          <div class="no-print">${discoverHtml(app)}</div>
           ${overviewHtml(app)}
           ${table}
         </div>`;
       }
 
+      function tabIcon(app) {
+        return app.icon
+          ? `<img src="${escAttr(app.icon)}" alt="" />`
+          : `<div class="fi">${app.store === 'play' ? '🤖' : '📱'}</div>`;
+      }
+
+      function renderTabs() {
+        const wrap = $('app-tabs-wrap');
+        if (!state.apps.length) { wrap.style.display = 'none'; return; }
+        wrap.style.display = 'block';
+        const q = tabFilter.trim().toLowerCase();
+        const visible = q ? state.apps.filter((a) => (a.title || '').toLowerCase().includes(q) || (a.appId || '').toLowerCase().includes(q)) : state.apps;
+        $('app-tabs').innerHTML = visible.map((app) => `
+          <div class="app-tab ${app.key === selectedAppKey ? 'selected' : ''}" data-key="${escAttr(app.key)}">
+            ${tabIcon(app)}
+            <span class="tt">${esc(app.title)}</span>
+            <span class="tick">${app.store === 'play' ? 'GP' : 'AS'}</span>
+          </div>`).join('') || '<p class="hint" style="margin:0;">No apps match that filter.</p>';
+      }
+
       function render() {
         const box = $('apps');
         if (!state.apps.length) {
+          $('app-tabs-wrap').style.display = 'none';
           box.innerHTML = '<div class="card"><div class="empty">No apps tracked yet. Add your app (and your competitors’ apps) above to start tracking rankings.</div></div>';
         } else {
-          box.innerHTML = state.apps.map(renderApp).join('');
+          if (!selectedAppKey || !state.apps.some((a) => a.key === selectedAppKey)) selectedAppKey = state.apps[0].key;
+          renderTabs();
+          const current = state.apps.find((a) => a.key === selectedAppKey);
+          box.innerHTML = renderApp(current);
         }
         const days = state.snapshotDays || [];
         $('lastcheck').textContent = state.lastCheckedAt
@@ -528,11 +582,20 @@ ai photo enhancer"></textarea>
           else if (data.checkError) showInfo(data.checkError);
           $('add-app').value = ''; $('add-keywords').value = '';
           showToast('App added');
+          if (data.apps && data.apps.length) selectedAppKey = data.apps[data.apps.length - 1].key;
           return data;
         }));
 
       $('checkall-btn').addEventListener('click', () =>
         withBusy($('checkall-btn'), 'Checking rankings… this can take a minute', () => api({ action: 'check' })));
+
+      $('app-tabs').addEventListener('click', (ev) => {
+        const tab = ev.target.closest('.app-tab');
+        if (!tab) return;
+        selectedAppKey = tab.getAttribute('data-key');
+        render();
+      });
+      $('app-filter').addEventListener('input', (ev) => { tabFilter = ev.target.value; renderTabs(); });
 
       $('apps').addEventListener('click', (ev) => {
         const btn = ev.target.closest('button[data-act]');
@@ -550,6 +613,7 @@ ai photo enhancer"></textarea>
           return;
         }
         if (act === 'check-one') { withBusy(btn, 'Checking…', () => api({ action: 'check', key })); return; }
+        if (act === 'pdf') { window.print(); return; }
         if (act === 'discover') {
           withBusy(btn, 'Scanning stores… 1–2 min', async () => {
             const data = await api({ action: 'discover', key });
@@ -598,6 +662,13 @@ ai photo enhancer"></textarea>
         a.click();
         URL.revokeObjectURL(a.href);
         showToast('CSV downloaded');
+      });
+
+      const logoutBtn = document.getElementById('logout');
+      if (logoutBtn) logoutBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await fetch('/api/auth/logout', { method: 'POST' });
+        location.href = '/';
       });
 
       refresh().catch((e) => showErr('Could not load tracker state: ' + (e && e.message ? e.message : e)));

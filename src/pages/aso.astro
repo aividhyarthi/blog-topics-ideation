@@ -215,7 +215,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       /* Download PDF = browser print. Hide the chrome, expand every tab + pillar so
          the whole report lands in the PDF, not just whatever tab was on screen. */
       @media print {
-        header nav.top, .brandbar .aipill, #inputcard, .resbar, .ktabs, footer,
+        header nav.top, .brandbar .aipill, #inputcard, .resbar, .ktabs, footer, .no-print,
         .ghostbtn, button.primary, .icopy, [data-refocus] { display: none !important; }
         body { background: #fff; }
         #results { display: block !important; }
@@ -235,17 +235,19 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       <div class="wrap">
         {product ? (
           <>
-            <div class="brandbar">
+            <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
               <span class="logo">▲</span>
               <span class="wordmark">{BRAND}</span>
               <span class="aipill" style="margin-left:auto;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);">{user?.email}</span>
-            </div>
+            </a>
             <h1>ASO Inspector — Google Play</h1>
             <p>Paste a Google Play (Android) app and get its App Store Optimization score, keyword analysis, competitor comparison, and AI-rewritten title, short and long descriptions — all from the live listing.</p>
             <nav class="top">
+              <a href="/">🏠 Home</a>
               <a href="/rank">🏆 Rank Tracker</a>
               <a href="/aso" class="active">📱 ASO Inspector</a>
               <a href="/account">⚙️ Account &amp; billing</a>
+              <a href="#" id="logout">↪ Log out</a>
             </nav>
           </>
         ) : (
@@ -268,7 +270,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
     </header>
 
     {product && access?.trialDaysLeft && (
-      <div style="background:#fff6e6;border-bottom:1px solid #f3e0b0;color:#8a5d00;font-size:13.5px;padding:9px 20px;text-align:center;">
+      <div class="no-print" style="background:#fff6e6;border-bottom:1px solid #f3e0b0;color:#8a5d00;font-size:13.5px;padding:9px 20px;text-align:center;">
         ⏳ <b>{access.trialDaysLeft} day{access.trialDaysLeft === 1 ? '' : 's'}</b> left in your free trial —
         <a href="/account" style="color:#8a5d00;font-weight:700;">choose a plan</a> to keep using ASO Inspector.
       </div>
@@ -718,6 +720,13 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       }
       $('go').addEventListener('click', run);
       $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+
+      const logoutBtn = document.getElementById('logout');
+      if (logoutBtn) logoutBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await fetch('/api/auth/logout', { method: 'POST' });
+        location.href = '/';
+      });
     </script>
   </body>
 </html>
