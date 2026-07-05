@@ -76,6 +76,21 @@ export function clearedSessionCookie(secure: boolean): string {
   return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`;
 }
 
+/**
+ * Is this request actually HTTPS from the browser's point of view? Railway
+ * (like virtually every PaaS) terminates TLS at its edge and forwards plain
+ * HTTP to the container, so `new URL(request.url).protocol` is 'http:' in
+ * production even though the visitor is on https — checking that directly
+ * would silently drop the Secure flag from every session cookie. Trust the
+ * standard X-Forwarded-Proto header the proxy sets, falling back to the
+ * request's own protocol for local dev (no proxy in front of it there).
+ */
+export function isSecureRequest(request: Request, url: URL): boolean {
+  const forwarded = request.headers.get('x-forwarded-proto');
+  if (forwarded) return forwarded.split(',')[0].trim() === 'https';
+  return url.protocol === 'https:';
+}
+
 export function readCookie(header: string | null, name: string): string | null {
   if (!header) return null;
   for (const part of header.split(';')) {

@@ -38,9 +38,18 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
       .brandbar .by { font-size: 11.5px; font-weight: 600; opacity: 0.9; }
       .brandbar .aipill { margin-left: auto; font-size: 11.5px; font-weight: 700; padding: 4px 11px; border-radius: 999px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4); }
-      nav.top { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+      nav.top { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
       nav.top a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 7px 13px; border-radius: 9px; }
       nav.top a.active { background: #fff; color: var(--pink-dark); }
+      .usermenu { position: relative; margin-left: auto; }
+      .usertrigger { color: #fff; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 7px 13px; border-radius: 9px; cursor: pointer; font-family: inherit; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .usertrigger .caret { opacity: 0.8; }
+      .userdropdown { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 10px 30px rgba(20,20,40,0.16); min-width: 190px; overflow: hidden; z-index: 50; }
+      .userdropdown.open { display: block; }
+      .userdropdown a { display: block; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
+      .userdropdown a:hover { background: #f6f6fa; }
+      .userdropdown a + a { border-top: 1px solid var(--line); }
+      @media (max-width: 480px) { .usertrigger { max-width: 60vw; } }
       main { padding: 26px 0 64px; }
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: 0 2px 8px rgba(20,20,40,0.05); }
       label.fld { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin: 12px 0 5px; }
@@ -242,17 +251,20 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
             <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
               <span class="logo">▲</span>
               <span class="wordmark">{BRAND}</span>
-              <span class="aipill" style="margin-left:auto;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);">{user?.email}</span>
             </a>
             <h1>ASO Inspector — Google Play</h1>
             <p>Paste a Google Play (Android) app and get its App Store Optimization score, keyword analysis, competitor comparison, and AI-rewritten title, short and long descriptions — all from the live listing.</p>
             <nav class="top">
-              <a href="/">🏠 Home</a>
               <a href="/rank">🏆 Rank Tracker</a>
               <a href="/aso" class="active">📱 ASO Inspector</a>
-              <a href="/account">⚙️ Account &amp; billing</a>
-              <a href="/about">ℹ️ About</a>
-              <a href="#" id="logout">↪ Log out</a>
+              <div class="usermenu">
+                <button type="button" class="usertrigger" id="usertrigger">{user?.email} <span class="caret">▾</span></button>
+                <div class="userdropdown" id="userdropdown">
+                  <a href="/account">⚙️ Account &amp; billing</a>
+                  <a href="/about">ℹ️ About</a>
+                  <a href="#" id="logout">↪ Log out</a>
+                </div>
+              </div>
             </nav>
           </>
         ) : (
@@ -745,6 +757,14 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         await fetch('/api/auth/logout', { method: 'POST' });
         location.href = '/';
       });
+
+      const userTrigger = document.getElementById('usertrigger');
+      const userDropdown = document.getElementById('userdropdown');
+      if (userTrigger && userDropdown) {
+        userTrigger.addEventListener('click', (e) => { e.stopPropagation(); userDropdown.classList.toggle('open'); });
+        document.addEventListener('click', (e) => { if (!userDropdown.contains(e.target) && e.target !== userTrigger) userDropdown.classList.remove('open'); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') userDropdown.classList.remove('open'); });
+      }
     </script>
   </body>
 </html>

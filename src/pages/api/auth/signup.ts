@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { signup, createSession, sessionCookie } from '../../../lib/saas/auth';
+import { signup, createSession, sessionCookie, isSecureRequest } from '../../../lib/saas/auth';
 
 export const POST: APIRoute = async ({ request, url }) => {
   let body: { email?: string; password?: string; name?: string };
@@ -13,7 +13,7 @@ export const POST: APIRoute = async ({ request, url }) => {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Set-Cookie': sessionCookie(token, url.protocol === 'https:'),
+      'Set-Cookie': sessionCookie(token, isSecureRequest(request, url)),
     },
   });
 };

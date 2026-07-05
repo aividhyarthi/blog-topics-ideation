@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { destroySession, clearedSessionCookie, readCookie, SESSION_COOKIE } from '../../../lib/saas/auth';
+import { destroySession, clearedSessionCookie, readCookie, SESSION_COOKIE, isSecureRequest } from '../../../lib/saas/auth';
 
 export const POST: APIRoute = async ({ request, url }) => {
   destroySession(readCookie(request.headers.get('cookie'), SESSION_COOKIE));
@@ -7,7 +7,7 @@ export const POST: APIRoute = async ({ request, url }) => {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Set-Cookie': clearedSessionCookie(url.protocol === 'https:'),
+      'Set-Cookie': clearedSessionCookie(isSecureRequest(request, url)),
     },
   });
 };

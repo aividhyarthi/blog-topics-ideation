@@ -9,7 +9,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'apprankr-test-'));
 process.env.RANK_DATA_DIR = join(tmp, 'data');
 process.env.APP_DB_PATH = join(tmp, 'test.db');
 
-const { hashPassword, verifyPassword, signup, login, createSession, userFromSessionToken, destroySession, readCookie } = await import('../src/lib/saas/auth');
+const { hashPassword, verifyPassword, signup, login, createSession, userFromSessionToken, destroySession, readCookie, isSecureRequest } = await import('../src/lib/saas/auth');
 const { checkAccess, planOf, PLANS } = await import('../src/lib/saas/plans');
 const { loadConfig, saveConfig } = await import('../src/lib/rank/store');
 
@@ -45,6 +45,17 @@ eq('bad token resolves to null', userFromSessionToken('deadbeef'), null);
 destroySession(sess.token);
 eq('destroyed session is gone', userFromSessionToken(sess.token), null);
 eq('cookie parse', readCookie('foo=1; ar_session=abc123; bar=2', 'ar_session'), 'abc123');
+
+// --- reverse-proxy-aware secure-cookie detection ------------------------------
+// Railway (and every PaaS) terminates TLS at its edge and forwards plain HTTP
+// to the container — trusting raw url.protocol would silently drop the
+// Secure flag from every cookie in production. Must trust X-Forwarded-Proto.
+const reqWith = (proto?: string) => new Request('http://internal.local/x', { headers: proto ? { 'x-forwarded-proto': proto } : {} });
+eq('behind proxy, forwarded https -> secure', isSecureRequest(reqWith('https'), new URL('http://internal.local/x')), true);
+eq('behind proxy, forwarded http -> not secure', isSecureRequest(reqWith('http'), new URL('http://internal.local/x')), false);
+eq('multi-hop forwarded header uses first hop', isSecureRequest(reqWith('https, http'), new URL('http://internal.local/x')), true);
+eq('no proxy header, falls back to url protocol (https)', isSecureRequest(reqWith(), new URL('https://internal.local/x')), true);
+eq('no proxy header, falls back to url protocol (http, local dev)', isSecureRequest(reqWith(), new URL('http://internal.local/x')), false);
 
 // --- plan access -------------------------------------------------------------
 const future = new Date(Date.now() + 3 * 86400000).toISOString();

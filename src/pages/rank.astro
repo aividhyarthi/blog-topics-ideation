@@ -32,9 +32,18 @@ const limitsText = product && plan
       .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
       header h1 { margin: 0 0 6px; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
       header p { margin: 0; opacity: 0.95; font-size: 15px; max-width: 780px; }
-      nav.top { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+      nav.top { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
       nav.top a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; }
       nav.top a.active { background: #fff; color: var(--pink-dark); }
+      .usermenu { position: relative; margin-left: auto; }
+      .usertrigger { color: #fff; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .usertrigger .caret { opacity: 0.8; }
+      .userdropdown { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 10px 30px rgba(20,20,40,0.16); min-width: 190px; overflow: hidden; z-index: 50; }
+      .userdropdown.open { display: block; }
+      .userdropdown a { display: block; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
+      .userdropdown a:hover { background: #f6f6fa; }
+      .userdropdown a + a { border-top: 1px solid var(--line); }
+      @media (max-width: 480px) { .usertrigger { max-width: 60vw; } }
       .brandbar { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; flex-wrap: wrap; }
       .brandbar .logo { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
       .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
@@ -165,7 +174,6 @@ const limitsText = product && plan
             <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
               <span class="logo">▲</span>
               <span class="wordmark">{BRAND}</span>
-              <span class="aipill" style="margin-left:auto;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);">{user?.email}</span>
             </a>
             <h1>Your rank dashboard</h1>
             <p>
@@ -173,12 +181,16 @@ const limitsText = product && plan
               movement vs the last check, keyword discovery, and top-chart positions. Checked daily.
             </p>
             <nav class="top">
-              <a href="/">🏠 Home</a>
               <a href="/rank" class="active">🏆 Rank Tracker</a>
               <a href="/aso">📱 ASO Inspector</a>
-              <a href="/account">⚙️ Account &amp; billing</a>
-              <a href="/about">ℹ️ About</a>
-              <a href="#" id="logout">↪ Log out</a>
+              <div class="usermenu">
+                <button type="button" class="usertrigger" id="usertrigger">{user?.email} <span class="caret">▾</span></button>
+                <div class="userdropdown" id="userdropdown">
+                  <a href="/account">⚙️ Account &amp; billing</a>
+                  <a href="/about">ℹ️ About</a>
+                  <a href="#" id="logout">↪ Log out</a>
+                </div>
+              </div>
             </nav>
           </>
         ) : (
@@ -758,6 +770,14 @@ ai photo enhancer"></textarea>
         await fetch('/api/auth/logout', { method: 'POST' });
         location.href = '/';
       });
+
+      const userTrigger = document.getElementById('usertrigger');
+      const userDropdown = document.getElementById('userdropdown');
+      if (userTrigger && userDropdown) {
+        userTrigger.addEventListener('click', (e) => { e.stopPropagation(); userDropdown.classList.toggle('open'); });
+        document.addEventListener('click', (e) => { if (!userDropdown.contains(e.target) && e.target !== userTrigger) userDropdown.classList.remove('open'); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') userDropdown.classList.remove('open'); });
+      }
 
       refresh().catch((e) => showErr('Could not load tracker state: ' + (e && e.message ? e.message : e)));
     </script>
