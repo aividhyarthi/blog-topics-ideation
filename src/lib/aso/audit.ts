@@ -28,7 +28,8 @@ export interface Pillar {
 }
 export interface MarketSignal { label: string; detail: string; tone: 'good' | 'mid' | 'bad' | 'na'; }
 export interface RatingBreakdown {
-  total: number;
+  total: number; // reviews found within the window
+  windowDays: number;
   counts: { star: number; count: number; pct: number }[]; // 5★ down to 1★
   negativeShare: number; // % of ratings that are 1-2★
   positiveShare: number; // % of ratings that are 4-5★
@@ -132,35 +133,44 @@ function gradeFor(s: number): string {
 }
 
 /**
- * Star-rating distribution + its ranking impact. Reported as context (like the
- * other market signals) rather than scored, but surfaced with an explicit
- * warning because a heavy 1-2★ share is a real, well-documented Play ranking
- * drag — not just a UX nicety.
+ * Star-rating distribution over a ROLLING recent window (default 28 days),
+ * not lifetime totals — recent rating velocity, not the all-time average, is
+ * what actually moves Play's ranking signal, and a rolling window also
+ * surfaces a fresh problem fast instead of diluting it in years of history.
+ * Built from the dated review feed (see fetchRecentReviews for the caveat:
+ * this reflects written reviews in the window, the closest proxy the public
+ * listing exposes to a dated ratings breakdown). Reported as context (like
+ * the other market signals) rather than scored, but surfaced with an
+ * explicit warning because a heavy 1-2★ share is a real, well-documented
+ * Play ranking drag — not just a UX nicety.
  */
-export function ratingDistribution(histogram: AsoAppData['histogram'], avgScore: number | null): RatingBreakdown {
-  if (!histogram) return { total: 0, counts: [], negativeShare: 0, positiveShare: 0, tone: 'na', warning: null };
-  const total = ([1, 2, 3, 4, 5] as const).reduce((sum, star) => sum + (histogram[String(star) as '1'] || 0), 0);
+export function ratingDistribution(reviews: { score: number }[], windowDays = 28): RatingBreakdown {
+  const total = reviews.length;
   const pct = (n: number) => (total ? Math.round((n / total) * 1000) / 10 : 0);
+  const countOf = (star: number) => reviews.filter((r) => Math.round(r.score) === star).length;
   const counts = ([5, 4, 3, 2, 1] as const).map((star) => {
-    const count = histogram[String(star) as '1'] || 0;
+    const count = countOf(star);
     return { star, count, pct: pct(count) };
   });
-  const negativeShare = pct((histogram['1'] || 0) + (histogram['2'] || 0));
-  const positiveShare = pct((histogram['4'] || 0) + (histogram['5'] || 0));
-  const enough = total >= 10;
+  const negativeShare = pct(countOf(1) + countOf(2));
+  const positiveShare = pct(countOf(4) + countOf(5));
+  const enough = total >= 5;
   const tone: RatingBreakdown['tone'] = !enough ? 'na' : negativeShare >= 25 ? 'bad' : negativeShare >= 12 ? 'mid' : 'good';
+  const avgRecent = total ? reviews.reduce((sum, r) => sum + r.score, 0) / total : null;
   const warning = enough && negativeShare >= 12
-    ? `${negativeShare}% of ratings are 1-2★${avgScore != null ? ` (avg ${avgScore.toFixed(2)}★)` : ''} — rating average and the volume of recent low ratings are known Play Store ranking signals, so this is likely suppressing search visibility on top of costing conversions. Fixing the root complaint driving these ratings and prompting happy users to rate should lift both.`
+    ? `${negativeShare}% of ratings in the last ${windowDays} days are 1-2★${avgRecent != null ? ` (avg ${avgRecent.toFixed(2)}★ recently)` : ''} — rating average and the volume of recent low ratings are known Play Store ranking signals, so this is likely suppressing search visibility right now, on top of costing conversions. Fixing the root complaint driving these ratings and prompting happy users to rate should lift both.`
     : null;
-  return { total, counts, negativeShare, positiveShare, tone, warning };
+  return { total, windowDays, counts, negativeShare, positiveShare, tone, warning };
 }
 
 /**
  * Build the deterministic ASO report. `focusKeyword` is optional — when the
  * owner provides one, the Keyword Strategy pillar grades coverage of THAT term;
- * otherwise it falls back to the strongest extracted keyword.
+ * otherwise it falls back to the strongest extracted keyword. `recentReviews`
+ * (last-28-days reviews, fetched separately since it's its own network call)
+ * powers the rating breakdown; omit it and that section just reports no data.
  */
-export function auditListing(app: AsoAppData, focusKeywordInput?: string | string[]): AsoReport {
+export function auditListing(app: AsoAppData, focusKeywordInput?: string | string[], recentReviews: { score: number }[] = []): AsoReport {
   const keywords = extractKeywords(app);
   const focusKeywords = normalizeFocusList(focusKeywordInput, keywords[0] ? keywords[0].term : null);
   const focusKeyword = focusKeywords[0] || null;
@@ -360,7 +370,7 @@ export function auditListing(app: AsoAppData, focusKeywordInput?: string | strin
     band: overall >= 70 ? 'High' : overall >= 50 ? 'Medium' : 'Low',
     pillars,
     marketSignals,
-    ratingBreakdown: ratingDistribution(app.histogram, app.score),
+    ratingBreakdown: ratingDistribution(recentReviews),
     keywords,
     focusKeyword,
     focusKeywords,

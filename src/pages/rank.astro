@@ -489,7 +489,7 @@ ai photo enhancer"></textarea>
         const link = `/aso?${asoLinkParams(app, cached.focusList)}`;
         const rb = r.ratingBreakdown;
         const ratingPill = (rb && (rb.tone === 'bad' || rb.tone === 'mid'))
-          ? `<div class="asorating ${rb.tone}">⚠️ ${rb.negativeShare}% of ratings are 1-2★ — likely hurting your ranking, not just conversions</div>`
+          ? `<div class="asorating ${rb.tone}">⚠️ ${rb.negativeShare}% of ratings in the last ${rb.windowDays} days are 1-2★ — likely hurting your ranking, not just conversions</div>`
           : '';
         return `<div class="asobox">
           <div class="asorow">

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
-import { parseAppId, fetchApp, fetchCompetitors, type AsoAppData } from '../../lib/aso/fetch';
+import { parseAppId, fetchApp, fetchCompetitors, fetchRecentReviews, type AsoAppData } from '../../lib/aso/fetch';
 import { auditListing, competitorRow, keywordCoverage, keywordGap, keywordMatrix, type AsoReport, type CompetitorRow, type GapKeyword } from '../../lib/aso/audit';
 
 const json = (data: unknown, status = 200) =>
@@ -166,10 +166,17 @@ export const POST: APIRoute = async ({ request }) => {
     }, 502);
   }
 
+  // 1b) Last-28-days reviews for the rating breakdown — best-effort, a failure
+  // here (e.g. Play rate-limiting) just means that section reports no data.
+  let recentReviews: { date: string; score: number }[] = [];
+  try {
+    recentReviews = await fetchRecentReviews(appId, lang, country);
+  } catch { /* rating breakdown just shows no data */ }
+
   // 2) Deterministic audit (always available). The keyword we put head-to-head is
   // the one the owner gave; if they gave none, fall back to the strongest one we
   // extracted from the listing, so the verdict + comparison always have a subject.
-  const report = auditListing(app, focusKeyword);
+  const report = auditListing(app, focusKeyword, recentReviews);
   // Up to 3 keywords are evaluated; if the owner gave none we fall back to the
   // strongest extracted term so the verdict + comparison always have a subject.
   const evalFocusList = report.focusKeywords;

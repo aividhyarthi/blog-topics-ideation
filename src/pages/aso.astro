@@ -659,13 +659,15 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         // star-rating breakdown + ranking-impact callout
         const rb = r.ratingBreakdown;
         const ratingSection = (rb && rb.total > 0) ? `
-          <div class="sectitle">⭐ Rating breakdown <span class="sub">— from ${rb.total.toLocaleString()} recent ratings on the live listing</span></div>
+          <div class="sectitle">⭐ Rating breakdown <span class="sub">— last ${rb.windowDays} days, from ${rb.total.toLocaleString()} written reviews (Play doesn't expose a dated breakdown of silent star-only ratings)</span></div>
           <div class="ratingcard">
             <div class="ratingbars">
               ${rb.counts.map((c) => `<div class="ratingrow"><span class="rstar">${c.star}★</span><div class="ratingtrack"><div class="ratingfill${c.star <= 2 ? ' neg' : ''}" style="width:${c.pct}%"></div></div><span class="rpct">${c.pct}% · ${c.count.toLocaleString()}</span></div>`).join('')}
             </div>
             ${rb.warning ? `<div class="summary" style="margin-top:14px"><span class="sicon">⚠️</span><div class="sbody"><b>Ranking impact</b><p>${esc(rb.warning)}</p></div></div>` : ''}
-          </div>` : '';
+          </div>` : `
+          <div class="sectitle">⭐ Rating breakdown <span class="sub">— last ${(rb && rb.windowDays) || 28} days</span></div>
+          <div class="ratingcard"><span style="color:var(--muted);font-size:13px">No written reviews in this window — too little recent signal to assess rating-driven ranking impact.</span></div>`;
 
         // top fixes
         const TAGLBL = { high: 'High impact', quick: 'Quick win' };

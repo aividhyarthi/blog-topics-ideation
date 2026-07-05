@@ -18,7 +18,6 @@ export interface AsoAppData {
   scoreText: string | null;
   ratings: number | null; // number of ratings
   reviews: number | null; // number of written reviews
-  histogram: Record<'1' | '2' | '3' | '4' | '5', number> | null; // rating distribution, 1-5 stars
   installs: string | null; // e.g. "1,000,000,000+"
   minInstalls: number | null;
   genre: string | null;
@@ -79,9 +78,6 @@ function normalize(app: Record<string, any>, appId: string): AsoAppData {
     scoreText: app.scoreText || null,
     ratings: typeof app.ratings === 'number' ? app.ratings : null,
     reviews: typeof app.reviews === 'number' ? app.reviews : null,
-    histogram: app.histogram && typeof app.histogram === 'object'
-      ? { '1': Number(app.histogram['1']) || 0, '2': Number(app.histogram['2']) || 0, '3': Number(app.histogram['3']) || 0, '4': Number(app.histogram['4']) || 0, '5': Number(app.histogram['5']) || 0 }
-      : null,
     installs: app.installs || null,
     minInstalls: typeof app.minInstalls === 'number' ? app.minInstalls : null,
     genre: app.genre || null,
@@ -106,6 +102,44 @@ function normalize(app: Record<string, any>, appId: string): AsoAppData {
 export async function fetchApp(appId: string, lang = 'en', country = 'us'): Promise<AsoAppData> {
   const app = await gplay.app({ appId, lang, country });
   return normalize(app as Record<string, any>, appId);
+}
+
+export interface RecentReview { date: string; score: number; }
+
+/**
+ * Reviews from the last `windowDays`, newest first. Play's public listing only
+ * exposes a dated feed of WRITTEN reviews (not a dated breakdown of every star
+ * tap — many ratings have no review text and aren't in this feed), so this is
+ * a proxy for recent rating velocity, not the literal count Play uses
+ * internally. Pages through `reviews()` (sorted NEWEST) until a page's oldest
+ * entry falls outside the window, or a safety cap is hit.
+ */
+// google-play-scraper's own .d.ts mistypes `sort` as an enum *instance* rather
+// than the enum object, so `gplay.sort.NEWEST` doesn't type-check even though
+// it works fine at runtime. Use the literal the library actually defines it as.
+const SORT_NEWEST = 2;
+
+export async function fetchRecentReviews(appId: string, lang = 'en', country = 'us', windowDays = 28, cap = 400): Promise<RecentReview[]> {
+  const cutoff = Date.now() - windowDays * 86400000;
+  const collected: RecentReview[] = [];
+  let token: string | undefined;
+  for (let page = 0; page < 8; page++) {
+    const result = (await gplay.reviews({
+      appId, lang, country, sort: SORT_NEWEST, num: 50, paginate: true,
+      ...(token ? { nextPaginationToken: token } : {}),
+    } as Parameters<typeof gplay.reviews>[0])) as { data: Record<string, any>[]; nextPaginationToken?: string };
+    const items = result.data || [];
+    if (!items.length) break;
+    let hitCutoff = false;
+    for (const it of items) {
+      const t = Date.parse(String(it.date));
+      if (!Number.isNaN(t) && t < cutoff) { hitCutoff = true; break; }
+      if (typeof it.score === 'number') collected.push({ date: String(it.date), score: it.score });
+    }
+    if (hitCutoff || collected.length >= cap || !result.nextPaginationToken) break;
+    token = result.nextPaginationToken;
+  }
+  return collected;
 }
 
 export interface Market { country: string; lang: string; }
