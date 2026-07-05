@@ -122,6 +122,9 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
 - **Export PDF** — each app has an "Export PDF" button that opens the browser
   print dialog with a print-only layout (report only — no buttons, tabs, or
   forms); choose "Save as PDF". No server-side PDF library needed.
+- **Mobile**: nav wraps, forms/grids collapse to one column, and wide tables
+  (keyword rank table, ASO comparison tables) scroll horizontally with a
+  "↔ Swipe to see all columns" hint shown only on narrow screens.
 - **Keyword discovery** (`src/lib/rank/discover.ts`) — finds the keywords an
   app *already ranks for* in the top 200, no App Radar export needed. It builds
   a candidate universe from three free sources — the listing's own text
@@ -196,6 +199,19 @@ site becomes the product:
 - **Per-user data isolation**: each user's tracked apps + snapshots live in
   `RANK_DATA_DIR/users/<id>`; the user DB is `RANK_DATA_DIR/apprankr.db` —
   one mounted Volume persists everything.
+  ⚠️ **This requires a Railway Volume actually mounted at the path
+  `RANK_DATA_DIR` points to, on the exact service serving the site.** Without
+  a Volume, `RANK_DATA_DIR` falls back to a path inside the container's own
+  filesystem — which Railway wipes on every redeploy, silently deleting every
+  tracked app. If apps you've added keep disappearing after a deploy, this is
+  the first thing to check (Railway → service → Settings → Volumes).
+- **Config safety net** (`src/lib/rank/store.ts`): every `config.json` save
+  is preceded by a timestamped backup (`config.backup.<timestamp>.json`, last
+  20 kept per user), and a config file that exists but fails to parse throws
+  `ConfigReadError` instead of silently being treated as "zero apps" — the
+  API surfaces that as a clear error rather than letting a bad read cascade
+  into an accidental overwrite. `listConfigBackups()` / `restoreConfigBackup()`
+  recover a specific backup.
 - The daily cron (`scripts/rank-check.ts`) checks every user with a live
   trial/subscription, deduping identical keyword searches across users.
 - Tests: `npx tsx scripts/validate-saas.ts` (auth, sessions, plan access,

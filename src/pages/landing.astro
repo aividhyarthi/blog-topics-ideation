@@ -61,6 +61,7 @@ const user = Astro.locals.user;
       <header class="top">
         <div class="logo"><span class="mark">▲</span>{BRAND}</div>
         <div class="navlinks">
+          <a class="btn ghost" href="/about">About</a>
           {user
             ? <a class="btn primary" href="/rank">Open dashboard</a>
             : <><a class="btn ghost" href="/login">Log in</a><a class="btn primary" href="/signup">Start free trial</a></>}

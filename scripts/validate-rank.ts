@@ -111,5 +111,49 @@ eq('candidates include upi term', cands.some((c) => c.includes('upi')), true);
 eq('candidates drop stopwords', cands.some((c) => /\b(the|and|your|app)\b/.test(c)), false);
 eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
 
+// --- config storage: backups + corrupt-file safety --------------------------
+{
+  const { mkdtempSync, rmSync: rmSyncFs, writeFileSync, existsSync: existsSyncFs } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const tmp = mkdtempSync(join(tmpdir(), 'rank-store-test-'));
+  process.env.RANK_DATA_DIR = tmp;
+  // Fresh import so the module picks up the new RANK_DATA_DIR (it reads the
+  // env var lazily inside functions, so re-importing isn't strictly required,
+  // but keeps this test isolated from anything imported earlier in the file).
+  const { loadConfig: lc, saveConfig: sc, listConfigBackups, restoreConfigBackup, ConfigReadError: CRE } = await import('../src/lib/rank/store');
+
+  const appFor = (id: string): TrackedApp => ({
+    key: `play:${id}:us`, store: 'play', appId: id, country: 'us', lang: 'en',
+    title: id, developer: null, icon: null, url: null, genreId: null, keywords: [], addedAt: '',
+  });
+
+  eq('fresh user has no apps', lc('u1').apps, []);
+  sc({ apps: [appFor('com.a')] }, 'u1');
+  eq('save persists', lc('u1').apps.map((a) => a.appId), ['com.a']);
+  eq('no backup yet (nothing to back up on first save)', listConfigBackups('u1').length, 0);
+
+  sc({ apps: [appFor('com.a'), appFor('com.b')] }, 'u1');
+  eq('second save persists both', lc('u1').apps.map((a) => a.appId), ['com.a', 'com.b']);
+  eq('one backup created (of the pre-save state)', listConfigBackups('u1').length, 1);
+
+  // Corrupt the file directly (simulating a truncated/bad write) and confirm
+  // loadConfig refuses to silently treat it as "zero apps".
+  const cfgPath = join(tmp, 'users', 'u1', 'config.json');
+  writeFileSync(cfgPath, '{ "apps": [ this is not valid json');
+  let threw = false;
+  try { lc('u1'); } catch (e) { threw = e instanceof CRE; }
+  eq('corrupt config throws ConfigReadError instead of returning empty', threw, true);
+
+  // Restore from the backup and confirm the real data comes back.
+  const backups = listConfigBackups('u1');
+  const restored = restoreConfigBackup(backups[0], 'u1');
+  eq('restored backup has the app', restored.apps.map((a) => a.appId), ['com.a']);
+  eq('loadConfig works again after restore', lc('u1').apps.map((a) => a.appId), ['com.a']);
+
+  rmSyncFs(tmp, { recursive: true, force: true });
+  delete process.env.RANK_DATA_DIR;
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');

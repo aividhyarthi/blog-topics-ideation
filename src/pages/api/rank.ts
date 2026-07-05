@@ -8,7 +8,7 @@
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS } from '../../lib/rank/track';
-import { loadConfig, saveConfig, loadSnapshots } from '../../lib/rank/store';
+import { loadConfig, saveConfig, loadSnapshots, ConfigReadError } from '../../lib/rank/store';
 import { runCheck, checkOne } from '../../lib/rank/check';
 import { discoverKeywords } from '../../lib/rank/discover';
 import type { TrackedApp } from '../../lib/rank/types';
@@ -81,14 +81,27 @@ function statePayload(userId?: string) {
   };
 }
 
-export const GET: APIRoute = async ({ locals }) => json(statePayload(tenant(locals).userId));
+export const GET: APIRoute = async ({ locals }) => {
+  try { return json(statePayload(tenant(locals).userId)); }
+  catch (e) {
+    if (e instanceof ConfigReadError) return json({ error: e.message }, 500);
+    throw e;
+  }
+};
 
 export const POST: APIRoute = async ({ request, locals }) => {
   let body: Record<string, any>;
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
   const action = String(body.action || '');
   const { userId, maxApps, maxKeywords } = tenant(locals);
-  const cfg = loadConfig(userId);
+  let cfg;
+  try { cfg = loadConfig(userId); }
+  catch (e) {
+    // Never let a read failure fall through to a save — that's exactly how a
+    // corrupt file turns into a permanently empty one. Surface it instead.
+    if (e instanceof ConfigReadError) return json({ error: e.message }, 500);
+    throw e;
+  }
 
   if (action === 'add-app') {
     const parsed = parseAppInput(String(body.app || ''));

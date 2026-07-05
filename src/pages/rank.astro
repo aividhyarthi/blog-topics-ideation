@@ -97,7 +97,9 @@ const limitsText = product && plan
       .viztip .tt-d { font-weight: 700; margin-bottom: 4px; }
       .viztip .tt-r { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
       .viztip .tt-r b { color: var(--ink); font-variant-numeric: tabular-nums; }
-      .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: #fff; margin-top: 12px; }
+      .scrollhint { display: none; font-size: 11.5px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; }
+      @media (max-width: 760px) { .scrollhint { display: block; } }
+      .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: #fff; margin-top: 12px; -webkit-overflow-scrolling: touch; }
       table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 13.5px; }
       th, td { text-align: left; padding: 10px 12px; vertical-align: middle; border-bottom: 1px solid var(--line); }
       th { background: #fafafe; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
@@ -166,6 +168,7 @@ const limitsText = product && plan
               <a href="/rank" class="active">🏆 Rank Tracker</a>
               <a href="/aso">📱 ASO Inspector</a>
               <a href="/account">⚙️ Account &amp; billing</a>
+              <a href="/about">ℹ️ About</a>
               <a href="#" id="logout">↪ Log out</a>
             </nav>
           </>
@@ -465,7 +468,7 @@ ai photo enhancer"></textarea>
             <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
         const table = (app.keywords || []).length
-          ? `<div class="table-wrap"><table>
+          ? `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
               <thead><tr><th>Keyword</th><th>Rank</th><th>Δ vs last</th><th>Best</th><th>Trend</th><th>#1 for this keyword</th></tr></thead>
               <tbody>${rows}</tbody>
             </table></div>`

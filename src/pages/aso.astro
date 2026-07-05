@@ -122,7 +122,11 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       td.num, th.num { text-align: center; }
       .kmark { font-weight: 800; }
       .kmark.y { color: var(--ok); } .kmark.n { color: var(--na); }
-      .tablewrap { overflow-x: auto; }
+      .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      @media (max-width: 760px) {
+        .tablewrap { position: relative; }
+        .tablewrap::before { content: '↔ Swipe to see all columns'; display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+      }
       .me-row td { background: #f3f1ff; font-weight: 600; }
       .gapcount { font-weight: 800; background: #e9e6fb; color: var(--indigo); padding: 2px 9px; border-radius: 7px; }
       .gap-row td { background: #f6f4ff; }
@@ -247,6 +251,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
               <a href="/rank">🏆 Rank Tracker</a>
               <a href="/aso" class="active">📱 ASO Inspector</a>
               <a href="/account">⚙️ Account &amp; billing</a>
+              <a href="/about">ℹ️ About</a>
               <a href="#" id="logout">↪ Log out</a>
             </nav>
           </>
