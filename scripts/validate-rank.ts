@@ -155,5 +155,28 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
   delete process.env.RANK_DATA_DIR;
 }
 
+// --- persistence check --------------------------------------------------------
+{
+  const { mkdtempSync, rmSync: rmSyncFs, readFileSync: readFileSyncFs } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { checkDataPersistence } = await import('../src/lib/rank/persistence-check');
+
+  const before = process.env.RANK_DATA_DIR;
+  delete process.env.RANK_DATA_DIR;
+  const noVar = checkDataPersistence();
+  eq('missing RANK_DATA_DIR warns', typeof noVar === 'string' && noVar.includes('RANK_DATA_DIR is not set'), true);
+
+  const tmp = mkdtempSync(join(tmpdir(), 'persistence-test-'));
+  process.env.RANK_DATA_DIR = tmp;
+  eq('first boot with a real dir is clean (no warning)', checkDataPersistence(), null);
+  eq('second boot in the same dir is also clean', checkDataPersistence(), null);
+  const canary = JSON.parse(readFileSyncFs(join(tmp, '.persistence-canary.json'), 'utf8'));
+  eq('boot count accumulates across restarts', canary.bootCount, 2);
+
+  rmSyncFs(tmp, { recursive: true, force: true });
+  if (before) process.env.RANK_DATA_DIR = before; else delete process.env.RANK_DATA_DIR;
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');

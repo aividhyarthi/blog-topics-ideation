@@ -121,6 +121,14 @@ const limitsText = product && plan
       .disc-row:hover { background: #efedfc; }
       .disc-row .kw { flex: 1; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink-dark); }
       .disc-row b { font-variant-numeric: tabular-nums; }
+      .asobox { margin-top: 12px; border: 1px solid #d0e6da; background: #f3faf6; border-radius: 11px; padding: 12px 14px; font-size: 13px; color: var(--ink); }
+      .asobox.err { background: #fdecec; border-color: #f6c9c6; color: #b3261e; }
+      .asorow { display: flex; gap: 12px; align-items: center; }
+      .asoscore { font-size: 22px; font-weight: 800; flex-shrink: 0; }
+      .asoscore small { font-size: 12px; font-weight: 600; color: var(--muted); }
+      .asotext p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+      .ghost-link { display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--pink-dark); text-decoration: none; }
+      .ghost-link:hover { text-decoration: underline; }
       .lastcheck { font-size: 12.5px; color: var(--muted); }
       .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 16px; }
       .empty { text-align: center; color: var(--muted); padding: 26px 10px; font-size: 14px; }
@@ -255,6 +263,9 @@ ai photo enhancer"></textarea>
       let state = { apps: [], lastCheckedAt: null, snapshotDays: [] };
       let selectedAppKey = null;
       let tabFilter = '';
+      // key -> { status: 'loading'|'done'|'error', data?, error? } — best-effort
+      // ASO Inspector summary fetched automatically once an app has keywords.
+      const ASO_CACHE = {};
 
       const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const escAttr = (s) => esc(s).replace(/"/g, '&quot;');
@@ -381,24 +392,81 @@ ai photo enhancer"></textarea>
         const d = DISCOVER[app.key];
         if (!d) return '';
         const items = d.discovery.discovered;
+        const ranking = items.filter((k) => k.position != null);
+        const opportunities = items.filter((k) => k.position == null);
         const srcPill = { listing: 'from listing', autocomplete: 'autocomplete', ai: 'AI idea' };
-        const rows = items.map((k, i) => `
+        const row = (k) => `
           <label class="disc-row">
-            <input type="checkbox" data-role="disc-kw" value="${escAttr(k.keyword)}" ${k.position <= 100 ? 'checked' : ''} />
+            <input type="checkbox" data-role="disc-kw" value="${escAttr(k.keyword)}" ${k.position != null && k.position <= 100 ? 'checked' : ''} />
             <span class="kw">${esc(k.keyword)}</span>
-            <b>#${k.position}</b>
+            <b>${k.position != null ? '#' + k.position : '<span class="un">not yet ranking</span>'}</b>
             <span class="pill cc">${srcPill[k.source] || esc(k.source)}</span>
-          </label>`).join('');
+          </label>`;
         const errNote = d.discovery.errors && d.discovery.errors.length
           ? `<p class="hint" style="margin:8px 0 0;">⚠︎ ${esc(d.discovery.errors[0])}${d.discovery.errors.length > 1 ? ` (+${d.discovery.errors.length - 1} more)` : ''}</p>` : '';
         return `<div class="discover" data-role="discover">
-          <h4>🔍 Found ${items.length} keyword${items.length === 1 ? '' : 's'} this app ranks for (top 200) — scanned ${d.discovery.scanned} candidates</h4>
-          ${items.length ? `<div class="disc-list">${rows}</div>` : '<p class="hint">No new ranking keywords found beyond the ones already tracked.</p>'}
+          <h4>🔍 Keyword universe: ${items.length} relevant keywords scanned — ${ranking.length} already ranking, ${opportunities.length} opportunities not yet ranking</h4>
+          <p class="hint" style="margin:0 0 10px;">Tick any to start tracking them daily — you don't need to already rank for a keyword to track it. Your plan caps how many you can track at once, not how many you can see here.</p>
+          ${ranking.length ? `<p class="hint" style="margin:0 0 4px;font-weight:700;color:var(--ink);">✅ Already ranking (${ranking.length})</p><div class="disc-list">${ranking.map(row).join('')}</div>` : ''}
+          ${opportunities.length ? `<p class="hint" style="margin:12px 0 4px;font-weight:700;color:var(--ink);">💡 Opportunities — relevant, not yet ranking (${opportunities.length})</p><div class="disc-list">${opportunities.map(row).join('')}</div>` : ''}
+          ${items.length ? '' : '<p class="hint">No new keyword ideas found beyond the ones already tracked.</p>'}
           <div class="row" style="margin-top:10px;">
             ${items.length ? '<button class="primary" data-act="track-selected" style="padding:9px 16px;font-size:13.5px;">Track selected keywords</button>' : ''}
             <button class="ghost" data-act="dismiss-discover">Dismiss</button>
           </div>
           ${errNote}
+        </div>`;
+      }
+
+      // --- ASO Inspector integration -----------------------------------------
+      // ASO Inspector is Play-only. Fires in the background after keywords are
+      // saved so a recommendation is waiting without slowing down the save.
+      function asoLinkParams(app, focusList) {
+        const p = new URLSearchParams({ app: app.url || app.appId, country: app.country || 'us', lang: app.lang || 'en' });
+        if (focusList.length) p.set('focus', focusList.join(', '));
+        return p.toString();
+      }
+
+      async function checkAsoFor(app) {
+        if (app.store !== 'play' || !app.keywords || !app.keywords.length) return;
+        ASO_CACHE[app.key] = { status: 'loading' };
+        if (app.key === selectedAppKey) render();
+        const focusList = app.keywords.slice(0, 3);
+        try {
+          const res = await fetch('/api/aso', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: app.url || app.appId, focusKeyword: focusList.join(', '), country: app.country, lang: app.lang }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'ASO check failed.');
+          ASO_CACHE[app.key] = { status: 'done', data, focusList };
+        } catch (e) {
+          ASO_CACHE[app.key] = { status: 'error', error: e && e.message ? e.message : String(e) };
+        }
+        if (app.key === selectedAppKey) render();
+      }
+
+      function asoSummaryHtml(app) {
+        if (app.store !== 'play') return '';
+        const cached = ASO_CACHE[app.key];
+        if (!cached) return '';
+        if (cached.status === 'loading') {
+          return `<div class="asobox"><span class="spinner" style="border-color:rgba(99,102,241,0.3);border-top-color:var(--pink);"></span>Getting ASO recommendations for your tracked keywords…</div>`;
+        }
+        if (cached.status === 'error') {
+          return `<div class="asobox err">⚠︎ Couldn't fetch ASO recommendations: ${esc(cached.error)}</div>`;
+        }
+        const r = cached.data.report, ai = cached.data.ai || {};
+        const link = `/aso?${asoLinkParams(app, cached.focusList)}`;
+        return `<div class="asobox">
+          <div class="asorow">
+            <span class="asoscore" style="color:${r.overall >= 80 ? '#0e7a4e' : r.overall >= 60 ? '#c98a00' : '#c0392b'}">${r.overall}<small>/100</small></span>
+            <div class="asotext">
+              <b>ASO score for "${esc(cached.focusList[0] || '')}"${cached.focusList.length > 1 ? ` +${cached.focusList.length - 1} more` : ''}</b>
+              <p>${esc(ai.summary || 'Deterministic listing score computed — open the full report for keyword-by-keyword recommendations.')}</p>
+            </div>
+          </div>
+          <a class="ghost-link" href="${escAttr(link)}" target="_blank" rel="noopener">Open full ASO Inspector report →</a>
         </div>`;
       }
 
@@ -497,6 +565,7 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
             </div>
           </div>
+          <div class="no-print">${asoSummaryHtml(app)}</div>
           <div class="no-print">${discoverHtml(app)}</div>
           ${overviewHtml(app)}
           ${table}
@@ -585,7 +654,11 @@ ai photo enhancer"></textarea>
           else if (data.checkError) showInfo(data.checkError);
           $('add-app').value = ''; $('add-keywords').value = '';
           showToast('App added');
-          if (data.apps && data.apps.length) selectedAppKey = data.apps[data.apps.length - 1].key;
+          if (data.apps && data.apps.length) {
+            const newApp = data.apps[data.apps.length - 1];
+            selectedAppKey = newApp.key;
+            checkAsoFor(newApp);
+          }
           return data;
         }));
 
@@ -611,6 +684,8 @@ ai photo enhancer"></textarea>
           withBusy(btn, 'Saving & checking ranks…', async () => {
             const data = await api({ action: 'set-keywords', key, keywords: card.querySelector('[data-role="kwtext"]').value });
             if (data.checkError) showInfo(data.checkError); else showToast('Keywords saved — fresh ranks below');
+            const saved = data.apps.find((a) => a.key === key);
+            if (saved) checkAsoFor(saved);
             return data;
           });
           return;
@@ -630,10 +705,17 @@ ai photo enhancer"></textarea>
         if (act === 'track-selected') {
           const selected = [...card.querySelectorAll('[data-role="disc-kw"]:checked')].map((el) => el.value);
           if (!selected.length) { showErr('Tick at least one keyword to track.'); return; }
+          const beforeCount = (state.apps.find((a) => a.key === key) || {}).keywords?.length || 0;
           withBusy(btn, 'Adding & checking ranks…', async () => {
             const data = await api({ action: 'add-keywords', key, keywords: selected.join('\n') });
             delete DISCOVER[key];
-            if (data.checkError) showInfo(data.checkError); else showToast(selected.length + ' keyword(s) now tracked');
+            const afterCount = (data.apps.find((a) => a.key === key) || {}).keywords?.length || 0;
+            const actuallyAdded = afterCount - beforeCount;
+            if (data.checkError) showInfo(data.checkError);
+            else if (actuallyAdded < selected.length) showInfo(`Added ${actuallyAdded} of ${selected.length} selected — your plan's keyword-per-app limit is reached. Remove some tracked keywords or upgrade to add the rest.`);
+            else showToast(selected.length + ' keyword(s) now tracked');
+            const tracked = data.apps.find((a) => a.key === key);
+            if (tracked) checkAsoFor(tracked);
             return data;
           });
           return;

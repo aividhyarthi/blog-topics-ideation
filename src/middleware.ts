@@ -15,6 +15,15 @@
 import { defineMiddleware } from 'astro:middleware';
 import { userFromSessionToken, readCookie, SESSION_COOKIE } from './lib/saas/auth';
 import { checkAccess } from './lib/saas/plans';
+import { checkDataPersistence } from './lib/rank/persistence-check';
+
+// Runs once at server boot (module load, not per-request) — loud and early so
+// it's impossible to miss in Railway's Deploy Logs. A missing/unmounted
+// Volume is the #1 cause of tracked-app data vanishing on every redeploy.
+if (process.env.PRODUCT_MODE) {
+  const warning = checkDataPersistence();
+  if (warning) console.warn(`\n⚠️⚠️⚠️  DATA PERSISTENCE WARNING  ⚠️⚠️⚠️\n${warning}\n`);
+}
 
 const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/api/auth/', '/api/billing/webhook', '/_astro/', '/favicon', '/robots'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.

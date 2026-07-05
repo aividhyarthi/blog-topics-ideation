@@ -724,6 +724,19 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         }
       }
       $('go').addEventListener('click', run);
+
+      // Deep-link from Rank Tracker: /aso?app=<url-or-id>&focus=<kw1,kw2,kw3>&country=&lang=
+      // prefills the form and auto-runs the inspection.
+      (function autoRunFromQuery() {
+        const qs = new URLSearchParams(location.search);
+        const app = qs.get('app');
+        if (!app) return;
+        $('url').value = app;
+        if (qs.get('focus')) $('focus').value = qs.get('focus');
+        if (qs.get('country')) $('country').value = qs.get('country');
+        if (qs.get('lang')) $('lang').value = qs.get('lang');
+        run();
+      })();
       $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
 
       const logoutBtn = document.getElementById('logout');

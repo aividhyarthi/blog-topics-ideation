@@ -125,18 +125,30 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
 - **Mobile**: nav wraps, forms/grids collapse to one column, and wide tables
   (keyword rank table, ASO comparison tables) scroll horizontally with a
   "↔ Swipe to see all columns" hint shown only on narrow screens.
-- **Keyword discovery** (`src/lib/rank/discover.ts`) — finds the keywords an
-  app *already ranks for* in the top 200, no App Radar export needed. It builds
-  a candidate universe from three free sources — the listing's own text
-  (n-grams), **store autocomplete** (Play suggest API / Apple search hints:
-  real queries users type), and **Claude keyword ideas** — then runs every
-  candidate through store search and keeps the ones where the app appears.
-  Results show rank + source; tick the ones to track. A full scan is ~90
-  candidates ≈ 1–2 minutes.
+- **Keyword discovery = the app's keyword universe** (`src/lib/rank/discover.ts`)
+  — no App Radar export needed. It builds a candidate universe from three free
+  sources — the listing's own text (n-grams), **store autocomplete** (Play
+  suggest API / Apple search hints: real queries users type), and **Claude
+  keyword ideas** — then runs every candidate (~120 by default) through store
+  search. Every scanned candidate is shown, split into **✅ already ranking**
+  (with its position) and **💡 opportunities** (relevant, not yet ranking) —
+  the universe is everything scanned, not just the hits. Ticking any of them
+  to track is a separate step, capped by the plan's per-app keyword limit —
+  browsing the universe is not limited, only active tracking is. A full scan
+  is ~120 candidates ≈ 90–110 seconds.
 - **Keyword rankings** — for each keyword, the app's 1-based position in store
   search (top 200 scanned), the **Δ vs the previous check**, the **best
   position ever recorded**, a **trend sparkline**, and **who holds #1** for
   that keyword right now.
+- **ASO Inspector auto-recommendation** — the moment tracked keywords are
+  saved for a Google Play app (adding the app, editing keywords, or tracking
+  from Discovery), Rank Tracker automatically fires a background ASO check
+  using the app's top 3 keywords as focus terms and shows the score + one-line
+  recommendation inline, with a **"Open full ASO Inspector report →"** link
+  that deep-links into `/aso?app=&focus=&country=&lang=` — `aso.astro` reads
+  those query params, prefills the form, and auto-runs the full inspection.
+  Play-only (ASO Inspector doesn't support iOS); silently skipped for App
+  Store apps or apps with no keywords yet.
 - **Overview dashboard (App Radar-style)** — per app: **Top 1 / Top 10 /
   Top 30 / Top 100** headline counts with day-over-day movement, a **keyword
   rank distribution** stacked-bar chart by day (Top 1 → Top 101–200 →

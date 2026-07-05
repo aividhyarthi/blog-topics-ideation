@@ -1,4 +1,5 @@
-// Keyword discovery — finds the keywords an app ALREADY ranks for (top 200)
+// Keyword discovery — builds the app's keyword UNIVERSE (every relevant
+// candidate we can generate for free) and checks live rank for each one,
 // without needing App Radar's list. Same approach commercial ASO tools use:
 //
 //   1. Build a candidate keyword universe from free sources:
@@ -6,11 +7,16 @@
 //        b. store autocomplete (Play suggest API / Apple search hints) seeded
 //           with the app's terms — real queries users actually type
 //        c. Claude keyword ideas from the listing (best-effort, needs API key)
-//   2. Run every candidate through store search and keep the ones where the
-//      app appears in the top 200 — that IS "keywords this app ranks for".
+//   2. Run every candidate through store search. Every candidate we scan is
+//      kept and returned — with a real position if the app is in the top
+//      200, or `position: null` ("opportunity" — relevant, but not yet
+//      ranking) otherwise. The universe is everything scanned; "opportunity"
+//      vs "ranking" is just a filter on the same list, not a smaller scan.
+//      Tracking (the paid-plan-limited part) is a separate, later step: the
+//      user picks which of these to actively track going forward.
 //
 // What paid tools add on top is search-volume data (from partnerships); the
-// ranked-keyword discovery itself is exactly this candidate-scan loop.
+// keyword-universe discovery itself is exactly this candidate-scan loop.
 import gplay from 'google-play-scraper';
 import Anthropic from '@anthropic-ai/sdk';
 import { searchStore } from './fetch';
@@ -18,7 +24,8 @@ import type { TrackedApp } from './types';
 
 export interface DiscoveredKeyword {
   keyword: string;
-  position: number;
+  /** null = scanned but the app isn't in the top 200 for this term yet (an opportunity, not a rank). */
+  position: number | null;
   source: 'listing' | 'autocomplete' | 'ai';
 }
 
@@ -116,10 +123,12 @@ List 30 search keywords/phrases (1-3 words each, lowercase) that real users in t
 }
 
 /**
- * Discover keywords the app ranks for in the top 200. Slow by nature — one
- * store search per candidate (~250 ms apart), so ~60-90 s for a full run.
+ * Discover the app's keyword universe — every relevant candidate scanned,
+ * each tagged with its live rank (or null if not yet ranking). Slow by
+ * nature — one store search per candidate (~250 ms apart), so ~75-110 s for
+ * a full run at the default candidate count.
  */
-export async function discoverKeywords(app: TrackedApp, maxCandidates = 90): Promise<DiscoveryResult> {
+export async function discoverKeywords(app: TrackedApp, maxCandidates = 120): Promise<DiscoveryResult> {
   const errors: string[] = [];
   const sources = new Map<string, DiscoveredKeyword['source']>(); // keyword -> first source
   const addAll = (terms: string[], source: DiscoveredKeyword['source']) => {
@@ -157,13 +166,16 @@ export async function discoverKeywords(app: TrackedApp, maxCandidates = 90): Pro
       const hits = await searchStore(app.store, kw, app.country, app.lang);
       scanned++;
       const idx = hits.findIndex((h) => h.appId === app.appId);
-      if (idx !== -1) discovered.push({ keyword: kw, position: idx + 1, source: sources.get(kw)! });
+      // Keep every scanned candidate — an "opportunity" (not yet ranking) is
+      // just as useful to see as a rank, it's the whole point of a universe.
+      discovered.push({ keyword: kw, position: idx === -1 ? null : idx + 1, source: sources.get(kw)! });
     } catch (e) {
       errors.push(`Scan stopped at "${kw}": ${e instanceof Error ? e.message : String(e)}`);
       break; // a store block mid-scan would just repeat the same error 80×
     }
     await sleep(250);
   }
-  discovered.sort((a, b) => a.position - b.position);
+  // Ranking keywords first (best rank first), opportunities (not yet ranking) after.
+  discovered.sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity));
   return { discovered, scanned, candidates: candidates.length, errors };
 }
