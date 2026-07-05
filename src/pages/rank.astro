@@ -76,6 +76,7 @@ const limitsText = product && plan
       .pill.ios { background: #eef3ff; color: #2f4b9e; }
       .pill.chart { background: #f0eefc; color: #5b46c9; }
       .pill.cc { background: #f4f4f8; color: var(--muted); }
+      .pill.vol { background: #eef3ff; color: #2f4b9e; cursor: help; }
       /* --- overview (tiles + charts) --- */
       .ov { margin-top: 14px; }
       .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -395,18 +396,20 @@ ai photo enhancer"></textarea>
         const ranking = items.filter((k) => k.position != null);
         const opportunities = items.filter((k) => k.position == null);
         const srcPill = { listing: 'from listing', autocomplete: 'autocomplete', ai: 'AI idea' };
+        const volPill = (v) => v == null ? '' : `<span class="pill vol" title="Google Trends popularity proxy, 0-100 — unofficial data source, best-effort only">📊 ${v}</span>`;
         const row = (k) => `
           <label class="disc-row">
             <input type="checkbox" data-role="disc-kw" value="${escAttr(k.keyword)}" ${k.position != null && k.position <= 100 ? 'checked' : ''} />
             <span class="kw">${esc(k.keyword)}</span>
             <b>${k.position != null ? '#' + k.position : '<span class="un">not yet ranking</span>'}</b>
+            ${volPill(k.volume)}
             <span class="pill cc">${srcPill[k.source] || esc(k.source)}</span>
           </label>`;
         const errNote = d.discovery.errors && d.discovery.errors.length
           ? `<p class="hint" style="margin:8px 0 0;">⚠︎ ${esc(d.discovery.errors[0])}${d.discovery.errors.length > 1 ? ` (+${d.discovery.errors.length - 1} more)` : ''}</p>` : '';
         return `<div class="discover" data-role="discover">
           <h4>🔍 Keyword universe: ${items.length} relevant keywords scanned — ${ranking.length} already ranking, ${opportunities.length} opportunities not yet ranking</h4>
-          <p class="hint" style="margin:0 0 10px;">Tick any to start tracking them daily — you don't need to already rank for a keyword to track it. Your plan caps how many you can track at once, not how many you can see here.</p>
+          <p class="hint" style="margin:0 0 10px;">Tick any to start tracking them daily — you don't need to already rank for a keyword to track it. Your plan caps how many you can track at once, not how many you can see here. 📊 shows a 0–100 popularity proxy (Google Trends) for the top ${Math.min(25, items.length)} — best-effort, may be blank if unavailable.</p>
           ${ranking.length ? `<p class="hint" style="margin:0 0 4px;font-weight:700;color:var(--ink);">✅ Already ranking (${ranking.length})</p><div class="disc-list">${ranking.map(row).join('')}</div>` : ''}
           ${opportunities.length ? `<p class="hint" style="margin:12px 0 4px;font-weight:700;color:var(--ink);">💡 Opportunities — relevant, not yet ranking (${opportunities.length})</p><div class="disc-list">${opportunities.map(row).join('')}</div>` : ''}
           ${items.length ? '' : '<p class="hint">No new keyword ideas found beyond the ones already tracked.</p>'}

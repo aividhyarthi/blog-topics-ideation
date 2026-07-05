@@ -99,6 +99,17 @@ eq('overview last day buckets (27→11-30, null, null unranked)', ov[2].buckets,
 eq('overview tracked', ov[2].tracked, 3);
 eq('overview visibility > 0', ov[2].visibility > 0 && ov[2].visibility < 100, true);
 
+// --- trends: pure parsing/averaging (no network) -----------------------------
+const { stripXssiPrefix, averageRecentValue } = await import('../src/lib/rank/trends');
+eq('strips XSSI prefix', stripXssiPrefix(")]}',\n{\"a\":1}"), '{"a":1}');
+eq('strips XSSI prefix no comma', stripXssiPrefix(")]}'\n{\"a\":1}"), '{"a":1}');
+eq('passes through clean json', stripXssiPrefix('{"a":1}'), '{"a":1}');
+eq('average of empty is null', averageRecentValue([]), null);
+eq('average of recent 4 points', averageRecentValue([{ value: [10] }, { value: [20] }, { value: [30] }, { value: [40] }]), 25);
+eq('averages only the last window', averageRecentValue([{ value: [0] }, { value: [100] }, { value: [100] }, { value: [100] }, { value: [100] }], 4), 100);
+eq('clamps and rounds', averageRecentValue([{ value: [33] }, { value: [34] }]), 34);
+eq('missing value treated as 0', averageRecentValue([{}, { value: [50] }]), 25);
+
 // --- keyword discovery: candidate extraction ---------------------------------
 const { candidatesFromListing } = await import('../src/lib/rank/discover');
 const cands = candidatesFromListing(

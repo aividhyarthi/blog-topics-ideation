@@ -136,6 +136,14 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
   to track is a separate step, capped by the plan's per-app keyword limit —
   browsing the universe is not limited, only active tracking is. A full scan
   is ~120 candidates ≈ 90–110 seconds.
+- **Volume proxy** (`src/lib/rank/trends.ts`) — a 0–100 popularity score (📊)
+  for the top 25 discovered keywords, via **Google Trends' "interest over
+  time"**. This is the closest free equivalent to App Radar's proprietary
+  volume score. It's an **unofficial, undocumented Google API** (no ToS, no
+  key) — it can change shape or get rate-limited without notice, so every
+  failure degrades to a blank score rather than breaking discovery. The pure
+  parsing/averaging logic is unit-tested; the live network calls aren't
+  (nothing to assert against without hitting the real endpoint).
 - **Keyword rankings** — for each keyword, the app's 1-based position in store
   search (top 200 scanned), the **Δ vs the previous check**, the **best
   position ever recorded**, a **trend sparkline**, and **who holds #1** for
@@ -155,7 +163,8 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
   Unranked), and a **Search Visibility Score** (0–100) trend line — each
   keyword contributes on a log curve (#1 = 100, #10 ≈ 57, #100 ≈ 13,
   unranked = 0), averaged over tracked keywords. (Commercial tools also weight
-  by keyword search volume, which needs paid data.)
+  by keyword search volume; a best-effort volume proxy exists in Discovery —
+  see below — but isn't factored into this score, since it can be blank.)
 - **Top-chart position** — the app's spot in Play's **Top Free chart for its
   category** (iOS: the storefront's overall Top Free, via Apple's public RSS).
 - **History** — every check is saved as a per-day snapshot in `RANK_DATA_DIR`

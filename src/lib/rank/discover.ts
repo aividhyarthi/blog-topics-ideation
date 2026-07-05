@@ -15,11 +15,16 @@
 //      Tracking (the paid-plan-limited part) is a separate, later step: the
 //      user picks which of these to actively track going forward.
 //
-// What paid tools add on top is search-volume data (from partnerships); the
-// keyword-universe discovery itself is exactly this candidate-scan loop.
+// What paid tools sell on top is search-volume data from a proprietary
+// database; here that's approximated for free with Google Trends' 0-100
+// "interest over time" score (src/lib/rank/trends.ts) for the top candidates
+// — an unofficial API, so it's best-effort and degrades to `volume: null`
+// silently on any failure. The keyword-universe discovery itself (which
+// candidates exist and whether the app ranks for them) needs no such caveat.
 import gplay from 'google-play-scraper';
 import Anthropic from '@anthropic-ai/sdk';
 import { searchStore } from './fetch';
+import { fetchTrendsScores } from './trends';
 import type { TrackedApp } from './types';
 
 export interface DiscoveredKeyword {
@@ -27,6 +32,8 @@ export interface DiscoveredKeyword {
   /** null = scanned but the app isn't in the top 200 for this term yet (an opportunity, not a rank). */
   position: number | null;
   source: 'listing' | 'autocomplete' | 'ai';
+  /** 0-100 Google Trends popularity proxy, or null if unavailable (unofficial API — best-effort only). */
+  volume: number | null;
 }
 
 export interface DiscoveryResult {
@@ -168,7 +175,7 @@ export async function discoverKeywords(app: TrackedApp, maxCandidates = 120): Pr
       const idx = hits.findIndex((h) => h.appId === app.appId);
       // Keep every scanned candidate — an "opportunity" (not yet ranking) is
       // just as useful to see as a rank, it's the whole point of a universe.
-      discovered.push({ keyword: kw, position: idx === -1 ? null : idx + 1, source: sources.get(kw)! });
+      discovered.push({ keyword: kw, position: idx === -1 ? null : idx + 1, source: sources.get(kw)!, volume: null });
     } catch (e) {
       errors.push(`Scan stopped at "${kw}": ${e instanceof Error ? e.message : String(e)}`);
       break; // a store block mid-scan would just repeat the same error 80×
@@ -177,5 +184,20 @@ export async function discoverKeywords(app: TrackedApp, maxCandidates = 120): Pr
   }
   // Ranking keywords first (best rank first), opportunities (not yet ranking) after.
   discovered.sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity));
+
+  // Best-effort popularity score for the top candidates only (unofficial API,
+  // capped to keep the total wait reasonable and avoid hammering it).
+  const VOLUME_LOOKUP_CAP = 25;
+  const forVolume = discovered.slice(0, VOLUME_LOOKUP_CAP);
+  if (forVolume.length) {
+    try {
+      const scores = await fetchTrendsScores(forVolume.map((d) => d.keyword), app.country.toUpperCase());
+      for (const d of forVolume) d.volume = scores.get(d.keyword) ?? null;
+    } catch {
+      // Whole batch failing (endpoint blocked/changed) just means no volume
+      // data this run — the rank/opportunity data above is unaffected.
+    }
+  }
+
   return { discovered, scanned, candidates: candidates.length, errors };
 }
