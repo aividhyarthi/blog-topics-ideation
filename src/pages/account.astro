@@ -29,6 +29,7 @@ const statusLabel =
       .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
       .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
       .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 18px; }
+      .logo .betatag { font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); padding: 2px 7px; border-radius: 999px; letter-spacing: 0.02em; }
       .logo .mark { width: 26px; height: 26px; border-radius: 7px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
       nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
       nav a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; }
@@ -73,7 +74,7 @@ const statusLabel =
   <body>
     <header>
       <div class="wrap topbar">
-        <a href="/" class="logo" style="text-decoration:none;color:inherit;"><span class="mark">▲</span>{BRAND}</a>
+        <a href="/" class="logo" style="text-decoration:none;color:inherit;"><span class="mark">▲</span>{BRAND}<span class="betatag">Beta 1.0</span></a>
         <nav>
           <a href="/rank">🏆 Rank Tracker</a>
           <a href="/aso">📱 ASO Inspector</a>

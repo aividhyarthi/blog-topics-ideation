@@ -40,13 +40,14 @@ const limitsText = product && plan
       .usertrigger .caret { opacity: 0.8; }
       .userdropdown { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 10px 30px rgba(20,20,40,0.16); min-width: 190px; overflow: hidden; z-index: 50; }
       .userdropdown.open { display: block; }
-      .userdropdown a { display: block; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
-      .userdropdown a:hover { background: #f6f6fa; }
-      .userdropdown a + a { border-top: 1px solid var(--line); }
+      .usermenu .userdropdown a { display: block; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
+      .usermenu .userdropdown a:hover { background: #f6f6fa; }
+      .usermenu .userdropdown a + a { border-top: 1px solid var(--line); }
       @media (max-width: 480px) { .usertrigger { max-width: 60vw; } }
       .brandbar { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; flex-wrap: wrap; }
       .brandbar .logo { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
       .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+      .brandbar .betatag { font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); padding: 2px 7px; border-radius: 999px; letter-spacing: 0.02em; }
       .brandbar .by { font-size: 11.5px; font-weight: 600; opacity: 0.9; }
       main { padding: 26px 0 60px; }
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: 0 1px 2px rgba(20,20,40,0.04); margin-bottom: 16px; }
@@ -113,6 +114,8 @@ const limitsText = product && plan
       table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 13.5px; }
       th, td { text-align: left; padding: 10px 12px; vertical-align: middle; border-bottom: 1px solid var(--line); }
       th { background: #fafafe; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+      th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+      th.sortable:hover { color: var(--pink-dark); }
       tr:last-child td { border-bottom: none; }
       td.kw { font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink-dark); }
       td.pos { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 15px; width: 64px; }
@@ -174,6 +177,7 @@ const limitsText = product && plan
             <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
               <span class="logo">▲</span>
               <span class="wordmark">{BRAND}</span>
+              <span class="betatag">Beta 1.0</span>
             </a>
             <h1>Your rank dashboard</h1>
             <p>
@@ -276,6 +280,13 @@ ai photo enhancer"></textarea>
       let state = { apps: [], lastCheckedAt: null, snapshotDays: [] };
       let selectedAppKey = null;
       let tabFilter = '';
+      const sortState = {};
+      function sortVal(t, col) {
+        if (col === 'pos') return t.position;
+        if (col === 'best') return t.best;
+        if (col === 'delta') return t.delta;
+        return null;
+      }
       // key -> { status: 'loading'|'done'|'error', data?, error? } — best-effort
       // ASO Inspector summary fetched automatically once an app has keywords.
       const ASO_CACHE = {};
@@ -541,7 +552,20 @@ ai photo enhancer"></textarea>
         const icon = app.icon
           ? `<img class="icon" src="${escAttr(app.icon)}" alt="" />`
           : `<div class="fallback-icon">${app.store === 'play' ? '🤖' : ''}</div>`;
-        const rows = (app.trends || []).map((t) => `
+        const sort = sortState[app.key] || {};
+        const trends = (app.trends || []).slice();
+        if (sort.col) {
+          trends.sort((a, b) => {
+            const av = sortVal(a, sort.col), bv = sortVal(b, sort.col);
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            return (av - bv) * sort.dir;
+          });
+        }
+        const arrow = (col) => sort.col === col ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
+        const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
+        const rows = trends.map((t) => `
           <tr>
             <td class="kw">${esc(t.keyword)}</td>
             <td class="pos">${posCell(t)}</td>
@@ -552,7 +576,7 @@ ai photo enhancer"></textarea>
           </tr>`).join('');
         const table = (app.keywords || []).length
           ? `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
-              <thead><tr><th>Keyword</th><th>Rank</th><th>Δ vs last</th><th>Best</th><th>Trend</th><th>#1 for this keyword</th></tr></thead>
+              <thead><tr><th>Keyword</th>${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
               <tbody>${rows}</tbody>
             </table></div>`
           : '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>';
@@ -689,6 +713,16 @@ ai photo enhancer"></textarea>
       $('app-filter').addEventListener('input', (ev) => { tabFilter = ev.target.value; renderTabs(); });
 
       $('apps').addEventListener('click', (ev) => {
+        const sortTh = ev.target.closest('th.sortable');
+        if (sortTh) {
+          const card = sortTh.closest('.appcard');
+          const key = card.getAttribute('data-key');
+          const col = sortTh.getAttribute('data-sort');
+          const cur = sortState[key] || {};
+          sortState[key] = { col, dir: cur.col === col ? -cur.dir : 1 };
+          render();
+          return;
+        }
         const btn = ev.target.closest('button[data-act]');
         if (!btn) return;
         const card = btn.closest('.appcard');

@@ -18,6 +18,7 @@ const user = Astro.locals.user;
       .wrap { max-width: 640px; margin: 0 auto; padding: 0 22px; }
       header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; max-width: 1080px; margin: 0 auto; padding-left: 22px; padding-right: 22px; flex-wrap: wrap; gap: 10px; }
       .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; text-decoration: none; color: var(--ink); }
+      .logo .betatag { font-size: 10px; font-weight: 800; color: var(--pink-dark); background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.25); padding: 2px 7px; border-radius: 999px; letter-spacing: 0.02em; }
       .logo .mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(120deg, #6366f1, #8b5cf6); color: #fff; display: grid; place-items: center; font-size: 14px; }
       .navlinks { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
       .navlinks a.plain { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600; }
@@ -34,7 +35,7 @@ const user = Astro.locals.user;
   </head>
   <body>
     <header class="top">
-      <a class="logo" href="/"><span class="mark">▲</span>{BRAND}</a>
+      <a class="logo" href="/"><span class="mark">▲</span>{BRAND}<span class="betatag">Beta 1.0</span></a>
       <div class="navlinks">
         <a class="plain" href="/about">About</a>
         <a class="btn" href={user ? '/rank' : '/signup'}>{user ? 'Open dashboard' : 'Start free trial'}</a>
@@ -44,14 +45,16 @@ const user = Astro.locals.user;
       <div class="wrap">
         <h1>About {BRAND}</h1>
         <p>
-          {BRAND} uses AI to keep track of where your app actually stands in Google Play and the
-          App Store — checking your rank on every keyword you care about, finding the ones you
-          already rank for without knowing it, and reading your store listing the way a search
-          algorithm does to tell you what's helping or hurting your installs.
+          {BRAND} was started by <b>Rudra Kasturi</b> after one too many app launches where keyword
+          rank, competitor tracking, and listing audits each lived in a different tool, a different
+          spreadsheet, or a different tab — with no single place to see it all. {BRAND} fills that
+          gap: one dashboard for everything an app owner needs to grow organic installs.
         </p>
         <p>
-          No spreadsheets, no manual searching — just a daily, AI-powered view of your app's search
-          visibility.
+          Under the hood it's AI doing the work — checking your rank on every keyword you care
+          about, finding the ones you already rank for without knowing it, and reading your store
+          listing the way a search algorithm does to tell you what's helping or hurting your
+          installs. No spreadsheets, no manual searching, no juggling five tools.
         </p>
       </div>
     </main>

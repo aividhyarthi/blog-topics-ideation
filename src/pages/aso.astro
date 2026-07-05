@@ -36,6 +36,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       .brandbar { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; flex-wrap: wrap; }
       .brandbar .logo { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
       .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+      .brandbar .betatag { font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); padding: 2px 7px; border-radius: 999px; letter-spacing: 0.02em; }
       .brandbar .by { font-size: 11.5px; font-weight: 600; opacity: 0.9; }
       .brandbar .aipill { margin-left: auto; font-size: 11.5px; font-weight: 700; padding: 4px 11px; border-radius: 999px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4); }
       nav.top { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -46,9 +47,9 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       .usertrigger .caret { opacity: 0.8; }
       .userdropdown { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 10px 30px rgba(20,20,40,0.16); min-width: 190px; overflow: hidden; z-index: 50; }
       .userdropdown.open { display: block; }
-      .userdropdown a { display: block; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
-      .userdropdown a:hover { background: #f6f6fa; }
-      .userdropdown a + a { border-top: 1px solid var(--line); }
+      .usermenu .userdropdown a { display: block; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
+      .usermenu .userdropdown a:hover { background: #f6f6fa; }
+      .usermenu .userdropdown a + a { border-top: 1px solid var(--line); }
       @media (max-width: 480px) { .usertrigger { max-width: 60vw; } }
       main { padding: 26px 0 64px; }
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: 0 2px 8px rgba(20,20,40,0.05); }
@@ -251,6 +252,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
             <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
               <span class="logo">▲</span>
               <span class="wordmark">{BRAND}</span>
+              <span class="betatag">Beta 1.0</span>
             </a>
             <h1>ASO Inspector — Google Play</h1>
             <p>Paste a Google Play (Android) app and get its App Store Optimization score, keyword analysis, competitor comparison, and AI-rewritten title, short and long descriptions — all from the live listing.</p>
