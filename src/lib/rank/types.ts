@@ -7,6 +7,15 @@
 
 export type Store = 'play' | 'ios';
 
+/** A dated marker the owner logs against an app — an ASO experiment or a paid
+ * marketing push — so the rank/visibility trend can be read against it. */
+export interface Annotation {
+  id: string;
+  date: string; // YYYY-MM-DD
+  type: 'experiment' | 'paid';
+  label: string;
+}
+
 export interface TrackedApp {
   /** Stable key used in snapshots: `${store}:${appId}` */
   key: string;
@@ -25,6 +34,7 @@ export interface TrackedApp {
   genreId: string | null; // Play category id (used for top-charts lookup)
   keywords: string[];
   addedAt: string;
+  annotations?: Annotation[];
 }
 
 export interface TrackerConfig {

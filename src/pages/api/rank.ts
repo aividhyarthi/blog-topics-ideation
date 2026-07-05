@@ -7,11 +7,12 @@
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS } from '../../lib/rank/track';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, ConfigReadError } from '../../lib/rank/store';
 import { runCheck, checkOne } from '../../lib/rank/check';
 import { discoverKeywords } from '../../lib/rank/discover';
-import type { TrackedApp } from '../../lib/rank/types';
+import type { Annotation, TrackedApp } from '../../lib/rank/types';
+import { randomUUID } from 'node:crypto';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -61,8 +62,12 @@ function statePayload(userId?: string) {
       const overview = overviewSeries(app, snapshots);
       const today = overview.length ? overview[overview.length - 1] : null;
       const prev = overview.length > 1 ? overview[overview.length - 2] : null;
+      // A wider (unrendered) window so a ±14-day before/after impact read is
+      // possible even for an annotation near the edge of the 30-day chart.
+      const widerOverview = overviewSeries(app, snapshots, 60);
       return {
         ...app,
+        annotations: (app.annotations || []).map((a) => ({ ...a, impact: annotationImpact(widerOverview, a.date) })),
         trends: keywordTrends(app, snapshots),
         chart: chartTrend(app, snapshots),
         overview: {
@@ -167,6 +172,28 @@ export const POST: APIRoute = async ({ request, locals }) => {
     } catch (e) {
       return json({ error: `Discovery failed: ${e instanceof Error ? e.message : String(e)}` }, 502);
     }
+  }
+
+  if (action === 'add-annotation') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    const date = String(body.date || '').trim();
+    if (Number.isNaN(Date.parse(date))) return json({ error: 'Enter a valid date.' }, 400);
+    const type = body.type === 'paid' ? 'paid' : 'experiment';
+    const label = String(body.label || '').trim().slice(0, 200);
+    if (!label) return json({ error: 'Describe what you changed (or the paid push you ran).' }, 400);
+    const annotation: Annotation = { id: randomUUID(), date, type, label };
+    app.annotations = [...(app.annotations || []), annotation];
+    saveConfig(cfg, userId);
+    return json({ ok: true, ...statePayload(userId) });
+  }
+
+  if (action === 'remove-annotation') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    app.annotations = (app.annotations || []).filter((a) => a.id !== String(body.id || ''));
+    saveConfig(cfg, userId);
+    return json({ ok: true, ...statePayload(userId) });
   }
 
   if (action === 'check') {

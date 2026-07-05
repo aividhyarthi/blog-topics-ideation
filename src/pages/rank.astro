@@ -127,6 +127,25 @@ const limitsText = product && plan
       .who { font-size: 12.5px; color: var(--muted); }
       .kwedit { margin-top: 12px; display: none; }
       .kwedit.open { display: block; }
+      .annedit { margin-top: 12px; display: none; }
+      .annedit.open { display: block; }
+      .annedit .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px; }
+      .annedit label { font-size: 11.5px; font-weight: 700; color: var(--muted); display: block; margin-bottom: 3px; }
+      .annedit input[type="date"], .annedit select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+      .annlist { margin-top: 16px; }
+      .annlist h4 { margin: 0 0 4px; font-size: 13px; }
+      .annrow { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+      .annrow:last-child { border-bottom: none; }
+      .anntype { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+      .anntype.experiment { background: #f0eefc; color: #5b46c9; }
+      .anntype.paid { background: #fdf3dd; color: #8a5d00; }
+      .anntext { flex: 1; font-size: 13px; }
+      .annimpact { margin-top: 4px; font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .ann-delta { font-weight: 800; font-size: 12.5px; }
+      .ann-delta.up { color: var(--ok); }
+      .ann-delta.down { color: var(--bad); }
+      .ann-delta.na, .ann-delta.flat { color: var(--muted); }
+      button.small { padding: 4px 9px; font-size: 12px; flex-shrink: 0; }
       .discover { margin-top: 12px; border: 1px solid #d6d3f5; background: #f8f7ff; border-radius: 11px; padding: 12px 14px; }
       .discover h4 { margin: 0 0 8px; font-size: 13px; }
       .disc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; max-height: 300px; overflow-y: auto; }
@@ -386,7 +405,7 @@ ai photo enhancer"></textarea>
       }
 
       // Visibility score: single indigo line on a 0-based scale.
-      function visChart(days) {
+      function visChart(days, annotations) {
         const W = 400, H = 170, padL = 30, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
         const vals = days.map((d) => d.visibility);
@@ -408,6 +427,16 @@ ai photo enhancer"></textarea>
           const cw = days.length === 1 ? plotW : plotW / (days.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#898781">${esc(fmtDay(day.dateKey))}</text>`;
+        });
+        (annotations || []).forEach((a) => {
+          const idx = days.findIndex((d) => d.dateKey === a.date);
+          if (idx === -1) return;
+          const ax = x(idx);
+          const color = a.type === 'paid' ? '#c98a00' : '#5b46c9';
+          out += `<line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,2"/>`;
+          out += `<circle cx="${ax.toFixed(1)}" cy="${(padT - 2).toFixed(1)}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1"/>`;
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(a.date))} · ${esc(ANN_TYPE_LABEL[a.type] || a.type)}</div><div class="tt-r"><span>${esc(a.label)}</span></div>`);
+          out += `<rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${(padT - 8).toFixed(1)}" width="8" height="${(plotH + padB + 8).toFixed(1)}" fill="transparent"/>`;
         });
         return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
       }
@@ -519,9 +548,32 @@ ai photo enhancer"></textarea>
           </div>
           <div class="charts">
             <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div></div>
-            <div class="chartbox"><h4>Search visibility score (0–100)</h4>${visChart(ov.days)}</div>
+            <div class="chartbox"><h4>Search visibility score (0–100)</h4>${visChart(ov.days, app.annotations)}</div>
           </div>
         </div>`;
+      }
+
+      const ANN_TYPE_LABEL = { experiment: '🧪 Experiment', paid: '📢 Paid push' };
+
+      function annotationsHtml(app) {
+        const anns = app.annotations || [];
+        if (!anns.length) return '';
+        const rows = anns.slice().sort((a, b) => b.date.localeCompare(a.date)).map((a) => {
+          const im = a.impact || {};
+          const hasImpact = im.before && im.after && im.before.avgVisibility != null && im.after.avgVisibility != null;
+          const deltaHtml = !hasImpact
+            ? '<span class="ann-delta na">Not enough days before/after yet</span>'
+            : `<span class="ann-delta ${im.delta > 0 ? 'up' : im.delta < 0 ? 'down' : 'flat'}">${im.delta > 0 ? '▲' : im.delta < 0 ? '▼' : '＝'} ${Math.abs(im.delta)} pt visibility</span>`;
+          const detail = hasImpact
+            ? `${im.before.avgVisibility} → ${im.after.avgVisibility} avg visibility (14d before → after)`
+            : '';
+          return `<div class="annrow">
+            <span class="anntype ${a.type}">${ANN_TYPE_LABEL[a.type] || a.type}</span>
+            <div class="anntext"><b>${esc(fmtDay(a.date))}</b> — ${esc(a.label)}<div class="annimpact">${deltaHtml}${detail ? `<span>${esc(detail)}</span>` : ''}</div></div>
+            <button class="ghost danger small" data-act="remove-annotation" data-id="${escAttr(a.id)}" title="Remove annotation">×</button>
+          </div>`;
+        }).join('');
+        return `<div class="annlist"><h4>🏷 Annotations &amp; ranking impact</h4>${rows}</div>`;
       }
 
       // Shared hover tooltip for both charts.
@@ -601,6 +653,7 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="check-one">Check now</button>
               <button class="ghost" data-act="discover">🔍 Discover keywords</button>
               <button class="ghost" data-act="edit-kw">＋ Add / edit keywords</button>
+              <button class="ghost" data-act="add-annotation">🏷 Add annotation</button>
               <button class="ghost" data-act="pdf">📄 Export PDF</button>
               <button class="ghost danger" data-act="remove">Remove</button>
             </div>
@@ -612,9 +665,22 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
             </div>
           </div>
+          <div class="annedit no-print" data-role="annedit">
+            <p class="hint" style="margin:10px 0 6px;">Log an ASO experiment (title/screenshot/keyword change) or a paid marketing push, and we'll compare average visibility score in the 14 days before vs after.</p>
+            <div class="row">
+              <div><label>Date</label><input type="date" data-role="ann-date" value="${new Date().toISOString().slice(0, 10)}" max="${new Date().toISOString().slice(0, 10)}" /></div>
+              <div><label>Type</label><select data-role="ann-type"><option value="experiment">🧪 ASO experiment</option><option value="paid">📢 Paid marketing push</option></select></div>
+            </div>
+            <label>What did you change / run?</label>
+            <textarea data-role="ann-label" placeholder="e.g. Rewrote title to include &quot;photo editor&quot;, or Started a ₹50k UAC campaign" rows="2"></textarea>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-annotation">Save annotation</button>
+            </div>
+          </div>
           <div class="no-print">${asoSummaryHtml(app)}</div>
           <div class="no-print">${discoverHtml(app)}</div>
           ${overviewHtml(app)}
+          <div class="no-print">${annotationsHtml(app)}</div>
           ${table}
         </div>`;
       }
@@ -749,6 +815,25 @@ ai photo enhancer"></textarea>
             if (saved) checkAsoFor(saved);
             return data;
           });
+          return;
+        }
+        if (act === 'add-annotation') { card.querySelector('[data-role="annedit"]').classList.toggle('open'); return; }
+        if (act === 'save-annotation') {
+          withBusy(btn, 'Saving…', async () => {
+            const date = card.querySelector('[data-role="ann-date"]').value;
+            const type = card.querySelector('[data-role="ann-type"]').value;
+            const label = card.querySelector('[data-role="ann-label"]').value.trim();
+            if (!date || !label) { showErr('Add a date and describe what you changed.'); return null; }
+            const data = await api({ action: 'add-annotation', key, date, type, label });
+            showToast('Annotation saved');
+            return data;
+          });
+          return;
+        }
+        if (act === 'remove-annotation') {
+          const id = btn.getAttribute('data-id');
+          if (!confirm('Remove this annotation?')) return;
+          withBusy(btn, '…', () => api({ action: 'remove-annotation', key, id }));
           return;
         }
         if (act === 'check-one') {

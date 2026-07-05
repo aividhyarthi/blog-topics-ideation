@@ -1,6 +1,6 @@
 // Fixture tests for the Rank Tracker's pure engine (src/lib/rank/track.ts) —
 // no network needed, so this runs anywhere: npx tsx scripts/validate-rank.ts
-import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, RANK_BUCKETS } from '../src/lib/rank/track';
+import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, RANK_BUCKETS } from '../src/lib/rank/track';
 import { parseAppInput } from '../src/lib/rank/fetch';
 import type { RankSnapshot, TrackedApp } from '../src/lib/rank/types';
 
@@ -98,6 +98,27 @@ eq('overview day count', ov.length, 3);
 eq('overview last day buckets (27→11-30, null, null unranked)', ov[2].buckets, [0, 0, 0, 1, 0, 0, 2]);
 eq('overview tracked', ov[2].tracked, 3);
 eq('overview visibility > 0', ov[2].visibility > 0 && ov[2].visibility < 100, true);
+
+// --- annotationImpact: before/after visibility around a dated marker --------
+const ovDay = (dateKey: string, visibility: number) => ({ dateKey, buckets: [], visibility, tracked: 1 });
+const annDays = [
+  ovDay('2024-01-01', 20), ovDay('2024-01-08', 22), ovDay('2024-01-14', 18), // before
+  ovDay('2024-01-15', 40), ovDay('2024-01-20', 45), ovDay('2024-01-28', 50), // after
+];
+const imp = annotationImpact(annDays, '2024-01-15', 14);
+eq('annotation impact: before avg', imp.before.avgVisibility, 20);
+eq('annotation impact: before day count', imp.before.days, 3);
+eq('annotation impact: after avg', imp.after.avgVisibility, 45);
+eq('annotation impact: after day count', imp.after.days, 3);
+eq('annotation impact: delta', imp.delta, 25);
+
+const impNoAfter = annotationImpact(annDays.slice(0, 3), '2024-01-15', 14);
+eq('annotation impact: no data after -> delta null', impNoAfter.delta, null);
+eq('annotation impact: no data after -> after days 0', impNoAfter.after.days, 0);
+
+eq('annotation impact: empty days -> all null/zero', annotationImpact([], '2024-01-15'), {
+  before: { avgVisibility: null, days: 0 }, after: { avgVisibility: null, days: 0 }, delta: null,
+});
 
 // --- trends: pure parsing/averaging (no network) -----------------------------
 const { stripXssiPrefix, averageRecentValue } = await import('../src/lib/rank/trends');

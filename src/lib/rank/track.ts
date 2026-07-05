@@ -148,6 +148,33 @@ export function overviewSeries(app: TrackedApp, snapshots: RankSnapshot[], days 
   }).filter((d): d is OverviewDay => d !== null);
 }
 
+export interface AnnotationImpact {
+  before: { avgVisibility: number | null; days: number };
+  after: { avgVisibility: number | null; days: number };
+  delta: number | null; // after - before, null if either side has no data
+}
+
+/**
+ * Visibility-score impact of a dated annotation (ASO experiment or paid
+ * marketing push): average visibility for the `windowDays` before the
+ * annotation date vs the `windowDays` on/after it. A simple, honest
+ * before/after read — not a causal claim, since other things can move in
+ * the same window too.
+ */
+export function annotationImpact(days: OverviewDay[], annotationDate: string, windowDays = 14): AnnotationImpact {
+  const at = Date.parse(annotationDate);
+  const dayMs = 86400000;
+  const before = days.filter((d) => { const t = Date.parse(d.dateKey); return t < at && t >= at - windowDays * dayMs; });
+  const after = days.filter((d) => { const t = Date.parse(d.dateKey); return t >= at && t <= at + windowDays * dayMs; });
+  const avg = (arr: OverviewDay[]) => arr.length ? Math.round((arr.reduce((s, d) => s + d.visibility, 0) / arr.length) * 10) / 10 : null;
+  const b = avg(before), a = avg(after);
+  return {
+    before: { avgVisibility: b, days: before.length },
+    after: { avgVisibility: a, days: after.length },
+    delta: (b != null && a != null) ? Math.round((a - b) * 10) / 10 : null,
+  };
+}
+
 /** Merge a fresh check into the day's snapshot (a re-check the same day replaces that app's rows). */
 export function mergeIntoSnapshot(existing: RankSnapshot | null, dateKey: string, results: AppRankResult[]): RankSnapshot {
   const kept = (existing?.dateKey === dateKey ? existing.apps : []).filter(
