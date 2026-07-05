@@ -10,7 +10,7 @@ const user = Astro.locals.user;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{BRAND} — About</title>
-    <meta name="description" content={`${BRAND} uses AI to track your app's search rank, surface the keywords you already rank for, and audit your store listing.`} />
+    <meta name="description" content={`${BRAND} makes App Store Optimization measurable and accessible — simple, actionable keyword ranking intelligence for every app business.`} />
     <style>
       :root { --pink: #6366f1; --pink-dark: #4f46e5; --ink: #1d1f2b; --muted: #6b6f80; --line: #e7e8ef; --bg: #f6f6fa; }
       * { box-sizing: border-box; }
@@ -27,8 +27,13 @@ const user = Astro.locals.user;
       a.btn:hover { background: var(--pink-dark); }
       main { padding: 44px 0 60px; }
       h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 16px; }
+      h2 { font-size: 19px; letter-spacing: -0.01em; margin: 30px 0 12px; color: var(--ink); }
       p { color: var(--muted); font-size: 16px; margin: 0 0 16px; }
       p b { color: var(--ink); }
+      ul { color: var(--muted); font-size: 16px; margin: 0 0 16px; padding-left: 22px; }
+      li { margin: 0 0 6px; }
+      .contact { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 15px; }
+      .contact a { color: var(--pink-dark); font-weight: 700; text-decoration: none; }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 30px 0; border-top: 1px solid var(--line); margin-top: 30px; }
       footer a { color: var(--muted); }
     </style>
@@ -45,17 +50,65 @@ const user = Astro.locals.user;
       <div class="wrap">
         <h1>About {BRAND}</h1>
         <p>
-          {BRAND} was started by <b>Rudra Kasturi</b> after one too many app launches where keyword
-          rank, competitor tracking, and listing audits each lived in a different tool, a different
-          spreadsheet, or a different tab — with no single place to see it all. {BRAND} fills that
-          gap: one dashboard for everything an app owner needs to grow organic installs.
+          Like many ASO professionals, product marketers, founders, and growth teams, we relied on
+          expensive global ASO platforms to track app keyword rankings. They were packed with
+          features, but when it came to answering the one question that mattered most — "Where does
+          my app rank for my most important keywords?" — the experience was often limited, slow, or
+          unnecessarily complicated.
         </p>
+        <p>We wanted something simpler.</p>
         <p>
-          Under the hood it's AI doing the work — checking your rank on every keyword you care
-          about, finding the ones you already rank for without knowing it, and reading your store
-          listing the way a search algorithm does to tell you what's helping or hurting your
-          installs. No spreadsheets, no manual searching, no juggling five tools.
+          A platform that lets you monitor keyword rankings across app stores, understand how your
+          app is performing, compare your visibility against competitors, and spot ranking changes
+          before they impact downloads.
         </p>
+        <p>So we built {BRAND}.</p>
+        <p>{BRAND} is designed for people who make decisions based on app visibility.</p>
+        <p>
+          Whether you're an ASO specialist optimizing hundreds of keywords, a startup founder
+          tracking your growth, a CMO measuring campaign impact, or a CEO who simply wants to know
+          whether the app is becoming easier to discover, {BRAND} gives you the data that matters
+          without overwhelming you.
+        </p>
+        <p>Our goal is straightforward.</p>
+        <p>Help businesses answer questions like:</p>
+        <ul>
+          <li>Which keywords are we ranking for?</li>
+          <li>Which rankings are improving or dropping?</li>
+          <li>How do we compare with competitors?</li>
+          <li>Which keywords should we focus on next?</li>
+          <li>Are our ASO efforts actually working?</li>
+        </ul>
+        <p>
+          We believe ASO shouldn't require expensive enterprise software or hours of manual
+          tracking. Good decisions come from clear, reliable data.
+        </p>
+        <p>Interestingly, {BRAND} itself is proof of what's possible today.</p>
+        <p>
+          The platform was built almost entirely using AI. Without a traditional software
+          engineering background, we used modern AI coding tools to design, build, test, and launch
+          {BRAND}. It's a reflection of how AI is changing product development and making it
+          possible for founders to build solutions around real problems instead of waiting for
+          large engineering teams.
+        </p>
+        <p>This is only the beginning.</p>
+        <p>
+          We're continuously improving {BRAND} with new insights, smarter analytics, competitor
+          intelligence, historical trends, and AI powered recommendations to help app teams grow
+          faster.
+        </p>
+        <p>If app discovery matters to your business, {BRAND} is built for you.</p>
+
+        <h2>Our Mission</h2>
+        <p>
+          To make App Store Optimization measurable, transparent, and accessible for every app
+          business, from indie developers to global enterprises, through simple, actionable ranking
+          intelligence instead of overwhelming dashboards.
+        </p>
+
+        <div class="contact">
+          Talk to us — <a href="mailto:talktoapprankr@gmail.com">talktoapprankr@gmail.com</a>
+        </div>
       </div>
     </main>
     <footer>
