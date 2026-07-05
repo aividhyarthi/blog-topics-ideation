@@ -18,6 +18,7 @@ export interface AsoAppData {
   scoreText: string | null;
   ratings: number | null; // number of ratings
   reviews: number | null; // number of written reviews
+  histogram: Record<'1' | '2' | '3' | '4' | '5', number> | null; // rating distribution, 1-5 stars
   installs: string | null; // e.g. "1,000,000,000+"
   minInstalls: number | null;
   genre: string | null;
@@ -78,6 +79,9 @@ function normalize(app: Record<string, any>, appId: string): AsoAppData {
     scoreText: app.scoreText || null,
     ratings: typeof app.ratings === 'number' ? app.ratings : null,
     reviews: typeof app.reviews === 'number' ? app.reviews : null,
+    histogram: app.histogram && typeof app.histogram === 'object'
+      ? { '1': Number(app.histogram['1']) || 0, '2': Number(app.histogram['2']) || 0, '3': Number(app.histogram['3']) || 0, '4': Number(app.histogram['4']) || 0, '5': Number(app.histogram['5']) || 0 }
+      : null,
     installs: app.installs || null,
     minInstalls: typeof app.minInstalls === 'number' ? app.minInstalls : null,
     genre: app.genre || null,

@@ -27,6 +27,14 @@ export interface Pillar {
   signals: Signal[];
 }
 export interface MarketSignal { label: string; detail: string; tone: 'good' | 'mid' | 'bad' | 'na'; }
+export interface RatingBreakdown {
+  total: number;
+  counts: { star: number; count: number; pct: number }[]; // 5★ down to 1★
+  negativeShare: number; // % of ratings that are 1-2★
+  positiveShare: number; // % of ratings that are 4-5★
+  tone: 'good' | 'mid' | 'bad' | 'na';
+  warning: string | null;
+}
 export interface KeywordRow { term: string; count: number; inTitle: boolean; inShort: boolean; inLong: boolean; }
 export interface Fix { key: string; label: string; fix: string; severity: 'fail' | 'warn'; tag: 'high' | 'quick'; gain: number; }
 
@@ -37,6 +45,7 @@ export interface AsoReport {
   summary?: string;
   pillars: Pillar[];
   marketSignals: MarketSignal[];
+  ratingBreakdown: RatingBreakdown;
   keywords: KeywordRow[];
   focusKeyword: string | null; // the primary (first) focus keyword
   focusKeywords: string[]; // up to 3 evaluated keywords
@@ -120,6 +129,30 @@ function gradeFor(s: number): string {
   if (s >= 70) return 'C';
   if (s >= 60) return 'D';
   return 'F';
+}
+
+/**
+ * Star-rating distribution + its ranking impact. Reported as context (like the
+ * other market signals) rather than scored, but surfaced with an explicit
+ * warning because a heavy 1-2★ share is a real, well-documented Play ranking
+ * drag — not just a UX nicety.
+ */
+export function ratingDistribution(histogram: AsoAppData['histogram'], avgScore: number | null): RatingBreakdown {
+  if (!histogram) return { total: 0, counts: [], negativeShare: 0, positiveShare: 0, tone: 'na', warning: null };
+  const total = ([1, 2, 3, 4, 5] as const).reduce((sum, star) => sum + (histogram[String(star) as '1'] || 0), 0);
+  const pct = (n: number) => (total ? Math.round((n / total) * 1000) / 10 : 0);
+  const counts = ([5, 4, 3, 2, 1] as const).map((star) => {
+    const count = histogram[String(star) as '1'] || 0;
+    return { star, count, pct: pct(count) };
+  });
+  const negativeShare = pct((histogram['1'] || 0) + (histogram['2'] || 0));
+  const positiveShare = pct((histogram['4'] || 0) + (histogram['5'] || 0));
+  const enough = total >= 10;
+  const tone: RatingBreakdown['tone'] = !enough ? 'na' : negativeShare >= 25 ? 'bad' : negativeShare >= 12 ? 'mid' : 'good';
+  const warning = enough && negativeShare >= 12
+    ? `${negativeShare}% of ratings are 1-2★${avgScore != null ? ` (avg ${avgScore.toFixed(2)}★)` : ''} — rating average and the volume of recent low ratings are known Play Store ranking signals, so this is likely suppressing search visibility on top of costing conversions. Fixing the root complaint driving these ratings and prompting happy users to rate should lift both.`
+    : null;
+  return { total, counts, negativeShare, positiveShare, tone, warning };
 }
 
 /**
@@ -327,6 +360,7 @@ export function auditListing(app: AsoAppData, focusKeywordInput?: string | strin
     band: overall >= 70 ? 'High' : overall >= 50 ? 'Medium' : 'Low',
     pillars,
     marketSignals,
+    ratingBreakdown: ratingDistribution(app.histogram, app.score),
     keywords,
     focusKeyword,
     focusKeywords,
