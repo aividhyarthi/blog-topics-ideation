@@ -4,15 +4,24 @@
 
 export const BRAND = process.env.BRAND_NAME || 'AppRankr';
 export const TRIAL_DAYS = Number(process.env.TRIAL_DAYS ?? 7);
-/** Display currency. Billing runs on Razorpay in INR. */
 export const CURRENCY = '₹';
+
+/**
+ * Billing is manual UPI/WhatsApp, not a payment gateway: the account page
+ * shows a UPI QR + deep link and a WhatsApp contact, the owner pays outside
+ * the app, and Rudra flips their account to "active" himself (see
+ * scripts/activate-user.ts) once the payment shows up. Set these in Railway.
+ */
+export const UPI_ID = process.env.UPI_ID || 'yourname@upi';
+export const UPI_PAYEE_NAME = process.env.UPI_PAYEE_NAME || BRAND;
+export const WHATSAPP_NUMBER = process.env.WHATSAPP_NUMBER || '911234567890';
 
 export type PlanId = 'starter' | 'pro';
 
 export interface Plan {
   id: PlanId;
   name: string;
-  priceMonthly: number; // INR, display only — Razorpay plan ids are the source of truth for billing
+  priceMonthly: number; // INR
   maxApps: number;
   maxKeywordsPerApp: number;
   blurb: string;

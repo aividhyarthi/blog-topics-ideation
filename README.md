@@ -210,13 +210,12 @@ site becomes the product:
 - **Plans** (`src/lib/saas/plans.ts`): Starter ₹2,499/mo (3 apps × 30
   keywords), Pro ₹6,499/mo (10 apps × 60 keywords). Limits enforced
   server-side.
-- **Razorpay billing** (India-first: UPI, cards, netbanking): `/account`
-  creates a Razorpay Subscription and opens the Checkout modal; the success
-  signature is verified server-side (`/api/billing/verify`) for instant
-  activation, and webhooks (`/api/billing/webhook`) keep the status in sync
-  (charged / halted / cancelled). Cancellation is first-party
-  (`/api/billing/cancel`, end of billing cycle). Until the Razorpay env vars
-  are set, checkout shows a friendly "payments not switched on yet".
+- **Manual UPI/WhatsApp billing** — no payment gateway. `/account` renders a
+  UPI QR code + deep link (`upi://pay?...`) server-side per plan
+  (`qrcode-generator`, no external calls), plus a WhatsApp button. There is no
+  webhook: after a user pays and messages on WhatsApp, activate them with
+  `npx tsx scripts/activate-user.ts <email> <starter|pro|cancel>`, which just
+  flips their `status`/`plan` in the DB directly.
 - **Per-user data isolation**: each user's tracked apps + snapshots live in
   `RANK_DATA_DIR/users/<id>`; the user DB is `RANK_DATA_DIR/apprankr.db` —
   one mounted Volume persists everything.
@@ -245,9 +244,9 @@ site becomes the product:
 | -------- | -------- | ----- |
 | `PRODUCT_MODE` | yes (product deploy only) | `1` switches this deployment to AppRankr. Leave unset on the internal deployment. |
 | `RANK_DATA_DIR` | yes | Volume mount path — holds the user DB and all rank data. |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | for billing | API keys from the Razorpay dashboard (Settings → API Keys). |
-| `RAZORPAY_PLAN_STARTER` / `RAZORPAY_PLAN_PRO` | for billing | Razorpay **plan ids** (`plan_…`): create two monthly plans (₹2,499 and ₹6,499) under Subscriptions → Plans. |
-| `RAZORPAY_WEBHOOK_SECRET` | for billing | Secret you set on the webhook `POST {domain}/api/billing/webhook` (enable the `subscription.*` events). |
+| `UPI_ID` | for billing | Your UPI id (e.g. `yourname@okhdfcbank`) — shown as text and encoded into the QR/deep link. |
+| `UPI_PAYEE_NAME` | no | Name shown in the payer's UPI app during payment. Defaults to `BRAND_NAME`. |
+| `WHATSAPP_NUMBER` | for billing | Your WhatsApp number in international format, digits only (e.g. `919876543210`). |
 | `TRIAL_DAYS` | no | Defaults to 7. |
 | `BRAND_NAME` | no | Defaults to `AppRankr`. |
 | `ANTHROPIC_API_KEY` | recommended | Powers AI keyword ideas in discovery. |

@@ -14,7 +14,7 @@ export interface User {
   plan: PlanId;
   status: UserStatus;
   trialEndsAt: string | null;
-  /** Payment-provider subscription id (Razorpay sub_...). */
+  /** Optional free-text payment reference (e.g. a UPI transaction id), set manually. */
   subscriptionId: string | null;
   createdAt: string;
 }
@@ -82,11 +82,6 @@ export function findUserByEmail(email: string): User | null {
 
 export function findUserById(id: string): User | null {
   const r = getDb().prepare('SELECT * FROM users WHERE id = ?').get(id);
-  return r ? rowToUser(r as Record<string, any>) : null;
-}
-
-export function findUserBySubscription(subscriptionId: string): User | null {
-  const r = getDb().prepare('SELECT * FROM users WHERE subscription_id = ?').get(subscriptionId);
   return r ? rowToUser(r as Record<string, any>) : null;
 }
 

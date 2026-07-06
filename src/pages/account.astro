@@ -1,16 +1,45 @@
 ---
 // Account & billing page (product mode, login required via middleware).
-import { BRAND, PLANS, planOf, checkAccess, CURRENCY, formatPrice } from '../lib/saas/plans';
+// Billing is manual UPI/WhatsApp, not a payment gateway — see plans.ts. The
+// QR + UPI deep link are rendered server-side here (qrcode-generator), so
+// there is no client-side payment JS at all.
+import { BRAND, PLANS, planOf, checkAccess, CURRENCY, formatPrice, UPI_ID, UPI_PAYEE_NAME, WHATSAPP_NUMBER } from '../lib/saas/plans';
+import qrcode from 'qrcode-generator';
+
 const user = Astro.locals.user!;
 const access = checkAccess(user.status, user.trialEndsAt);
 const plan = planOf(user.plan);
 const expired = Astro.url.searchParams.get('expired') === '1';
-const upgraded = Astro.url.searchParams.get('upgraded') === '1';
 const statusLabel =
   user.status === 'active' ? `Active — ${plan.name} plan`
   : user.status === 'trialing' && access.allowed ? `Free trial — ${access.trialDaysLeft} day${access.trialDaysLeft === 1 ? '' : 's'} left`
-  : user.status === 'past_due' ? 'Payment problem — please update your card'
+  : user.status === 'past_due' ? 'Payment problem — please pay again to keep access'
   : 'No active subscription';
+
+function upiUri(amount: number, note: string): string {
+  const params = new URLSearchParams({ pa: UPI_ID, pn: UPI_PAYEE_NAME, am: String(amount), cu: 'INR', tn: note });
+  return `upi://pay?${params.toString()}`;
+}
+function qrSvg(uri: string): string {
+  const qr = qrcode(0, 'M');
+  qr.addData(uri);
+  qr.make();
+  return qr.createSvgTag({ scalable: true });
+}
+function waLink(text: string): string {
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+}
+
+const planPayment = Object.values(PLANS).map((p) => {
+  const note = `${BRAND} ${p.name} plan`;
+  return {
+    plan: p,
+    uri: upiUri(p.priceMonthly, note),
+    qr: qrSvg(upiUri(p.priceMonthly, note)),
+    wa: waLink(`Hi, I've paid ${CURRENCY}${formatPrice(p.priceMonthly)} for the ${p.name} plan on ${BRAND}. My account email is ${user.email} — please activate my account.`),
+  };
+});
+const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan subscription. My account email is ${user.email}.`);
 ---
 
 <!doctype html>
@@ -20,7 +49,6 @@ const statusLabel =
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{BRAND} — Account</title>
-    <script is:inline src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <style>
       :root { --pink: #6366f1; --pink-dark: #4f46e5; --ink: #1d1f2b; --muted: #6b6f80; --line: #e7e8ef; --bg: #f6f6fa; --ok: #15a06a; --bad: #c0392b; }
       * { box-sizing: border-box; }
@@ -52,7 +80,6 @@ const statusLabel =
       .status.bad { color: var(--bad); }
       .alert { padding: 12px 14px; border-radius: 10px; font-size: 13.5px; margin-bottom: 16px; }
       .alert.warn { background: #fff6e6; color: #8a5d00; border: 1px solid #f3e0b0; }
-      .alert.good { background: #e9f8f1; color: #0c6b46; border: 1px solid #bfe8d4; }
       .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
       @media (max-width: 700px) { .plans { grid-template-columns: 1fr; } }
       .plan { border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
@@ -62,13 +89,22 @@ const statusLabel =
       .plan .price span { font-size: 13px; font-weight: 600; color: var(--muted); }
       .plan ul { list-style: none; padding: 0; margin: 8px 0 14px; font-size: 13px; color: var(--muted); }
       .plan li::before { content: '✓ '; color: var(--pink-dark); font-weight: 800; }
-      button { border: none; border-radius: 10px; padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer; }
-      button.primary { background: var(--pink); color: #fff; }
-      button.primary:hover { background: var(--pink-dark); }
-      button.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
-      button.ghost:hover { border-color: var(--pink); color: var(--pink); }
+      a.btn, button, summary.btn { display: inline-block; text-align: center; border: none; border-radius: 10px; padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none; }
+      .primary { background: var(--pink); color: #fff; }
+      .primary:hover { background: var(--pink-dark); }
+      .ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+      .ghost:hover { border-color: var(--pink); color: var(--pink); }
       button:disabled { opacity: 0.6; cursor: not-allowed; }
-      .err { display: none; margin-top: 12px; padding: 10px 12px; border-radius: 9px; font-size: 13px; background: #fdecec; color: #b3261e; border: 1px solid #f6c9c6; }
+      summary.btn { list-style: none; width: 100%; }
+      summary.btn::-webkit-details-marker { display: none; }
+      .paybox { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); text-align: center; }
+      .paybox .qr { width: 168px; height: 168px; margin: 0 auto 10px; }
+      .paybox .qr svg { width: 100%; height: 100%; display: block; }
+      .paybox .upiid { font-family: ui-monospace, monospace; font-size: 13px; background: var(--bg); padding: 6px 10px; border-radius: 8px; display: inline-block; margin-bottom: 10px; }
+      .paybox .actions { display: flex; flex-direction: column; gap: 8px; }
+      .paybox .note { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+      .wa { background: #25D366; color: #fff; }
+      .wa:hover { background: #1ea952; }
     </style>
   </head>
   <body>
@@ -90,21 +126,25 @@ const statusLabel =
     </header>
     <main>
       <div class="wrap">
-        {expired && <div class="alert warn">Your free trial has ended. Choose a plan below to keep your rank history and continue tracking — your data is saved and waiting.</div>}
-        {upgraded && <div class="alert good">🎉 You're subscribed! Your plan is being activated (this takes a few seconds) — head back to the dashboard.</div>}
+        {expired && <div class="alert warn">Your free trial has ended. Pay via UPI below to keep your rank history and continue tracking — your data is saved and waiting. We'll activate your account shortly after you message us.</div>}
 
         <div class="card">
           <h2>Account</h2>
           <div class="kv"><span class="k">Name</span><span>{user.name || '—'}</span></div>
           <div class="kv"><span class="k">Email</span><span>{user.email}</span></div>
           <div class="kv"><span class="k">Status</span><span class={`status ${access.allowed || user.status === 'active' ? 'ok' : 'bad'}`}>{statusLabel}</span></div>
-          {user.status === 'active' && <div style="margin-top:10px;"><button class="ghost" id="cancel">Cancel subscription</button></div>}
+          {user.status === 'active' && (
+            <div style="margin-top:10px;">
+              <a class="btn ghost" href={cancelWa} target="_blank" rel="noopener">Cancel subscription (via WhatsApp)</a>
+            </div>
+          )}
         </div>
 
         <div class="card">
           <h2>{user.status === 'active' ? 'Change plan' : 'Choose your plan'}</h2>
+          <p class="kv" style="padding-top:0;color:var(--muted);font-size:13.5px;">Pay by UPI — scan the QR, tap to pay in any UPI app, or message us on WhatsApp. No card, no netbanking, no payment gateway. We activate your account manually once the payment comes through.</p>
           <div class="plans">
-            {Object.values(PLANS).map((p) => (
+            {planPayment.map(({ plan: p, qr, uri, wa }) => (
               <div class={`plan ${user.status === 'active' && user.plan === p.id ? 'current' : ''}`}>
                 <h3>{p.name}</h3>
                 <div class="price">{CURRENCY}{formatPrice(p.priceMonthly)}<span>/month</span></div>
@@ -113,68 +153,35 @@ const statusLabel =
                   <li>{p.maxKeywordsPerApp} keywords per app</li>
                   <li>Both stores · daily checks · discovery · ASO Inspector</li>
                 </ul>
-                {user.status === 'active' && user.plan === p.id
-                  ? <button class="ghost" disabled>Current plan</button>
-                  : <button class="primary" data-plan={p.id}>{user.status === 'active' ? `Switch to ${p.name}` : `Subscribe — ${CURRENCY}${formatPrice(p.priceMonthly)}/mo`}</button>}
+                {user.status === 'active' && user.plan === p.id ? (
+                  <button class="ghost" disabled>Current plan</button>
+                ) : (
+                  <details>
+                    <summary class="btn primary">{user.status === 'active' ? `Switch to ${p.name}` : `Pay — ${CURRENCY}${formatPrice(p.priceMonthly)}/mo`}</summary>
+                    <div class="paybox">
+                      <div class="qr" set:html={qr} />
+                      <div class="upiid">{UPI_ID}</div>
+                      <div class="actions">
+                        <a class="btn primary" href={uri}>📲 Pay in UPI app</a>
+                        <a class="btn wa" href={wa} target="_blank" rel="noopener">💬 I've paid — message us on WhatsApp</a>
+                      </div>
+                      <p class="note">Scan the QR with any UPI app (GPay, PhonePe, Paytm...), or tap "Pay in UPI app" if you're on your phone. After paying, tap the WhatsApp button so we can activate your account — usually within a few hours.</p>
+                    </div>
+                  </details>
+                )}
               </div>
             ))}
           </div>
-          <div class="err" id="err"></div>
         </div>
       </div>
     </main>
     <script>
-      const err = document.getElementById('err');
       async function post(url, body) {
         const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Request failed.');
         return data;
       }
-      document.querySelectorAll('button[data-plan]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          err.style.display = 'none';
-          btn.disabled = true;
-          try {
-            // 1) create the subscription server-side, 2) collect payment in the
-            // Razorpay modal (UPI / cards / netbanking), 3) verify + activate.
-            const data = await post('/api/billing/checkout', { plan: btn.getAttribute('data-plan') });
-            const rzp = new Razorpay({
-              key: data.keyId,
-              subscription_id: data.subscriptionId,
-              name: data.brand,
-              description: data.planName,
-              prefill: data.prefill,
-              theme: { color: '#6366f1' },
-              handler: async (resp) => {
-                try {
-                  await post('/api/billing/verify', {
-                    paymentId: resp.razorpay_payment_id,
-                    subscriptionId: resp.razorpay_subscription_id,
-                    signature: resp.razorpay_signature,
-                    plan: data.plan,
-                  });
-                  location.href = '/account?upgraded=1';
-                } catch (e) { err.textContent = e.message; err.style.display = 'block'; }
-              },
-              modal: { ondismiss: () => { btn.disabled = false; } },
-            });
-            rzp.on('payment.failed', (resp) => {
-              err.textContent = 'Payment failed: ' + (resp.error && resp.error.description || 'please try again.');
-              err.style.display = 'block';
-              btn.disabled = false;
-            });
-            rzp.open();
-          } catch (e) { err.textContent = e.message; err.style.display = 'block'; btn.disabled = false; }
-        });
-      });
-      const cancelBtn = document.getElementById('cancel');
-      if (cancelBtn) cancelBtn.addEventListener('click', async () => {
-        if (!confirm('Cancel your subscription? You keep access until the end of the period you already paid for.')) return;
-        err.style.display = 'none';
-        try { const data = await post('/api/billing/cancel'); alert(data.message); }
-        catch (e) { err.textContent = e.message; err.style.display = 'block'; }
-      });
       document.getElementById('logout').addEventListener('click', async (e) => {
         e.preventDefault();
         await post('/api/auth/logout');

@@ -79,23 +79,13 @@ eq('user A sees only their app', loadConfig('user-a').apps.map((a) => a.appId), 
 eq('user B sees only their app', loadConfig('user-b').apps.map((a) => a.appId), ['com.user.b']);
 eq('internal root untouched', loadConfig().apps.map((a) => a.appId), ['com.internal']);
 
-// --- razorpay signatures -------------------------------------------------------
-const { paymentSignatureValid, webhookSignatureValid, applyWebhookEvent } = await import('../src/lib/saas/billing');
-const { createHmac } = await import('node:crypto');
-const secret = 'test_secret';
-const paySig = createHmac('sha256', secret).update('pay_123|sub_456').digest('hex');
-eq('payment signature valid', paymentSignatureValid('pay_123', 'sub_456', paySig, secret), true);
-eq('payment signature tampered', paymentSignatureValid('pay_123', 'sub_999', paySig, secret), false);
-eq('payment signature empty secret', paymentSignatureValid('pay_123', 'sub_456', paySig, ''), false);
-const rawEvent = JSON.stringify({ event: 'subscription.charged', payload: { subscription: { entity: { id: 'sub_456', notes: { userId: su.user!.id, plan: 'pro' } } } } });
-const whSig = createHmac('sha256', secret).update(rawEvent).digest('hex');
-eq('webhook signature valid', webhookSignatureValid(rawEvent, whSig, secret), true);
-eq('webhook signature tampered', webhookSignatureValid(rawEvent + ' ', whSig, secret), false);
-applyWebhookEvent(JSON.parse(rawEvent));
-const { findUserByEmail } = await import('../src/lib/saas/db');
+// --- manual billing (UPI/WhatsApp, no gateway) --------------------------------
+// Activation is a manual admin action (scripts/activate-user.ts) rather than a
+// webhook — just updateUserBilling flipping status/plan directly.
+const { updateUserBilling, findUserByEmail } = await import('../src/lib/saas/db');
+updateUserBilling(su.user!.id, { status: 'active', plan: 'pro' });
 const after = findUserByEmail('rudra@appstudiox.com')!;
-eq('webhook activates user + plan', { status: after.status, plan: after.plan, sub: after.subscriptionId }, { status: 'active', plan: 'pro', sub: 'sub_456' });
-eq('unknown webhook event ignored', applyWebhookEvent({ event: 'payment.captured' }).startsWith('ignored'), true);
+eq('manual activation sets status + plan', { status: after.status, plan: after.plan }, { status: 'active', plan: 'pro' });
 
 rmSync(tmp, { recursive: true, force: true });
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }

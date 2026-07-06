@@ -6,7 +6,7 @@
 //
 // PRODUCT MODE (PRODUCT_MODE=1) — the deployment serves AppRankr, the paid
 // app-store toolkit (Rank Tracker + ASO Inspector):
-//   - public: landing page (/), /login, /signup, auth APIs, Razorpay webhook
+//   - public: landing page (/), /login, /signup, auth APIs
 //   - everything else needs a session cookie; the two paid tools (/rank,
 //     /aso and their APIs) additionally need an active subscription or a
 //     live trial
@@ -25,9 +25,9 @@ if (process.env.PRODUCT_MODE) {
   if (warning) console.warn(`\n⚠️⚠️⚠️  DATA PERSISTENCE WARNING  ⚠️⚠️⚠️\n${warning}\n`);
 }
 
-const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/api/auth/', '/api/billing/webhook', '/_astro/', '/favicon', '/robots'];
+const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/api/auth/', '/_astro/', '/favicon', '/robots'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.
-const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/account', '/rank', '/aso', '/api/auth/', '/api/billing/', '/api/rank', '/api/aso', '/api/aso-variants', '/_astro/', '/favicon', '/robots'];
+const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/account', '/rank', '/aso', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/_astro/', '/favicon', '/robots'];
 // The two paid tools — gated on a live trial/subscription (checked below).
 const PAID_TOOL_PREFIXES = ['/rank', '/api/rank', '/aso', '/api/aso', '/api/aso-variants'];
 
