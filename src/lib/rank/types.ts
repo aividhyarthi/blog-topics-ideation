@@ -35,6 +35,11 @@ export interface TrackedApp {
   keywords: string[];
   addedAt: string;
   annotations?: Annotation[];
+  /** The FULL keyword universe the owner cares about (up to 300) — separate
+   * from `keywords` (the plan-limited subset checked daily). Checked
+   * on-demand via "Check coverage now" so cost/time stays bounded; each
+   * check builds one more point in the coverage trend. */
+  coverageKeywords?: string[];
 }
 
 export interface TrackerConfig {

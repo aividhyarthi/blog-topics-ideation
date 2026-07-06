@@ -99,6 +99,12 @@ eq('overview last day buckets (27→11-30, null, null unranked)', ov[2].buckets,
 eq('overview tracked', ov[2].tracked, 3);
 eq('overview visibility > 0', ov[2].visibility > 0 && ov[2].visibility < 100, true);
 
+// overview with an explicit keyword list (the coverage-list overview reuses
+// this instead of app.keywords, since it checks a separate, larger list)
+const covOv = overviewSeries(app, snaps, 30, ['alpha']);
+eq('coverage overview tracked = 1 (alpha only)', covOv[2].tracked, 1);
+eq('coverage overview visibility differs from full-keyword overview', covOv[2].visibility === ov[2].visibility, false);
+
 // --- annotationImpact: before/after visibility around a dated marker --------
 const ovDay = (dateKey: string, visibility: number) => ({ dateKey, buckets: [], visibility, tracked: 1 });
 const annDays = [

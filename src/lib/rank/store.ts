@@ -26,6 +26,7 @@ function dataDir(userId?: string): string {
 const safe = (s: string) => s.replace(/[^a-z0-9_-]/gi, '_');
 const configFile = (userId?: string) => join(dataDir(userId), 'config.json');
 const snapFile = (dateKey: string, userId?: string) => join(dataDir(userId), `snap__${safe(dateKey)}.json`);
+const covSnapFile = (dateKey: string, userId?: string) => join(dataDir(userId), `covsnap__${safe(dateKey)}.json`);
 const MAX_BACKUPS = 20;
 
 /**
@@ -111,4 +112,30 @@ export function deleteSnapshot(dateKey: string, userId?: string): boolean {
   if (!existsSync(p)) return false;
   rmSync(p);
   return true;
+}
+
+// --- coverage snapshots (the full keyword-universe check, on-demand, kept
+// separate from the daily-tracked snapshots above so a 300-keyword coverage
+// check never bloats or gets confused with the plan-limited daily history) --
+
+export function saveCoverageSnapshot(snap: RankSnapshot, userId?: string): void {
+  writeFileSync(covSnapFile(snap.dateKey, userId), JSON.stringify(snap));
+}
+
+export function loadCoverageSnapshot(dateKey: string, userId?: string): RankSnapshot | null {
+  const p = covSnapFile(dateKey, userId);
+  if (!existsSync(p)) return null;
+  try { return JSON.parse(readFileSync(p, 'utf8')) as RankSnapshot; } catch { return null; }
+}
+
+export function loadCoverageSnapshots(limit = 60, userId?: string): RankSnapshot[] {
+  const dir = dataDir(userId);
+  return readdirSync(dir)
+    .filter((f) => f.startsWith('covsnap__') && f.endsWith('.json'))
+    .sort()
+    .slice(-limit)
+    .map((f) => {
+      try { return JSON.parse(readFileSync(join(dir, f), 'utf8')) as RankSnapshot; } catch { return null; }
+    })
+    .filter((s): s is RankSnapshot => s !== null);
 }

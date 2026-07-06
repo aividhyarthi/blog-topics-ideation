@@ -8,8 +8,8 @@
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact } from '../../lib/rank/track';
-import { loadConfig, saveConfig, loadSnapshots, ConfigReadError } from '../../lib/rank/store';
-import { runCheck, checkOne } from '../../lib/rank/check';
+import { loadConfig, saveConfig, loadSnapshots, loadCoverageSnapshots, ConfigReadError } from '../../lib/rank/store';
+import { runCheck, checkOne, checkCoverage } from '../../lib/rank/check';
 import { discoverKeywords } from '../../lib/rank/discover';
 import type { Annotation, TrackedApp } from '../../lib/rank/types';
 import { randomUUID } from 'node:crypto';
@@ -22,6 +22,9 @@ import type { APIContext } from 'astro';
 
 // Internal (single-tenant) limits; product mode limits come from the user's plan.
 const INTERNAL_LIMITS = { maxApps: 15, maxKeywordsPerApp: 60 };
+// Coverage list is a flat cap independent of plan — it's not checked daily,
+// so it doesn't carry the same per-check cost as the plan-limited keywords.
+const MAX_COVERAGE_KEYWORDS = 300;
 
 /** Who is asking, and what are they allowed? */
 function tenant(locals: APIContext['locals']) {
@@ -57,6 +60,8 @@ function statePayload(userId?: string) {
   const cfg = loadConfig(userId);
   const snapshots = loadSnapshots(90, userId);
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null;
+  const covSnapshots = loadCoverageSnapshots(60, userId);
+  const covLatest = covSnapshots.length ? covSnapshots[covSnapshots.length - 1] : null;
   return {
     apps: cfg.apps.map((app) => {
       const overview = overviewSeries(app, snapshots);
@@ -65,6 +70,10 @@ function statePayload(userId?: string) {
       // A wider (unrendered) window so a ±14-day before/after impact read is
       // possible even for an annotation near the edge of the 30-day chart.
       const widerOverview = overviewSeries(app, snapshots, 60);
+      const covKeywords = app.coverageKeywords || [];
+      const covOverview = covKeywords.length ? overviewSeries(app, covSnapshots, 60, covKeywords) : [];
+      const covToday = covOverview.length ? covOverview[covOverview.length - 1] : null;
+      const covPrev = covOverview.length > 1 ? covOverview[covOverview.length - 2] : null;
       return {
         ...app,
         annotations: (app.annotations || []).map((a) => ({ ...a, impact: annotationImpact(widerOverview, a.date) })),
@@ -76,6 +85,13 @@ function statePayload(userId?: string) {
           prevCounts: prev ? countsFromBuckets(prev.buckets) : null,
           visibility: today?.visibility ?? null,
           prevVisibility: prev?.visibility ?? null,
+        },
+        coverageOverview: {
+          total: covKeywords.length,
+          days: covOverview,
+          counts: covToday ? countsFromBuckets(covToday.buckets) : null,
+          prevCounts: covPrev ? countsFromBuckets(covPrev.buckets) : null,
+          lastCheckedAt: covLatest?.checkedAt || null,
         },
         latestResult: latest?.apps.find((a) => a.key === app.key) || null,
       };
@@ -172,6 +188,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
     } catch (e) {
       return json({ error: `Discovery failed: ${e instanceof Error ? e.message : String(e)}` }, 502);
     }
+  }
+
+  if (action === 'set-coverage-keywords') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    app.coverageKeywords = parseKeywords(body.keywords, MAX_COVERAGE_KEYWORDS);
+    saveConfig(cfg, userId);
+    return json({ ok: true, ...statePayload(userId) });
+  }
+
+  if (action === 'check-coverage') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    if (!(app.coverageKeywords || []).length) return json({ error: 'Save a coverage keyword list first.' }, 400);
+    try { await checkCoverage(app, userId); }
+    catch (e) { return json({ error: `Coverage check failed: ${e instanceof Error ? e.message : String(e)}` }, 502); }
+    return json({ ok: true, ...statePayload(userId) });
   }
 
   if (action === 'add-annotation') {

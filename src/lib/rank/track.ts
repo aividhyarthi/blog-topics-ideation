@@ -132,13 +132,15 @@ export interface OverviewDay {
   tracked: number;
 }
 
-/** Per-day distribution + visibility series for one app (snapshots oldest→newest). */
-export function overviewSeries(app: TrackedApp, snapshots: RankSnapshot[], days = 30): OverviewDay[] {
+/** Per-day distribution + visibility series for one app (snapshots oldest→newest).
+ * `keywordList` defaults to the app's plan-limited tracked keywords, but the
+ * coverage overview passes the full keyword universe instead. */
+export function overviewSeries(app: TrackedApp, snapshots: RankSnapshot[], days = 30, keywordList: string[] = app.keywords): OverviewDay[] {
   return snapshots.slice(-days).map((s) => {
     const r = s.apps.find((a) => a.key === app.key) || null;
     // Only days on which this app was actually checked produce a bar.
     if (!r) return null;
-    const positions = app.keywords.map((kw) => r.keywords.find((k) => k.keyword === kw)?.position ?? null);
+    const positions = keywordList.map((kw) => r.keywords.find((k) => k.keyword === kw)?.position ?? null);
     const buckets = new Array(RANK_BUCKETS.length + 1).fill(0);
     for (const p of positions) {
       const i = bucketIndex(p);

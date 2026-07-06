@@ -3,7 +3,7 @@
 // endpoint ("Check now") and scripts/rank-check.ts (scheduled daily runs).
 import { searchStore, searchDepth, fetchTopChart, fetchAppMeta } from './fetch';
 import { keywordRank, mergeIntoSnapshot, todayKey } from './track';
-import { loadSnapshot, saveSnapshot } from './store';
+import { loadSnapshot, saveSnapshot, loadCoverageSnapshot, saveCoverageSnapshot } from './store';
 import type { AppRankResult, RankSnapshot, TrackedApp } from './types';
 import type { SearchHit } from './fetch';
 
@@ -19,6 +19,7 @@ export async function checkApp(
   app: TrackedApp,
   searchCache: Map<string, SearchHit[]> = new Map(),
   delayMs = 400,
+  keywordList: string[] = app.keywords,
 ): Promise<AppRankResult> {
   const result: AppRankResult = {
     key: app.key, store: app.store, appId: app.appId, country: app.country,
@@ -26,7 +27,7 @@ export async function checkApp(
   };
   const depth = searchDepth(app.store);
 
-  for (const kw of app.keywords) {
+  for (const kw of keywordList) {
     const cacheKey = `${app.store}|${app.country}|${app.lang}|${kw.toLowerCase()}`;
     try {
       let hits = searchCache.get(cacheKey);
@@ -78,4 +79,18 @@ export async function runCheck(apps: TrackedApp[], userId?: string, cache = new 
   const snap = mergeIntoSnapshot(loadSnapshot(dateKey, userId), dateKey, results);
   saveSnapshot(snap, userId);
   return snap;
+}
+
+/**
+ * Check the app's full coverage-keyword universe (up to 300, vs the
+ * plan-limited `keywords`) and merge into today's COVERAGE snapshot — a
+ * separate history from the daily-tracked one, built one "Check coverage
+ * now" click at a time.
+ */
+export async function checkCoverage(app: TrackedApp, userId?: string): Promise<AppRankResult> {
+  const list = app.coverageKeywords || [];
+  const result = await checkApp(app, new Map(), 400, list);
+  const dateKey = todayKey();
+  saveCoverageSnapshot(mergeIntoSnapshot(loadCoverageSnapshot(dateKey, userId), dateKey, [result]), userId);
+  return result;
 }

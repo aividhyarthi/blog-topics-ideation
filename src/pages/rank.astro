@@ -146,6 +146,8 @@ const limitsText = product && plan
       .ann-delta.down { color: var(--bad); }
       .ann-delta.na, .ann-delta.flat { color: var(--muted); }
       button.small { padding: 4px 9px; font-size: 12px; flex-shrink: 0; }
+      .covov { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+      .covhead { margin: 0 0 12px; font-size: 14px; font-weight: 800; color: var(--ink); }
       .discover { margin-top: 12px; border: 1px solid #d6d3f5; background: #f8f7ff; border-radius: 11px; padding: 12px 14px; }
       .discover h4 { margin: 0 0 8px; font-size: 13px; }
       .disc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; max-height: 300px; overflow-y: auto; }
@@ -303,6 +305,7 @@ ai photo enhancer"></textarea>
       let selectedAppKey = null;
       let tabFilter = '';
       const sortState = {};
+      const MAX_COVERAGE = 300;
       function sortVal(t, col) {
         if (col === 'pos') return t.position;
         if (col === 'best') return t.best;
@@ -576,6 +579,29 @@ ai photo enhancer"></textarea>
         return `<div class="annlist"><h4>🏷 Annotations &amp; ranking impact</h4>${rows}</div>`;
       }
 
+      function coverageHtml(app) {
+        const cov = app.coverageOverview;
+        if (!cov || !cov.total) return '';
+        const c = cov.counts || {}, p = cov.prevCounts || null;
+        if (!cov.days.length) {
+          return `<div class="ov covov"><h4 class="covhead">📋 Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords saved, not checked yet</span></h4>
+            <p class="hint">Click <b>Check coverage now</b> above to run the first check. Each check adds one point to this trend — run it every few days to see coverage of your full list growing or dropping over time.</p></div>`;
+        }
+        const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
+        return `<div class="ov covov">
+          <h4 class="covhead">📋 Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords, last checked ${cov.lastCheckedAt ? new Date(cov.lastCheckedAt).toLocaleString() : 'never'}</span></h4>
+          <div class="tiles">
+            ${tileHtml('Top 1', c.top1, p && p.top1)}
+            ${tileHtml('Top 10', c.top10, p && p.top10)}
+            ${tileHtml('Top 30', c.top30, p && p.top30)}
+            ${tileHtml('Top 100', c.top100, p && p.top100)}
+          </div>
+          <div class="charts">
+            <div class="chartbox" style="grid-column:1/-1;"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>
+          </div>
+        </div>`;
+      }
+
       // Shared hover tooltip for both charts.
       const viztip = $('viztip');
       document.addEventListener('mousemove', (ev) => {
@@ -653,6 +679,7 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="check-one">Check now</button>
               <button class="ghost" data-act="discover">🔍 Discover keywords</button>
               <button class="ghost" data-act="edit-kw">＋ Add / edit keywords</button>
+              <button class="ghost" data-act="edit-coverage">📋 Coverage list</button>
               <button class="ghost" data-act="add-annotation">🏷 Add annotation</button>
               <button class="ghost" data-act="pdf">📄 Export PDF</button>
               <button class="ghost danger" data-act="remove">Remove</button>
@@ -677,10 +704,19 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="save-annotation">Save annotation</button>
             </div>
           </div>
+          <div class="kwedit no-print" data-role="covedit">
+            <p class="hint" style="margin:10px 0 6px;">Paste your FULL keyword universe here — up to ${MAX_COVERAGE} — separate from the keywords list above (which is checked daily and capped by your plan). This list is only checked when you click <b>Check coverage now</b>, so paste as many as you like and check it every few days to see coverage growing or dropping over time.</p>
+            <textarea data-role="covtext" placeholder="One keyword per line or comma-separated — up to ${MAX_COVERAGE}">${esc((app.coverageKeywords || []).join('\n'))}</textarea>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-coverage">Save coverage list</button>
+              <button class="ghost" data-act="check-coverage">Check coverage now</button>
+            </div>
+          </div>
           <div class="no-print">${asoSummaryHtml(app)}</div>
           <div class="no-print">${discoverHtml(app)}</div>
           ${overviewHtml(app)}
           <div class="no-print">${annotationsHtml(app)}</div>
+          <div class="no-print">${coverageHtml(app)}</div>
           ${table}
         </div>`;
       }
@@ -815,6 +851,19 @@ ai photo enhancer"></textarea>
             if (saved) checkAsoFor(saved);
             return data;
           });
+          return;
+        }
+        if (act === 'edit-coverage') { card.querySelector('[data-role="covedit"]').classList.toggle('open'); return; }
+        if (act === 'save-coverage') {
+          withBusy(btn, 'Saving…', async () => {
+            const data = await api({ action: 'set-coverage-keywords', key, keywords: card.querySelector('[data-role="covtext"]').value });
+            showToast('Coverage list saved — click "Check coverage now" to run the first check');
+            return data;
+          });
+          return;
+        }
+        if (act === 'check-coverage') {
+          withBusy(btn, 'Checking full coverage list… this can take a few minutes for large lists', () => api({ action: 'check-coverage', key }));
           return;
         }
         if (act === 'add-annotation') { card.querySelector('[data-role="annedit"]').classList.toggle('open'); return; }
