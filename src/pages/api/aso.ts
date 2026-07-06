@@ -166,17 +166,21 @@ export const POST: APIRoute = async ({ request }) => {
     }, 502);
   }
 
-  // 1b) Last-28-days reviews for the rating breakdown — best-effort, a failure
-  // here (e.g. Play rate-limiting) just means that section reports no data.
+  // 1b) Recent reviews for the rating breakdown — adaptive window (see
+  // fetchRecentReviews), best-effort: a failure here just means that section
+  // reports no data.
   let recentReviews: { date: string; score: number }[] = [];
+  let reviewsWindowDays = 28;
   try {
-    recentReviews = await fetchRecentReviews(appId, lang, country);
+    const r = await fetchRecentReviews(appId, lang, country);
+    recentReviews = r.reviews;
+    reviewsWindowDays = r.windowDays;
   } catch { /* rating breakdown just shows no data */ }
 
   // 2) Deterministic audit (always available). The keyword we put head-to-head is
   // the one the owner gave; if they gave none, fall back to the strongest one we
   // extracted from the listing, so the verdict + comparison always have a subject.
-  const report = auditListing(app, focusKeyword, recentReviews);
+  const report = auditListing(app, focusKeyword, recentReviews, reviewsWindowDays);
   // Up to 3 keywords are evaluated; if the owner gave none we fall back to the
   // strongest extracted term so the verdict + comparison always have a subject.
   const evalFocusList = report.focusKeywords;

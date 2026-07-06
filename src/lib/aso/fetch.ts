@@ -105,22 +105,30 @@ export async function fetchApp(appId: string, lang = 'en', country = 'us'): Prom
 }
 
 export interface RecentReview { date: string; score: number; }
+export interface RecentReviewsResult { reviews: RecentReview[]; windowDays: number; }
 
 /**
- * Reviews from the last `windowDays`, newest first. Play's public listing only
- * exposes a dated feed of WRITTEN reviews (not a dated breakdown of every star
- * tap — many ratings have no review text and aren't in this feed), so this is
- * a proxy for recent rating velocity, not the literal count Play uses
- * internally. Pages through `reviews()` (sorted NEWEST) until a page's oldest
- * entry falls outside the window, or a safety cap is hit.
+ * Recent reviews, newest first, adaptive on time window. Play's public
+ * listing only exposes a dated feed of WRITTEN reviews (not a dated
+ * breakdown of every star tap — many ratings have no review text and aren't
+ * in this feed), and plenty of apps simply don't get `minReviews` written
+ * reviews inside a fixed short window like 28 days — a rigid cutoff starves
+ * out on real data for exactly the apps that most need the signal. So this
+ * keeps paging until it has at least `minReviews` OR hits `maxWindowDays`,
+ * whichever comes first, and reports back the ACTUAL number of days the
+ * collected reviews span (not the requested one) so the caller can label it
+ * honestly instead of claiming a fixed window that was never really used.
  */
 // google-play-scraper's own .d.ts mistypes `sort` as an enum *instance* rather
 // than the enum object, so `gplay.sort.NEWEST` doesn't type-check even though
 // it works fine at runtime. Use the literal the library actually defines it as.
 const SORT_NEWEST = 2;
 
-export async function fetchRecentReviews(appId: string, lang = 'en', country = 'us', windowDays = 28, cap = 400): Promise<RecentReview[]> {
-  const cutoff = Date.now() - windowDays * 86400000;
+export async function fetchRecentReviews(
+  appId: string, lang = 'en', country = 'us',
+  minReviews = 15, maxWindowDays = 90, cap = 400,
+): Promise<RecentReviewsResult> {
+  const maxCutoff = Date.now() - maxWindowDays * 86400000;
   const collected: RecentReview[] = [];
   let token: string | undefined;
   for (let page = 0; page < 8; page++) {
@@ -139,16 +147,20 @@ export async function fetchRecentReviews(appId: string, lang = 'en', country = '
     }
     const items = result.data || [];
     if (!items.length) break;
-    let hitCutoff = false;
+    let hitMaxCutoff = false;
     for (const it of items) {
       const t = Date.parse(String(it.date));
-      if (!Number.isNaN(t) && t < cutoff) { hitCutoff = true; break; }
+      if (!Number.isNaN(t) && t < maxCutoff) { hitMaxCutoff = true; break; }
       if (typeof it.score === 'number') collected.push({ date: String(it.date), score: it.score });
     }
-    if (hitCutoff || collected.length >= cap || !result.nextPaginationToken) break;
+    if (hitMaxCutoff || collected.length >= minReviews || collected.length >= cap || !result.nextPaginationToken) break;
     token = result.nextPaginationToken;
   }
-  return collected;
+  const oldestMs = collected.length
+    ? Math.min(...collected.map((r) => Date.parse(r.date)).filter((t) => !Number.isNaN(t)))
+    : Date.now();
+  const windowDays = Math.max(1, Math.round((Date.now() - oldestMs) / 86400000));
+  return { reviews: collected, windowDays };
 }
 
 export interface Market { country: string; lang: string; }

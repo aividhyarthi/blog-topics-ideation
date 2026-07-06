@@ -170,7 +170,7 @@ export function ratingDistribution(reviews: { score: number }[], windowDays = 28
  * (last-28-days reviews, fetched separately since it's its own network call)
  * powers the rating breakdown; omit it and that section just reports no data.
  */
-export function auditListing(app: AsoAppData, focusKeywordInput?: string | string[], recentReviews: { score: number }[] = []): AsoReport {
+export function auditListing(app: AsoAppData, focusKeywordInput?: string | string[], recentReviews: { score: number }[] = [], reviewsWindowDays = 28): AsoReport {
   const keywords = extractKeywords(app);
   const focusKeywords = normalizeFocusList(focusKeywordInput, keywords[0] ? keywords[0].term : null);
   const focusKeyword = focusKeywords[0] || null;
@@ -370,7 +370,7 @@ export function auditListing(app: AsoAppData, focusKeywordInput?: string | strin
     band: overall >= 70 ? 'High' : overall >= 50 ? 'Medium' : 'Low',
     pillars,
     marketSignals,
-    ratingBreakdown: ratingDistribution(recentReviews),
+    ratingBreakdown: ratingDistribution(recentReviews, reviewsWindowDays),
     keywords,
     focusKeyword,
     focusKeywords,
