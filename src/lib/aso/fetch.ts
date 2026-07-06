@@ -124,10 +124,19 @@ export async function fetchRecentReviews(appId: string, lang = 'en', country = '
   const collected: RecentReview[] = [];
   let token: string | undefined;
   for (let page = 0; page < 8; page++) {
-    const result = (await gplay.reviews({
-      appId, lang, country, sort: SORT_NEWEST, num: 50, paginate: true,
-      ...(token ? { nextPaginationToken: token } : {}),
-    } as Parameters<typeof gplay.reviews>[0])) as { data: Record<string, any>[]; nextPaginationToken?: string };
+    // Each page is its own try: the reviews endpoint is heavier/more
+    // rate-limit-prone than the plain app() listing call, and a hiccup on
+    // page 2+ shouldn't throw away reviews already collected from page 1 —
+    // return the partial window instead of nothing.
+    let result: { data: Record<string, any>[]; nextPaginationToken?: string };
+    try {
+      result = (await gplay.reviews({
+        appId, lang, country, sort: SORT_NEWEST, num: 50, paginate: true,
+        ...(token ? { nextPaginationToken: token } : {}),
+      } as Parameters<typeof gplay.reviews>[0])) as { data: Record<string, any>[]; nextPaginationToken?: string };
+    } catch {
+      break;
+    }
     const items = result.data || [];
     if (!items.length) break;
     let hitCutoff = false;
