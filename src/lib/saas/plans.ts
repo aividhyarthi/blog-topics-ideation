@@ -38,11 +38,10 @@ export const GOOGLE_SITE_VERIFICATION =
 /**
  * Absolute base URL of the live site — used for canonical links, Open Graph
  * tags, JSON-LD, sitemap.xml and llms.txt, all of which need a real domain
- * rather than a relative path. Set SITE_URL in Railway to your production
- * domain (e.g. https://apprankr.com, no trailing slash); this placeholder
- * is only a local-dev fallback.
+ * rather than a relative path. Set SITE_URL in Railway if the domain ever
+ * changes — this default should always match the real production domain.
  */
-export const SITE_URL = (process.env.SITE_URL || 'https://apprankr.com').replace(/\/$/, '');
+export const SITE_URL = (process.env.SITE_URL || 'https://apprankr.in').replace(/\/$/, '');
 
 export type PlanId = 'starter' | 'pro';
 

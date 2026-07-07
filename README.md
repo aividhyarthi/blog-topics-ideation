@@ -297,7 +297,7 @@ site becomes the product:
 | `ADSENSE_SLOT_RANK` | for ads | Ad unit id shown at the bottom of the Rank Tracker dashboard. |
 | `ADSENSE_SLOT_ASO` | for ads | Ad unit id shown at the bottom of the ASO Inspector report. |
 | `ADSENSE_SLOT_FOOTER` | for ads | Ad unit id shown on the Account page. |
-| `SITE_URL` | for SEO | Your production domain, no trailing slash (e.g. `https://apprankr.com`). Used to build absolute URLs in canonical/OG tags, JSON-LD, `sitemap.xml`, and `llms.txt`. Defaults to a placeholder — set this to your real domain once you know it. |
+| `SITE_URL` | no | Your production domain, no trailing slash. Defaults to `https://apprankr.in` (the real domain), so this only needs setting if the domain changes. Used to build absolute URLs in canonical/OG tags, JSON-LD, `sitemap.xml`, and `llms.txt`. |
 | `GOOGLE_SITE_VERIFICATION` | for Search Console | The content value of Google Search Console's HTML-tag verification method. Defaults to the site's current verification code, so this only needs setting if you re-verify with a new one. Rendered in every page's `<head>` via `AdSenseMeta.astro`. |
 
 ## WBR Builder (`/wbr`) — weekly AI-visibility report from SEMrush exports
