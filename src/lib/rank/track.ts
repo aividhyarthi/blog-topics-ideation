@@ -52,6 +52,11 @@ export function keywordTrends(app: TrackedApp, snapshots: RankSnapshot[], histor
       best: ranked.length ? Math.min(...ranked) : null,
       history,
       top: cur?.top ?? [],
+      // cur is null both when the keyword was searched and ranked beyond
+      // depth, AND when it was never included in the latest check at all
+      // (just added, or a coverage list too large for the on-demand button,
+      // still waiting on the nightly cron) — this tells those two apart.
+      checked: cur !== null,
       error: cur?.error,
     };
   });

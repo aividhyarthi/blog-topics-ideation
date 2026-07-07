@@ -768,7 +768,13 @@ ai photo enhancer"></textarea>
 
       function posCell(t) {
         if (t.error) return `<span class="un" title="${escAttr(t.error)}">⚠︎ err</span>`;
-        return t.position != null ? `#${t.position}` : `<span class="un">&gt;${t.depth || 200}</span>`;
+        if (t.position != null) return `#${t.position}`;
+        // Distinguish "searched, ranked beyond depth" from "never actually
+        // checked yet" (just added, or a large coverage list still waiting
+        // on the nightly cron) — showing ">200" for the latter would wrongly
+        // read as "confirmed not ranking".
+        if (t.checked === false) return `<span class="un" title="Not checked yet — this keyword hasn't been searched in a check yet.">not checked yet</span>`;
+        return `<span class="un">&gt;${t.depth || 200}</span>`;
       }
 
       function renderApp(app) {

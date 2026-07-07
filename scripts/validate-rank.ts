@@ -81,6 +81,8 @@ eq('alpha history', trends[0].history, [30, 24, 27]);
 eq('beta ranked→out has null delta', trends[1].delta, null);
 eq('beta prevPosition', trends[1].prevPosition, 90);
 eq('gamma never checked', { position: trends[2].position, best: trends[2].best }, { position: null, best: null });
+eq('gamma checked flag is false (never in any snapshot)', trends[2].checked, false);
+eq('alpha checked flag is true', trends[0].checked, true);
 
 const ct = chartTrend(app, snaps);
 eq('chart position', ct.position, 70);

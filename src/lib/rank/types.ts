@@ -123,4 +123,10 @@ export interface KeywordTrend {
   history: (number | null)[];
   top: { appId: string; title: string }[];
   error?: string;
+  /** Whether the latest snapshot actually searched this keyword at all — a
+   * keyword can be absent from every snapshot (just added, or the coverage
+   * list is too large for the on-demand check and is waiting on the nightly
+   * cron) and `position: null` looks identical to "searched, ranked beyond
+   * depth" unless this is checked too. */
+  checked: boolean;
 }
