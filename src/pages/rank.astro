@@ -108,6 +108,16 @@ const limitsText = product && plan
       .legend .li { display: flex; align-items: center; gap: 5px; }
       .legend .sw { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
       .viztip { position: fixed; z-index: 60; pointer-events: none; background: #fff; border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 6px 20px rgba(15,20,30,0.12); padding: 8px 11px; font-size: 12px; display: none; min-width: 130px; }
+      .kwmodal-backdrop { display: none; position: fixed; inset: 0; z-index: 70; background: rgba(15,20,30,0.4); align-items: center; justify-content: center; padding: 20px; }
+      .kwmodal-backdrop.open { display: flex; }
+      .kwmodal { background: #fff; border-radius: 12px; padding: 20px; max-width: 520px; width: 100%; max-height: 86vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(15,20,30,0.25); }
+      .kwmodal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+      .kwmodal-title { font-size: 16px; font-weight: 700; font-family: ui-monospace, monospace; }
+      .kwmodal-close { background: none; border: none; font-size: 20px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 4px; }
+      .kwmodal-close:hover { color: var(--ink); }
+      .kwmodal-stats { display: flex; gap: 20px; margin: 12px 0 16px; flex-wrap: wrap; }
+      .kwmodal-stat { font-size: 12px; color: var(--muted); }
+      .kwmodal-stat b { display: block; font-size: 17px; color: var(--ink); font-weight: 800; }
       .viztip .tt-d { font-weight: 700; margin-bottom: 4px; }
       .viztip .tt-r { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
       .viztip .tt-r b { color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -121,6 +131,8 @@ const limitsText = product && plan
       th.sortable:hover { color: var(--pink); }
       tr:last-child td { border-bottom: none; }
       td.kw { font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink); }
+      .kwlink { background: none; border: none; padding: 0; font: inherit; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink); cursor: pointer; text-align: left; text-decoration: underline; text-decoration-color: transparent; }
+      .kwlink:hover { text-decoration-color: var(--pink); }
       td.pos { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 15px; width: 64px; }
       td.pos .un { color: var(--muted); font-weight: 600; font-size: 12.5px; }
       .delta { font-weight: 700; font-size: 12.5px; white-space: nowrap; }
@@ -309,6 +321,9 @@ ai photo enhancer"></textarea>
     <footer>{product ? <><b>{BRAND}</b> · App keyword rank tracking</> : <><b>CiteRank</b> · By Rudra Kasturi Inc · App keyword rank tracking</>}</footer>
     <div class="toast" id="toast"></div>
     <div class="viztip" id="viztip"></div>
+    <div class="kwmodal-backdrop no-print" id="kwmodal-backdrop">
+      <div class="kwmodal" id="kwmodal"></div>
+    </div>
 
     <script define:vars={{ BRAND_NAME: product ? BRAND : 'CiteRank' }}>
       const $ = (id) => document.getElementById(id);
@@ -524,9 +539,9 @@ ai photo enhancer"></textarea>
 
       // Category (top-chart) position trend — top = best rank, same
       // low-is-good inversion as the per-keyword sparkline.
-      function chartPositionTrend(dateKeys, history) {
+      function chartPositionTrend(dateKeys, history, label = 'Category rank', emptyMsg = 'No category chart data yet.') {
         const known = history.filter((v) => v != null);
-        if (!known.length) return '<p class="hint">No category chart data yet.</p>';
+        if (!known.length) return `<p class="hint">${esc(emptyMsg)}</p>`;
         const W = 400, H = 170, padL = 34, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
         const minV = Math.min(...known), maxV = Math.max(...known);
@@ -549,7 +564,7 @@ ai photo enhancer"></textarea>
         history.forEach((v, i) => {
           if (v == null) return;
           out += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="#4338ca" stroke="#fff" stroke-width="2"/>`;
-          const tid = tipId(`<div class="tt-d">${esc(fmtDay(dateKeys[i]))}</div><div class="tt-r"><span>Category rank</span><b>#${v}</b></div>`);
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(dateKeys[i]))}</div><div class="tt-r"><span>${esc(label)}</span><b>#${v}</b></div>`);
           const cw = history.length === 1 ? plotW : plotW / (history.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#898781">${esc(fmtDay(dateKeys[i]))}</text>`;
@@ -780,7 +795,7 @@ ai photo enhancer"></textarea>
         const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
         const body = rows.map((t) => `
           <tr>
-            <td class="kw">${esc(t.keyword)}</td>
+            <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(t.keyword)}" data-list="coverage">${esc(t.keyword)}</button></td>
             <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
             <td class="pos">${posCell(t)}</td>
             <td>${deltaCell(t)}</td>
@@ -876,6 +891,40 @@ ai photo enhancer"></textarea>
         return `<span class="un">&gt;${t.depth || 200}</span>`;
       }
 
+      // Clicking a keyword in either table opens this — the full position
+      // history for just that keyword, reusing the same low-is-good line
+      // chart as the category-rank trend, paired with that list's own date
+      // keys (daily-tracked and coverage are checked on different
+      // schedules, so their snapshot histories don't line up 1:1).
+      function openKeywordHistory(appKey, listType, keyword) {
+        const app = state.apps.find((a) => a.key === appKey);
+        if (!app) return;
+        const trends = listType === 'coverage' ? (app.coverageTrends || []) : (app.trends || []);
+        const t = trends.find((x) => x.keyword === keyword);
+        if (!t) return;
+        const dateKeys = (listType === 'coverage' ? (app.coverageOverview && app.coverageOverview.days) : (app.overview && app.overview.days)) || [];
+        const dks = dateKeys.map((d) => d.dateKey);
+        const volume = (app.keywordVolumes || {})[keyword];
+        const chart = chartPositionTrend(dks, t.history || [], 'Rank', 'No history yet for this keyword — check back after the next check.');
+        $('kwmodal').innerHTML = `
+          <div class="kwmodal-head">
+            <div class="kwmodal-title">${esc(keyword)}</div>
+            <button class="kwmodal-close" data-act="close-kwmodal" aria-label="Close">×</button>
+          </div>
+          <div class="hint" style="margin:0 0 4px;">${listType === 'coverage' ? 'Coverage list' : 'Daily tracked'} · ${app.title ? esc(app.title) : ''}</div>
+          <div class="kwmodal-stats">
+            <div class="kwmodal-stat">Current<b>${t.position != null ? `#${t.position}` : (t.checked === false ? 'not checked yet' : `>${t.depth || 200}`)}</b></div>
+            <div class="kwmodal-stat">Best ever<b>${t.best != null ? `#${t.best}` : '–'}</b></div>
+            <div class="kwmodal-stat">Δ vs last check<b>${t.delta != null ? (t.delta > 0 ? `▲ ${t.delta}` : t.delta < 0 ? `▼ ${-t.delta}` : '＝ 0') : '–'}</b></div>
+            <div class="kwmodal-stat">Volume<b>${volume != null ? volume.toLocaleString() : '–'}</b></div>
+          </div>
+          ${chart}
+          ${(t.top || []).length ? `<p class="hint" style="margin-top:10px;">Currently #1 for this keyword: <b>${esc(t.top[0].title)}</b></p>` : ''}
+        `;
+        $('kwmodal-backdrop').classList.add('open');
+      }
+      function closeKeywordHistory() { $('kwmodal-backdrop').classList.remove('open'); }
+
       function renderApp(app) {
         const storePill = app.store === 'play'
           ? '<span class="pill play">Google Play</span>'
@@ -902,7 +951,7 @@ ai photo enhancer"></textarea>
         const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
         const rows = trends.map((t) => `
           <tr>
-            <td class="kw">${esc(t.keyword)}</td>
+            <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(t.keyword)}" data-list="daily">${esc(t.keyword)}</button></td>
             <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
             <td class="pos">${posCell(t)}</td>
             <td>${deltaCell(t)}</td>
@@ -1113,6 +1162,12 @@ ai photo enhancer"></textarea>
           }
           return;
         }
+        const kwLink = ev.target.closest('.kwlink');
+        if (kwLink) {
+          const card = kwLink.closest('.appcard');
+          openKeywordHistory(card.getAttribute('data-key'), kwLink.getAttribute('data-list'), kwLink.getAttribute('data-kwhistory'));
+          return;
+        }
         const catTab = ev.target.closest('.cattab');
         if (catTab) {
           const card = catTab.closest('.appcard');
@@ -1277,6 +1332,12 @@ ai photo enhancer"></textarea>
         document.addEventListener('click', (e) => { if (!userDropdown.contains(e.target) && e.target !== userTrigger) userDropdown.classList.remove('open'); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') userDropdown.classList.remove('open'); });
       }
+
+      const kwmodalBackdrop = $('kwmodal-backdrop');
+      kwmodalBackdrop.addEventListener('click', (ev) => {
+        if (ev.target === kwmodalBackdrop || ev.target.closest('[data-act="close-kwmodal"]')) closeKeywordHistory();
+      });
+      document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeKeywordHistory(); });
 
       refresh().catch((e) => showErr('Could not load tracker state: ' + (e && e.message ? e.message : e)));
     </script>
