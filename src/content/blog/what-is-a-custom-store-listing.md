@@ -29,6 +29,12 @@ This is the part worth being precise about, because it's easy to assume more tar
 - **Country or region** — show a localized listing (language, pricing context, region-specific screenshots) to visitors from a specific country.
 - **Acquisition source** — a referrer URL, typically used so a specific paid campaign, partnership link, or influencer's tracked link lands on a listing tailored to that specific audience's expectations.
 
+| Targeting option | What it means | Example use |
+|---|---|---|
+| Country / region | Show a localized listing to visitors from a specific country | Region-specific screenshots, currency, or language |
+| Acquisition source (referrer URL) | Show a tailored listing to traffic from a specific tracked link | A listing variant built for one paid campaign or partnership |
+| Organic search keyword | **Not supported** | N/A — see below |
+
 **What you cannot do**: target a Custom Store Listing by the organic keyword someone searched on the Play Store. There's no "if someone searches 'budget tracker,' show them this variant" mechanism in Play Store search. If your goal is a keyword-tailored *message*, that has to be delivered through a paid campaign (Google Ads App campaign, or a tracked link with an acquisition-source condition attached) pointing at a matching custom listing — the keyword-to-listing connection lives in your campaign structure, not in Play Store's organic search behavior.
 
 This distinction matters because it's easy to over-invest in custom listings expecting an organic-search benefit they don't provide.
@@ -53,4 +59,4 @@ Custom Store Listings, Store Listing Experiments, and organic keyword optimizati
 - **Store Listing Experiments** find the single best default listing for your *general* audience.
 - **Custom Store Listings** tailor that listing for a *specific, identifiable* segment once you already know it converts differently.
 
-Get the first two right before investing heavily in the third — a custom listing built on top of a weak default listing just localizes the same underlying problem.
+Get the first two right before investing heavily in the third — a custom listing built on top of a weak default listing just localizes the same underlying problem. [Tracking your default listing's keyword coverage](/signup) first tells you whether it's actually solid enough to be worth tailoring.

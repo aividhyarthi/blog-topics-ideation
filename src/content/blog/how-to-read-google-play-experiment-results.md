@@ -26,10 +26,18 @@ Running an experiment (see [how to run store listing experiments](/blog/how-to-r
 
 ## Reading lift and confidence together
 
-A lift number without its confidence is close to meaningless on its own. Two examples that look similar on the surface but aren't:
+A lift number without its confidence is close to meaningless on its own. Here's what two experiments with the same headline lift can look like once you add visitor count and confidence:
 
-- **+8% lift, high confidence** — trustworthy. Apply it.
-- **+8% lift, low confidence** — could easily be zero, or negative, once more traffic comes in. This is the number most likely to be over-interpreted if you're only glancing at the headline lift figure.
+| Variant | Visitors | Installs | Conversion rate | Lift vs control | Confidence |
+|---|---|---|---|---|---|
+| Control (original) | 4,900 | 490 | 10.0% | — | — |
+| Variant A (small sample) | 620 | 67 | 10.8% | +8% | 41% |
+| Variant B (full sample) | 5,150 | 556 | 10.8% | +8% | 96% |
+
+Same +8% lift, wildly different reliability. Variant A's result came from too few visitors to trust yet — that 41% confidence means it's barely more informative than a coin flip. Variant B shows the identical lift with enough visitors behind it to act on.
+
+- **+8% lift, high confidence (Variant B)** — trustworthy. Apply it.
+- **+8% lift, low confidence (Variant A)** — could easily be zero, or negative, once more traffic comes in. This is the number most likely to be over-interpreted if you're only glancing at the headline lift figure.
 
 The instinct to declare a winner the moment a lift appears is understandable — but a positive-looking number early in a test is exactly as likely to be sampling noise as a true effect. That's what the confidence figure is there to guard against.
 

@@ -27,7 +27,7 @@ A few things volume numbers get wrong if you take them at face value:
 
 The honest limitation: difficulty scores can't know your specific app's strengths. An app with a genuinely excellent 4.8★ rating and strong retention might realistically contest a keyword a generic difficulty score would call "hard." The reverse is also true — a keyword scored "easy" might have one entrenched, extremely strong incumbent that a raw average masks.
 
-This is why **your own historical rank data is a better difficulty signal than any generic score**: if you've been stuck at position 40 for a keyword for two months despite active optimization, that's a much more honest difficulty read for *your app specifically* than a one-time estimate.
+This is why **[your own historical rank data](/signup) is a better difficulty signal than any generic score**: if you've been stuck at position 40 for a keyword for two months despite active optimization, that's a much more honest difficulty read for *your app specifically* than a one-time estimate.
 
 ## The three-bucket approach
 
@@ -38,6 +38,14 @@ Rather than treating keyword selection as one flat list, split candidates into t
 **Bucket 2 — Worth the campaign.** Medium-to-high volume, moderate competition, a term you could realistically reach top-10 for within 2-3 months of sustained optimization (screenshots, description updates, encouraging reviews that mention the term naturally). Track these closely and treat any movement as a signal your broader ASO work is or isn't working.
 
 **Bucket 3 — Aspirational / brand-adjacent.** The big, obvious, high-competition terms. Keep 1-2 of these tracked for competitive awareness (are you gaining or losing ground against the market leaders?) but don't build your whole strategy around moving them — they're a marathon, not something a title tweak fixes.
+
+| Bucket | Volume | Competition | What to do with it |
+|---|---|---|---|
+| 1 — Winnable now | Low-medium | Low | Put in title/subtitle immediately |
+| 2 — Worth the campaign | Medium-high | Moderate | Optimize toward it over 2-3 months, track weekly |
+| 3 — Aspirational | High | High | Track for awareness only, don't build strategy around it |
+
+> **Real-world scenario:** A package-delivery app bucketed "parcel tracker" (Bucket 1 — low competition, close match), "delivery tracking app" (Bucket 2 — realistic within a quarter), and "tracker" (Bucket 3 — huge volume, hopelessly ambiguous and contested). Six weeks in, Bucket 1 had moved from #22 to #4; Bucket 2 had moved from unranked to #31; Bucket 3 hadn't budged — exactly the pattern the bucket assignment predicted, which is the point of splitting them up front rather than judging one flat list by a single average.
 
 ## A practical way to build your list
 

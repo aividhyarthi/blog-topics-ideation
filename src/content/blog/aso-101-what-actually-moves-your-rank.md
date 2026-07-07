@@ -25,19 +25,14 @@ A beautifully converting listing that nobody finds is invisible. A highly-ranked
 
 This is the part most guides skip, and it matters because it tells you where to spend your time.
 
-**You control:**
-- Title and subtitle/short description (the highest-weighted keyword real estate you have)
-- Long description
-- Screenshots, preview video, icon
-- Keyword field (iOS only — Android has no equivalent hidden field)
-- How often you update the app and refresh the listing
-- Responding to reviews, and the product changes that drive review *sentiment*
-
-**You don't directly control:**
-- The ranking algorithm itself, or how it weights any given signal on a given day
-- Install and uninstall rates (you influence them, but they're an outcome, not a lever)
-- Rating average (again — influenced, not directly set)
-- What your competitors do
+| You control | You don't directly control |
+|---|---|
+| Title and subtitle/short description (your highest-weighted keyword real estate) | The ranking algorithm itself, or how it weights any signal on a given day |
+| Long description | Install and uninstall rates (you influence them, but they're an outcome, not a lever) |
+| Screenshots, preview video, icon | Rating average (again — influenced, not directly set) |
+| Keyword field (iOS only — Android has no equivalent hidden field) | What your competitors do |
+| How often you update the app and refresh the listing | |
+| Responding to reviews, and the product changes that drive review *sentiment* | |
 
 A useful mental model: **score the things you can edit, and treat the outcome metrics (rating, installs, retention) as context, not knobs.** Chasing a rating number directly rarely works — chasing the product and support quality that produces a good rating does.
 
@@ -48,6 +43,8 @@ Both stores reward *exact and partial matches* between what someone searches and
 If your app is titled "BudgetTrack: Expense Manager" but your description, screenshots, and category all point toward "invoicing," you're sending mixed relevance signals for the term "expense manager." The stores' matching isn't just "does this string appear" — it's closer to "does this listing, as a whole, look like a strong answer to this query."
 
 Practically: pick your 2-3 real focus keywords, and make sure your title, subtitle/short description, and the first two lines of your long description all agree with each other about what the app actually does.
+
+> **Real-world scenario:** An expense-tracking app titled "Zenflow: Budget & Bills" ranked #34 for "expense tracker" despite the term appearing nowhere in its title. Its screenshots and category were both squarely "budgeting," and its description opened with "track every expense in seconds" — strong relevance everywhere except the single highest-weighted field. Adding "expense tracker" to the title (swapping out the vaguer "Budget & Bills") moved it to #11 for that term within three weeks, with no other changes.
 
 ## Why "just add more keywords" backfires
 
@@ -65,7 +62,7 @@ That's also why a single day's rank reading matters less than the *trend*. Ranki
 
 If you're doing this for the first time, in order:
 
-1. **Track your current rank** for the 5-10 keywords you'd most want to be found for — you can't improve what you haven't measured.
+1. **[Track your current rank](/signup)** for the 5-10 keywords you'd most want to be found for — you can't improve what you haven't measured.
 2. **Audit your title and subtitle** against those keywords — is your strongest term actually in there?
 3. **Check your rating trend**, not just the current average — a slow decline is an early warning your next ASO push should fix before it optimizes copy further.
 4. **Look at who currently ranks #1** for your top keyword — read their listing like a customer would. What are they doing that you aren't?

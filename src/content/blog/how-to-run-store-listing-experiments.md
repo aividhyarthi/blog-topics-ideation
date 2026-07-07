@@ -25,6 +25,13 @@ Play Console lets you run an experiment on one of these elements at a time, agai
 - **Screenshots** (phone, tablet, and other device-specific sets)
 - **Short description**
 
+| Element | What it mainly affects | Test priority |
+|---|---|---|
+| App icon | Tap-through from search results and category browse, before the listing even loads | Highest — test first if you can only run one |
+| Screenshots | Conversion once someone's already reading the listing | High |
+| Short description | Conversion + a secondary keyword-relevance signal | Medium |
+| Feature graphic | Conversion, mainly on Android's browse surfaces | Medium |
+
 **Test one element per experiment.** It's tempting to redesign the icon *and* swap the first three screenshots *and* rewrite the short description all at once — but if that combined variant wins, you have no idea which change did the work, and you can't carry that learning into your next redesign. Isolate the variable.
 
 ## Setting up a test that actually tells you something
@@ -42,6 +49,8 @@ Two things need to both be true before you should trust a result:
 - **Enough visitors per variant for Play Console to report meaningful confidence.** Lower-traffic apps will need this to run for weeks, not days — there's no fixed universal duration, because it depends on how much store listing traffic you actually get. Watch the confidence/significance indicator in the experiment dashboard rather than a calendar date.
 
 Stopping early because one variant is "pulling ahead" is the single most common way teams talk themselves into a false positive — a lead in the first three days regularly reverses by day ten as more data comes in.
+
+> **Real-world scenario:** A budgeting app tested a higher-contrast icon against its original. By day 4, the variant was showing a promising +11% lift — the team almost called it there. By day 12, with enough visitors accumulated, the lift had settled to a confirmed +4%, still worth applying, but a very different number than the early read suggested.
 
 ## What "done" looks like
 

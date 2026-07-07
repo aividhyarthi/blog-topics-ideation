@@ -34,6 +34,18 @@ Both platforms give you enough to separate "people who searched for something an
 
 **Referral traffic** (from another app, or an external link) inherits whatever context that referring source set up — a review site's glowing writeup sends a warmer audience than a generic cross-promotion banner.
 
+## What a channel breakdown actually looks like
+
+| Channel | Visitors | Installs | Conversion rate |
+|---|---|---|---|
+| Organic search | 8,200 | 1,230 | 15.0% |
+| Browse / explore | 6,500 | 585 | 9.0% |
+| Paid campaign | 3,100 | 217 | 7.0% |
+| Referral (external link) | 900 | 144 | 16.0% |
+| **Blended (all channels)** | **18,700** | **2,176** | **11.6%** |
+
+> **Real-world scenario:** The blended 11.6% conversion rate above looks perfectly healthy on its own. But organic search (highest-intent traffic) converting at 15% while paid campaign traffic converts at less than half that rate points at a real problem: the ad creative was promising a feature set the listing didn't lead with. Fixing the ad-to-listing message match — not the listing itself — was the actual lever, something a single blended number would never have surfaced.
+
 ## Turning this into a decision, not just a dashboard
 
 The useful move isn't reporting all four numbers — it's using the *gap between them* to decide where to spend effort:
@@ -43,4 +55,4 @@ The useful move isn't reporting all four numbers — it's using the *gap between
 3. **A channel with strong conversion but a shrinking share of total traffic** is a growth opportunity being under-invested in, not a listing issue at all.
 4. **A channel with weak conversion but a growing share of total traffic** is the one to watch — it'll start dragging your blended average down even if nothing about your listing changed.
 
-Track these as a trend, the same way you'd track keyword rank or rating share over time — a single snapshot tells you where you stand today, but the direction of each channel's conversion rate over weeks is what actually tells you whether something needs fixing.
+[Track these as a trend](/signup), the same way you'd track keyword rank or rating share over time — a single snapshot tells you where you stand today, but the direction of each channel's conversion rate over weeks is what actually tells you whether something needs fixing.

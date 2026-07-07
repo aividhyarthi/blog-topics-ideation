@@ -7,6 +7,14 @@ publishDate: 2026-07-05
 
 Every app listing has the same handful of text fields, but not all of them are treated equally by either store's search index — and getting the weighting wrong means you spend your best keywords on a field that barely counts, while your highest-weighted field sits underused.
 
+| Field | Indexed? | Char limit | Relative weight |
+|---|---|---|---|
+| App title / name | Both platforms | 30 chars | Highest |
+| Subtitle (iOS) / Short description (Android) | Both platforms | iOS 30 / Android 80 | Second-highest |
+| Keyword field | iOS only | 100 chars | Secondary, invisible to users |
+| Long description | Android confirmed; iOS ambiguous | ~4000 chars | Lower, contested on iOS |
+| Screenshots / icon / video | Neither — not text-searchable | — | Conversion only, not ranking |
+
 ## App title / app name
 
 **Highest-weighted field on both platforms, no serious dispute about this.** This is the single most valuable 30 characters you control. Every keyword strategy should start here: what are the 1-2 terms, at most, that you most need this app to be found for?
@@ -38,6 +46,8 @@ Practical approach either way: write the long description primarily for the huma
 Worth stating plainly, because it saves people from a common wasted effort: **screenshots, preview video, and icon are not text-searchable by either store's index.** Text baked into a screenshot image (a caption like "Track 50+ workout types!") helps human conversion when they're already looking at your listing, but it does nothing for search ranking — the store isn't running OCR against your screenshot images as part of ranking.
 
 If a keyword genuinely matters to your ranking strategy, it needs to live in one of the actual indexed text fields above — title, subtitle/short description, keyword field (iOS), or long description. A screenshot caption is a conversion tool, not a ranking one.
+
+> **Real-world scenario:** A recipe app spent months captioning screenshots with "1000+ Recipes! Meal Planner!" hoping to catch "meal planner" searches, while the actual title, subtitle, and description never mentioned meal planning at all. It never ranked for that term — [an ASO audit](/aso) flagged the mismatch immediately, and moving that phrase into the subtitle produced a top-20 ranking within the next check cycle.
 
 ## A simple field-priority checklist
 
