@@ -1,8 +1,27 @@
 ---
 // AppRankr landing page — served at "/" in product mode (middleware rewrite).
-import { BRAND, PLANS, TRIAL_DAYS, CURRENCY, formatPrice } from '../lib/saas/plans';
+import { BRAND, PLANS, TRIAL_DAYS, CURRENCY, formatPrice, SITE_URL } from '../lib/saas/plans';
 import AdSenseMeta from '../components/AdSenseMeta.astro';
 const user = Astro.locals.user;
+
+const pageTitle = `${BRAND} — App Rank Tracker & ASO Tool for Google Play + App Store`;
+const pageDescription = `${BRAND} is an ASO tool that tracks your app's keyword rank on Google Play and the App Store, finds every keyword you already rank for, and audits your store listing. ${TRIAL_DAYS}-day free trial, no card required.`;
+
+const softwareAppJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: BRAND,
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  description: pageDescription,
+  offers: [PLANS.starter, PLANS.pro].map((p) => ({
+    '@type': 'Offer',
+    name: p.name,
+    price: p.priceMonthly,
+    priceCurrency: 'INR',
+    description: p.blurb,
+  })),
+};
 ---
 
 <!doctype html>
@@ -12,8 +31,17 @@ const user = Astro.locals.user;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <AdSenseMeta />
-    <title>{BRAND} — App Store keyword rank tracking</title>
-    <meta name="description" content={`Track where your apps rank in Google Play and App Store search, discover the keywords you already rank for, and watch movement daily. ${TRIAL_DAYS}-day free trial.`} />
+    <title>{pageTitle}</title>
+    <meta name="description" content={pageDescription} />
+    <link rel="canonical" href={SITE_URL} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:url" content={SITE_URL} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={pageDescription} />
+    <script type="application/ld+json" set:html={JSON.stringify(softwareAppJsonLd)} />
     <style>
       :root { --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }
       * { box-sizing: border-box; }
@@ -79,9 +107,9 @@ const user = Astro.locals.user;
       <section class="hero">
         <h1>Know exactly where your app ranks — <em>every keyword, every day</em></h1>
         <p>
-          {BRAND} tracks your app's position in Google Play and App Store search for the keywords
-          that matter, discovers the keywords you already rank for, and audits your store listing —
-          two tools, one subscription.
+          {BRAND} is an app rank tracker and ASO (App Store Optimization) tool in one: track your
+          app's position in Google Play and App Store search for the keywords that matter, discover
+          the keywords you already rank for, and audit your store listing — two tools, one subscription.
         </p>
         <a class="btn primary" href="/signup" style="font-size:16px;padding:13px 26px;">Start your {TRIAL_DAYS}-day free trial</a>
         <div class="trialnote">Full access for {TRIAL_DAYS} days · no card needed to start</div>
