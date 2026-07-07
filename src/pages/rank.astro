@@ -23,101 +23,104 @@ const limitsText = product && plan
     <meta name="description" content="Track where your apps rank in Google Play and App Store search for your keywords, with daily history and trends." />
     <style is:global>
       :root {
-        --pink: #6366f1; --pink-dark: #4f46e5; --ink: #1d1f2b; --muted: #6b6f80;
-        --line: #e7e8ef; --bg: #f6f6fa; --card: #ffffff; --ok: #15a06a; --warn: #c98a00; --bad: #c0392b;
+        --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280;
+        --line: #e5e7eb; --bg: #f8f9fb; --card: #ffffff; --ok: #0a8a5f; --warn: #b8790a; --bad: #c0392b;
       }
       * { box-sizing: border-box; }
-      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
-      header { background: linear-gradient(120deg, #6366f1 0%, #8b5cf6 100%); color: #fff; padding: 30px 20px 34px; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; font-size: 14px; }
+      header { background: #fff; color: var(--ink); border-bottom: 1px solid var(--line); padding: 14px 20px; }
       .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
-      header h1 { margin: 0 0 6px; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
-      header p { margin: 0; opacity: 0.95; font-size: 15px; max-width: 780px; }
-      nav.top { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-      nav.top a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; }
-      nav.top a.active { background: #fff; color: var(--pink-dark); }
+      header h1 { margin: 0 0 4px; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+      header p { margin: 0; color: var(--muted); font-size: 13px; max-width: 780px; }
+      nav.top { margin-top: 12px; display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
+      nav.top a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; background: none; border: 1px solid transparent; padding: 6px 11px; border-radius: 7px; }
+      nav.top a:hover { color: var(--ink); background: var(--bg); }
+      nav.top a.active { color: var(--pink); background: #eef0fd; }
       .usermenu { position: relative; margin-left: auto; }
-      .usertrigger { color: #fff; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .usertrigger .caret { opacity: 0.8; }
-      .userdropdown { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 10px 30px rgba(20,20,40,0.16); min-width: 190px; overflow: hidden; z-index: 50; }
+      .usertrigger { color: var(--muted); font-size: 13px; font-weight: 600; background: none; border: 1px solid var(--line); padding: 6px 11px; border-radius: 7px; cursor: pointer; font-family: inherit; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .usertrigger:hover { border-color: #cbd0da; color: var(--ink); }
+      .usertrigger .caret { opacity: 0.7; }
+      .userdropdown { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 8px 24px rgba(15,20,30,0.1); min-width: 190px; overflow: hidden; z-index: 50; }
       .userdropdown.open { display: block; }
-      .usermenu .userdropdown a { display: block; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
-      .usermenu .userdropdown a:hover { background: #f6f6fa; }
+      .usermenu .userdropdown a { display: block; padding: 9px 13px; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
+      .usermenu .userdropdown a:hover { background: var(--bg); }
       .usermenu .userdropdown a + a { border-top: 1px solid var(--line); }
       @media (max-width: 480px) { .usertrigger { max-width: 60vw; } }
-      .brandbar { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; flex-wrap: wrap; }
-      .brandbar .logo { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
-      .brandbar .wordmark { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
-      .brandbar .betatag { font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); padding: 2px 7px; border-radius: 999px; letter-spacing: 0.02em; }
-      .brandbar .by { font-size: 11.5px; font-weight: 600; opacity: 0.9; }
-      main { padding: 26px 0 60px; }
-      .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: 0 1px 2px rgba(20,20,40,0.04); margin-bottom: 16px; }
-      .card h3 { margin: 0 0 4px; font-size: 15px; }
+      .brandbar { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap; }
+      .brandbar .logo { width: 22px; height: 22px; border-radius: 6px; background: var(--pink); color: #fff; display: grid; place-items: center; font-size: 11px; }
+      .brandbar .wordmark { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+      .brandbar .betatag { font-size: 10px; font-weight: 700; color: var(--muted); background: var(--bg); border: 1px solid var(--line); padding: 2px 6px; border-radius: 4px; letter-spacing: 0.02em; }
+      .brandbar .by { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+      main { padding: 22px 0 60px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+      .card h3 { margin: 0 0 4px; font-size: 14px; }
       .card .hint { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
       input[type="text"], textarea, select {
-        border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; font-size: 13.5px;
-        color: var(--ink); background: #fcfcfe; outline: none; font-family: inherit;
+        border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font-size: 13.5px;
+        color: var(--ink); background: #fff; outline: none; font-family: inherit;
       }
-      input:focus, textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
+      input:focus, textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(67,56,202,0.1); }
       textarea { width: 100%; min-height: 74px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
       .addrow { display: grid; grid-template-columns: 2.2fr 110px 110px; gap: 10px; margin-bottom: 10px; }
       @media (max-width: 760px) { .addrow { grid-template-columns: 1fr; } }
       .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-      button.primary { background: var(--pink); color: #fff; border: none; border-radius: 10px; padding: 11px 20px; font-size: 14.5px; font-weight: 700; cursor: pointer; }
-      button.primary:hover { background: var(--pink-dark); }
-      button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
-      button.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 8px 13px; font-size: 13px; font-weight: 600; cursor: pointer; }
-      button.ghost:hover { border-color: var(--pink); color: var(--pink); }
-      button.ghost.danger:hover { border-color: var(--bad); color: var(--bad); }
-      .spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; display: inline-block; vertical-align: -3px; margin-right: 8px; animation: spin 0.7s linear infinite; }
+      button.primary { background: var(--pink); color: #fff; border: 1px solid var(--pink); border-radius: 7px; padding: 9px 16px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+      button.primary:hover { background: var(--pink-dark); border-color: var(--pink-dark); }
+      button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+      button.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+      button.ghost:hover { border-color: #cbd0da; background: var(--bg); }
+      button.ghost.danger:hover { border-color: var(--bad); color: var(--bad); background: #fff; }
+      .spinner { width: 14px; height: 14px; border: 2px solid rgba(0,0,0,0.15); border-top-color: currentColor; border-radius: 50%; display: inline-block; vertical-align: -3px; margin-right: 7px; animation: spin 0.7s linear infinite; }
+      button.primary .spinner { border-color: rgba(255,255,255,0.35); }
       @keyframes spin { to { transform: rotate(360deg); } }
       .alert { margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; display: none; }
       .alert.err { background: #fdecec; color: #b3261e; border: 1px solid #f6c9c6; }
       .alert.info { background: #eef3ff; color: #2f4b9e; border: 1px solid #ccd9f6; }
-      .appcard { margin-bottom: 18px; }
+      .appcard { margin-bottom: 16px; }
       .apphead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-      .apphead img.icon { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); }
-      .apphead .fallback-icon { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 20px; background: #f0eefc; }
+      .apphead img.icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
+      .apphead .fallback-icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 18px; background: var(--bg); }
       .apphead .names { flex: 1; min-width: 200px; }
-      .apphead .t { font-weight: 700; font-size: 15.5px; }
+      .apphead .t { font-weight: 700; font-size: 14.5px; }
       .apphead .d { font-size: 12.5px; color: var(--muted); }
-      .apphead .btns { display: flex; gap: 8px; flex-wrap: wrap; }
-      .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
-      .pill.play { background: #e7f6ee; color: #0e7a4e; }
-      .pill.ios { background: #eef3ff; color: #2f4b9e; }
-      .pill.chart { background: #f0eefc; color: #5b46c9; }
-      .pill.cc { background: #f4f4f8; color: var(--muted); }
-      .pill.vol { background: #eef3ff; color: #2f4b9e; cursor: help; }
+      .apphead .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+      .pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+      .pill.play { background: #e6f6ee; color: #0a7a4e; }
+      .pill.ios { background: #eaeeff; color: #364fc7; }
+      .pill.chart { background: #eef0fd; color: var(--pink); }
+      .pill.cc { background: var(--bg); color: var(--muted); }
+      .pill.vol { background: #eaeeff; color: #364fc7; cursor: help; }
       /* --- overview (tiles + charts) --- */
       .ov { margin-top: 14px; }
       .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
-      .tile { flex: 1; min-width: 128px; background: #fafafe; border: 1px solid var(--line); border-radius: 11px; padding: 10px 13px; }
-      .tile .lbl { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 700; }
-      .tile .val { font-size: 22px; font-weight: 800; line-height: 1.2; display: flex; align-items: baseline; gap: 7px; }
-      .tile .val .d { font-size: 12.5px; font-weight: 700; }
-      .tile .val .d.up { color: #006300; }
+      .tile { flex: 1; min-width: 128px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+      .tile .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 700; }
+      .tile .val { font-size: 20px; font-weight: 700; line-height: 1.2; display: flex; align-items: baseline; gap: 7px; }
+      .tile .val .d { font-size: 12px; font-weight: 700; }
+      .tile .val .d.up { color: var(--ok); }
       .tile .val .d.down { color: var(--bad); }
       .tile .val .d.flat { color: var(--muted); }
       .charts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-top: 12px; }
       @media (max-width: 880px) { .charts { grid-template-columns: 1fr; } }
-      .chartbox { background: #fff; border: 1px solid var(--line); border-radius: 11px; padding: 12px 12px 8px; }
-      .chartbox h4 { margin: 0 0 8px; font-size: 12.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
-      .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+      .chartbox { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 12px 8px; }
+      .chartbox h4 { margin: 0 0 8px; font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+      .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--muted); }
       .legend .li { display: flex; align-items: center; gap: 5px; }
-      .legend .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-      .viztip { position: fixed; z-index: 60; pointer-events: none; background: #fff; border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 4px 16px rgba(20,20,40,0.13); padding: 8px 11px; font-size: 12px; display: none; min-width: 130px; }
+      .legend .sw { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+      .viztip { position: fixed; z-index: 60; pointer-events: none; background: #fff; border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 6px 20px rgba(15,20,30,0.12); padding: 8px 11px; font-size: 12px; display: none; min-width: 130px; }
       .viztip .tt-d { font-weight: 700; margin-bottom: 4px; }
       .viztip .tt-r { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
       .viztip .tt-r b { color: var(--ink); font-variant-numeric: tabular-nums; }
-      .scrollhint { display: none; font-size: 11.5px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; }
+      .scrollhint { display: none; font-size: 11px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; }
       @media (max-width: 760px) { .scrollhint { display: block; } }
-      .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: #fff; margin-top: 12px; -webkit-overflow-scrolling: touch; }
-      table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 13.5px; }
-      th, td { text-align: left; padding: 10px 12px; vertical-align: middle; border-bottom: 1px solid var(--line); }
-      th { background: #fafafe; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+      .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; margin-top: 12px; -webkit-overflow-scrolling: touch; }
+      table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 13px; }
+      th, td { text-align: left; padding: 8px 12px; vertical-align: middle; border-bottom: 1px solid var(--line); }
+      th { background: var(--bg); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 700; }
       th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
-      th.sortable:hover { color: var(--pink-dark); }
+      th.sortable:hover { color: var(--pink); }
       tr:last-child td { border-bottom: none; }
-      td.kw { font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink-dark); }
+      td.kw { font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink); }
       td.pos { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 15px; width: 64px; }
       td.pos .un { color: var(--muted); font-weight: 600; font-size: 12.5px; }
       .delta { font-weight: 700; font-size: 12.5px; white-space: nowrap; }
@@ -136,9 +139,9 @@ const limitsText = product && plan
       .annlist h4 { margin: 0 0 4px; font-size: 13px; }
       .annrow { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
       .annrow:last-child { border-bottom: none; }
-      .anntype { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
-      .anntype.experiment { background: #f0eefc; color: #5b46c9; }
-      .anntype.paid { background: #fdf3dd; color: #8a5d00; }
+      .anntype { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 5px; white-space: nowrap; flex-shrink: 0; }
+      .anntype.experiment { background: #eef0fd; color: var(--pink); }
+      .anntype.paid { background: #fdf3dd; color: var(--warn); }
       .anntext { flex: 1; font-size: 13px; }
       .annimpact { margin-top: 4px; font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
       .ann-delta { font-weight: 800; font-size: 12.5px; }
@@ -147,39 +150,39 @@ const limitsText = product && plan
       .ann-delta.na, .ann-delta.flat { color: var(--muted); }
       button.small { padding: 4px 9px; font-size: 12px; flex-shrink: 0; }
       .covov { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
-      .covhead { margin: 0 0 12px; font-size: 14px; font-weight: 800; color: var(--ink); }
-      .discover { margin-top: 12px; border: 1px solid #d6d3f5; background: #f8f7ff; border-radius: 11px; padding: 12px 14px; }
+      .covhead { margin: 0 0 12px; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+      .discover { margin-top: 12px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 12px 14px; }
       .discover h4 { margin: 0 0 8px; font-size: 13px; }
       .disc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; max-height: 300px; overflow-y: auto; }
-      .disc-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; border-radius: 7px; cursor: pointer; }
-      .disc-row:hover { background: #efedfc; }
-      .disc-row .kw { flex: 1; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink-dark); }
+      .disc-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+      .disc-row:hover { background: #eef0fd; }
+      .disc-row .kw { flex: 1; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink); }
       .disc-row b { font-variant-numeric: tabular-nums; }
-      .asobox { margin-top: 12px; border: 1px solid #d0e6da; background: #f3faf6; border-radius: 11px; padding: 12px 14px; font-size: 13px; color: var(--ink); }
+      .asobox { margin-top: 12px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--ink); }
       .asobox.err { background: #fdecec; border-color: #f6c9c6; color: #b3261e; }
       .asorow { display: flex; gap: 12px; align-items: center; }
-      .asoscore { font-size: 22px; font-weight: 800; flex-shrink: 0; }
+      .asoscore { font-size: 20px; font-weight: 700; flex-shrink: 0; }
       .asoscore small { font-size: 12px; font-weight: 600; color: var(--muted); }
       .asotext p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
-      .asorating { margin-top: 10px; padding: 8px 11px; border-radius: 9px; font-size: 12.5px; font-weight: 600; }
+      .asorating { margin-top: 10px; padding: 8px 11px; border-radius: 7px; font-size: 12.5px; font-weight: 600; }
       .asorating.bad { background: #fdecec; color: #b3261e; }
       .asorating.mid { background: #fdf3dd; color: #8a5d00; }
-      .ghost-link { display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--pink-dark); text-decoration: none; }
+      .ghost-link { display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--pink); text-decoration: none; }
       .ghost-link:hover { text-decoration: underline; }
       .lastcheck { font-size: 12.5px; color: var(--muted); }
       .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 16px; }
       .empty { text-align: center; color: var(--muted); padding: 26px 10px; font-size: 14px; }
       .app-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-      .app-tab { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line); border-radius: 11px; padding: 7px 13px 7px 8px; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--ink); transition: border-color 0.15s; max-width: 220px; }
-      .app-tab:hover { border-color: var(--pink); }
-      .app-tab.selected { border-color: var(--pink); background: #f0eefc; color: var(--pink-dark); }
-      .app-tab img, .app-tab .fi { width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; }
-      .app-tab .fi { display: grid; place-items: center; background: #f0eefc; font-size: 11px; }
+      .app-tab { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 6px 7px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink); transition: border-color 0.15s; max-width: 220px; }
+      .app-tab:hover { border-color: #cbd0da; }
+      .app-tab.selected { border-color: var(--pink); background: #eef0fd; color: var(--pink); }
+      .app-tab img, .app-tab .fi { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; }
+      .app-tab .fi { display: grid; place-items: center; background: var(--bg); font-size: 11px; }
       .app-tab .tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .app-tab .tick { font-size: 11px; color: var(--muted); font-weight: 700; flex-shrink: 0; }
       svg.spark { display: block; }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px; }
-      .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13.5px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 50; }
+      .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13.5px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 50; }
       .toast.show { opacity: 1; }
       .print-only { display: none; }
       @media print {
@@ -209,14 +212,14 @@ const limitsText = product && plan
               movement vs the last check, keyword discovery, and top-chart positions. Checked daily.
             </p>
             <nav class="top">
-              <a href="/rank" class="active">🏆 Rank Tracker</a>
-              <a href="/aso">📱 ASO Inspector</a>
+              <a href="/rank" class="active">Rank Tracker</a>
+              <a href="/aso">ASO Inspector</a>
               <div class="usermenu">
                 <button type="button" class="usertrigger" id="usertrigger">{user?.email} <span class="caret">▾</span></button>
                 <div class="userdropdown" id="userdropdown">
-                  <a href="/account">⚙️ Account &amp; billing</a>
-                  <a href="/about">ℹ️ About</a>
-                  <a href="#" id="logout">↪ Log out</a>
+                  <a href="/account">Account &amp; billing</a>
+                  <a href="/about">About</a>
+                  <a href="#" id="logout">Log out</a>
                 </div>
               </div>
             </nav>
@@ -235,8 +238,8 @@ const limitsText = product && plan
               check, and the top-chart position. Add competitors' apps too to watch them on the same keywords.
             </p>
             <nav class="top">
-              <a href="/aso">📱 ASO Inspector</a>
-              <a href="/rank" class="active">🏆 Rank Tracker</a>
+              <a href="/aso">ASO Inspector</a>
+              <a href="/rank" class="active">Rank Tracker</a>
             </nav>
           </>
         )}
@@ -273,7 +276,7 @@ collage maker
 ai photo enhancer"></textarea>
           <div class="row" style="margin-top:10px;">
             <button class="primary" id="add-btn">Add app</button>
-            <span class="hint" style="margin:0;">{limitsText} No keywords yet? Add the app, then hit <b>🔍 Discover keywords</b>.</span>
+            <span class="hint" style="margin:0;">{limitsText} No keywords yet? Add the app, then hit <b>Discover keywords</b>.</span>
           </div>
         </div>
 
@@ -287,7 +290,7 @@ ai photo enhancer"></textarea>
 
         <div id="app-tabs-wrap" class="no-print" style="display:none;">
           <div class="row" style="margin-bottom:10px;">
-            <input type="text" id="app-filter" placeholder="🔍 Filter your tracked apps…" style="flex:1;min-width:200px;" />
+            <input type="text" id="app-filter" placeholder="Filter your tracked apps…" style="flex:1;min-width:200px;" />
           </div>
           <div id="app-tabs" class="app-tabs"></div>
         </div>
@@ -340,8 +343,8 @@ ai photo enhancer"></textarea>
         const d = pts.map((pt, j) => `${j ? 'L' : 'M'}${x(pt.i).toFixed(1)},${y(pt.p).toFixed(1)}`).join(' ');
         const last = pts[pts.length - 1];
         return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-          <path d="${d}" fill="none" stroke="#6366f1" stroke-width="1.8" stroke-linecap="round"/>
-          <circle cx="${x(last.i).toFixed(1)}" cy="${y(last.p).toFixed(1)}" r="2.6" fill="#4f46e5"/>
+          <path d="${d}" fill="none" stroke="#4338ca" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="${x(last.i).toFixed(1)}" cy="${y(last.p).toFixed(1)}" r="2.6" fill="#4338ca"/>
         </svg>`;
       }
 
@@ -423,10 +426,10 @@ ai photo enhancer"></textarea>
         }
         out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - 6}" y2="${padT + plotH}" stroke="#c3c2b7" stroke-width="1"/>`;
         const d = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-        out += `<path d="${d}" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        out += `<path d="${d}" fill="none" stroke="#4338ca" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(days.length / 6);
         days.forEach((day, i) => {
-          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3" fill="#4f46e5" stroke="#fff" stroke-width="2"/>`;
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3" fill="#4338ca" stroke="#fff" stroke-width="2"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(day.dateKey))}</div><div class="tt-r"><span>Visibility score</span><b>${vals[i].toFixed(1)}</b></div>`);
           const cw = days.length === 1 ? plotW : plotW / (days.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
@@ -436,7 +439,7 @@ ai photo enhancer"></textarea>
           const idx = days.findIndex((d) => d.dateKey === a.date);
           if (idx === -1) return;
           const ax = x(idx);
-          const color = a.type === 'paid' ? '#c98a00' : '#5b46c9';
+          const color = a.type === 'paid' ? '#b8790a' : '#4338ca';
           out += `<line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,2"/>`;
           out += `<circle cx="${ax.toFixed(1)}" cy="${(padT - 2).toFixed(1)}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(a.date))} · ${esc(ANN_TYPE_LABEL[a.type] || a.type)}</div><div class="tt-r"><span>${esc(a.label)}</span></div>`);
@@ -467,7 +470,7 @@ ai photo enhancer"></textarea>
         const errNote = d.discovery.errors && d.discovery.errors.length
           ? `<p class="hint" style="margin:8px 0 0;">⚠︎ ${esc(d.discovery.errors[0])}${d.discovery.errors.length > 1 ? ` (+${d.discovery.errors.length - 1} more)` : ''}</p>` : '';
         return `<div class="discover" data-role="discover">
-          <h4>🔍 Keyword universe: ${items.length} relevant keywords scanned — ${ranking.length} already ranking, ${opportunities.length} opportunities not yet ranking</h4>
+          <h4>Keyword universe: ${items.length} relevant keywords scanned — ${ranking.length} already ranking, ${opportunities.length} opportunities not yet ranking</h4>
           <p class="hint" style="margin:0 0 10px;">Tick any to start tracking them daily — you don't need to already rank for a keyword to track it. Your plan caps how many you can track at once, not how many you can see here. 📊 shows a 0–100 popularity proxy (Google Trends) for the top ${Math.min(25, items.length)} — best-effort, may be blank if unavailable.</p>
           ${ranking.length ? `<p class="hint" style="margin:0 0 4px;font-weight:700;color:var(--ink);">✅ Already ranking (${ranking.length})</p><div class="disc-list">${ranking.map(row).join('')}</div>` : ''}
           ${opportunities.length ? `<p class="hint" style="margin:12px 0 4px;font-weight:700;color:var(--ink);">💡 Opportunities — relevant, not yet ranking (${opportunities.length})</p><div class="disc-list">${opportunities.map(row).join('')}</div>` : ''}
@@ -577,7 +580,7 @@ ai photo enhancer"></textarea>
             <button class="ghost danger small" data-act="remove-annotation" data-id="${escAttr(a.id)}" title="Remove annotation">×</button>
           </div>`;
         }).join('');
-        return `<div class="annlist"><h4>🏷 Annotations &amp; ranking impact</h4>${rows}</div>`;
+        return `<div class="annlist"><h4>Annotations &amp; ranking impact</h4>${rows}</div>`;
       }
 
       function coverageHtml(app) {
@@ -585,12 +588,12 @@ ai photo enhancer"></textarea>
         if (!cov || !cov.total) return '';
         const c = cov.counts || {}, p = cov.prevCounts || null;
         if (!cov.days.length) {
-          return `<div class="ov covov"><h4 class="covhead">📋 Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords saved, not checked yet</span></h4>
+          return `<div class="ov covov"><h4 class="covhead">Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords saved, not checked yet</span></h4>
             <p class="hint">Click <b>Check coverage now</b> above to run the first check. Each check adds one point to this trend — run it every few days to see coverage of your full list growing or dropping over time.</p></div>`;
         }
         const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
         return `<div class="ov covov">
-          <h4 class="covhead">📋 Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords, last checked ${cov.lastCheckedAt ? new Date(cov.lastCheckedAt).toLocaleString() : 'never'}</span></h4>
+          <h4 class="covhead">Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords, last checked ${cov.lastCheckedAt ? new Date(cov.lastCheckedAt).toLocaleString() : 'never'}</span></h4>
           <div class="tiles">
             ${tileHtml('Top 1', c.top1, p && p.top1)}
             ${tileHtml('Top 10', c.top10, p && p.top10)}
@@ -680,11 +683,11 @@ ai photo enhancer"></textarea>
             </div>
             <div class="btns no-print">
               <button class="ghost" data-act="check-one">Check now</button>
-              <button class="ghost" data-act="discover">🔍 Discover keywords</button>
-              <button class="ghost" data-act="edit-kw">＋ Add / edit keywords</button>
-              <button class="ghost" data-act="edit-coverage">📋 Coverage list</button>
-              <button class="ghost" data-act="add-annotation">🏷 Add annotation</button>
-              <button class="ghost" data-act="pdf">📄 Export PDF</button>
+              <button class="ghost" data-act="discover">Discover keywords</button>
+              <button class="ghost" data-act="edit-kw">Add / edit keywords</button>
+              <button class="ghost" data-act="edit-coverage">Coverage list</button>
+              <button class="ghost" data-act="add-annotation">Add annotation</button>
+              <button class="ghost" data-act="pdf">Export PDF</button>
               <button class="ghost danger" data-act="remove">Remove</button>
             </div>
           </div>

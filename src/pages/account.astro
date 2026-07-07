@@ -50,51 +50,53 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{BRAND} — Account</title>
     <style>
-      :root { --pink: #6366f1; --pink-dark: #4f46e5; --ink: #1d1f2b; --muted: #6b6f80; --line: #e7e8ef; --bg: #f6f6fa; --ok: #15a06a; --bad: #c0392b; }
+      :root { --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; --ok: #0a8a5f; --bad: #c0392b; }
       * { box-sizing: border-box; }
-      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
-      header { background: linear-gradient(120deg, #6366f1 0%, #8b5cf6 100%); color: #fff; padding: 22px 20px; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; font-size: 14px; }
+      header { background: #fff; color: var(--ink); border-bottom: 1px solid var(--line); padding: 14px 20px; }
       .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
       .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-      .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 18px; }
-      .logo .betatag { font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); padding: 2px 7px; border-radius: 999px; letter-spacing: 0.02em; }
-      .logo .mark { width: 26px; height: 26px; border-radius: 7px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.4); display: grid; place-items: center; font-size: 13px; }
-      nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-      nav a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; }
+      .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+      .logo .betatag { font-size: 10px; font-weight: 700; color: var(--muted); background: var(--bg); border: 1px solid var(--line); padding: 2px 6px; border-radius: 4px; letter-spacing: 0.02em; }
+      .logo .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--pink); color: #fff; display: grid; place-items: center; font-size: 11px; }
+      nav { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+      nav a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; background: none; border: 1px solid transparent; padding: 6px 11px; border-radius: 7px; }
+      nav a:hover { color: var(--ink); background: var(--bg); }
       .usermenu { position: relative; }
-      .usertrigger { color: #fff; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .usertrigger .caret { opacity: 0.8; }
-      .userdropdown { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 10px 30px rgba(20,20,40,0.16); min-width: 190px; overflow: hidden; z-index: 50; }
+      .usertrigger { color: var(--muted); font-size: 13px; font-weight: 600; background: none; border: 1px solid var(--line); padding: 6px 11px; border-radius: 7px; cursor: pointer; font-family: inherit; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .usertrigger:hover { border-color: #cbd0da; color: var(--ink); }
+      .usertrigger .caret { opacity: 0.7; }
+      .userdropdown { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 8px 24px rgba(15,20,30,0.1); min-width: 190px; overflow: hidden; z-index: 50; }
       .userdropdown.open { display: block; }
-      .userdropdown a { display: block; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
-      .userdropdown a:hover { background: #f6f6fa; }
+      .userdropdown a { display: block; padding: 9px 13px; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
+      .userdropdown a:hover { background: var(--bg); }
       .userdropdown a + a { border-top: 1px solid var(--line); }
       @media (max-width: 480px) { .usertrigger { max-width: 60vw; } }
-      main { padding: 26px 0 60px; }
-      .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
-      h2 { margin: 0 0 12px; font-size: 17px; }
+      main { padding: 22px 0 60px; }
+      .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 14px; }
+      h2 { margin: 0 0 12px; font-size: 15px; }
       .kv { display: flex; gap: 10px; font-size: 14px; padding: 5px 0; }
       .kv .k { color: var(--muted); min-width: 120px; }
       .status { font-weight: 700; }
       .status.ok { color: var(--ok); }
       .status.bad { color: var(--bad); }
-      .alert { padding: 12px 14px; border-radius: 10px; font-size: 13.5px; margin-bottom: 16px; }
+      .alert { padding: 12px 14px; border-radius: 8px; font-size: 13.5px; margin-bottom: 16px; }
       .alert.warn { background: #fff6e6; color: #8a5d00; border: 1px solid #f3e0b0; }
       .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
       @media (max-width: 700px) { .plans { grid-template-columns: 1fr; } }
-      .plan { border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+      .plan { border: 1px solid var(--line); border-radius: 9px; padding: 16px; }
       .plan.current { border-color: var(--pink); }
-      .plan h3 { margin: 0 0 2px; font-size: 15px; }
-      .plan .price { font-size: 26px; font-weight: 800; }
+      .plan h3 { margin: 0 0 2px; font-size: 14px; }
+      .plan .price { font-size: 22px; font-weight: 700; }
       .plan .price span { font-size: 13px; font-weight: 600; color: var(--muted); }
       .plan ul { list-style: none; padding: 0; margin: 8px 0 14px; font-size: 13px; color: var(--muted); }
-      .plan li::before { content: '✓ '; color: var(--pink-dark); font-weight: 800; }
-      a.btn, button, summary.btn { display: inline-block; text-align: center; border: none; border-radius: 10px; padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none; }
-      .primary { background: var(--pink); color: #fff; }
-      .primary:hover { background: var(--pink-dark); }
+      .plan li::before { content: '✓ '; color: var(--pink); font-weight: 700; }
+      a.btn, button, summary.btn { display: inline-block; text-align: center; border: 1px solid transparent; border-radius: 7px; padding: 9px 16px; font-size: 13.5px; font-weight: 600; cursor: pointer; text-decoration: none; }
+      .primary { background: var(--pink); color: #fff; border-color: var(--pink); }
+      .primary:hover { background: var(--pink-dark); border-color: var(--pink-dark); }
       .ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
-      .ghost:hover { border-color: var(--pink); color: var(--pink); }
-      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .ghost:hover { border-color: #cbd0da; background: var(--bg); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
       summary.btn { list-style: none; width: 100%; }
       summary.btn::-webkit-details-marker { display: none; }
       .paybox { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); text-align: center; }
@@ -112,13 +114,13 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
       <div class="wrap topbar">
         <a href="/" class="logo" style="text-decoration:none;color:inherit;"><span class="mark">▲</span>{BRAND}<span class="betatag">Beta 1.0</span></a>
         <nav>
-          <a href="/rank">🏆 Rank Tracker</a>
-          <a href="/aso">📱 ASO Inspector</a>
+          <a href="/rank">Rank Tracker</a>
+          <a href="/aso">ASO Inspector</a>
           <div class="usermenu">
             <button type="button" class="usertrigger" id="usertrigger">{user.email} <span class="caret">▾</span></button>
             <div class="userdropdown" id="userdropdown">
-              <a href="/about">ℹ️ About</a>
-              <a href="#" id="logout">↪ Log out</a>
+              <a href="/about">About</a>
+              <a href="#" id="logout">Log out</a>
             </div>
           </div>
         </nav>
