@@ -29,9 +29,11 @@ if (process.env.PRODUCT_MODE) {
 // Basic Auth password — it's gated entirely on its own CRON_SECRET (checked
 // inside the route itself), so a free external URL-ping scheduler can hit it
 // directly. See src/pages/api/cron/rank-check.ts.
-const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/api/auth/', '/api/cron/', '/_astro/', '/favicon', '/robots'];
+// /blog is public content marketing — must be reachable (and crawlable by
+// search engines) without a login, same as /about.
+const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/blog', '/api/auth/', '/api/cron/', '/_astro/', '/favicon', '/robots'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.
-const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/account', '/rank', '/aso', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/cron/', '/_astro/', '/favicon', '/robots'];
+const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/cron/', '/_astro/', '/favicon', '/robots'];
 // The two paid tools — gated on a live trial/subscription (checked below).
 const PAID_TOOL_PREFIXES = ['/rank', '/api/rank', '/aso', '/api/aso', '/api/aso-variants'];
 

@@ -16,6 +16,21 @@ export const UPI_ID = process.env.UPI_ID || 'yourname@upi';
 export const UPI_PAYEE_NAME = process.env.UPI_PAYEE_NAME || BRAND;
 export const WHATSAPP_NUMBER = process.env.WHATSAPP_NUMBER || '911234567890';
 
+/**
+ * Google AdSense. ADSENSE_CLIENT is your publisher id (ca-pub-...); each
+ * ADSENSE_SLOT_* is a separate ad unit id created in the AdSense dashboard
+ * for that specific placement (AdSense reports performance per ad unit, so
+ * reusing one id everywhere loses that breakdown). Ad slots render nothing
+ * at all if ADSENSE_CLIENT isn't set — safe to leave unset in local dev.
+ */
+export const ADSENSE_CLIENT = process.env.ADSENSE_CLIENT || 'ca-pub-2121262893172079';
+export const ADSENSE_SLOTS = {
+  blog: process.env.ADSENSE_SLOT_BLOG || '',
+  rank: process.env.ADSENSE_SLOT_RANK || '',
+  aso: process.env.ADSENSE_SLOT_ASO || '',
+  footer: process.env.ADSENSE_SLOT_FOOTER || '',
+};
+
 export type PlanId = 'starter' | 'pro';
 
 export interface Plan {

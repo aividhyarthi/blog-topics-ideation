@@ -3,8 +3,11 @@
 // Billing is manual UPI/WhatsApp, not a payment gateway — see plans.ts. The
 // QR + UPI deep link are rendered server-side here (qrcode-generator), so
 // there is no client-side payment JS at all.
-import { BRAND, PLANS, planOf, checkAccess, CURRENCY, formatPrice, UPI_ID, UPI_PAYEE_NAME, WHATSAPP_NUMBER } from '../lib/saas/plans';
+import { BRAND, PLANS, planOf, checkAccess, CURRENCY, formatPrice, UPI_ID, UPI_PAYEE_NAME, WHATSAPP_NUMBER, ADSENSE_SLOTS } from '../lib/saas/plans';
 import qrcode from 'qrcode-generator';
+import AdSenseMeta from '../components/AdSenseMeta.astro';
+import AdSenseScript from '../components/AdSenseScript.astro';
+import AdSlot from '../components/AdSlot.astro';
 
 const user = Astro.locals.user!;
 const access = checkAccess(user.status, user.trialEndsAt);
@@ -48,6 +51,8 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <AdSenseMeta />
+    <AdSenseScript />
     <title>{BRAND} — Account</title>
     <style>
       :root { --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; --ok: #0a8a5f; --bad: #c0392b; }
@@ -175,6 +180,7 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
             ))}
           </div>
         </div>
+        <AdSlot slot={ADSENSE_SLOTS.footer} />
       </div>
     </main>
     <script>

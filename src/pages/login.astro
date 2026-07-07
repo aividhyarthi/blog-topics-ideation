@@ -1,5 +1,6 @@
 ---
 import { BRAND } from '../lib/saas/plans';
+import AdSenseMeta from '../components/AdSenseMeta.astro';
 if (Astro.locals.user) return Astro.redirect('/rank');
 const next = Astro.url.searchParams.get('next') || '/rank';
 ---
@@ -10,6 +11,7 @@ const next = Astro.url.searchParams.get('next') || '/rank';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <AdSenseMeta />
     <title>{BRAND} — Log in</title>
     <style>
       :root { --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }

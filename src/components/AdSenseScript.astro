@@ -1,0 +1,14 @@
+---
+// Include once in a page's <head> (alongside one or more <AdSlot />s further
+// down that same page) — the loader script itself must load once per page,
+// separate from each individual ad unit. Renders nothing if ADSENSE_CLIENT
+// isn't set.
+import { ADSENSE_CLIENT } from '../lib/saas/plans';
+---
+{ADSENSE_CLIENT && (
+  <script
+    async
+    src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
+    crossorigin="anonymous"
+  ></script>
+)}

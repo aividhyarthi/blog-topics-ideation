@@ -1,0 +1,8 @@
+---
+// Google's site-ownership verification tag for AdSense — belongs in every
+// page's <head> site-wide (separate from the ad-unit loader script in
+// AdSenseScript.astro, which only needs to be on pages that actually show
+// an <AdSlot />).
+import { ADSENSE_CLIENT } from '../lib/saas/plans';
+---
+{ADSENSE_CLIENT && <meta name="google-adsense-account" content={ADSENSE_CLIENT} />}

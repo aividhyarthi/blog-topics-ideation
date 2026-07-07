@@ -222,6 +222,19 @@ site becomes the product:
   email/password auth (scrypt-hashed, session cookies, built-in `node:sqlite`
   user DB — no external database service). The internal Nykaa tools 404 on
   this deployment and are untouched on the internal one.
+- **`/blog`** — a content-marketing blog on ASO/app ranking topics, public
+  (no login) on both deployments. Posts are markdown files in
+  `src/content/blog/` (schema in `src/content/config.ts`) — add a new post by
+  adding a new `.md` file there with `title`/`description`/`theme`/
+  `publishDate` frontmatter; no CMS or redeploy-triggering database involved.
+  Pages are prerendered at build time (fast, crawlable), so a new post needs a
+  redeploy to go live. Grouped into themes with a client-side filter on the
+  index page.
+- **Google AdSense** — `src/components/AdSlot.astro` renders one ad unit,
+  wired up on the blog (index + posts), the bottom of the Rank Tracker
+  dashboard, the bottom of the ASO Inspector, and the Account page — see the
+  `ADSENSE_*` environment variables above. Renders nothing at all if the
+  relevant slot id isn't set, so it's safe to leave unconfigured.
 - **Paid-only**: every signup starts a 7-day trial (`TRIAL_DAYS` to change);
   when it ends the dashboard locks until the user subscribes on `/account`.
 - **Plans** (`src/lib/saas/plans.ts`): Starter ₹2,499/mo (3 apps × 30
@@ -268,6 +281,11 @@ site becomes the product:
 | `TRIAL_DAYS` | no | Defaults to 7. |
 | `BRAND_NAME` | no | Defaults to `AppRankr`. |
 | `ANTHROPIC_API_KEY` | recommended | Powers AI keyword ideas in discovery. |
+| `ADSENSE_CLIENT` | for ads | Your AdSense publisher id (`ca-pub-...`). Defaults to the site's configured id, so this only needs setting if it changes. Adding it alone (with no slot ids below) still verifies the site with AdSense; ad units need their own slot id to actually render. |
+| `ADSENSE_SLOT_BLOG` | for ads | Ad unit id shown on blog posts (and the blog index). Create the ad unit in your AdSense dashboard first. |
+| `ADSENSE_SLOT_RANK` | for ads | Ad unit id shown at the bottom of the Rank Tracker dashboard. |
+| `ADSENSE_SLOT_ASO` | for ads | Ad unit id shown at the bottom of the ASO Inspector report. |
+| `ADSENSE_SLOT_FOOTER` | for ads | Ad unit id shown on the Account page. |
 
 ## WBR Builder (`/wbr`) — weekly AI-visibility report from SEMrush exports
 

@@ -1,0 +1,35 @@
+---
+// Google AdSense placement. Renders nothing at all if ADSENSE_CLIENT isn't
+// set (e.g. local dev, or before the real AdSense ids are filled in) — see
+// src/lib/saas/plans.ts for the env vars. Each page that uses this must
+// load the AdSense loader script once in its own <head> (see AdSenseScript
+// below); this component only renders the actual ad unit + the per-unit
+// push call.
+import { ADSENSE_CLIENT } from '../lib/saas/plans';
+
+interface Props {
+  slot: string;
+  label?: string;
+}
+const { slot, label = 'Advertisement' } = Astro.props as Props;
+const show = Boolean(ADSENSE_CLIENT && slot);
+---
+{show && (
+  <div class="ad-slot">
+    <span class="ad-label">{label}</span>
+    <ins
+      class="adsbygoogle"
+      style="display:block"
+      data-ad-client={ADSENSE_CLIENT}
+      data-ad-slot={slot}
+      data-ad-format="auto"
+      data-full-width-responsive="true"
+    ></ins>
+    <script is:inline>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  </div>
+)}
+
+<style>
+  .ad-slot { margin: 20px 0; padding: 10px 0 0; border-top: 1px solid var(--line, #e5e7eb); }
+  .ad-label { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted, #6b7280); margin-bottom: 8px; }
+</style>
