@@ -10,5 +10,8 @@
 // it with zero extra Railway services or volumes.
 import { runNightlyCheck } from '../src/lib/rank/nightly';
 
-const { lines } = await runNightlyCheck();
+// A standalone process has no HTTP connection to time out, so give coverage
+// checking a much more generous budget than the HTTP cron endpoint does —
+// comfortably enough for even a 2000-keyword list in one run.
+const { lines } = await runNightlyCheck(25 * 60 * 1000);
 for (const line of lines) console.log(line);

@@ -9,7 +9,7 @@ import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, ConfigReadError } from '../../lib/rank/store';
-import { runCheck, checkOne, checkCoverage } from '../../lib/rank/check';
+import { runCheck, checkOne, checkCoverageBatch } from '../../lib/rank/check';
 import { discoverKeywords } from '../../lib/rank/discover';
 import type { Annotation, TrackedApp } from '../../lib/rank/types';
 import { parseKeywordsWithVolumes } from '../../lib/rank/keywords';
@@ -65,10 +65,19 @@ function alreadyCheckedToday(appKey: string, userId?: string): string | null {
   const row = snap?.apps.find((a) => a.key === appKey);
   return row ? snap!.checkedAt : null;
 }
-function coverageAlreadyCheckedToday(appKey: string, userId?: string): string | null {
+/**
+ * Only true once EVERY coverage keyword has a result for today — a partial
+ * result (one batch in, more still to go — see checkCoverageBatch) must
+ * never look like "done for today", or a big list could never finish
+ * across repeated "Check coverage now" clicks in the same day.
+ */
+function coverageAlreadyCheckedToday(app: TrackedApp, userId?: string): string | null {
   const snap = loadCoverageSnapshot(todayKey(), userId);
-  const row = snap?.apps.find((a) => a.key === appKey);
-  return row ? snap!.checkedAt : null;
+  const row = snap?.apps.find((a) => a.key === app.key);
+  if (!row) return null;
+  const done = new Set(row.keywords.map((k) => k.keyword));
+  const allDone = (app.coverageKeywords || []).every((kw) => done.has(kw));
+  return allDone ? snap!.checkedAt : null;
 }
 
 /** Everything the UI needs in one payload. */
@@ -246,13 +255,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
     if (!(app.coverageKeywords || []).length) return json({ error: 'Save a coverage keyword list first.' }, 400);
-    const already = coverageAlreadyCheckedToday(app.key, userId);
+    const already = coverageAlreadyCheckedToday(app, userId);
     if (already) {
       return json({ ok: true, note: `Coverage was already checked today (${new Date(already).toLocaleString()}) — the next automatic check runs tonight.`, ...statePayload(userId) });
     }
-    try { await checkCoverage(app, userId); }
+    // One time-bounded batch per call (well under any browser/proxy
+    // timeout) — the client calls this repeatedly, showing progress, until
+    // `coverageProgress.done` comes back true. This is what makes a
+    // hundreds-strong coverage list actually finish instead of the whole
+    // request timing out silently.
+    let progress;
+    try { progress = await checkCoverageBatch(app, userId, 20000); }
     catch (e) { return json({ error: `Coverage check failed: ${e instanceof Error ? e.message : String(e)}` }, 502); }
-    return json({ ok: true, ...statePayload(userId) });
+    return json({ ok: true, coverageProgress: progress, ...statePayload(userId) });
   }
 
   if (action === 'add-annotation') {

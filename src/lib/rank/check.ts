@@ -6,10 +6,50 @@ import { keywordRank, mergeIntoSnapshot, todayKey } from './track';
 import { loadSnapshot, saveSnapshot, loadCoverageSnapshot, saveCoverageSnapshot, appendRatingHistory } from './store';
 import { fetchRecentReviews } from '../aso/fetch';
 import { ratingDistribution } from '../aso/audit';
-import type { AppRankResult, RankSnapshot, TrackedApp } from './types';
+import type { AppRankResult, KeywordRank, RankSnapshot, TrackedApp } from './types';
 import type { SearchHit } from './fetch';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Searches `keywordList` in order, stopping early once `timeBudgetMs` has
+ * elapsed. `exhausted: false` means there's more of `keywordList` left
+ * un-searched when time ran out — the caller decides what "more" means
+ * (another batch, tomorrow, etc.). Extracted so a request-driven check
+ * (bounded by how long an HTTP connection realistically survives) can make
+ * steady, safely-sized progress on a very large list instead of requiring
+ * one all-or-nothing multi-minute request that a browser or reverse proxy
+ * will kill before it finishes — which is exactly what happens today for a
+ * coverage list in the hundreds: the "Check coverage now" click just looks
+ * broken, because it never gets the chance to finish and save anything.
+ */
+async function checkKeywordsBounded(
+  app: TrackedApp,
+  keywordList: string[],
+  searchCache: Map<string, SearchHit[]>,
+  delayMs: number,
+  timeBudgetMs: number,
+): Promise<{ rows: KeywordRank[]; exhausted: boolean }> {
+  const rows: KeywordRank[] = [];
+  const depth = searchDepth(app.store);
+  const start = Date.now();
+  for (const kw of keywordList) {
+    if (Date.now() - start > timeBudgetMs) return { rows, exhausted: false };
+    const cacheKey = `${app.store}|${app.country}|${app.lang}|${kw.toLowerCase()}`;
+    try {
+      let hits = searchCache.get(cacheKey);
+      if (!hits) {
+        hits = await searchStore(app.store, kw, app.country, app.lang);
+        searchCache.set(cacheKey, hits);
+        await sleep(delayMs); // stay polite with the store endpoints
+      }
+      rows.push(keywordRank(app.appId, kw, hits, depth));
+    } catch (e) {
+      rows.push({ keyword: kw, position: null, depth, top: [], error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return { rows, exhausted: true };
+}
 
 /**
  * Check one app: every keyword's search position + the top-chart position.
@@ -83,18 +123,66 @@ export async function runCheck(apps: TrackedApp[], userId?: string, cache = new 
   return snap;
 }
 
+export interface CoverageBatchResult {
+  checkedNow: number; // keywords actually searched in this call
+  totalDone: number; // keywords done today so far, including previous batches
+  total: number; // full coverage list size
+  done: boolean; // whether every keyword in the list has been checked today
+}
+
 /**
- * Check the app's full coverage-keyword universe (up to 300, vs the
- * plan-limited `keywords`) and merge into today's COVERAGE snapshot — a
- * separate history from the daily-tracked one, built one "Check coverage
- * now" click at a time.
+ * Check the app's full coverage-keyword universe (up to 2000, vs the
+ * plan-limited `keywords`), one time-bounded batch at a time, resuming from
+ * wherever today's coverage check last left off. This is what makes "Check
+ * coverage now" actually work for a list in the hundreds: a single call
+ * only spends up to `timeBudgetMs` searching (comfortably under any
+ * browser/proxy timeout), saves whatever it finished, and reports how much
+ * is left — the caller (the button handler, or the nightly cron) just
+ * calls this again to pick up where it stopped. Already-done keywords for
+ * today are detected from today's saved coverage snapshot, so calling this
+ * repeatedly is always safe and never re-searches the same keyword twice
+ * in one day.
  */
-export async function checkCoverage(app: TrackedApp, userId?: string): Promise<AppRankResult> {
+export async function checkCoverageBatch(app: TrackedApp, userId?: string, timeBudgetMs = 20000): Promise<CoverageBatchResult> {
   const list = app.coverageKeywords || [];
-  const result = await checkApp(app, new Map(), 400, list);
   const dateKey = todayKey();
-  saveCoverageSnapshot(mergeIntoSnapshot(loadCoverageSnapshot(dateKey, userId), dateKey, [result]), userId);
-  return result;
+  const existingSnap = loadCoverageSnapshot(dateKey, userId);
+  const existingRow = existingSnap?.apps.find((a) => a.key === app.key) || null;
+  const doneSet = new Set((existingRow?.keywords || []).map((k) => k.keyword));
+  const remaining = list.filter((kw) => !doneSet.has(kw));
+
+  if (!remaining.length) {
+    return { checkedNow: 0, totalDone: list.length, total: list.length, done: true };
+  }
+
+  const { rows, exhausted } = await checkKeywordsBounded(app, remaining, new Map(), 400, timeBudgetMs);
+  const mergedKeywords = [...(existingRow?.keywords || []), ...rows];
+  const result: AppRankResult = {
+    key: app.key, store: app.store, appId: app.appId, country: app.country,
+    keywords: mergedKeywords,
+    topChart: existingRow?.topChart ?? null,
+    score: existingRow?.score ?? null,
+    ratings: existingRow?.ratings ?? null,
+  };
+
+  // Top-chart position + listing meta are single calls, not per-keyword —
+  // only fetch them on the first batch of the day, not every follow-up one.
+  if (!existingRow) {
+    try {
+      const { chart, ids } = await fetchTopChart(app.store, app.country, app.lang, app.genreId);
+      const idx = ids.indexOf(app.appId);
+      result.topChart = { position: idx === -1 ? null : idx + 1, chart, depth: ids.length };
+    } catch { /* best-effort */ }
+    try {
+      const meta = await fetchAppMeta(app.store, app.appId, app.country, app.lang);
+      result.score = meta.score;
+      result.ratings = meta.ratings;
+    } catch { /* best-effort */ }
+  }
+
+  saveCoverageSnapshot(mergeIntoSnapshot(existingSnap, dateKey, [result]), userId);
+  const totalDone = mergedKeywords.length;
+  return { checkedNow: rows.length, totalDone, total: list.length, done: exhausted && totalDone >= list.length };
 }
 
 /**

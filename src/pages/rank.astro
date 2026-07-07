@@ -1006,7 +1006,7 @@ ai photo enhancer"></textarea>
             </div>
           </div>
           <div class="kwedit no-print" data-role="covedit">
-            <p class="hint" style="margin:10px 0 6px;">Paste your FULL keyword universe here — up to ${MAX_COVERAGE} — separate from the keywords list above (which is checked daily and capped by your plan). Straight from a spreadsheet with a volume column works too, same format as above. Lists over ~100 keywords are picked up by the nightly check automatically (large lists can take a while to run, so the "Check coverage now" button below is best for smaller lists you want checked right away).</p>
+            <p class="hint" style="margin:10px 0 6px;">Paste your FULL keyword universe here — up to ${MAX_COVERAGE} — separate from the keywords list above (which is checked daily and capped by your plan). Straight from a spreadsheet with a volume column works too, same format as above. "Check coverage now" works for any size list — it checks in safe batches and picks up where it left off, so for a very large list it may take a few clicks (or a bit of waiting) to fully finish. It's also picked up automatically by the nightly check either way.</p>
             <textarea data-role="covtext" placeholder="One keyword per line or comma-separated — up to ${MAX_COVERAGE}">${esc((app.coverageKeywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-coverage">Save coverage list</button>
@@ -1216,18 +1216,30 @@ ai photo enhancer"></textarea>
         if (act === 'save-coverage') {
           withBusy(btn, 'Saving…', async () => {
             const data = await api({ action: 'set-coverage-keywords', key, keywords: card.querySelector('[data-role="covtext"]').value });
-            const n = (card.querySelector('[data-role="covtext"]').value.match(/[^\n,]+/g) || []).length;
-            showToast(n > 100
-              ? 'Coverage list saved — the nightly check will pick this up automatically (it’s too large to run instantly from this button)'
-              : 'Coverage list saved — click "Check coverage now" to run the first check');
+            showToast('Coverage list saved — click "Check coverage now" to run the first check, or wait for the nightly automatic check');
             return data;
           });
           return;
         }
         if (act === 'check-coverage') {
-          const n = (app.coverageKeywords || []).length;
-          if (n > 100 && !confirm(`This list has ${n} keywords — checking them all now could take a long time and may time out in the browser. The nightly check will run it automatically regardless. Run it now anyway?`)) return;
-          withBusy(btn, 'Checking full coverage list… this can take a while for large lists', () => api({ action: 'check-coverage', key }));
+          // Runs in safely-sized, time-bounded batches server-side (see
+          // checkCoverageBatch) — this loop just keeps asking for the next
+          // batch until the whole list is done, so a list in the hundreds
+          // actually finishes instead of one giant request timing out.
+          withBusy(btn, 'Checking coverage…', async () => {
+            let data = await api({ action: 'check-coverage', key });
+            let p = data.coverageProgress;
+            let rounds = 0;
+            while (p && !p.done && p.checkedNow > 0 && rounds < 100) {
+              showToast(`Checked ${p.totalDone}/${p.total} keywords — continuing…`);
+              data = await api({ action: 'check-coverage', key });
+              p = data.coverageProgress;
+              rounds++;
+            }
+            if (p) showToast(p.done ? `Coverage check complete — ${p.total} keywords` : `Checked ${p.totalDone}/${p.total} so far — click "Check coverage now" again to continue`);
+            else if (data.note) showInfo(data.note);
+            return data;
+          });
           return;
         }
         if (act === 'add-annotation') { card.querySelector('[data-role="annedit"]').classList.toggle('open'); return; }
