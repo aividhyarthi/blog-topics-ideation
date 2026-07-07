@@ -105,7 +105,12 @@ export async function checkCoverage(app: TrackedApp, userId?: string): Promise<A
  */
 export async function checkRating(app: TrackedApp, userId?: string): Promise<void> {
   if (app.store !== 'play') return; // rating breakdown proxy is Play-only today
-  const { reviews } = await fetchRecentReviews(app.appId, app.lang, app.country);
-  const rb = ratingDistribution(reviews);
-  appendRatingHistory(app.key, { dateKey: todayKey(), total: rb.total, negativeShare: rb.negativeShare, tone: rb.tone }, userId);
+  const { reviews, windowDays } = await fetchRecentReviews(app.appId, app.lang, app.country);
+  // windowDays is the ACTUAL adaptive span fetchRecentReviews had to page
+  // through to collect enough reviews (see its own doc comment) — passing it
+  // through keeps this consistent with the ASO Inspector's own rating
+  // breakdown, instead of silently defaulting to ratingDistribution's
+  // hardcoded 28-day label regardless of the real span fetched.
+  const rb = ratingDistribution(reviews, windowDays);
+  appendRatingHistory(app.key, { dateKey: todayKey(), total: rb.total, negativeShare: rb.negativeShare, tone: rb.tone, windowDays: rb.windowDays }, userId);
 }

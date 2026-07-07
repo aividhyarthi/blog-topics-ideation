@@ -89,6 +89,11 @@ function statePayload(userId?: string) {
           prevCounts: covPrev ? countsFromBuckets(covPrev.buckets) : null,
           lastCheckedAt: covLatest?.checkedAt || null,
         },
+        // Per-keyword rows for the FULL coverage universe (not just the
+        // plan-limited daily-tracked subset) — lets the owner see where every
+        // keyword they care about ranks, sorted by volume, regardless of
+        // whether it made the cut into the daily-tracked list.
+        coverageTrends: covKeywords.length ? keywordTrends(app, covSnapshots, 60, covKeywords) : [],
         asoCache: asoCache[app.key] || null,
         ratingHistory: ratingHistory[app.key] || [],
         latestResult: latest?.apps.find((a) => a.key === app.key) || null,

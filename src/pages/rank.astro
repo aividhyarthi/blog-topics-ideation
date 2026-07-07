@@ -310,6 +310,7 @@ ai photo enhancer"></textarea>
       let selectedAppKey = null;
       let tabFilter = '';
       const sortState = {};
+      const covSortState = {};
       const MAX_COVERAGE = 2000;
       function sortVal(t, col) {
         if (col === 'pos') return t.position;
@@ -488,7 +489,7 @@ ai photo enhancer"></textarea>
       // 1-2★ share trend — one cheap (no-AI) point per nightly check, shows
       // the ranking-impact risk building over time even between full ASO audits.
       function ratingTrendChart(history) {
-        const pts = (history || []).map((h) => ({ dateKey: h.dateKey, v: h.tone === 'na' ? null : h.negativeShare }));
+        const pts = (history || []).map((h) => ({ dateKey: h.dateKey, v: h.tone === 'na' ? null : h.negativeShare, windowDays: h.windowDays }));
         const known = pts.filter((p) => p.v != null);
         if (!known.length) return '<p class="hint">Not enough rating history yet — check back after a few nightly checks.</p>';
         const W = 400, H = 170, padL = 30, padB = 18, padT = 8;
@@ -513,7 +514,7 @@ ai photo enhancer"></textarea>
         pts.forEach((p, i) => {
           if (p.v == null) return;
           out += `<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3" fill="#c0392b" stroke="#fff" stroke-width="2"/>`;
-          const tid = tipId(`<div class="tt-d">${esc(fmtDay(p.dateKey))}</div><div class="tt-r"><span>1-2★ share</span><b>${p.v}%</b></div>`);
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(p.dateKey))}</div><div class="tt-r"><span>1-2★ share${p.windowDays ? ` (last ${p.windowDays}d)` : ''}</span><b>${p.v}%</b></div>`);
           const cw = pts.length === 1 ? plotW : plotW / (pts.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#898781">${esc(fmtDay(p.dateKey))}</text>`;
@@ -683,6 +684,42 @@ ai photo enhancer"></textarea>
         return `<div class="annlist"><h4>Annotations &amp; ranking impact</h4>${rows}</div>`;
       }
 
+      function coverageTableHtml(app) {
+        const trends = app.coverageTrends || [];
+        if (!trends.length) return '';
+        const volumes = app.keywordVolumes || {};
+        const rows = trends.map((t) => ({ ...t, volume: volumes[t.keyword] ?? null }));
+        // Default to highest-volume-first — the whole point of this table is
+        // seeing where you rank on the keywords that matter most, not just
+        // the plan-limited 60 that happen to be in the daily-tracked list.
+        const sort = covSortState[app.key] || { col: 'volume', dir: -1 };
+        if (sort.col) {
+          rows.sort((a, b) => {
+            const av = sortVal(a, sort.col), bv = sortVal(b, sort.col);
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            return (av - bv) * sort.dir;
+          });
+        }
+        const arrow = (col) => sort.col === col ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
+        const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
+        const body = rows.map((t) => `
+          <tr>
+            <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
+            <td class="kw">${esc(t.keyword)}</td>
+            <td class="pos">${posCell(t)}</td>
+            <td>${deltaCell(t)}</td>
+            <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
+            <td>${spark(t.history || [])}</td>
+            <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
+          </tr>`).join('');
+        return `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap covtable"><table>
+            <thead><tr>${th('volume', 'Volume')}<th>Keyword</th>${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
+            <tbody>${body}</tbody>
+          </table></div>`;
+      }
+
       function coverageHtml(app) {
         const cov = app.coverageOverview;
         if (!cov || !cov.total) return '';
@@ -703,6 +740,8 @@ ai photo enhancer"></textarea>
           <div class="charts">
             <div class="chartbox" style="grid-column:1/-1;"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>
           </div>
+          <h4 class="covhead" style="margin-top:16px;">Every tracked keyword — ranking or not, sorted by volume</h4>
+          ${coverageTableHtml(app)}
         </div>`;
       }
 
@@ -758,17 +797,17 @@ ai photo enhancer"></textarea>
         const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
         const rows = trends.map((t) => `
           <tr>
+            <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
             <td class="kw">${esc(t.keyword)}</td>
             <td class="pos">${posCell(t)}</td>
             <td>${deltaCell(t)}</td>
             <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
-            <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
             <td>${spark(t.history || [])}</td>
             <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
         const table = (app.keywords || []).length
           ? `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
-              <thead><tr><th>Keyword</th>${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('volume', 'Volume')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
+              <thead><tr>${th('volume', 'Volume')}<th>Keyword</th>${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
               <tbody>${rows}</tbody>
             </table></div>`
           : '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>';
@@ -954,8 +993,9 @@ ai photo enhancer"></textarea>
           const card = sortTh.closest('.appcard');
           const key = card.getAttribute('data-key');
           const col = sortTh.getAttribute('data-sort');
-          const cur = sortState[key] || {};
-          sortState[key] = { col, dir: cur.col === col ? -cur.dir : 1 };
+          const store = sortTh.closest('.covtable') ? covSortState : sortState;
+          const cur = store[key] || (store === covSortState ? { col: 'volume', dir: -1 } : {});
+          store[key] = { col, dir: cur.col === col ? -cur.dir : 1 };
           render();
           return;
         }

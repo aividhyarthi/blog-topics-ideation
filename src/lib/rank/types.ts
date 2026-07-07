@@ -74,6 +74,7 @@ export interface RatingHistoryPoint {
   total: number;
   negativeShare: number; // % that are 1-2★
   tone: 'good' | 'mid' | 'bad' | 'na';
+  windowDays: number; // the actual adaptive window this point was computed over (see fetchRecentReviews)
 }
 export type RatingHistory = Record<string, RatingHistoryPoint[]>; // keyed by TrackedApp.key
 

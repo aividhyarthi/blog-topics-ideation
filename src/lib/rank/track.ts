@@ -25,14 +25,18 @@ export const todayKey = (d = new Date()) => d.toISOString().slice(0, 10);
 /**
  * Trend rows for one app: latest snapshot vs the previous one, with best-ever
  * position and a compact oldest→newest history for sparklines.
- * `snapshots` must be sorted oldest→newest.
+ * `snapshots` must be sorted oldest→newest. `keywordList` defaults to the
+ * app's plan-limited tracked keywords, but the coverage view passes the full
+ * keyword universe (against coverage snapshots) to build the same kind of
+ * rows for every keyword the owner cares about, not just the daily-tracked
+ * subset.
  */
-export function keywordTrends(app: TrackedApp, snapshots: RankSnapshot[], historyDays = 30): KeywordTrend[] {
+export function keywordTrends(app: TrackedApp, snapshots: RankSnapshot[], historyDays = 30, keywordList: string[] = app.keywords): KeywordTrend[] {
   const perSnap = snapshots.map((s) => s.apps.find((a) => a.key === app.key) || null);
   const latest = perSnap.length ? perSnap[perSnap.length - 1] : null;
   const prev = perSnap.length > 1 ? perSnap[perSnap.length - 2] : null;
 
-  return app.keywords.map((kw) => {
+  return keywordList.map((kw) => {
     const find = (r: AppRankResult | null) => r?.keywords.find((k) => k.keyword === kw) || null;
     const cur = find(latest);
     const before = find(prev);
