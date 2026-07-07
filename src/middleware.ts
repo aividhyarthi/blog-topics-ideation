@@ -25,9 +25,13 @@ if (process.env.PRODUCT_MODE) {
   if (warning) console.warn(`\n⚠️⚠️⚠️  DATA PERSISTENCE WARNING  ⚠️⚠️⚠️\n${warning}\n`);
 }
 
-const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/api/auth/', '/_astro/', '/favicon', '/robots'];
+// /api/cron/* is reachable in both modes without a login/session or the
+// Basic Auth password — it's gated entirely on its own CRON_SECRET (checked
+// inside the route itself), so a free external URL-ping scheduler can hit it
+// directly. See src/pages/api/cron/rank-check.ts.
+const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/api/auth/', '/api/cron/', '/_astro/', '/favicon', '/robots'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.
-const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/account', '/rank', '/aso', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/_astro/', '/favicon', '/robots'];
+const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/account', '/rank', '/aso', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/cron/', '/_astro/', '/favicon', '/robots'];
 // The two paid tools — gated on a live trial/subscription (checked below).
 const PAID_TOOL_PREFIXES = ['/rank', '/api/rank', '/aso', '/api/aso', '/api/aso-variants'];
 
@@ -73,6 +77,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   /* ----------------------------- internal mode ----------------------------- */
+  if (path.startsWith('/api/cron/')) return next(); // gated on CRON_SECRET inside the route itself
   const password = process.env.SITE_PASSWORD;
   if (!password) return next(); // no password configured => open (local dev)
 

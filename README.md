@@ -168,18 +168,35 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
 - **Top-chart position** — the app's spot in Play's **Top Free chart for its
   category** (iOS: the storefront's overall Top Free, via Apple's public RSS).
 - **History** — every check is saved as a per-day snapshot in `RANK_DATA_DIR`
-  (mount a Railway Volume so it persists). Check on demand from the UI, or run
-  `npx tsx scripts/rank-check.ts` on a **daily cron** (Railway cron schedule
-  `0 6 * * *`) so trends accrue automatically.
+  (mount a Railway Volume so it persists). Check on demand from the UI, or set
+  up a **daily cron** so trends (and large coverage lists — see above) accrue
+  automatically. Two ways to wire that up:
 
-  ⚠️ **Set the cron up as its own separate Railway service** (a second service
-  in the same project, pointed at this same repo), and set its Start Command
-  (`npx tsx scripts/rank-check.ts`) **only in that service's own dashboard
-  Settings → Deploy**. Do **not** put it in the repo's `railway.json`
-  `startCommand` — that file is shared by every service built from this repo,
-  so editing it there overrides the *website's* start command too and takes
-  the whole site down (`node dist/server/entry.mjs` is the correct value for
-  `railway.json`; it must stay as the website's command).
+  1. **HTTP endpoint on the existing site (simplest)** — `GET
+     /api/cron/rank-check?secret=<CRON_SECRET>` runs the exact same check
+     (`src/lib/rank/nightly.ts`) inside the already-deployed website process,
+     which already has `RANK_DATA_DIR` mounted correctly. Set a `CRON_SECRET`
+     env var on the website service, then have any free external scheduler
+     (cron-job.org, a GitHub Actions scheduled workflow, etc.) hit that URL
+     once a day — no second Railway service, no volume-sharing needed. The
+     secret can be passed as `?secret=...` or an `X-Cron-Secret` header; the
+     route is exempt from both the product-mode session check and the
+     internal-mode Basic Auth password (see `src/middleware.ts`), gated only
+     on the secret matching.
+  2. **Standalone Railway Cron Job service** — `npx tsx scripts/rank-check.ts`
+     (same logic, run as a CLI) on a Railway cron schedule (`0 6 * * *`).
+
+     ⚠️ **Set this up as its own separate Railway service** (a second service
+     in the same project, pointed at this same repo), and set its Start
+     Command (`npx tsx scripts/rank-check.ts`) **only in that service's own
+     dashboard Settings → Deploy**. Do **not** put it in the repo's
+     `railway.json` `startCommand` — that file is shared by every service
+     built from this repo, so editing it there overrides the *website's*
+     start command too and takes the whole site down (`node
+     dist/server/entry.mjs` is the correct value for `railway.json`; it must
+     stay as the website's command). This service also needs its own access
+     to the same `RANK_DATA_DIR` Volume the website uses — Railway allows
+     attaching an existing Volume to a second service in the same project.
 - **Export CSV** of the current ranking table.
 
 Data sources are keyless and free: `google-play-scraper` (already used by
@@ -244,6 +261,7 @@ site becomes the product:
 | -------- | -------- | ----- |
 | `PRODUCT_MODE` | yes (product deploy only) | `1` switches this deployment to AppRankr. Leave unset on the internal deployment. |
 | `RANK_DATA_DIR` | yes | Volume mount path — holds the user DB and all rank data. |
+| `CRON_SECRET` | for the nightly check | Required to use `GET /api/cron/rank-check?secret=...` (see the Rank Tracker section above) — pick any long random string. |
 | `UPI_ID` | for billing | Your UPI id (e.g. `yourname@okhdfcbank`) — shown as text and encoded into the QR/deep link. |
 | `UPI_PAYEE_NAME` | no | Name shown in the payer's UPI app during payment. Defaults to `BRAND_NAME`. |
 | `WHATSAPP_NUMBER` | for billing | Your WhatsApp number in international format, digits only (e.g. `919876543210`). |
