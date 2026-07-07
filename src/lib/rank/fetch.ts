@@ -49,12 +49,20 @@ async function fetchJson(url: string): Promise<any> {
  * Parse user input into a (store, appId) pair. Accepts:
  *  - Play URL (…play.google.com/store/apps/details?id=com.x) or bare package id
  *  - App Store URL (…apps.apple.com/in/app/name/id310633997) or bare numeric id
+ * A Play URL's `&gl=XX` storefront param (if present) is picked up as the
+ * country hint too — same idea as the iOS URL's country path segment below —
+ * so pasting a link copied from a specific country's Play Store front
+ * defaults to searching that same front, instead of silently defaulting to
+ * "us" for an app that may not even be listed there.
  */
 export function parseAppInput(input: string): { store: Store; appId: string; country?: string } | null {
   const raw = (input || '').trim();
   if (!raw) return null;
   const play = raw.match(/[?&]id=([a-zA-Z][\w.]+)/);
-  if (play) return { store: 'play', appId: play[1] };
+  if (play) {
+    const gl = raw.match(/[?&]gl=([a-zA-Z]{2})\b/);
+    return { store: 'play', appId: play[1], country: gl ? gl[1].toLowerCase() : undefined };
+  }
   const ios = raw.match(/apps\.apple\.com\/(?:([a-z]{2})\/)?[^\s]*?id(\d{6,})/i);
   if (ios) return { store: 'ios', appId: ios[2], country: ios[1] || undefined };
   if (/^id?\d{6,}$/.test(raw)) return { store: 'ios', appId: raw.replace(/^id/, '') };

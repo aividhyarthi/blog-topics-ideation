@@ -16,6 +16,7 @@ function eq(name: string, got: unknown, want: unknown) {
 // --- parseAppInput -----------------------------------------------------------
 eq('play url', parseAppInput('https://play.google.com/store/apps/details?id=com.whatsapp&hl=en'), { store: 'play', appId: 'com.whatsapp' });
 eq('play bare id', parseAppInput('com.picsart.studio'), { store: 'play', appId: 'com.picsart.studio' });
+eq('play url with gl= country hint', parseAppInput('https://play.google.com/store/apps/details?id=in.kuvera.app&gl=IN&hl=en'), { store: 'play', appId: 'in.kuvera.app', country: 'in' });
 eq('ios url with country', parseAppInput('https://apps.apple.com/in/app/whatsapp-messenger/id310633997'), { store: 'ios', appId: '310633997', country: 'in' });
 eq('ios url no country', parseAppInput('https://apps.apple.com/app/id310633997'), { store: 'ios', appId: '310633997', country: undefined });
 eq('ios bare id', parseAppInput('id310633997'), { store: 'ios', appId: '310633997' });
