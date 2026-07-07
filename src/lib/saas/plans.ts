@@ -31,6 +31,10 @@ export const ADSENSE_SLOTS = {
   footer: process.env.ADSENSE_SLOT_FOOTER || '',
 };
 
+/** Google Search Console's HTML-tag site-ownership verification code. */
+export const GOOGLE_SITE_VERIFICATION =
+  process.env.GOOGLE_SITE_VERIFICATION || 'M5rfPY6hOHg91xlOv9Zsx_oBf1oVha8w8RHNtnPW6eI';
+
 /**
  * Absolute base URL of the live site — used for canonical links, Open Graph
  * tags, JSON-LD, sitemap.xml and llms.txt, all of which need a real domain
