@@ -145,6 +145,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     try { meta = await fetchAppMeta(parsed.store, parsed.appId, country, lang); }
     catch (e) { metaError = e instanceof Error ? e.message : String(e); }
 
+    // Parsed once uncapped just to detect + report truncation — this box is
+    // the daily-tracked list (checked automatically, capped by plan); a
+    // paste bigger than the cap silently lost everything past it before,
+    // with no indication anything was dropped.
+    const totalParsed = parseKeywordsWithVolumes(body.keywords, Infinity).keywords.length;
     const parsedKw = parseKeywordsWithVolumes(body.keywords, maxKeywords);
     const app: TrackedApp = {
       key, store: parsed.store, appId: meta?.appId || parsed.appId, country, lang,
@@ -160,7 +165,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     cfg.apps.push(app);
     saveConfig(cfg, userId);
     const checkError = metaError ? undefined : await checkAfterEdit(app, userId);
-    return json({ ok: true, metaError, checkError, ...statePayload(userId) });
+    const keywordsTruncated = totalParsed > parsedKw.keywords.length
+      ? { saved: parsedKw.keywords.length, total: totalParsed } : null;
+    return json({ ok: true, metaError, checkError, keywordsTruncated, ...statePayload(userId) });
   }
 
   if (action === 'remove-app') {
@@ -175,6 +182,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'set-keywords' || action === 'add-keywords') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
+    // Only meaningful for a full replace — 'add-keywords' (the Discovery
+    // "track selected" flow) already reports its own more precise
+    // before/after count client-side, which correctly excludes keywords
+    // skipped for already being tracked (not truncated by the cap).
+    const totalParsed = action === 'set-keywords' ? parseKeywordsWithVolumes(body.keywords, Infinity).keywords.length : 0;
     const incoming = parseKeywordsWithVolumes(body.keywords, maxKeywords);
     app.keywords = action === 'add-keywords'
       ? [...app.keywords, ...incoming.keywords.filter((k) => !app.keywords.includes(k))].slice(0, maxKeywords)
@@ -182,7 +194,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     app.keywordVolumes = { ...(app.keywordVolumes || {}), ...incoming.volumes };
     saveConfig(cfg, userId);
     const checkError = await checkAfterEdit(app, userId);
-    return json({ ok: true, checkError, ...statePayload(userId) });
+    const keywordsTruncated = action === 'set-keywords' && totalParsed > app.keywords.length
+      ? { saved: app.keywords.length, total: totalParsed } : null;
+    return json({ ok: true, checkError, keywordsTruncated, ...statePayload(userId) });
   }
 
   if (action === 'discover') {

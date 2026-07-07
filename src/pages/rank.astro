@@ -333,6 +333,12 @@ ai photo enhancer"></textarea>
       function showErr(msg) { const e = $('err'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
       function showInfo(msg) { const e = $('info'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
 
+      // A paste bigger than the daily-tracked cap used to just silently lose
+      // everything past the cap with no indication anything was dropped.
+      function truncationMsg(t) {
+        return `Saved ${t.saved} of ${t.total} keywords here — this list is checked daily and capped at ${t.saved} for your plan. Paste the rest into the "Coverage list" below instead (up to ${MAX_COVERAGE}, checked automatically by the nightly check) to still monitor them.`;
+      }
+
       // Sparkline of positions (lower = better, so the y-axis is inverted).
       function spark(history) {
         const pts = history.map((p, i) => ({ p, i })).filter((x) => x.p != null);
@@ -684,6 +690,10 @@ ai photo enhancer"></textarea>
         return `<div class="annlist"><h4>Annotations &amp; ranking impact</h4>${rows}</div>`;
       }
 
+      // Plain-language key for the Rank column, since "#N" / ">200" /
+      // "not checked yet" / "err" otherwise have to be inferred.
+      const RANK_LEGEND = `<p class="hint" style="margin:2px 0 10px;"><b>#N</b> = found at position N &nbsp;·&nbsp; <b>&gt;200</b> = checked, not in the top 200 &nbsp;·&nbsp; <b>not checked yet</b> = hasn't been searched yet (just added, or waiting on the next check) &nbsp;·&nbsp; <b>⚠︎ err</b> (hover for why) = the check itself failed, not a real rank</p>`;
+
       function coverageTableHtml(app) {
         const trends = app.coverageTrends || [];
         if (!trends.length) return '';
@@ -740,7 +750,9 @@ ai photo enhancer"></textarea>
           <div class="charts">
             <div class="chartbox" style="grid-column:1/-1;"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>
           </div>
-          <h4 class="covhead" style="margin-top:16px;">Every tracked keyword — ranking or not, sorted by volume</h4>
+          <h4 class="covhead" style="margin-top:16px;">Coverage list — every keyword you're monitoring, ranking or not, sorted by volume</h4>
+          <p class="hint" style="margin:0 0 6px;">This is your <b>separate</b> Coverage list (up to ${MAX_COVERAGE} keywords) — it can overlap with the daily-tracked list above, that's normal. It's checked by the nightly check, not the "Check now" button up top.</p>
+          ${RANK_LEGEND}
           ${coverageTableHtml(app)}
         </div>`;
       }
@@ -812,7 +824,9 @@ ai photo enhancer"></textarea>
             <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
         const table = (app.keywords || []).length
-          ? `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
+          ? `<h4 class="covhead">Daily-tracked keywords <span class="hint" style="display:inline;margin:0;">— ${app.keywords.length} keyword${app.keywords.length === 1 ? '' : 's'}, checked automatically every day</span></h4>
+            ${RANK_LEGEND}
+            <p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
               <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
               <tbody>${rows}</tbody>
             </table></div>`
@@ -837,7 +851,7 @@ ai photo enhancer"></textarea>
             </div>
           </div>
           <div class="kwedit no-print" data-role="kwedit">
-            <p class="hint" style="margin:10px 0 6px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line — the volume shows up in the Volume column below. Saving re-checks this app's rankings right away.</p>
+            <p class="hint" style="margin:10px 0 6px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line — the volume shows up in the Volume column below. Saving re-checks this app's rankings right away. <b>This is the daily-checked list, capped by your plan</b> — if you have a bigger list, paste the rest into the "Coverage list" further down instead; it isn't capped and covers the same volume/rank tracking, just checked less often.</p>
             <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
@@ -956,8 +970,11 @@ ai photo enhancer"></textarea>
             lang: $('add-lang').value.trim(),
             keywords: $('add-keywords').value,
           });
-          if (data.metaError) showInfo('App added, but its listing could not be read right now: ' + data.metaError);
-          else if (data.checkError) showInfo(data.checkError);
+          const notes = [];
+          if (data.metaError) notes.push('App added, but its listing could not be read right now: ' + data.metaError);
+          if (data.keywordsTruncated) notes.push(truncationMsg(data.keywordsTruncated));
+          if (!data.metaError && data.checkError) notes.push(data.checkError);
+          if (notes.length) showInfo(notes.join(' '));
           $('add-app').value = ''; $('add-keywords').value = '';
           showToast('App added');
           if (data.apps && data.apps.length) {
@@ -1014,7 +1031,10 @@ ai photo enhancer"></textarea>
         if (act === 'save-kw') {
           withBusy(btn, 'Saving & checking ranks…', async () => {
             const data = await api({ action: 'set-keywords', key, keywords: card.querySelector('[data-role="kwtext"]').value });
-            if (data.checkError) showInfo(data.checkError); else showToast('Keywords saved — fresh ranks below');
+            const notes = [];
+            if (data.keywordsTruncated) notes.push(truncationMsg(data.keywordsTruncated));
+            if (data.checkError) notes.push(data.checkError);
+            if (notes.length) showInfo(notes.join(' ')); else showToast('Keywords saved — fresh ranks below');
             const saved = data.apps.find((a) => a.key === key);
             if (saved) checkAsoFor(saved);
             return data;
