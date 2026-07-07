@@ -7,8 +7,8 @@
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact } from '../../lib/rank/track';
-import { loadConfig, saveConfig, loadSnapshots, loadCoverageSnapshots, loadAsoCache, loadRatingHistory, ConfigReadError } from '../../lib/rank/store';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey } from '../../lib/rank/track';
+import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, ConfigReadError } from '../../lib/rank/store';
 import { runCheck, checkOne, checkCoverage } from '../../lib/rank/check';
 import { discoverKeywords } from '../../lib/rank/discover';
 import type { Annotation, TrackedApp } from '../../lib/rank/types';
@@ -47,6 +47,28 @@ async function checkAfterEdit(app: TrackedApp, userId?: string): Promise<string 
   if (!app.keywords.length) return undefined;
   try { await checkOne(app, userId); return undefined; }
   catch (e) { return `Keywords saved, but the rank check failed: ${e instanceof Error ? e.message : String(e)}`; }
+}
+
+/**
+ * Once-a-day guard for the MANUAL "Check now" / "Check coverage now"
+ * buttons — repeated clicks must never re-hit the live stores more than
+ * once per calendar day for the same app; that's controlled here, server
+ * side, not by however many times someone happens to click. Returns the
+ * existing checkedAt ISO string if this app was already checked today
+ * (by the cron, an edit, or an earlier manual click), else null meaning
+ * it's safe to actually run the check. Keyword edits still bypass this
+ * (see checkAfterEdit) — that's a genuinely new thing to check, not a
+ * repeat of today's check.
+ */
+function alreadyCheckedToday(appKey: string, userId?: string): string | null {
+  const snap = loadSnapshot(todayKey(), userId);
+  const row = snap?.apps.find((a) => a.key === appKey);
+  return row ? snap!.checkedAt : null;
+}
+function coverageAlreadyCheckedToday(appKey: string, userId?: string): string | null {
+  const snap = loadCoverageSnapshot(todayKey(), userId);
+  const row = snap?.apps.find((a) => a.key === appKey);
+  return row ? snap!.checkedAt : null;
 }
 
 /** Everything the UI needs in one payload. */
@@ -224,6 +246,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
     if (!(app.coverageKeywords || []).length) return json({ error: 'Save a coverage keyword list first.' }, 400);
+    const already = coverageAlreadyCheckedToday(app.key, userId);
+    if (already) {
+      return json({ ok: true, note: `Coverage was already checked today (${new Date(already).toLocaleString()}) — the next automatic check runs tonight.`, ...statePayload(userId) });
+    }
     try { await checkCoverage(app, userId); }
     catch (e) { return json({ error: `Coverage check failed: ${e instanceof Error ? e.message : String(e)}` }, 502); }
     return json({ ok: true, ...statePayload(userId) });
@@ -255,13 +281,28 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const key = body.key ? String(body.key) : null;
     const targets = key ? cfg.apps.filter((a) => a.key === key) : cfg.apps;
     if (!targets.length) return json({ error: key ? 'App not found.' : 'No apps tracked yet — add one first.' }, 400);
-    try {
-      if (key) await checkOne(targets[0], userId); // single-app re-check merges into today's snapshot
-      else await runCheck(targets, userId);
-    } catch (e) {
-      return json({ error: `Check failed: ${e instanceof Error ? e.message : String(e)}` }, 502);
+
+    if (key) {
+      const already = alreadyCheckedToday(targets[0].key, userId);
+      if (already) {
+        return json({ ok: true, note: `Already checked today (${new Date(already).toLocaleString()}) — the next automatic check runs tonight.`, ...statePayload(userId) });
+      }
+      try { await checkOne(targets[0], userId); }
+      catch (e) { return json({ error: `Check failed: ${e instanceof Error ? e.message : String(e)}` }, 502); }
+      return json({ ok: true, ...statePayload(userId) });
     }
-    return json({ ok: true, ...statePayload(userId) });
+
+    // "Check all" only re-checks apps NOT already checked today; already-done
+    // ones are silently skipped (not an error) so this button is always safe
+    // to click without doubling up on live store hits for the whole day.
+    const due = targets.filter((a) => !alreadyCheckedToday(a.key, userId));
+    if (!due.length) {
+      return json({ ok: true, note: 'Every app was already checked today — the next automatic check runs tonight.', ...statePayload(userId) });
+    }
+    try { await runCheck(due, userId); }
+    catch (e) { return json({ error: `Check failed: ${e instanceof Error ? e.message : String(e)}` }, 502); }
+    const skipped = targets.length - due.length;
+    return json({ ok: true, note: skipped ? `Checked ${due.length} app(s) — ${skipped} already checked today were skipped.` : undefined, ...statePayload(userId) });
   }
 
   return json({ error: `Unknown action "${action}".` }, 400);

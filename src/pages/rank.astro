@@ -974,7 +974,7 @@ ai photo enhancer"></textarea>
         btn.innerHTML = '<span class="spinner"></span>' + busyLabel;
         try {
           const data = await fn();
-          if (data) { state = data; render(); }
+          if (data) { state = data; render(); if (data.note) showInfo(data.note); }
         } catch (e) {
           showErr(e && e.message ? e.message : String(e));
         } finally {
