@@ -765,8 +765,13 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       }
       $('go').addEventListener('click', run);
 
-      // Deep-link from Rank Tracker: /aso?app=<url-or-id>&focus=<kw1,kw2,kw3>&country=&lang=
-      // prefills the form and auto-runs the inspection.
+      // Deep-link from Rank Tracker: /aso?app=<url-or-id>&focus=<kw1,kw2,kw3>&country=&lang=&key=<trackedAppKey>
+      // prefills the form and auto-runs the inspection — unless Rank Tracker
+      // just stashed the result of that exact check a moment ago (localStorage,
+      // not sessionStorage — this opens in a noopener tab, which doesn't
+      // inherit sessionStorage), in which case we render it directly instead
+      // of re-running the (paid) audit. Only trusted for a few minutes, so
+      // stale/leftover storage from an old visit never gets shown as current.
       (function autoRunFromQuery() {
         const qs = new URLSearchParams(location.search);
         const app = qs.get('app');
@@ -775,6 +780,21 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         if (qs.get('focus')) $('focus').value = qs.get('focus');
         if (qs.get('country')) $('country').value = qs.get('country');
         if (qs.get('lang')) $('lang').value = qs.get('lang');
+        const key = qs.get('key');
+        if (key) {
+          try {
+            const stashed = localStorage.getItem('aso-cache:' + key);
+            if (stashed) {
+              const { data, checkedAt } = JSON.parse(stashed);
+              if (Date.now() - Date.parse(checkedAt) < 5 * 60 * 1000) {
+                render(data);
+                $('info').textContent = `Showing your last check from ${new Date(checkedAt).toLocaleString()} — click "Inspect ASO" above to run a fresh one.`;
+                $('info').style.display = 'block';
+                return;
+              }
+            }
+          } catch { /* fall through to a fresh run */ }
+        }
         run();
       })();
       $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });

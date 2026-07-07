@@ -560,7 +560,7 @@ ai photo enhancer"></textarea>
       // ASO Inspector is Play-only. Fires in the background after keywords are
       // saved so a recommendation is waiting without slowing down the save.
       function asoLinkParams(app, focusList) {
-        const p = new URLSearchParams({ app: app.url || app.appId, country: app.country || 'us', lang: app.lang || 'en' });
+        const p = new URLSearchParams({ app: app.url || app.appId, country: app.country || 'us', lang: app.lang || 'en', key: app.key });
         if (focusList.length) p.set('focus', focusList.join(', '));
         return p.toString();
       }
@@ -627,7 +627,7 @@ ai photo enhancer"></textarea>
             ${lastChecked ? `<span>Last checked ${esc(lastChecked)}</span>` : ''}
             <button class="ghost small" data-act="recheck-aso">Re-check ASO</button>
           </div>
-          <a class="ghost-link" href="${escAttr(link)}" target="_blank" rel="noopener">Open full ASO Inspector report →</a>
+          <a class="ghost-link" href="${escAttr(link)}" target="_blank" rel="noopener" data-aso-key="${escAttr(app.key)}">Open full ASO Inspector report →</a>
         </div>`;
       }
 
@@ -935,6 +935,20 @@ ai photo enhancer"></textarea>
       $('app-filter').addEventListener('input', (ev) => { tabFilter = ev.target.value; renderTabs(); });
 
       $('apps').addEventListener('click', (ev) => {
+        // Stash the already-computed ASO result before the deep link opens
+        // /aso (in a new, noopener tab — so sessionStorage isn't shared;
+        // localStorage is, since it's scoped to the origin, not the opener
+        // relationship), so that page can reuse it instead of re-running
+        // the (paid) Anthropic audit for data we just checked seconds ago here.
+        const asoLink = ev.target.closest('a[data-aso-key]');
+        if (asoLink) {
+          const k = asoLink.getAttribute('data-aso-key');
+          const cached = ASO_CACHE[k];
+          if (cached && cached.status === 'done') {
+            try { localStorage.setItem('aso-cache:' + k, JSON.stringify({ data: cached.data, checkedAt: cached.checkedAt })); } catch { /* best-effort */ }
+          }
+          return;
+        }
         const sortTh = ev.target.closest('th.sortable');
         if (sortTh) {
           const card = sortTh.closest('.appcard');
