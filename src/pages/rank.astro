@@ -182,6 +182,10 @@ const limitsText = product && plan
       .app-tab .fi { display: grid; place-items: center; background: var(--bg); font-size: 11px; }
       .app-tab .tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .app-tab .tick { font-size: 11px; color: var(--muted); font-weight: 700; flex-shrink: 0; }
+      .kwtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 16px 0 14px; }
+      .kwtab { background: none; border: none; border-bottom: 2px solid transparent; padding: 8px 4px; margin-right: 18px; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; font-family: inherit; }
+      .kwtab:hover { color: var(--ink); }
+      .kwtab.active { color: var(--pink); border-bottom-color: var(--pink); }
       svg.spark { display: block; }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px; }
       .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13.5px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 50; }
@@ -311,6 +315,10 @@ ai photo enhancer"></textarea>
       let tabFilter = '';
       const sortState = {};
       const covSortState = {};
+      // Which sub-tab is showing per app: 'daily' (tracked list + its charts)
+      // or 'coverage' (full keyword universe) — so you only ever see one
+      // table at a time instead of scrolling past one to reach the other.
+      const kwTabState = {};
       const MAX_COVERAGE = 2000;
       function sortVal(t, col) {
         if (col === 'pos') return t.position;
@@ -750,8 +758,8 @@ ai photo enhancer"></textarea>
           <div class="charts">
             <div class="chartbox" style="grid-column:1/-1;"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>
           </div>
-          <h4 class="covhead" style="margin-top:16px;">Coverage list — every keyword you're monitoring, ranking or not, sorted by volume</h4>
-          <p class="hint" style="margin:0 0 6px;">This is your <b>separate</b> Coverage list (up to ${MAX_COVERAGE} keywords) — it can overlap with the daily-tracked list above, that's normal. It's checked by the nightly check, not the "Check now" button up top.</p>
+          <h4 class="covhead" style="margin-top:16px;">Every keyword you're monitoring here, ranking or not, sorted by volume</h4>
+          <p class="hint" style="margin:0 0 6px;">This list can overlap with the "Daily tracked" tab, that's normal. It's checked by the nightly check, not the "Check now" button up top — click <b>Check coverage now</b> below for a smaller list you want checked right away.</p>
           ${RANK_LEGEND}
           ${coverageTableHtml(app)}
         </div>`;
@@ -879,11 +887,26 @@ ai photo enhancer"></textarea>
           </div>
           <div class="no-print">${asoSummaryHtml(app)}</div>
           <div class="no-print">${discoverHtml(app)}</div>
-          ${overviewHtml(app)}
-          <div class="no-print">${annotationsHtml(app)}</div>
-          <div class="no-print">${coverageHtml(app)}</div>
-          ${table}
+          ${kwTabsHtml(app, table)}
         </div>`;
+      }
+
+      // Two sub-tabs so the daily-tracked table and the (potentially much
+      // longer) coverage table are never both on screen / scrolled-past at
+      // once — click between them instead of scrolling past a 2000-row list
+      // to reach the 60-row one, or vice versa.
+      function kwTabsHtml(app, dailyTable) {
+        const tab = kwTabState[app.key] || 'daily';
+        const dailyCount = (app.keywords || []).length;
+        const covCount = (app.coverageKeywords || []).length;
+        const tabs = `<div class="kwtabs no-print">
+          <button class="kwtab ${tab === 'daily' ? 'active' : ''}" data-kwtab="daily">Daily tracked (${dailyCount})</button>
+          <button class="kwtab ${tab === 'coverage' ? 'active' : ''}" data-kwtab="coverage">All keywords (${covCount})</button>
+        </div>`;
+        const body = tab === 'coverage'
+          ? `<div class="no-print">${coverageHtml(app)}</div>`
+          : `${overviewHtml(app)}<div class="no-print">${annotationsHtml(app)}</div>${dailyTable}`;
+        return tabs + body;
       }
 
       function tabIcon(app) {
@@ -1009,6 +1032,13 @@ ai photo enhancer"></textarea>
           if (cached && cached.status === 'done') {
             try { localStorage.setItem('aso-cache:' + k, JSON.stringify({ data: cached.data, checkedAt: cached.checkedAt })); } catch { /* best-effort */ }
           }
+          return;
+        }
+        const kwTab = ev.target.closest('.kwtab');
+        if (kwTab) {
+          const card = kwTab.closest('.appcard');
+          kwTabState[card.getAttribute('data-key')] = kwTab.getAttribute('data-kwtab');
+          render();
           return;
         }
         const sortTh = ev.target.closest('th.sortable');
