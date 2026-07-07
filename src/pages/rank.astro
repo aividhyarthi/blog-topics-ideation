@@ -706,8 +706,8 @@ ai photo enhancer"></textarea>
         const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
         const body = rows.map((t) => `
           <tr>
-            <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
             <td class="kw">${esc(t.keyword)}</td>
+            <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
             <td class="pos">${posCell(t)}</td>
             <td>${deltaCell(t)}</td>
             <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
@@ -715,7 +715,7 @@ ai photo enhancer"></textarea>
             <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
         return `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap covtable"><table>
-            <thead><tr>${th('volume', 'Volume')}<th>Keyword</th>${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
+            <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
             <tbody>${body}</tbody>
           </table></div>`;
       }
@@ -797,8 +797,8 @@ ai photo enhancer"></textarea>
         const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
         const rows = trends.map((t) => `
           <tr>
-            <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
             <td class="kw">${esc(t.keyword)}</td>
+            <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
             <td class="pos">${posCell(t)}</td>
             <td>${deltaCell(t)}</td>
             <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
@@ -807,7 +807,7 @@ ai photo enhancer"></textarea>
           </tr>`).join('');
         const table = (app.keywords || []).length
           ? `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
-              <thead><tr>${th('volume', 'Volume')}<th>Keyword</th>${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
+              <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
               <tbody>${rows}</tbody>
             </table></div>`
           : '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>';

@@ -36,6 +36,12 @@ eq('dedupes case-insensitively, keeps first volume seen', parseKeywordsWithVolum
   { keywords: ['photo editor'], volumes: { 'photo editor': 100 } });
 eq('respects max cap', parseKeywordsWithVolumes('a\nb\nc\nd', 2).keywords, ['a', 'b']);
 eq('empty input', parseKeywordsWithVolumes('', 60), { keywords: [], volumes: {} });
+eq('tab-separated abbreviated volume (40K)', parseKeywordsWithVolumes('mutual fund central\t40K', 60),
+  { keywords: ['mutual fund central'], volumes: { 'mutual fund central': 40000 } });
+eq('comma-separated abbreviated volume (1.2M)', parseKeywordsWithVolumes('mutual fund central, 1.2M', 60),
+  { keywords: ['mutual fund central'], volumes: { 'mutual fund central': 1200000 } });
+eq('lowercase b suffix', parseKeywordsWithVolumes('generic term\t2b', 60),
+  { keywords: ['generic term'], volumes: { 'generic term': 2000000000 } });
 
 // --- findPosition / keywordRank ---------------------------------------------
 const hits = [{ appId: 'a', title: 'A' }, { appId: 'b', title: 'B' }, { appId: 'c', title: 'C' }, { appId: 'd', title: 'D' }];
