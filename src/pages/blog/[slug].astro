@@ -3,19 +3,24 @@
 // about why the nav below doesn't depend on Astro.locals.user here.
 export const prerender = true;
 import { getCollection } from 'astro:content';
-import { BRAND, ADSENSE_SLOTS } from '../../lib/saas/plans';
+import { BRAND } from '../../lib/saas/plans';
 import AdSenseMeta from '../../components/AdSenseMeta.astro';
 import AdSenseScript from '../../components/AdSenseScript.astro';
-import AdSlot from '../../components/AdSlot.astro';
+import BlogSidebar from '../../components/BlogSidebar.astro';
 
 export async function getStaticPaths() {
   const posts = await getCollection('blog');
-  return posts.map((post) => ({ params: { slug: post.slug }, props: { post } }));
+  return posts.map((post) => ({ params: { slug: post.slug }, props: { post, allPosts: posts } }));
 }
 
-const { post } = Astro.props;
+const { post, allPosts } = Astro.props;
 const { Content } = await post.render();
 const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const recentPosts = allPosts
+  .filter((p) => p.slug !== post.slug)
+  .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
+  .slice(0, 5)
+  .map((p) => ({ slug: p.slug, title: p.data.title }));
 ---
 
 <!doctype html>
@@ -32,8 +37,8 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
       :root { --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }
       * { box-sizing: border-box; }
       body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fff; color: var(--ink); line-height: 1.7; }
-      .wrap { max-width: 680px; margin: 0 auto; padding: 0 22px; }
-      header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; max-width: 1080px; margin: 0 auto; padding-left: 22px; padding-right: 22px; flex-wrap: wrap; gap: 10px; }
+      .wrap { max-width: 1160px; margin: 0 auto; padding: 0 22px; }
+      header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; max-width: 1160px; margin: 0 auto; padding-left: 22px; padding-right: 22px; flex-wrap: wrap; gap: 10px; }
       .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; text-decoration: none; color: var(--ink); }
       .logo .betatag { font-size: 10px; font-weight: 800; color: var(--pink-dark); background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.25); padding: 2px 7px; border-radius: 999px; letter-spacing: 0.02em; }
       .logo .mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(120deg, #6366f1, #8b5cf6); color: #fff; display: grid; place-items: center; font-size: 14px; }
@@ -43,6 +48,8 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
       a.btn { text-decoration: none; font-weight: 700; font-size: 14px; border-radius: 10px; padding: 10px 18px; background: var(--pink); color: #fff; white-space: nowrap; }
       a.btn:hover { background: var(--pink-dark); }
       main { padding: 34px 0 60px; }
+      .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 48px; align-items: start; }
+      @media (max-width: 860px) { .layout { grid-template-columns: 1fr; gap: 30px; } }
       .backlink { display: inline-block; color: var(--muted); text-decoration: none; font-size: 13.5px; font-weight: 600; margin-bottom: 18px; }
       .backlink:hover { color: var(--ink); }
       .posttheme { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pink-dark); }
@@ -54,6 +61,7 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
       article :global(ul), article :global(ol) { color: #2b2f38; font-size: 16px; margin: 0 0 16px; padding-left: 22px; }
       article :global(li) { margin: 0 0 8px; }
       article :global(a) { color: var(--pink-dark); }
+      .sidebar-slot { position: sticky; top: 24px; }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 30px 0; border-top: 1px solid var(--line); margin-top: 30px; }
       footer a { color: var(--muted); }
     </style>
@@ -68,13 +76,18 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
       </div>
     </header>
     <main>
-      <div class="wrap">
-        <a class="backlink" href="/blog">← All articles</a>
-        <span class="posttheme">{post.data.theme}</span>
-        <h1>{post.data.title}</h1>
-        <div class="postmeta">{fmt(post.data.publishDate)} · {post.data.author}</div>
-        <article><Content /></article>
-        <AdSlot slot={ADSENSE_SLOTS.blog} />
+      <div class="wrap layout">
+        <div>
+          <a class="backlink" href="/blog">← All articles</a>
+          <span class="posttheme">{post.data.theme}</span>
+          <h1>{post.data.title}</h1>
+          <div class="postmeta">{fmt(post.data.publishDate)} · {post.data.author}</div>
+          <article><Content /></article>
+        </div>
+
+        <div class="sidebar-slot">
+          <BlogSidebar recentPosts={recentPosts} />
+        </div>
       </div>
     </main>
     <footer>

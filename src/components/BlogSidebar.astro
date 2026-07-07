@@ -1,0 +1,45 @@
+---
+// Right-hand sidebar for both /blog and /blog/[slug] — a subscribe/signup
+// CTA for the tool itself, an ad slot, and (optionally) a short "recent
+// posts" list so a reader on one article has somewhere else to go. Both
+// blog pages are prerendered static content, so this never depends on
+// request-scoped data (login state etc.) — see the note in those pages.
+import { BRAND, ADSENSE_SLOTS } from '../lib/saas/plans';
+import AdSlot from './AdSlot.astro';
+
+interface RecentPost { slug: string; title: string }
+interface Props { recentPosts?: RecentPost[] }
+const { recentPosts = [] } = Astro.props as Props;
+---
+<aside class="blog-sidebar">
+  <div class="cta-card">
+    <div class="cta-title">Know where you rank, every day</div>
+    <p class="cta-body">Track your app's keyword rankings on Google Play and the App Store, spot drops early, and see exactly what to fix. Free 7-day trial, no card required.</p>
+    <a class="cta-btn" href="/signup">Start free trial →</a>
+  </div>
+
+  <AdSlot slot={ADSENSE_SLOTS.blog} label="Advertisement" />
+
+  {recentPosts.length > 0 && (
+    <div class="recent-card">
+      <div class="recent-title">More from the blog</div>
+      <ul>
+        {recentPosts.map((p) => <li><a href={`/blog/${p.slug}`}>{p.title}</a></li>)}
+      </ul>
+    </div>
+  )}
+</aside>
+
+<style>
+  .blog-sidebar { display: flex; flex-direction: column; gap: 20px; }
+  .cta-card { background: linear-gradient(160deg, #4338ca, #6d28d9); border-radius: 14px; padding: 22px; color: #fff; }
+  .cta-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 8px; }
+  .cta-body { font-size: 13.5px; line-height: 1.55; opacity: 0.92; margin: 0 0 16px; }
+  .cta-btn { display: inline-block; background: #fff; color: #4338ca; font-weight: 700; font-size: 13.5px; text-decoration: none; padding: 9px 15px; border-radius: 8px; }
+  .cta-btn:hover { background: #f2f1ff; }
+  .recent-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px; }
+  .recent-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #6b7280; margin-bottom: 10px; }
+  .recent-card ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .recent-card a { color: #16181d; text-decoration: none; font-size: 13.5px; font-weight: 600; line-height: 1.4; }
+  .recent-card a:hover { color: #4338ca; }
+</style>
