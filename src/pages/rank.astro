@@ -345,11 +345,31 @@ ai photo enhancer"></textarea>
         const esc = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         return new RegExp(`\\b${esc}\\b`, 'i').test(text);
       }
+      // App Store titles are almost always "BrandName: keyword-stuffed
+      // tagline" (e.g. "Groww: Mutual Fund, SIP, Stocks") — that tagline
+      // exists specifically to rank for generic terms, so treating every
+      // word in a title as a "brand" signal (the original bug here)
+      // mis-tags nearly every generic keyword as Brand + Comp. Only the
+      // part before the first separator is a real brand signal, and even
+      // that is filtered against a generic-word list as a second guard.
+      const GENERIC_TITLE_WORDS = new Set([
+        'app', 'apps', 'application', 'free', 'best', 'online', 'india', 'new',
+        'investment', 'invest', 'investing', 'fund', 'funds', 'mutual', 'sip',
+        'money', 'finance', 'financial', 'save', 'saving', 'savings', 'tax',
+        'tracker', 'manager', 'management', 'wallet', 'pay', 'payment', 'bank',
+        'banking', 'loan', 'loans', 'insurance', 'stock', 'stocks', 'trading',
+        'trade', 'gold', 'plan', 'plans', 'calculator', 'and', 'the', 'for',
+      ]);
+      function brandTokensFromTitle(title) {
+        if (!title) return [];
+        const brandPart = title.split(/[:\-–|,]/)[0];
+        return brandPart.toLowerCase().split(/\s+/).filter((w) => w.length > 2 && !GENERIC_TITLE_WORDS.has(w));
+      }
       function categorizeKeyword(keyword, app) {
         const kw = keyword.toLowerCase();
-        const ownTokens = (app.title || '').toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-        const compTitles = ((app.asoCache && app.asoCache.data && app.asoCache.data.competitors) || []).map((c) => (c.title || '').toLowerCase());
-        const compTokens = compTitles.flatMap((t) => t.split(/\s+/).filter((w) => w.length > 2));
+        const ownTokens = brandTokensFromTitle(app.title);
+        const compTitles = ((app.asoCache && app.asoCache.data && app.asoCache.data.competitors) || []).map((c) => c.title || '');
+        const compTokens = compTitles.flatMap(brandTokensFromTitle);
         if ([...ownTokens, ...compTokens].some((t) => wordMatch(kw, t))) return 'Brand + Comp';
         for (const rule of CATEGORY_RULES) {
           if (rule.patterns.some((p) => wordMatch(kw, p))) return rule.name;
