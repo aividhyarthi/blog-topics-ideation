@@ -5,6 +5,8 @@ import {
   CATEGORY_WEIGHTS, CATEGORY_LABEL, PAGE_TYPE_LABEL,
   type LlmScores, type PageFacts, type Category, type PromptCoverage, type PageType,
 } from '../../lib/aeo';
+import { getUser } from '../../lib/auth';
+import { saveAudit } from '../../lib/audits';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -183,7 +185,8 @@ async function judgeAnthropic(prompt: string, key: string): Promise<string> {
   return message.content[0]?.type === 'text' ? message.content[0].text : '';
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async (ctx) => {
+  const { request } = ctx;
   let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string; pageType?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
@@ -273,19 +276,25 @@ export const POST: APIRoute = async ({ request }) => {
   const visibility = buildVisibility(facts, crawl);
   const report = buildReport(auto, ai, category, prompts, llmScores.summary, llmScores.engines, crawl, visibility);
 
-  return json({
-    report,
-    meta: {
-      mode: isUrl ? 'url' : 'pasted', url: inputUrl || null, host: host || null, brand: brand || null,
-      category, categoryLabel: CATEGORY_LABEL[category], categoryWeights: CATEGORY_WEIGHTS[category],
-      pageType: facts.pageType, pageTypeLabel: PAGE_TYPE_LABEL[facts.pageType],
-      detectedPageType: facts.detectedPageType, pageTypeAuto: pageTypeChoice === 'auto',
-      wordCount: facts.wordCount, schemaTypes: facts.schemaTypes,
-      detectedIntent: llmScores.detectedIntent || null, suggestedCategory: llmScores.suggestedCategory || null,
-      judge: judge || null,
-      // Fallback prompt set for Verify when the AI judge produced none (no key).
-      fallbackPrompts: prompts.length ? [] : deterministicPrompts(facts, target, topic),
-      fetchNote, aiError,
-    },
-  });
+  const meta = {
+    mode: isUrl ? 'url' : 'pasted', url: inputUrl || null, host: host || null, brand: brand || null,
+    category, categoryLabel: CATEGORY_LABEL[category], categoryWeights: CATEGORY_WEIGHTS[category],
+    pageType: facts.pageType, pageTypeLabel: PAGE_TYPE_LABEL[facts.pageType],
+    detectedPageType: facts.detectedPageType, pageTypeAuto: pageTypeChoice === 'auto',
+    wordCount: facts.wordCount, schemaTypes: facts.schemaTypes,
+    detectedIntent: llmScores.detectedIntent || null, suggestedCategory: llmScores.suggestedCategory || null,
+    judge: judge || null,
+    // Fallback prompt set for Verify when the AI judge produced none (no key).
+    fallbackPrompts: prompts.length ? [] : deterministicPrompts(facts, target, topic),
+    fetchNote, aiError,
+  };
+
+  // Save to the user's history if signed in (best-effort — never blocks the response).
+  let savedId: string | null = null;
+  try {
+    const user = await getUser(ctx);
+    if (user) savedId = await saveAudit(user.id, report, meta);
+  } catch { /* ignore persistence errors */ }
+
+  return json({ report, meta: { ...meta, savedId } });
 };

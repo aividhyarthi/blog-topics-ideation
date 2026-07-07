@@ -42,6 +42,35 @@
       .navmeta { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-weight: 500; }
       .navmeta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
       @media (max-width: 560px) { .navmeta .hidesm { display: none; } }
+      .acct { display: flex; align-items: center; gap: 8px; margin-left: 14px; }
+      .acct-btn { font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; border-radius: 9px; padding: 7px 13px; border: 1px solid var(--line-2); background: #fff; color: var(--ink-2); transition: .15s; }
+      .acct-btn:hover { border-color: var(--pink); color: var(--pink); }
+      .acct-btn.solid { background: var(--ink); color: #fff; border-color: var(--ink); }
+      .acct-btn.solid:hover { background: var(--pink-dark); border-color: var(--pink-dark); color: #fff; }
+      .acct-email { font-size: 12px; color: var(--muted); font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      @media (max-width: 560px) { .acct-email { display: none; } }
+
+      .modal { position: fixed; inset: 0; z-index: 100; background: rgba(20,20,40,.42); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+      .modal-card { background: #fff; border-radius: 18px; width: 100%; max-width: 420px; padding: 26px; box-shadow: 0 24px 64px -24px rgba(20,20,50,.5); position: relative; max-height: 88vh; overflow-y: auto; }
+      .modal-x { position: absolute; top: 14px; right: 16px; border: none; background: none; font-size: 24px; line-height: 1; color: var(--faint); cursor: pointer; }
+      .modal-x:hover { color: var(--ink); }
+      .modal h3 { margin: 0 0 4px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+      .modal .msub { margin: 0 0 18px; font-size: 13px; color: var(--muted); }
+      .modal label.fld { margin-top: 12px; }
+      .modal .primary { width: 100%; justify-content: center; margin-top: 18px; }
+      .modal-switch { margin-top: 15px; font-size: 12.5px; color: var(--muted); text-align: center; }
+      .modal-switch a { color: var(--pink-dark); font-weight: 700; cursor: pointer; }
+      .modal-err { margin-top: 14px; padding: 10px 12px; border-radius: 9px; font-size: 12.5px; background: var(--bad-bg); color: #b3261e; border: 1px solid #f6c9c6; display: none; }
+      .hist-list { display: grid; gap: 8px; margin-top: 6px; }
+      .hist-item { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; cursor: pointer; background: #fff; transition: .15s; text-align: left; width: 100%; font-family: inherit; }
+      .hist-item:hover { border-color: var(--pink); box-shadow: var(--shadow); }
+      .hist-score { font-weight: 800; font-size: 15px; min-width: 38px; text-align: center; }
+      .hist-main { flex: 1; min-width: 0; }
+      .hist-host { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .hist-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+      .hist-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 20px; }
+      .savednote { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ok); }
+      .savednote svg { width: 13px; height: 13px; }
 
       /* ---- hero ---- */
       .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); background:
@@ -376,6 +405,15 @@
           CiteRank
         </div>
         <div class="navmeta"><span class="dot"></span><span>AI-powered</span><span class="hidesm">· By Rudra Kasturi Inc</span></div>
+        <div id="acct" class="acct"></div>
+      </div>
+    </div>
+
+    <!-- Auth + history overlay -->
+    <div class="modal" id="modal" style="display:none">
+      <div class="modal-card">
+        <button class="modal-x" id="modalx" aria-label="Close">&times;</button>
+        <div id="modal-body"></div>
       </div>
     </div>
 
@@ -688,7 +726,7 @@
           </div>
           ${hero}
           ${crawlBanner}
-          <div class="resbar"><button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
+          <div class="resbar">${m.savedId ? `<span class="savednote" style="margin-right:auto">${IC.check} Saved to your history</span>` : (ACCOUNTS && !USER ? `<span class="savednote" style="margin-right:auto;color:var(--muted)"><a id="savesignin" style="color:var(--pink-dark);font-weight:700;cursor:pointer">Sign in</a> to save this audit to your history</span>` : '')}<button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
           ${visibilityPanel}
           ${enginesPanel}
           ${verifyPanel}
@@ -708,6 +746,8 @@
         if (copyBtn) copyBtn.addEventListener('click', () => copyReport(r, m));
         const pdfBtn = $('pdfbtn');
         if (pdfBtn) pdfBtn.addEventListener('click', () => window.print());
+        const ssi = $('savesignin');
+        if (ssi) ssi.addEventListener('click', () => openAuth('login'));
 
         const verifyBtn = $('verifybtn');
         if (verifyBtn) verifyBtn.addEventListener('click', () => runVerify(r, m, verifyPrompts, verifyBtn));
@@ -881,6 +921,81 @@
         } catch { /* stay hidden if the probe fails */ }
       }
       checkHealth();
+
+      // ---- accounts + saved-audit history ----
+      let USER = null, ACCOUNTS = false;
+      async function refreshAuth() {
+        try { const d = await (await fetch('/api/auth/me')).json(); ACCOUNTS = !!d.accountsEnabled; USER = d.user; }
+        catch { ACCOUNTS = false; USER = null; }
+        renderAcct();
+      }
+      function renderAcct() {
+        const el = $('acct'); if (!el) return;
+        if (!ACCOUNTS) { el.innerHTML = ''; return; }
+        if (USER) {
+          el.innerHTML = `<span class="acct-email">${esc(USER.email)}</span><button class="acct-btn" id="myaudits">My audits</button><button class="acct-btn" id="signout">Sign out</button>`;
+          $('myaudits').onclick = showAudits; $('signout').onclick = signOut;
+        } else {
+          el.innerHTML = `<button class="acct-btn solid" id="signin">Sign in</button>`;
+          $('signin').onclick = () => openAuth('login');
+        }
+      }
+      function openModal(html) { $('modal-body').innerHTML = html; $('modal').style.display = 'flex'; }
+      function closeModal() { $('modal').style.display = 'none'; }
+      $('modalx').onclick = closeModal;
+      $('modal').addEventListener('click', (e) => { if (e.target === $('modal')) closeModal(); });
+
+      function openAuth(mode) {
+        const isLogin = mode === 'login';
+        openModal(`
+          <h3>${isLogin ? 'Welcome back' : 'Create your account'}</h3>
+          <p class="msub">${isLogin ? 'Sign in to see your saved audits and history.' : 'Save every audit and build a history you can track over time.'}</p>
+          <label class="fld" for="au-email">Email</label>
+          <input id="au-email" type="email" placeholder="you@company.com" autocomplete="email" />
+          <label class="fld" for="au-pw">Password</label>
+          <input id="au-pw" type="password" placeholder="${isLogin ? 'Your password' : 'At least 8 characters'}" autocomplete="${isLogin ? 'current-password' : 'new-password'}" />
+          <div class="modal-err" id="au-err"></div>
+          <button class="primary" id="au-go">${isLogin ? 'Sign in' : 'Create account'}</button>
+          <div class="modal-switch">${isLogin ? 'New here? <a id="au-switch">Create an account</a>' : 'Have an account? <a id="au-switch">Sign in</a>'}</div>
+        `);
+        $('au-go').onclick = () => submitAuth(mode);
+        $('au-switch').onclick = () => openAuth(isLogin ? 'signup' : 'login');
+        $('au-pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(mode); });
+        $('au-email').focus();
+      }
+      async function submitAuth(mode) {
+        const email = $('au-email').value.trim(), pw = $('au-pw').value;
+        const err = $('au-err'); err.style.display = 'none';
+        const btn = $('au-go'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Please wait…';
+        const reset = () => { btn.disabled = false; btn.textContent = mode === 'login' ? 'Sign in' : 'Create account'; };
+        try {
+          const res = await fetch('/api/auth/' + (mode === 'login' ? 'login' : 'signup'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pw }) });
+          const d = await res.json();
+          if (!res.ok) { err.textContent = d.error || 'Something went wrong.'; err.style.display = 'block'; reset(); return; }
+          closeModal(); await refreshAuth(); showToast(mode === 'login' ? 'Signed in' : 'Account created — welcome!');
+        } catch { err.textContent = 'Network error. Try again.'; err.style.display = 'block'; reset(); }
+      }
+      async function signOut() { try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {} await refreshAuth(); showToast('Signed out'); }
+
+      async function showAudits() {
+        openModal('<h3>Your audits</h3><p class="msub">Click any audit to reload it.</p><div class="hist-list" id="hist"><div class="hist-empty">Loading…</div></div>');
+        try {
+          const d = await (await fetch('/api/audits')).json();
+          const list = d.audits || [], box = $('hist');
+          if (!list.length) { box.innerHTML = '<div class="hist-empty">No saved audits yet. Run an audit while signed in and it will appear here.</div>'; return; }
+          box.innerHTML = list.map((a) => {
+            const col = hexFor(a.overall);
+            const when = a.createdAt ? new Date(a.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : '';
+            return `<button class="hist-item" data-id="${a.id}"><span class="hist-score" style="color:${col}">${a.overall == null ? '–' : a.overall}</span><span class="hist-main"><span class="hist-host">${esc(a.host || a.url || 'Pasted content')}</span><span class="hist-meta">${esc(a.pageType || '')}${a.grade ? ' · ' + esc(a.grade) : ''}${when ? ' · ' + when : ''}</span></span></button>`;
+          }).join('');
+          box.querySelectorAll('.hist-item').forEach((b) => { b.onclick = () => loadAudit(b.dataset.id); });
+        } catch { $('hist').innerHTML = '<div class="hist-empty">Could not load your audits.</div>'; }
+      }
+      async function loadAudit(id) {
+        try { const d = await (await fetch('/api/audits/' + id)).json(); if (d.report) { closeModal(); render({ report: d.report, meta: d.meta }); } }
+        catch {}
+      }
+      refreshAuth();
     </script>
   </body>
 </html>
