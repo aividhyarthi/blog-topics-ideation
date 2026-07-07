@@ -35,11 +35,17 @@ export interface TrackedApp {
   keywords: string[];
   addedAt: string;
   annotations?: Annotation[];
-  /** The FULL keyword universe the owner cares about (up to 300) — separate
-   * from `keywords` (the plan-limited subset checked daily). Checked
-   * on-demand via "Check coverage now" so cost/time stays bounded; each
-   * check builds one more point in the coverage trend. */
+  /** The FULL keyword universe the owner cares about (up to 2000) — separate
+   * from `keywords` (the plan-limited subset checked daily). Checked by the
+   * nightly cron once the list is large; the on-demand button is only
+   * practical for smaller lists. */
   coverageKeywords?: string[];
+  /** User-supplied search volume per keyword (lowercased keyword -> volume),
+   * pasted alongside the keyword itself (e.g. from a keyword-research
+   * spreadsheet) — distinct from the automatic Google Trends proxy used in
+   * keyword discovery. Keyed by keyword text so it survives independent of
+   * which list (tracked vs coverage) that keyword happens to be in. */
+  keywordVolumes?: Record<string, number>;
 }
 
 export interface TrackerConfig {

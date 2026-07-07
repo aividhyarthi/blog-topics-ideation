@@ -8,12 +8,13 @@
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
 import { loadConfig } from '../src/lib/rank/store';
-import { runCheck } from '../src/lib/rank/check';
+import { runCheck, checkCoverage } from '../src/lib/rank/check';
 import { checkAccess } from '../src/lib/saas/plans';
 import type { SearchHit } from '../src/lib/rank/fetch';
 
 const cache = new Map<string, SearchHit[]>();
 let checkedApps = 0;
+let checkedCoverage = 0;
 
 async function checkTenant(label: string, userId?: string) {
   const cfg = loadConfig(userId);
@@ -24,6 +25,21 @@ async function checkTenant(label: string, userId?: string) {
     console.log(`  [${label}] ${app.key}: ${ranked}/${app.keywords.length} keywords ranked${app.error ? ` · ${app.error}` : ''}`);
   }
   checkedApps += cfg.apps.length;
+
+  // Coverage lists (up to 2000 keywords) run here rather than on-demand from
+  // the UI — a synchronous HTTP request has no realistic chance of finishing
+  // a check that large before the connection times out, but a scheduled cron
+  // process has no such deadline.
+  for (const app of cfg.apps) {
+    if (!(app.coverageKeywords || []).length) continue;
+    try {
+      await checkCoverage(app, userId);
+      console.log(`  [${label}] ${app.key}: coverage check done (${app.coverageKeywords!.length} keywords)`);
+      checkedCoverage++;
+    } catch (e) {
+      console.error(`  [${label}] ${app.key}: coverage check failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 }
 
 // Internal single-tenant workspace (no-op if it has no apps).
@@ -41,4 +57,6 @@ try {
   console.error(`User database unavailable (internal-only deployment?): ${e instanceof Error ? e.message : String(e)}`);
 }
 
-console.log(checkedApps ? `Done — checked ${checkedApps} app(s).` : 'Nothing to check yet.');
+console.log(checkedApps
+  ? `Done — checked ${checkedApps} app(s)${checkedCoverage ? `, ${checkedCoverage} coverage list(s)` : ''}.`
+  : 'Nothing to check yet.');

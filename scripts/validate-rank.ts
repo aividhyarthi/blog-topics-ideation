@@ -2,6 +2,7 @@
 // no network needed, so this runs anywhere: npx tsx scripts/validate-rank.ts
 import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, RANK_BUCKETS } from '../src/lib/rank/track';
 import { parseAppInput } from '../src/lib/rank/fetch';
+import { parseKeywordsWithVolumes } from '../src/lib/rank/keywords';
 import type { RankSnapshot, TrackedApp } from '../src/lib/rank/types';
 
 let failures = 0;
@@ -19,6 +20,22 @@ eq('ios url with country', parseAppInput('https://apps.apple.com/in/app/whatsapp
 eq('ios url no country', parseAppInput('https://apps.apple.com/app/id310633997'), { store: 'ios', appId: '310633997', country: undefined });
 eq('ios bare id', parseAppInput('id310633997'), { store: 'ios', appId: '310633997' });
 eq('garbage', parseAppInput('not an app'), null);
+
+// --- parseKeywordsWithVolumes -------------------------------------------------
+eq('tab-separated keyword+volume (spreadsheet paste)', parseKeywordsWithVolumes('photo editor\t5400\ncollage maker\t1200', 60),
+  { keywords: ['photo editor', 'collage maker'], volumes: { 'photo editor': 5400, 'collage maker': 1200 } });
+eq('comma keyword+volume', parseKeywordsWithVolumes('photo editor, 5400\ncollage maker, 1,200', 60),
+  { keywords: ['photo editor', 'collage maker'], volumes: { 'photo editor': 5400, 'collage maker': 1200 } });
+eq('back-compat: comma-separated keywords on one line, no volume', parseKeywordsWithVolumes('kw1, kw2, kw3', 60),
+  { keywords: ['kw1', 'kw2', 'kw3'], volumes: {} });
+eq('back-compat: one keyword per line, no volume', parseKeywordsWithVolumes('photo editor\ncollage maker', 60),
+  { keywords: ['photo editor', 'collage maker'], volumes: {} });
+eq('mixed: some lines with volume, some without', parseKeywordsWithVolumes('photo editor\t5400\nplain keyword', 60),
+  { keywords: ['photo editor', 'plain keyword'], volumes: { 'photo editor': 5400 } });
+eq('dedupes case-insensitively, keeps first volume seen', parseKeywordsWithVolumes('Photo Editor\t100\nphoto editor\t999', 60),
+  { keywords: ['photo editor'], volumes: { 'photo editor': 100 } });
+eq('respects max cap', parseKeywordsWithVolumes('a\nb\nc\nd', 2).keywords, ['a', 'b']);
+eq('empty input', parseKeywordsWithVolumes('', 60), { keywords: [], volumes: {} });
 
 // --- findPosition / keywordRank ---------------------------------------------
 const hits = [{ appId: 'a', title: 'A' }, { appId: 'b', title: 'B' }, { appId: 'c', title: 'C' }, { appId: 'd', title: 'D' }];

@@ -12,6 +12,7 @@ import { loadConfig, saveConfig, loadSnapshots, loadCoverageSnapshots, ConfigRea
 import { runCheck, checkOne, checkCoverage } from '../../lib/rank/check';
 import { discoverKeywords } from '../../lib/rank/discover';
 import type { Annotation, TrackedApp } from '../../lib/rank/types';
+import { parseKeywordsWithVolumes } from '../../lib/rank/keywords';
 import { randomUUID } from 'node:crypto';
 
 const json = (data: unknown, status = 200) =>
@@ -22,9 +23,11 @@ import type { APIContext } from 'astro';
 
 // Internal (single-tenant) limits; product mode limits come from the user's plan.
 const INTERNAL_LIMITS = { maxApps: 15, maxKeywordsPerApp: 60 };
-// Coverage list is a flat cap independent of plan — it's not checked daily,
-// so it doesn't carry the same per-check cost as the plan-limited keywords.
-const MAX_COVERAGE_KEYWORDS = 300;
+// Coverage list is a flat cap independent of plan. At this size it's checked
+// by the daily cron (scripts/rank-check.ts), not the on-demand button — a
+// synchronous HTTP request has no realistic chance of finishing 2000 keyword
+// searches before the connection times out.
+const MAX_COVERAGE_KEYWORDS = 2000;
 
 /** Who is asking, and what are they allowed? */
 function tenant(locals: APIContext['locals']) {
@@ -44,15 +47,6 @@ async function checkAfterEdit(app: TrackedApp, userId?: string): Promise<string 
   if (!app.keywords.length) return undefined;
   try { await checkOne(app, userId); return undefined; }
   catch (e) { return `Keywords saved, but the rank check failed: ${e instanceof Error ? e.message : String(e)}`; }
-}
-
-function parseKeywords(blob: unknown, max: number): string[] {
-  return String(blob || '')
-    .split(/[\n,]+/)
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean)
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .slice(0, max);
 }
 
 /** Everything the UI needs in one payload. */
@@ -142,6 +136,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     try { meta = await fetchAppMeta(parsed.store, parsed.appId, country, lang); }
     catch (e) { metaError = e instanceof Error ? e.message : String(e); }
 
+    const parsedKw = parseKeywordsWithVolumes(body.keywords, maxKeywords);
     const app: TrackedApp = {
       key, store: parsed.store, appId: meta?.appId || parsed.appId, country, lang,
       title: meta?.title || parsed.appId,
@@ -149,7 +144,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       icon: meta?.icon || null,
       url: meta?.url || null,
       genreId: meta?.genreId || null,
-      keywords: parseKeywords(body.keywords, maxKeywords),
+      keywords: parsedKw.keywords,
+      keywordVolumes: parsedKw.volumes,
       addedAt: new Date().toISOString(),
     };
     cfg.apps.push(app);
@@ -170,10 +166,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'set-keywords' || action === 'add-keywords') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
-    const incoming = parseKeywords(body.keywords, maxKeywords);
+    const incoming = parseKeywordsWithVolumes(body.keywords, maxKeywords);
     app.keywords = action === 'add-keywords'
-      ? [...app.keywords, ...incoming.filter((k) => !app.keywords.includes(k))].slice(0, maxKeywords)
-      : incoming;
+      ? [...app.keywords, ...incoming.keywords.filter((k) => !app.keywords.includes(k))].slice(0, maxKeywords)
+      : incoming.keywords;
+    app.keywordVolumes = { ...(app.keywordVolumes || {}), ...incoming.volumes };
     saveConfig(cfg, userId);
     const checkError = await checkAfterEdit(app, userId);
     return json({ ok: true, checkError, ...statePayload(userId) });
@@ -193,7 +190,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'set-coverage-keywords') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
-    app.coverageKeywords = parseKeywords(body.keywords, MAX_COVERAGE_KEYWORDS);
+    const parsedCov = parseKeywordsWithVolumes(body.keywords, MAX_COVERAGE_KEYWORDS);
+    app.coverageKeywords = parsedCov.keywords;
+    app.keywordVolumes = { ...(app.keywordVolumes || {}), ...parsedCov.volumes };
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });
   }

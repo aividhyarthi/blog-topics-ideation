@@ -305,11 +305,12 @@ ai photo enhancer"></textarea>
       let selectedAppKey = null;
       let tabFilter = '';
       const sortState = {};
-      const MAX_COVERAGE = 300;
+      const MAX_COVERAGE = 2000;
       function sortVal(t, col) {
         if (col === 'pos') return t.position;
         if (col === 'best') return t.best;
         if (col === 'delta') return t.delta;
+        if (col === 'volume') return t.volume;
         return null;
       }
       // key -> { status: 'loading'|'done'|'error', data?, error? } — best-effort
@@ -639,7 +640,8 @@ ai photo enhancer"></textarea>
           ? `<img class="icon" src="${escAttr(app.icon)}" alt="" />`
           : `<div class="fallback-icon">${app.store === 'play' ? '🤖' : ''}</div>`;
         const sort = sortState[app.key] || {};
-        const trends = (app.trends || []).slice();
+        const volumes = app.keywordVolumes || {};
+        const trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null }));
         if (sort.col) {
           trends.sort((a, b) => {
             const av = sortVal(a, sort.col), bv = sortVal(b, sort.col);
@@ -657,12 +659,13 @@ ai photo enhancer"></textarea>
             <td class="pos">${posCell(t)}</td>
             <td>${deltaCell(t)}</td>
             <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
+            <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
             <td>${spark(t.history || [])}</td>
             <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
         const table = (app.keywords || []).length
           ? `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
-              <thead><tr><th>Keyword</th>${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
+              <thead><tr><th>Keyword</th>${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('volume', 'Volume')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
               <tbody>${rows}</tbody>
             </table></div>`
           : '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>';
@@ -686,7 +689,7 @@ ai photo enhancer"></textarea>
             </div>
           </div>
           <div class="kwedit no-print" data-role="kwedit">
-            <p class="hint" style="margin:10px 0 6px;">One keyword per line (or comma-separated). Saving re-checks this app's rankings right away.</p>
+            <p class="hint" style="margin:10px 0 6px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line — the volume shows up in the Volume column below. Saving re-checks this app's rankings right away.</p>
             <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
@@ -705,7 +708,7 @@ ai photo enhancer"></textarea>
             </div>
           </div>
           <div class="kwedit no-print" data-role="covedit">
-            <p class="hint" style="margin:10px 0 6px;">Paste your FULL keyword universe here — up to ${MAX_COVERAGE} — separate from the keywords list above (which is checked daily and capped by your plan). This list is only checked when you click <b>Check coverage now</b>, so paste as many as you like and check it every few days to see coverage growing or dropping over time.</p>
+            <p class="hint" style="margin:10px 0 6px;">Paste your FULL keyword universe here — up to ${MAX_COVERAGE} — separate from the keywords list above (which is checked daily and capped by your plan). Straight from a spreadsheet with a volume column works too, same format as above. Lists over ~100 keywords are picked up by the nightly check automatically (large lists can take a while to run, so the "Check coverage now" button below is best for smaller lists you want checked right away).</p>
             <textarea data-role="covtext" placeholder="One keyword per line or comma-separated — up to ${MAX_COVERAGE}">${esc((app.coverageKeywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-coverage">Save coverage list</button>
@@ -857,13 +860,18 @@ ai photo enhancer"></textarea>
         if (act === 'save-coverage') {
           withBusy(btn, 'Saving…', async () => {
             const data = await api({ action: 'set-coverage-keywords', key, keywords: card.querySelector('[data-role="covtext"]').value });
-            showToast('Coverage list saved — click "Check coverage now" to run the first check');
+            const n = (card.querySelector('[data-role="covtext"]').value.match(/[^\n,]+/g) || []).length;
+            showToast(n > 100
+              ? 'Coverage list saved — the nightly check will pick this up automatically (it’s too large to run instantly from this button)'
+              : 'Coverage list saved — click "Check coverage now" to run the first check');
             return data;
           });
           return;
         }
         if (act === 'check-coverage') {
-          withBusy(btn, 'Checking full coverage list… this can take a few minutes for large lists', () => api({ action: 'check-coverage', key }));
+          const n = (app.coverageKeywords || []).length;
+          if (n > 100 && !confirm(`This list has ${n} keywords — checking them all now could take a long time and may time out in the browser. The nightly check will run it automatically regardless. Run it now anyway?`)) return;
+          withBusy(btn, 'Checking full coverage list… this can take a while for large lists', () => api({ action: 'check-coverage', key }));
           return;
         }
         if (act === 'add-annotation') { card.querySelector('[data-role="annedit"]').classList.toggle('open'); return; }
