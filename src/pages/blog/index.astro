@@ -8,7 +8,7 @@
 // just gets redirected straight to /rank by those pages themselves.
 export const prerender = true;
 import { getCollection } from 'astro:content';
-import { BRAND } from '../../lib/saas/plans';
+import { BRAND, SITE_URL } from '../../lib/saas/plans';
 import AdSenseMeta from '../../components/AdSenseMeta.astro';
 import AdSenseScript from '../../components/AdSenseScript.astro';
 import BlogSidebar from '../../components/BlogSidebar.astro';
@@ -30,6 +30,12 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
     <AdSenseScript />
     <title>{BRAND} Blog — ASO &amp; App Ranking Guides</title>
     <meta name="description" content={`Practical, no-fluff guides on App Store Optimization, keyword research, and app ranking on Google Play and the App Store — from the team behind ${BRAND}.`} />
+    <link rel="canonical" href={`${SITE_URL}/blog`} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={`${BRAND} Blog — ASO & App Ranking Guides`} />
+    <meta property="og:description" content={`Practical, no-fluff guides on App Store Optimization, keyword research, and app ranking on Google Play and the App Store.`} />
+    <meta property="og:url" content={`${SITE_URL}/blog`} />
+    <meta name="twitter:card" content="summary" />
     <style>
       :root { --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }
       * { box-sizing: border-box; }

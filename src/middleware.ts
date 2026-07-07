@@ -31,9 +31,9 @@ if (process.env.PRODUCT_MODE) {
 // directly. See src/pages/api/cron/rank-check.ts.
 // /blog is public content marketing — must be reachable (and crawlable by
 // search engines) without a login, same as /about.
-const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/blog', '/api/auth/', '/api/cron/', '/_astro/', '/favicon', '/robots'];
+const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/blog', '/api/auth/', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.
-const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/cron/', '/_astro/', '/favicon', '/robots'];
+const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms'];
 // The two paid tools — gated on a live trial/subscription (checked below).
 const PAID_TOOL_PREFIXES = ['/rank', '/api/rank', '/aso', '/api/aso', '/api/aso-variants'];
 

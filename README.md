@@ -226,10 +226,21 @@ site becomes the product:
   (no login) on both deployments. Posts are markdown files in
   `src/content/blog/` (schema in `src/content/config.ts`) — add a new post by
   adding a new `.md` file there with `title`/`description`/`theme`/
-  `publishDate` frontmatter; no CMS or redeploy-triggering database involved.
-  Pages are prerendered at build time (fast, crawlable), so a new post needs a
-  redeploy to go live. Grouped into themes with a client-side filter on the
-  index page.
+  `publishDate` frontmatter, plus an optional `faqs: [{question, answer}]`
+  list for posts that suit a Q&A section; no CMS or redeploy-triggering
+  database involved. Pages are prerendered at build time (fast, crawlable),
+  so a new post needs a redeploy to go live. Grouped into themes with a
+  client-side filter on the index page.
+- **SEO / AEO** — every post gets a canonical link, Open Graph + Twitter
+  meta tags, and `BlogPosting` JSON-LD; posts with `faqs` frontmatter also
+  emit `FAQPage` JSON-LD and render the questions on the page (the
+  direct-answer format AI Overviews/LLM citations tend to favor). `/sitemap.xml`,
+  `/robots.txt`, and `/llms.txt` (the emerging LLM-crawler site-summary
+  convention) are generated from the same content collection so they never
+  drift out of sync with the actual post list. `robots.txt` explicitly
+  allows all crawlers, including AI ones (GPTBot, ClaudeBot,
+  Google-Extended, PerplexityBot) — the point of this content is to get
+  cited. All of these use `SITE_URL` (below) to build absolute URLs.
 - **Google AdSense** — `src/components/AdSlot.astro` renders one ad unit,
   wired up on the blog (index + posts), the bottom of the Rank Tracker
   dashboard, the bottom of the ASO Inspector, and the Account page — see the
@@ -286,6 +297,7 @@ site becomes the product:
 | `ADSENSE_SLOT_RANK` | for ads | Ad unit id shown at the bottom of the Rank Tracker dashboard. |
 | `ADSENSE_SLOT_ASO` | for ads | Ad unit id shown at the bottom of the ASO Inspector report. |
 | `ADSENSE_SLOT_FOOTER` | for ads | Ad unit id shown on the Account page. |
+| `SITE_URL` | for SEO | Your production domain, no trailing slash (e.g. `https://apprankr.com`). Used to build absolute URLs in canonical/OG tags, JSON-LD, `sitemap.xml`, and `llms.txt`. Defaults to a placeholder — set this to your real domain once you know it. |
 
 ## WBR Builder (`/wbr`) — weekly AI-visibility report from SEMrush exports
 

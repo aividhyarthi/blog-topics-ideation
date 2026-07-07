@@ -31,6 +31,15 @@ export const ADSENSE_SLOTS = {
   footer: process.env.ADSENSE_SLOT_FOOTER || '',
 };
 
+/**
+ * Absolute base URL of the live site — used for canonical links, Open Graph
+ * tags, JSON-LD, sitemap.xml and llms.txt, all of which need a real domain
+ * rather than a relative path. Set SITE_URL in Railway to your production
+ * domain (e.g. https://apprankr.com, no trailing slash); this placeholder
+ * is only a local-dev fallback.
+ */
+export const SITE_URL = (process.env.SITE_URL || 'https://apprankr.com').replace(/\/$/, '');
+
 export type PlanId = 'starter' | 'pro';
 
 export interface Plan {
