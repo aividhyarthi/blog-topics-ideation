@@ -66,6 +66,7 @@ export interface AeoReport {
   domainContext: Signal[]; // off-page, NOT in the score
   crawlability: Signal[]; // can AI bots reach the page? site-wide, NOT in the score
   crawlBlocked: boolean; // true if a primary answer-engine crawler is blocked
+  visibility: Visibility | null; // User vs Googlebot vs LLM: can LLMs read this page?
   promptCoverage: PromptCoverage[];
   topFixes: { label: string; severity: SignalStatus; fix: string; pillar: PillarId | 'domain'; gain: number; tag: 'quick' | 'high' | 'offpage' }[];
   engines: EngineScores | null; // per-engine estimated citation likelihood
@@ -145,7 +146,7 @@ export interface PageFacts {
   title: string; metaDescription: string; canonical: string; robotsMeta: string;
   headings: Heading[]; h1Count: number;
   wordCount: number; paragraphs: number[]; sentences: number; syllables: number; pronouns: number;
-  lists: number; tables: number; images: number; imagesWithAlt: number;
+  lists: number; tables: number; images: number; imagesWithAlt: number; iframes: number;
   internalLinks: number; externalLinks: number; statistics: number; blockquotes: number; quotedPhrases: number;
   schemaTypes: string[]; hasFaqHeading: boolean; hasTldr: boolean; hasAuthor: boolean;
   datePublished: string; dateModified: string; hasVideo: boolean;
@@ -156,6 +157,10 @@ export interface PageFacts {
   priceCount: number; hasProductSchema: boolean; hasItemList: boolean;
   hasAggregateRating: boolean; hasAddToCart: boolean;
   pageType: PageType; detectedPageType: PageType;
+  // JS-rendering: is the real content in the static HTML, or injected by JS?
+  // (Googlebot renders JS; LLM crawlers do NOT — so JS-injected content is
+  // visible to Google but invisible to ChatGPT/Claude/Perplexity.)
+  framework: string | null; jsDependent: boolean; textRatioPct: number;
 }
 
 // Decide the page type from structural signals (schema first, then heuristics).
@@ -277,6 +282,87 @@ export function crawlabilitySignals(input: CrawlInput): Signal[] {
   return out;
 }
 
+// ---- "Can LLMs access this page?" — User vs Googlebot vs LLM crawlers --------
+// Combines two gates: (1) robots.txt access, and (2) whether the real content is
+// in the static HTML or injected by JavaScript. The crucial asymmetry: Googlebot
+// renders JS, LLM crawlers do not — so JS-injected content is visible to Google
+// but invisible to ChatGPT/Claude/Perplexity.
+export interface VisibilityViewer { who: string; rendersJs: boolean; access: 'ok' | 'partial' | 'blocked'; sees: string }
+// Per-element read-out: for each kind of thing on the page, can an LLM crawler
+// actually read it from the static HTML?
+export interface VisibilityElement { label: string; status: 'read' | 'partial' | 'missed'; detail: string }
+export interface Visibility {
+  applicable: boolean;
+  jsDependent: boolean;
+  framework: string | null;
+  staticWords: number;
+  viewers: VisibilityViewer[];
+  elements: VisibilityElement[];
+  verdict: { level: 'yes' | 'partial' | 'no'; label: string; reason: string };
+}
+
+export function buildVisibility(f: PageFacts, crawl: Signal[]): Visibility {
+  const g = crawl.find((s) => s.id === 'bot_google');
+  const llm = crawl.filter((s) => ['bot_openai', 'bot_anthropic', 'bot_perplexity'].includes(s.id));
+  const googleBlocked = g?.score === 0;
+  const llmBlockedAll = llm.length > 0 && llm.every((s) => s.score === 0);
+  const llmBlockedSome = llm.some((s) => s.score === 0);
+  const invisible = f.jsDependent;
+
+  const viewers: VisibilityViewer[] = [
+    { who: 'A human (browser)', rendersJs: true, access: 'ok',
+      sees: 'The complete page — the browser runs all the JavaScript and shows everything.' },
+    { who: 'Googlebot (Search)', rendersJs: true, access: googleBlocked ? 'blocked' : 'ok',
+      sees: googleBlocked
+        ? 'Nothing — Googlebot is disallowed in robots.txt.'
+        : 'The full page — Googlebot renders JavaScript, so it sees what a human sees.' },
+    { who: 'LLM crawlers (ChatGPT · Claude · Perplexity)', rendersJs: false,
+      access: llmBlockedAll ? 'blocked' : llmBlockedSome ? 'partial' : 'ok',
+      sees: llmBlockedAll
+        ? 'Nothing — their crawlers are disallowed in robots.txt.'
+        : invisible
+          ? 'Almost nothing — they do NOT run JavaScript, and this page’s content is injected by JS. They receive a near-empty shell.'
+          : `The raw HTML, which here holds the real content (${f.wordCount} words) — so they can read it.${llmBlockedSome ? ' But at least one engine is blocked in robots.txt.' : ''}` },
+  ];
+
+  let verdict: Visibility['verdict'];
+  if (llmBlockedAll)
+    verdict = { level: 'no', label: 'No — LLMs are blocked', reason: 'Your robots.txt disallows the LLM answer-engine crawlers, so they can’t fetch this page at all.' };
+  else if (invisible)
+    verdict = { level: 'no', label: 'No — content is invisible to LLMs', reason: `The crawlers can reach the page, but the content is rendered by JavaScript${f.framework ? ` (${f.framework})` : ''}, which they don’t execute. They see an almost-empty shell — Google sees the full page, LLMs don’t. Serve the content in the initial HTML (SSR / prerendering) to fix it.` };
+  else if (llmBlockedSome)
+    verdict = { level: 'partial', label: 'Partly — one engine is blocked', reason: 'The content is in the static HTML and readable, but at least one engine’s crawler is disallowed in robots.txt. Unblock it to be citable everywhere.' };
+  else
+    verdict = { level: 'yes', label: 'Yes — LLMs can read this page', reason: 'The real content is in the static HTML and the crawlers are allowed, so ChatGPT, Claude and Perplexity can read — and cite — this page.' };
+
+  // ---- element-by-element read-out (what an LLM gets from the static HTML) ----
+  const elements: VisibilityElement[] = [];
+  const jsMissed = invisible; // when JS-dependent, text-bearing elements are absent from raw HTML
+
+  elements.push({ label: 'Title & meta', status: f.title ? 'read' : 'missed',
+    detail: f.title ? `Title and meta description are in the HTML.` : 'No <title> found in the static HTML.' });
+  elements.push({ label: `Headings (${f.headings.length})`, status: f.headings.length ? (jsMissed ? 'missed' : 'read') : 'missed',
+    detail: jsMissed ? 'Headings are injected by JavaScript — absent from the raw HTML LLMs receive.' : f.headings.length ? 'All headings are in the static HTML and readable.' : 'No headings in the static HTML.' });
+  elements.push({ label: `Body text (${f.wordCount} words)`, status: jsMissed ? 'missed' : f.wordCount < 150 ? 'partial' : 'read',
+    detail: jsMissed ? 'The body copy is rendered client-side — LLM crawlers get a near-empty shell.' : f.wordCount < 150 ? 'Very little body text in the static HTML.' : 'The body copy is in the static HTML and readable.' });
+  if (f.images)
+    elements.push({ label: `Images (${f.images})`, status: f.imagesWithAlt >= f.images ? 'read' : f.imagesWithAlt ? 'partial' : 'missed',
+      detail: `LLMs read alt text, not pixels — ${f.imagesWithAlt}/${f.images} image(s) have alt text.${f.imagesWithAlt < f.images ? ' The rest are invisible to LLMs.' : ''}` });
+  elements.push({ label: 'Structured data (schema)', status: f.schemaTypes.length ? 'read' : 'missed',
+    detail: f.schemaTypes.length ? `JSON-LD present: ${f.schemaTypes.join(', ')}.` : 'No JSON-LD schema — LLMs get no machine-readable summary.' });
+  if (f.tables || f.lists)
+    elements.push({ label: `Tables & lists (${f.tables + f.lists})`, status: jsMissed ? 'missed' : 'read',
+      detail: jsMissed ? 'Injected by JavaScript — not in the raw HTML.' : 'Structured tables/lists are in the HTML — easy for LLMs to extract.' });
+  if (f.hasVideo)
+    elements.push({ label: 'Video', status: 'missed',
+      detail: 'Video is not watched by crawlers — only a text transcript on the page would be read.' });
+  if (f.iframes)
+    elements.push({ label: `Embedded frames (${f.iframes})`, status: 'missed',
+      detail: 'Content inside <iframe> embeds is not fetched — LLMs can’t read it.' });
+
+  return { applicable: f.isUrl, jsDependent: f.jsDependent, framework: f.framework, staticWords: f.wordCount, viewers, elements, verdict };
+}
+
 function countSyllables(word: string): number {
   const w = word.toLowerCase().replace(/[^a-z]/g, '');
   if (!w) return 0; if (w.length <= 3) return 1;
@@ -320,6 +406,7 @@ export function analyzeHtml(
   const imgTags = bodyHtml.match(/<img\b[^>]*>/gi) || [];
   const images = imgTags.length;
   const imagesWithAlt = imgTags.filter((t) => /\salt=["'][^"']+["']/i.test(t)).length;
+  const iframes = (bodyHtml.match(/<iframe\b/gi) || []).length;
 
   let internalLinks = 0, externalLinks = 0;
   const baseHost = (opts.host || '').replace(/^www\./, '');
@@ -383,17 +470,37 @@ export function analyzeHtml(
   const detectedPageType = detectPageType({ hasItemList, hasProductSchema, hasAddToCart, priceCount });
   const chosen = opts.pageType && opts.pageType !== 'auto' ? opts.pageType : detectedPageType;
 
+  // ---- JS-rendering detection ----
+  // Detect single-page-app shells whose content is injected by JavaScript. Such
+  // pages render fine for a human and for Googlebot (which executes JS) but are
+  // near-empty for LLM crawlers (which fetch raw HTML and do NOT run JS).
+  const textRatio = html.length ? text.length / html.length : 0;
+  const SPA_MARKERS: [string, RegExp][] = [
+    ['Next.js', /__NEXT_DATA__|\/_next\/static/i],
+    ['Nuxt', /window\.__NUXT__|\/_nuxt\//i],
+    ['Gatsby', /___gatsby|page-data\.json/i],
+    ['Angular', /ng-version=|<app-root\b|\sng-app\b/i],
+    ['React', /data-reactroot|id=["']root["'][^>]*>\s*<\/div>/i],
+    ['Vue', /data-v-[0-9a-f]{6,}|id=["']app["'][^>]*>\s*<\/div>/i],
+  ];
+  let framework: string | null = null;
+  for (const [name, re] of SPA_MARKERS) { if (re.test(html)) { framework = name; break; } }
+  // JS-dependent only when the STATIC content is thin. A server-rendered
+  // Next/Nuxt page has plenty of words and is NOT flagged.
+  const jsDependent = Boolean(opts.isUrl) && (wordCount < 120 || (wordCount < 220 && (Boolean(framework) || textRatio < 0.06)));
+
   return {
     isUrl: opts.isUrl, host: opts.host || '', brand: opts.brand || '', topic: opts.topic || '', category: opts.category || 'general',
     title, metaDescription, canonical, robotsMeta, headings, h1Count,
     wordCount, paragraphs, sentences, syllables, pronouns,
-    lists, tables, images, imagesWithAlt, internalLinks, externalLinks, statistics, blockquotes, quotedPhrases,
+    lists, tables, images, imagesWithAlt, iframes, internalLinks, externalLinks, statistics, blockquotes, quotedPhrases,
     schemaTypes: [...schemaTypes], hasFaqHeading, hasTldr, hasAuthor, datePublished, dateModified, hasVideo,
     robotsTxtBlocks: opts.isUrl ? Boolean(opts.robotsTxt && /Disallow:\s*\/\s*$/im.test(opts.robotsTxt)) : null,
     firstWords: words.slice(0, 60).join(' '),
     text: text.slice(0, 9000),
     priceCount, hasProductSchema, hasItemList, hasAggregateRating, hasAddToCart,
     pageType: chosen, detectedPageType,
+    framework, jsDependent, textRatioPct: Math.round(textRatio * 100),
   };
 }
 
@@ -604,7 +711,7 @@ function benchmarkFor(n: number): string {
 
 export function buildReport(
   deterministic: Signal[], llm: Signal[], category: Category, prompts: PromptCoverage[], aiSummary?: string,
-  aiEngines?: LlmScores['engines'], crawl: Signal[] = [],
+  aiEngines?: LlmScores['engines'], crawl: Signal[] = [], visibility: Visibility | null = null,
 ): AeoReport {
   const all = [...deterministic, ...llm];
   const weights = CATEGORY_WEIGHTS[category] || CATEGORY_WEIGHTS.general;
@@ -686,7 +793,7 @@ export function buildReport(
     summary: (aiSummary && aiSummary.trim()) || fallbackSummary,
     benchmark: benchmarkFor(overall),
     citationBand: band,
-    gate: gateFor(overall), pillars, domainContext, crawlability: crawl, crawlBlocked,
+    gate: gateFor(overall), pillars, domainContext, crawlability: crawl, crawlBlocked, visibility,
     promptCoverage: prompts, topFixes,
     engines,
   };

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  analyzeHtml, deterministicSignals, llmSignals, buildReport, crawlabilitySignals,
+  analyzeHtml, deterministicSignals, llmSignals, buildReport, crawlabilitySignals, buildVisibility,
   CATEGORY_WEIGHTS, CATEGORY_LABEL, PAGE_TYPE_LABEL,
   type LlmScores, type PageFacts, type Category, type PromptCoverage, type PageType,
 } from '../../lib/aeo';
@@ -270,7 +270,8 @@ export const POST: APIRoute = async ({ request }) => {
     : [];
   const ai = llmSignals(llmScores, Boolean(target));
   const crawl = crawlabilitySignals({ isUrl, robotsTxt, llmsTxt });
-  const report = buildReport(auto, ai, category, prompts, llmScores.summary, llmScores.engines, crawl);
+  const visibility = buildVisibility(facts, crawl);
+  const report = buildReport(auto, ai, category, prompts, llmScores.summary, llmScores.engines, crawl, visibility);
 
   return json({
     report,
