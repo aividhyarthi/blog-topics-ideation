@@ -3,7 +3,9 @@
 // endpoint ("Check now") and scripts/rank-check.ts (scheduled daily runs).
 import { searchStore, searchDepth, fetchTopChart, fetchAppMeta } from './fetch';
 import { keywordRank, mergeIntoSnapshot, todayKey } from './track';
-import { loadSnapshot, saveSnapshot, loadCoverageSnapshot, saveCoverageSnapshot } from './store';
+import { loadSnapshot, saveSnapshot, loadCoverageSnapshot, saveCoverageSnapshot, appendRatingHistory } from './store';
+import { fetchRecentReviews } from '../aso/fetch';
+import { ratingDistribution } from '../aso/audit';
 import type { AppRankResult, RankSnapshot, TrackedApp } from './types';
 import type { SearchHit } from './fetch';
 
@@ -93,4 +95,17 @@ export async function checkCoverage(app: TrackedApp, userId?: string): Promise<A
   const dateKey = todayKey();
   saveCoverageSnapshot(mergeIntoSnapshot(loadCoverageSnapshot(dateKey, userId), dateKey, [result]), userId);
   return result;
+}
+
+/**
+ * One day's rating-breakdown point (1-2★ share) for the nightly cron. Cheap
+ * and network-only — no Anthropic call — so it can run for every tracked
+ * Play Store app daily without touching the ASO audit's paid AI budget,
+ * building the "1-2★ share over time" trend shown in the dashboard.
+ */
+export async function checkRating(app: TrackedApp, userId?: string): Promise<void> {
+  if (app.store !== 'play') return; // rating breakdown proxy is Play-only today
+  const { reviews } = await fetchRecentReviews(app.appId, app.lang, app.country);
+  const rb = ratingDistribution(reviews);
+  appendRatingHistory(app.key, { dateKey: todayKey(), total: rb.total, negativeShare: rb.negativeShare, tone: rb.tone }, userId);
 }

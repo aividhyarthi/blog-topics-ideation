@@ -8,7 +8,7 @@
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact } from '../../lib/rank/track';
-import { loadConfig, saveConfig, loadSnapshots, loadCoverageSnapshots, ConfigReadError } from '../../lib/rank/store';
+import { loadConfig, saveConfig, loadSnapshots, loadCoverageSnapshots, loadAsoCache, loadRatingHistory, ConfigReadError } from '../../lib/rank/store';
 import { runCheck, checkOne, checkCoverage } from '../../lib/rank/check';
 import { discoverKeywords } from '../../lib/rank/discover';
 import type { Annotation, TrackedApp } from '../../lib/rank/types';
@@ -56,6 +56,8 @@ function statePayload(userId?: string) {
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null;
   const covSnapshots = loadCoverageSnapshots(60, userId);
   const covLatest = covSnapshots.length ? covSnapshots[covSnapshots.length - 1] : null;
+  const asoCache = loadAsoCache(userId);
+  const ratingHistory = loadRatingHistory(userId);
   return {
     apps: cfg.apps.map((app) => {
       const overview = overviewSeries(app, snapshots);
@@ -87,6 +89,8 @@ function statePayload(userId?: string) {
           prevCounts: covPrev ? countsFromBuckets(covPrev.buckets) : null,
           lastCheckedAt: covLatest?.checkedAt || null,
         },
+        asoCache: asoCache[app.key] || null,
+        ratingHistory: ratingHistory[app.key] || [],
         latestResult: latest?.apps.find((a) => a.key === app.key) || null,
       };
     }),

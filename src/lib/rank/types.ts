@@ -52,6 +52,31 @@ export interface TrackerConfig {
   apps: TrackedApp[];
 }
 
+/**
+ * Cached result of a full ASO Inspector audit for a tracked app — includes
+ * the (paid, Anthropic-backed) AI verdict, so this is only ever regenerated
+ * on a real trigger (app added, keywords changed, explicit re-check), never
+ * just from loading/refreshing the page. Keyed by TrackedApp.key.
+ */
+export interface AsoCacheEntry {
+  focusList: string[];
+  data: unknown; // the full /api/aso response (report, ai, app, competitors, ...)
+  checkedAt: string; // ISO timestamp
+}
+export type AsoCache = Record<string, AsoCacheEntry>;
+
+/** One day's rating snapshot for an app — cheap (no AI, no Play reviews
+ * pagination beyond what fetchRecentReviews already does), so this can run
+ * in the nightly cron for every tracked app without touching the ASO
+ * audit's paid AI budget. Powers the "1-2★ share over time" trend. */
+export interface RatingHistoryPoint {
+  dateKey: string; // YYYY-MM-DD
+  total: number;
+  negativeShare: number; // % that are 1-2★
+  tone: 'good' | 'mid' | 'bad' | 'na';
+}
+export type RatingHistory = Record<string, RatingHistoryPoint[]>; // keyed by TrackedApp.key
+
 /** One keyword's result inside a snapshot. */
 export interface KeywordRank {
   keyword: string;

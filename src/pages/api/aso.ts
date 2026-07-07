@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { parseAppId, fetchApp, fetchCompetitors, fetchRecentReviews, type AsoAppData } from '../../lib/aso/fetch';
 import { auditListing, competitorRow, keywordCoverage, keywordGap, keywordMatrix, type AsoReport, type CompetitorRow, type GapKeyword } from '../../lib/aso/audit';
+import { saveAsoCacheEntry } from '../../lib/rank/store';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -137,8 +138,8 @@ Return ONLY valid JSON in EXACTLY this shape (no markdown, no commentary):
 Give ONE focusVerdicts entry for EACH focus keyword listed above (so ${fkList.length || 1} object(s)). Provide 8-12 keywordTargets ranked by opportunity. Keep title ≤30 and shortDescription ≤80 characters — count carefully.`;
 }
 
-export const POST: APIRoute = async ({ request }) => {
-  let body: { url?: string; focusKeyword?: string; competitors?: string; lang?: string; country?: string };
+export const POST: APIRoute = async ({ request, locals }) => {
+  let body: { url?: string; focusKeyword?: string; competitors?: string; lang?: string; country?: string; key?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
   const appId = parseAppId(body.url || '');
@@ -191,7 +192,7 @@ export const POST: APIRoute = async ({ request }) => {
   let compApps: AsoAppData[] = [];
   let competitorErrors: string[] = [];
   try {
-    const { apps, errors } = await fetchCompetitors(appId, competitorIds, lang, country, 4);
+    const { apps, errors } = await fetchCompetitors(appId, competitorIds, lang, country, 4, app.developerId);
     compApps = apps;
     competitorErrors = errors;
   } catch (e) {
@@ -226,7 +227,8 @@ export const POST: APIRoute = async ({ request }) => {
     }
   }
 
-  return json({
+  const checkedAt = new Date().toISOString();
+  const payload = {
     report,
     focusKeyword: evalFocus,
     focusKeywords: evalFocusList,
@@ -244,5 +246,16 @@ export const POST: APIRoute = async ({ request }) => {
     leader: leader ? { title: leader.title, appId: leader.appId, url: leader.url, score: leader.score, installs: leader.installs } : null,
     ai,
     meta: { appId, lang, country, evalFocus, userGaveFocus: Boolean(focusKeyword), competitorErrors, aiError },
-  });
+    checkedAt,
+  };
+
+  // Cache this (paid, AI-backed) result against the tracked app so viewing
+  // the dashboard again later never silently re-triggers the Anthropic call
+  // — only a real trigger (keyword change, explicit re-check) does.
+  if (body.key) {
+    const userId = locals.productMode && locals.user ? locals.user.id : undefined;
+    try { saveAsoCacheEntry(body.key, { focusList: evalFocusList, data: payload, checkedAt }, userId); } catch { /* cache is best-effort */ }
+  }
+
+  return json(payload);
 };

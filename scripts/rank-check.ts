@@ -8,7 +8,7 @@
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
 import { loadConfig } from '../src/lib/rank/store';
-import { runCheck, checkCoverage } from '../src/lib/rank/check';
+import { runCheck, checkCoverage, checkRating } from '../src/lib/rank/check';
 import { checkAccess } from '../src/lib/saas/plans';
 import type { SearchHit } from '../src/lib/rank/fetch';
 
@@ -25,6 +25,14 @@ async function checkTenant(label: string, userId?: string) {
     console.log(`  [${label}] ${app.key}: ${ranked}/${app.keywords.length} keywords ranked${app.error ? ` · ${app.error}` : ''}`);
   }
   checkedApps += cfg.apps.length;
+
+  // Cheap (no-AI) daily rating-breakdown point per app, so the 1-2★ share
+  // trend has a real point every day regardless of whether the (paid,
+  // AI-backed) ASO audit itself was re-run.
+  for (const app of cfg.apps) {
+    try { await checkRating(app, userId); }
+    catch (e) { console.error(`  [${label}] ${app.key}: rating check failed: ${e instanceof Error ? e.message : String(e)}`); }
+  }
 
   // Coverage lists (up to 2000 keywords) run here rather than on-demand from
   // the UI — a synchronous HTTP request has no realistic chance of finishing

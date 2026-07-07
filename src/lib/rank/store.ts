@@ -10,7 +10,7 @@
 // recoverable. See restoreConfigBackups()/listConfigBackups() below.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RankSnapshot, TrackerConfig } from './types';
+import type { AsoCache, RankSnapshot, RatingHistory, TrackerConfig } from './types';
 
 /**
  * Data directory. With no `userId` (the internal single-tenant deployment)
@@ -27,6 +27,8 @@ const safe = (s: string) => s.replace(/[^a-z0-9_-]/gi, '_');
 const configFile = (userId?: string) => join(dataDir(userId), 'config.json');
 const snapFile = (dateKey: string, userId?: string) => join(dataDir(userId), `snap__${safe(dateKey)}.json`);
 const covSnapFile = (dateKey: string, userId?: string) => join(dataDir(userId), `covsnap__${safe(dateKey)}.json`);
+const asoCacheFile = (userId?: string) => join(dataDir(userId), 'aso-cache.json');
+const ratingHistoryFile = (userId?: string) => join(dataDir(userId), 'rating-history.json');
 const MAX_BACKUPS = 20;
 
 /**
@@ -138,4 +140,39 @@ export function loadCoverageSnapshots(limit = 60, userId?: string): RankSnapshot
       try { return JSON.parse(readFileSync(join(dir, f), 'utf8')) as RankSnapshot; } catch { return null; }
     })
     .filter((s): s is RankSnapshot => s !== null);
+}
+
+// --- ASO audit cache — the (paid, AI-backed) ASO Inspector result for a
+// tracked app, keyed by TrackedApp.key. Read on every page load so viewing
+// the dashboard never re-triggers a fresh (costly) audit; only saved after a
+// real, explicit check (see api/aso.ts + api/rank.ts's real-change triggers).
+
+export function loadAsoCache(userId?: string): AsoCache {
+  const p = asoCacheFile(userId);
+  if (!existsSync(p)) return {};
+  try { return JSON.parse(readFileSync(p, 'utf8')) as AsoCache; } catch { return {}; }
+}
+
+export function saveAsoCacheEntry(key: string, entry: AsoCache[string], userId?: string): void {
+  const cache = loadAsoCache(userId);
+  cache[key] = entry;
+  writeFileSync(asoCacheFile(userId), JSON.stringify(cache));
+}
+
+// --- rating history — one cheap (no-AI) point per day per app, so the
+// 1-2★ share can be charted as a trend without touching the ASO audit's
+// paid Anthropic budget. Appended by the nightly cron (scripts/rank-check.ts).
+
+export function loadRatingHistory(userId?: string): RatingHistory {
+  const p = ratingHistoryFile(userId);
+  if (!existsSync(p)) return {};
+  try { return JSON.parse(readFileSync(p, 'utf8')) as RatingHistory; } catch { return {}; }
+}
+
+/** Appends (or replaces same-day) a rating point for `key`, keeping the last `keep` days. */
+export function appendRatingHistory(key: string, point: RatingHistory[string][number], userId?: string, keep = 120): void {
+  const history = loadRatingHistory(userId);
+  const existing = (history[key] || []).filter((p) => p.dateKey !== point.dateKey);
+  history[key] = [...existing, point].sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-keep);
+  writeFileSync(ratingHistoryFile(userId), JSON.stringify(history));
 }

@@ -55,7 +55,7 @@ export function keywordTrends(app: TrackedApp, snapshots: RankSnapshot[], histor
 
 /** Chart position trend (same shape logic as keywords, for the top-chart row). */
 export function chartTrend(app: TrackedApp, snapshots: RankSnapshot[], historyDays = 30): {
-  chart: string | null; position: number | null; delta: number | null; history: (number | null)[];
+  chart: string | null; position: number | null; delta: number | null; history: (number | null)[]; dateKeys: string[];
 } {
   const perSnap = snapshots.map((s) => s.apps.find((a) => a.key === app.key) || null);
   const latest = perSnap.length ? perSnap[perSnap.length - 1] : null;
@@ -67,6 +67,7 @@ export function chartTrend(app: TrackedApp, snapshots: RankSnapshot[], historyDa
     position: cur,
     delta: cur != null && before != null ? before - cur : null,
     history: perSnap.slice(-historyDays).map((r) => r?.topChart?.position ?? null),
+    dateKeys: snapshots.slice(-historyDays).map((s) => s.dateKey),
   };
 }
 

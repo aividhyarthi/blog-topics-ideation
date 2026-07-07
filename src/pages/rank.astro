@@ -160,6 +160,8 @@ const limitsText = product && plan
       .disc-row b { font-variant-numeric: tabular-nums; }
       .asobox { margin-top: 12px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--ink); }
       .asobox.err { background: #fdecec; border-color: #f6c9c6; color: #b3261e; }
+      .asobox.na { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 13px; }
+      .asometa { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--muted); }
       .asorow { display: flex; gap: 12px; align-items: center; }
       .asoscore { font-size: 20px; font-weight: 700; flex-shrink: 0; }
       .asoscore small { font-size: 12px; font-weight: 600; color: var(--muted); }
@@ -448,6 +450,77 @@ ai photo enhancer"></textarea>
         return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
       }
 
+      // Category (top-chart) position trend — top = best rank, same
+      // low-is-good inversion as the per-keyword sparkline.
+      function chartPositionTrend(dateKeys, history) {
+        const known = history.filter((v) => v != null);
+        if (!known.length) return '<p class="hint">No category chart data yet.</p>';
+        const W = 400, H = 170, padL = 34, padB = 18, padT = 8;
+        const plotW = W - padL - 8, plotH = H - padT - padB;
+        const minV = Math.min(...known), maxV = Math.max(...known);
+        const span = Math.max(1, maxV - minV);
+        const x = (i) => padL + (history.length === 1 ? plotW / 2 : (i / (history.length - 1)) * plotW);
+        const y = (v) => padT + ((v - minV) / span) * plotH;
+        let out = '';
+        [minV, maxV].forEach((v) => {
+          out += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - 6}" y2="${y(v).toFixed(1)}" stroke="#e7e8ef" stroke-width="1"/>
+            <text x="${padL - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#898781">#${v}</text>`;
+        });
+        let d = '', started = false;
+        history.forEach((v, i) => {
+          if (v == null) { started = false; return; }
+          d += `${started ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+          started = true;
+        });
+        out += `<path d="${d}" fill="none" stroke="#4338ca" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        const labelEvery = Math.ceil(history.length / 6);
+        history.forEach((v, i) => {
+          if (v == null) return;
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="#4338ca" stroke="#fff" stroke-width="2"/>`;
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(dateKeys[i]))}</div><div class="tt-r"><span>Category rank</span><b>#${v}</b></div>`);
+          const cw = history.length === 1 ? plotW : plotW / (history.length - 1);
+          out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
+          if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#898781">${esc(fmtDay(dateKeys[i]))}</text>`;
+        });
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+      }
+
+      // 1-2★ share trend — one cheap (no-AI) point per nightly check, shows
+      // the ranking-impact risk building over time even between full ASO audits.
+      function ratingTrendChart(history) {
+        const pts = (history || []).map((h) => ({ dateKey: h.dateKey, v: h.tone === 'na' ? null : h.negativeShare }));
+        const known = pts.filter((p) => p.v != null);
+        if (!known.length) return '<p class="hint">Not enough rating history yet — check back after a few nightly checks.</p>';
+        const W = 400, H = 170, padL = 30, padB = 18, padT = 8;
+        const plotW = W - padL - 8, plotH = H - padT - padB;
+        const maxY = Math.max(20, Math.ceil(Math.max(...known.map((p) => p.v)) / 10) * 10);
+        const x = (i) => padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
+        const y = (v) => padT + plotH - (v / maxY) * plotH;
+        let out = '';
+        for (const v of [maxY, maxY / 2]) {
+          out += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - 6}" y2="${y(v).toFixed(1)}" stroke="#e7e8ef" stroke-width="1"/>
+            <text x="${padL - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#898781">${v}%</text>`;
+        }
+        out += `<line x1="${padL}" y1="${(padT + plotH).toFixed(1)}" x2="${W - 6}" y2="${(padT + plotH).toFixed(1)}" stroke="#c3c2b7" stroke-width="1"/>`;
+        let d = '', started = false;
+        pts.forEach((p, i) => {
+          if (p.v == null) { started = false; return; }
+          d += `${started ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)} `;
+          started = true;
+        });
+        out += `<path d="${d}" fill="none" stroke="#c0392b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        const labelEvery = Math.ceil(pts.length / 6);
+        pts.forEach((p, i) => {
+          if (p.v == null) return;
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3" fill="#c0392b" stroke="#fff" stroke-width="2"/>`;
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(p.dateKey))}</div><div class="tt-r"><span>1-2★ share</span><b>${p.v}%</b></div>`);
+          const cw = pts.length === 1 ? plotW : plotW / (pts.length - 1);
+          out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
+          if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#898781">${esc(fmtDay(p.dateKey))}</text>`;
+        });
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+      }
+
       // --- keyword discovery panel -------------------------------------------
       const DISCOVER = {}; // key -> discovery result, shown until tracked/dismissed
 
@@ -492,6 +565,17 @@ ai photo enhancer"></textarea>
         return p.toString();
       }
 
+      // Loads whatever was cached server-side (see api/aso.ts + api/rank.ts's
+      // statePayload) — no network call, so viewing/reloading the dashboard
+      // never silently re-triggers a (paid, Anthropic-backed) ASO audit.
+      function loadAsoFromCache(app) {
+        if (app.store !== 'play') return;
+        if (app.asoCache) ASO_CACHE[app.key] = { status: 'done', data: app.asoCache.data, focusList: app.asoCache.focusList, checkedAt: app.asoCache.checkedAt };
+      }
+
+      // The REAL check — hits /api/aso (and its Anthropic call). Only call
+      // this from an actual change (new app, edited keywords) or an explicit
+      // "Re-check ASO" click, never automatically on page load/reload.
       async function checkAsoFor(app) {
         if (app.store !== 'play' || !app.keywords || !app.keywords.length) return;
         ASO_CACHE[app.key] = { status: 'loading' };
@@ -500,11 +584,11 @@ ai photo enhancer"></textarea>
         try {
           const res = await fetch('/api/aso', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: app.url || app.appId, focusKeyword: focusList.join(', '), country: app.country, lang: app.lang }),
+            body: JSON.stringify({ url: app.url || app.appId, focusKeyword: focusList.join(', '), country: app.country, lang: app.lang, key: app.key }),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'ASO check failed.');
-          ASO_CACHE[app.key] = { status: 'done', data, focusList };
+          ASO_CACHE[app.key] = { status: 'done', data, focusList, checkedAt: data.checkedAt };
         } catch (e) {
           ASO_CACHE[app.key] = { status: 'error', error: e && e.message ? e.message : String(e) };
         }
@@ -514,7 +598,9 @@ ai photo enhancer"></textarea>
       function asoSummaryHtml(app) {
         if (app.store !== 'play') return '';
         const cached = ASO_CACHE[app.key];
-        if (!cached) return '';
+        if (!cached) {
+          return `<div class="asobox na">No ASO check yet for this app. <button class="ghost small" data-act="recheck-aso">Run ASO check</button></div>`;
+        }
         if (cached.status === 'loading') {
           return `<div class="asobox"><span class="spinner" style="border-color:rgba(99,102,241,0.3);border-top-color:var(--pink);"></span>Getting ASO recommendations for your tracked keywords…</div>`;
         }
@@ -527,6 +613,7 @@ ai photo enhancer"></textarea>
         const ratingPill = (rb && (rb.tone === 'bad' || rb.tone === 'mid'))
           ? `<div class="asorating ${rb.tone}">⚠️ ${rb.negativeShare}% of ratings in the last ${rb.windowDays} days are 1-2★ — likely hurting your ranking, not just conversions</div>`
           : '';
+        const lastChecked = cached.checkedAt ? new Date(cached.checkedAt).toLocaleString() : null;
         return `<div class="asobox">
           <div class="asorow">
             <span class="asoscore" style="color:${r.overall >= 80 ? '#0e7a4e' : r.overall >= 60 ? '#c98a00' : '#c0392b'}">${r.overall}<small>/100</small></span>
@@ -536,6 +623,10 @@ ai photo enhancer"></textarea>
             </div>
           </div>
           ${ratingPill}
+          <div class="asometa">
+            ${lastChecked ? `<span>Last checked ${esc(lastChecked)}</span>` : ''}
+            <button class="ghost small" data-act="recheck-aso">Re-check ASO</button>
+          </div>
           <a class="ghost-link" href="${escAttr(link)}" target="_blank" rel="noopener">Open full ASO Inspector report →</a>
         </div>`;
       }
@@ -545,6 +636,13 @@ ai photo enhancer"></textarea>
         if (!ov || !ov.days || !ov.days.length) return '';
         const c = ov.counts || {}, p = ov.prevCounts || null;
         const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
+        // Category chart trend only makes sense once the app has actually
+        // ranked in a top chart at least once — otherwise it's an empty line.
+        const chartHist = (app.chart && app.chart.history) || [];
+        const isChartRanking = chartHist.some((v) => v != null);
+        const catChartBox = isChartRanking
+          ? `<div class="chartbox"><h4>Category chart rank trend${app.chart.chart ? ` — ${esc(app.chart.chart)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}</div>`
+          : '';
         return `<div class="ov">
           <div class="tiles">
             ${tileHtml('Top 1 rankings', c.top1, p && p.top1)}
@@ -556,6 +654,8 @@ ai photo enhancer"></textarea>
           <div class="charts">
             <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div></div>
             <div class="chartbox"><h4>Search visibility score (0–100)</h4>${visChart(ov.days, app.annotations)}</div>
+            ${catChartBox}
+            <div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}</div>
           </div>
         </div>`;
       }
@@ -777,10 +877,12 @@ ai photo enhancer"></textarea>
         const res = await fetch('/api/rank');
         state = await res.json();
         render();
-        // The ASO summary is session-only (never persisted), so repopulate it for
-        // every already-tracked app on load instead of leaving the box blank until
-        // the user re-adds/edits keywords.
-        for (const app of state.apps) checkAsoFor(app);
+        // ASO results are cached server-side (see api/aso.ts) — load whatever
+        // was last checked instead of calling /api/aso again. That call is a
+        // paid Anthropic request, so viewing/reloading the dashboard must
+        // never silently re-trigger it.
+        for (const app of state.apps) loadAsoFromCache(app);
+        render();
       }
 
       async function withBusy(btn, busyLabel, fn) {
@@ -897,12 +999,14 @@ ai photo enhancer"></textarea>
           return;
         }
         if (act === 'check-one') {
-          withBusy(btn, 'Checking…', async () => {
-            const data = await api({ action: 'check', key });
-            const checked = data.apps.find((a) => a.key === key);
-            if (checked) checkAsoFor(checked);
-            return data;
-          });
+          // Rank check only re-checks keyword positions — the listing itself
+          // hasn't changed, so this must NOT trigger a fresh (paid) ASO audit.
+          withBusy(btn, 'Checking…', () => api({ action: 'check', key }));
+          return;
+        }
+        if (act === 'recheck-aso') {
+          const app = state.apps.find((a) => a.key === key);
+          if (app) withBusy(btn, 'Checking…', async () => { await checkAsoFor(app); return null; });
           return;
         }
         if (act === 'pdf') { window.print(); return; }

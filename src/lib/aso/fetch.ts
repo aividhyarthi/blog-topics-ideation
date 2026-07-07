@@ -191,6 +191,11 @@ export async function fetchListingVariants(appId: string, markets: Market[]): Pr
  * Resolve competitor apps. If `ids` are given, fetch those; otherwise ask Play
  * for apps similar to the primary app. Best-effort: failures are skipped so one
  * dead listing never sinks the whole comparison.
+ *
+ * Play's "Similar apps" carousel routinely includes OTHER apps by the SAME
+ * developer (a studio's own app family, not real market competition), so
+ * when auto-discovering (no explicit `ids`) those are filtered out by
+ * `developerId` — a real rival, not your own other app.
  */
 export async function fetchCompetitors(
   primaryId: string,
@@ -198,6 +203,7 @@ export async function fetchCompetitors(
   lang = 'en',
   country = 'us',
   max = 4,
+  primaryDeveloperId: string | null = null,
 ): Promise<{ apps: AsoAppData[]; errors: string[] }> {
   const errors: string[] = [];
   let targets = ids.slice(0, max);
@@ -205,7 +211,10 @@ export async function fetchCompetitors(
   if (targets.length === 0) {
     try {
       const similar = (await gplay.similar({ appId: primaryId, lang, country })) as Record<string, any>[];
-      targets = similar.map((s) => String(s.appId)).filter((id) => id && id !== primaryId).slice(0, max);
+      const ownFamily = similar.filter((s) => primaryDeveloperId && String(s.developerId || '') === primaryDeveloperId);
+      const rivals = similar.filter((s) => !primaryDeveloperId || String(s.developerId || '') !== primaryDeveloperId);
+      if (ownFamily.length) errors.push(`Skipped ${ownFamily.length} app(s) from the same developer in "similar apps" (not real competitors).`);
+      targets = rivals.map((s) => String(s.appId)).filter((id) => id && id !== primaryId).slice(0, max);
     } catch (e) {
       errors.push(`Could not auto-discover similar apps: ${e instanceof Error ? e.message : String(e)}`);
     }
