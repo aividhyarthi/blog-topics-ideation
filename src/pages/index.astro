@@ -1,6 +1,7 @@
 ---
-// LLM Access Check — the simple tool. Enter a URL → can LLMs read this page?
-// Shows what a human, Googlebot and LLM crawlers each see, element by element.
+// LLM Access Check — deep, multi-agent "can bots read this page?" tool.
+// Fetches the URL as Googlebot desktop/mobile + real devices + GPTBot, and
+// audits the raw HTML element-by-element in separate Desktop / Mobile tabs.
 ---
 
 <!doctype html>
@@ -10,7 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Can LLMs read your page? — CiteRank</title>
-    <meta name="description" content="Enter a URL and instantly see whether ChatGPT, Claude and Perplexity can actually read your page — what's in the HTML they can access, and what's hidden behind JavaScript they can't." />
+    <meta name="description" content="Enter a URL and see exactly what Googlebot (desktop & mobile), real devices and the AI crawlers (ChatGPT, Claude, Perplexity) can and can't read — SEO tags, content, links, media, and JavaScript-hidden content." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -26,7 +27,7 @@
       * { box-sizing: border-box; }
       html { scroll-behavior: smooth; }
       body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased; }
-      .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+      .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
       svg { display: block; }
 
       .nav { position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,.82); backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid var(--line); }
@@ -39,13 +40,13 @@
       .nav-link:hover { color: var(--pink); }
 
       .hero { border-bottom: 1px solid var(--line); background: radial-gradient(800px 320px at 80% -10%, rgba(91,84,230,.10), transparent 60%); }
-      .hero .wrap { padding: 46px 24px 38px; }
+      .hero .wrap { padding: 44px 24px 36px; }
       .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pink-dark); background: var(--accent-soft); border: 1px solid #e0def7; padding: 5px 12px; border-radius: 999px; margin-bottom: 16px; }
-      .hero h1 { margin: 0 0 12px; font-size: 36px; line-height: 1.1; font-weight: 800; letter-spacing: -.03em; }
-      .hero p { margin: 0; font-size: 16px; color: var(--ink-2); max-width: 60ch; line-height: 1.6; }
-      @media (max-width: 640px) { .hero h1 { font-size: 28px; } }
+      .hero h1 { margin: 0 0 12px; font-size: 34px; line-height: 1.1; font-weight: 800; letter-spacing: -.03em; }
+      .hero p { margin: 0; font-size: 16px; color: var(--ink-2); max-width: 62ch; line-height: 1.6; }
+      @media (max-width: 640px) { .hero h1 { font-size: 27px; } }
 
-      main { padding: 28px 0 72px; }
+      main { padding: 26px 0 72px; }
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: var(--shadow); }
       label.fld { display: block; font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin-bottom: 6px; }
       .inrow { display: flex; gap: 10px; }
@@ -75,13 +76,60 @@
       .vbadge { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; letter-spacing: -.02em; padding: 7px 15px; border-radius: 999px; }
       .vbadge svg { width: 17px; height: 17px; }
       .vbadge.yes { background: var(--ok-bg); color: var(--ok); } .vbadge.partial { background: var(--warn-bg); color: var(--warn); } .vbadge.no { background: var(--bad-bg); color: var(--bad); }
-      .rendertag { font-size: 11.5px; font-weight: 700; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); }
+      .rendertags { display: flex; gap: 8px; flex-wrap: wrap; }
+      .rendertag { font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); display: inline-flex; align-items: center; gap: 6px; }
+      .rendertag b { font-weight: 800; }
       .rendertag.html { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
       .rendertag.js { background: var(--bad-bg); color: var(--bad); border-color: #f4cfcf; }
       .vreason { font-size: 14px; color: var(--ink-2); line-height: 1.6; margin: 13px 0 0; }
       .vhost { font-size: 12.5px; color: var(--muted); margin-top: 6px; word-break: break-all; }
+      .banner { display: flex; gap: 10px; align-items: flex-start; border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-size: 13px; line-height: 1.55; }
+      .banner svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+      .banner.warn { background: var(--warn-bg); color: #8a5d00; border: 1px solid #f0e2b8; }
+      .banner.bad { background: var(--bad-bg); color: #9f2828; border: 1px solid #f4cfcf; }
 
-      .sectitle { font-size: 13px; font-weight: 800; letter-spacing: -.01em; margin: 26px 0 12px; color: var(--ink); }
+      /* tabs */
+      .tabs { display: inline-flex; gap: 4px; background: #f1f1f6; border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin: 24px 0 4px; }
+      .tab { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 9px; border: none; background: transparent; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); font-family: inherit; transition: .15s; }
+      .tab svg { width: 15px; height: 15px; }
+      .tab.active { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(20,20,40,.12); }
+      .tabpanel { display: none; }
+      .tabpanel.active { display: block; }
+
+      .sectitle { font-size: 13px; font-weight: 800; letter-spacing: -.01em; margin: 22px 0 11px; color: var(--ink); }
+      .accessrows { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      @media (max-width: 560px) { .accessrows { grid-template-columns: 1fr; } }
+      .arow { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; box-shadow: var(--shadow); }
+      .arow .aic { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; }
+      .arow .aic svg { width: 13px; height: 13px; }
+      .arow.ok .aic { background: var(--ok-bg); color: var(--ok); } .arow.blocked .aic { background: var(--bad-bg); color: var(--bad); }
+      .arow .awho { font-size: 13px; font-weight: 700; }
+      .arow .akind { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); }
+      .arow .anote { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+
+      .grp { border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 11px; overflow: hidden; box-shadow: var(--shadow); }
+      .grp > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 13.5px; }
+      .grp > summary::-webkit-details-marker { display: none; }
+      .grp .caret { color: var(--faint); transition: transform .15s; }
+      .grp .caret svg { width: 13px; height: 13px; }
+      .grp[open] .caret { transform: rotate(90deg); }
+      .grp .gcount { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--muted); }
+      .gpills { display: inline-flex; gap: 4px; margin-left: 8px; }
+      .gpill { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 999px; }
+      .gpill.read { background: var(--ok-bg); color: var(--ok); } .gpill.warn { background: var(--warn-bg); color: var(--warn); } .gpill.missed { background: var(--bad-bg); color: var(--bad); }
+      .gitems { padding: 2px 16px 12px; }
+      .git { display: flex; gap: 12px; align-items: flex-start; padding: 11px 0; border-top: 1px solid var(--line); }
+      .git:first-child { border-top: none; }
+      .gchip { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
+      .gchip svg { width: 12px; height: 12px; }
+      .gchip.read { background: var(--ok-bg); color: var(--ok); } .gchip.partial { background: var(--warn-bg); color: var(--warn); }
+      .gchip.missed { background: var(--bad-bg); color: var(--bad); } .gchip.warn { background: var(--warn-bg); color: var(--warn); } .gchip.info { background: #eef0f5; color: var(--na); }
+      .gname { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .gtag { font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; }
+      .gtag.read { background: var(--ok-bg); color: var(--ok); } .gtag.partial { background: var(--warn-bg); color: var(--warn); }
+      .gtag.missed { background: var(--bad-bg); color: var(--bad); } .gtag.warn { background: var(--warn-bg); color: var(--warn); } .gtag.info { background: #eef0f5; color: var(--muted); }
+      .gdetail { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; word-break: break-word; }
+
       .viewers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
       @media (max-width: 680px) { .viewers { grid-template-columns: 1fr; } }
       .viewer { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: #fff; border-left: 3px solid var(--line-2); box-shadow: var(--shadow); }
@@ -94,16 +142,6 @@
       .vw-access svg { width: 13px; height: 13px; }
       .vw-access.pass { color: var(--ok); } .vw-access.warn { color: var(--warn); } .vw-access.fail { color: var(--bad); }
       .vw-sees { font-size: 12px; color: var(--muted); line-height: 1.5; }
-
-      .ellist { display: grid; gap: 8px; }
-      .elrow { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; background: #fff; }
-      .elchip { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
-      .elchip svg { width: 12px; height: 12px; }
-      .elchip.read { background: var(--ok-bg); color: var(--ok); } .elchip.partial { background: var(--warn-bg); color: var(--warn); } .elchip.missed { background: var(--bad-bg); color: var(--bad); }
-      .elname { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-      .eltag { font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; }
-      .eltag.read { background: var(--ok-bg); color: var(--ok); } .eltag.partial { background: var(--warn-bg); color: var(--warn); } .eltag.missed { background: var(--bad-bg); color: var(--bad); }
-      .eldetail { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
 
       .bots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       @media (max-width: 560px) { .bots { grid-template-columns: 1fr; } }
@@ -136,7 +174,7 @@
       <div class="wrap">
         <span class="eyebrow">LLM Access Check</span>
         <h1>Can LLMs read your page?</h1>
-        <p>Paste a URL and see instantly what a human, Googlebot and the AI crawlers (ChatGPT, Claude, Perplexity) each actually see — what's in your HTML they can read, and what's hidden behind JavaScript they can't.</p>
+        <p>Enter a URL. CiteRank fetches it as <strong>Googlebot desktop &amp; mobile</strong>, real devices, and the <strong>ChatGPT crawler</strong> — then audits the HTML from navigation to footer, so you see exactly what each one can and can’t read.</p>
       </div>
     </section>
 
@@ -148,10 +186,8 @@
             <input id="url" type="url" placeholder="https://example.com/your-page" />
             <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>Check access</button>
           </div>
-          <div class="pastelink">Can't fetch it (login-walled or blocked)? <a id="pastetoggle">Paste the HTML instead</a></div>
-          <div id="pastewrap">
-            <textarea id="html" placeholder="Paste the page's HTML source here…"></textarea>
-          </div>
+          <div class="pastelink">Can’t fetch it (login-walled or blocked)? <a id="pastetoggle">Paste the HTML instead</a></div>
+          <div id="pastewrap"><textarea id="html" placeholder="Paste the page's HTML source here…"></textarea></div>
           <div class="alert err" id="err"></div>
           <div class="alert info" id="info"></div>
         </div>
@@ -160,7 +196,7 @@
       </div>
     </main>
 
-    <footer><b>CiteRank</b> · LLM Access Check · Googlebot renders JavaScript — AI crawlers don't, so JS-injected content is invisible to them.</footer>
+    <footer><b>CiteRank</b> · LLM Access Check · Googlebot renders JavaScript — AI crawlers don’t, so JS-injected content is invisible to them.</footer>
 
     <script>
       const $ = (id) => document.getElementById(id);
@@ -168,11 +204,16 @@
         check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>',
         x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
         alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5h.01"/></svg>',
+        info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 11v5"/><path d="M12 8h.01"/></svg>',
         eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+        caret: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
+        desktop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
+        mobile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>',
       };
-      const ACCESS_IC = { ok: IC.check, partial: IC.alert, blocked: IC.x };
+      const CHIP = { read: 'read', partial: 'partial', missed: 'missed', warn: 'warn', info: 'info' };
+      const CHIP_IC = { read: IC.check, partial: IC.alert, missed: IC.x, warn: IC.alert, info: IC.info };
+      const TAG_TXT = { read: 'can access', partial: 'partial', missed: 'cannot access', warn: 'caution', info: 'info' };
       const ACCESS_ST = { ok: 'pass', partial: 'warn', blocked: 'fail' };
-      const EL_IC = { read: IC.check, partial: IC.alert, missed: IC.x };
       const BOT_IC = { allowed: IC.check, default: IC.check, partial: IC.alert, blocked: IC.x };
 
       function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -186,42 +227,86 @@
         $('pastetoggle').textContent = pasteMode ? 'use a URL instead' : 'Paste the HTML instead';
       });
 
-      function renderResult(d) {
-        const out = $('out');
-        const rt = d.render || {};
-        const renderTag = rt.type === 'html'
-          ? `<span class="rendertag html">Server-rendered HTML${rt.framework ? ' · ' + esc(rt.framework) : ''}</span>`
-          : `<span class="rendertag js">JavaScript-rendered${rt.framework ? ' · ' + esc(rt.framework) : ''}</span>`;
-
-        const viewers = (d.viewers || []).map((v) => {
-          const st = ACCESS_ST[v.access];
-          return `<div class="viewer ${st}"><div class="vw-top"><span class="vw-who">${esc(v.who)}</span><span class="vw-js ${v.rendersJs ? 'yes' : 'no'}">${v.rendersJs ? 'runs JS' : 'no JS'}</span></div><div class="vw-access ${st}">${ACCESS_IC[v.access]} ${v.access === 'ok' ? 'Can read it' : v.access === 'partial' ? 'Partial' : 'Blocked'}</div><div class="vw-sees">${esc(v.sees)}</div></div>`;
+      function renderTag(r) {
+        return r.type === 'html'
+          ? `<span class="rendertag html">${IC.check} <b>Server HTML</b>${r.framework ? ' · ' + esc(r.framework) : ''} · ${r.words} words</span>`
+          : `<span class="rendertag js">${IC.x} <b>JavaScript-rendered</b>${r.framework ? ' · ' + esc(r.framework) : ''} · ${r.words} words in HTML</span>`;
+      }
+      function groupHtml(groups) {
+        return groups.map((g) => {
+          const c = { read: 0, warn: 0, missed: 0 };
+          g.items.forEach((i) => { if (i.status === 'read' || i.status === 'info') c.read++; else if (i.status === 'missed') c.missed++; else c.warn++; });
+          const pills = `<span class="gpills">${c.read ? `<span class="gpill read">${c.read}</span>` : ''}${c.warn ? `<span class="gpill warn">${c.warn}</span>` : ''}${c.missed ? `<span class="gpill missed">${c.missed}</span>` : ''}</span>`;
+          const open = c.missed || c.warn ? ' open' : '';
+          const items = g.items.map((i) => `<div class="git"><span class="gchip ${CHIP[i.status]}">${CHIP_IC[i.status]}</span><div><div class="gname">${esc(i.label)} <span class="gtag ${CHIP[i.status]}">${TAG_TXT[i.status]}</span></div><div class="gdetail">${esc(i.detail)}</div></div></div>`).join('');
+          return `<details class="grp"${open}><summary><span class="caret">${IC.caret}</span>${esc(g.title)}${pills}<span class="gcount">${g.items.length}</span></summary><div class="gitems">${items}</div></details>`;
         }).join('');
+      }
+      function tabPanel(view, isPasted) {
+        const rows = (view.access || []).map((a) => {
+          const cls = a.status === 'ok' ? 'ok' : 'blocked';
+          return `<div class="arow ${cls}"><span class="aic">${a.status === 'ok' ? IC.check : IC.x}</span><div><div class="awho">${esc(a.who)} <span class="akind">${esc(a.kind)}</span></div><div class="anote">${esc(a.note)}</div></div></div>`;
+        }).join('');
+        const lazy = view.render && view.render.lazy ? `<div class="banner warn">${IC.alert}<div><b>Delayed / lazy content detected:</b> ${esc(view.render.lazyDetail)}. A crawler that doesn’t scroll or wait may never load it.</div></div>` : '';
+        return `
+          ${isPasted ? '' : `<div class="sectitle">Access &amp; rendering</div><div class="accessrows">${rows}</div>`}
+          <div style="margin-top:12px" class="rendertags">${renderTag(view.render)}</div>
+          ${lazy}
+          <div class="sectitle">What can be read — navigation to footer</div>
+          ${groupHtml(view.groups)}`;
+      }
 
-        const els = (d.elements || []).map((e) => `<div class="elrow"><span class="elchip ${e.status}">${EL_IC[e.status]}</span><div><div class="elname">${esc(e.label)} <span class="eltag ${e.status}">${e.status === 'read' ? 'can access' : e.status === 'partial' ? 'partial' : 'cannot access'}</span></div><div class="eldetail">${esc(e.detail)}</div></div></div>`).join('');
-
-        const bots = (d.bots || []).map((b) => `<div class="botrow"><span class="botname">${esc(b.label)}</span><span class="botbadge ${b.status}">${BOT_IC[b.status]} ${b.status === 'allowed' ? 'Allowed' : b.status === 'blocked' ? 'Blocked' : b.status === 'default' ? 'Allowed' : 'Partial'}</span></div>`).join('');
-
-        out.innerHTML = `
-          <div class="viscard ${d.verdict.level}">
+      function renderResult(d) {
+        const out = $('out'), isPasted = d.mode === 'pasted';
+        const v = d.overall;
+        let html = `
+          <div class="viscard ${v.level}">
             <div class="verdicthead">
-              <span class="vbadge ${d.verdict.level}">${d.verdict.level === 'yes' ? IC.check : d.verdict.level === 'no' ? IC.x : IC.alert} ${esc(d.verdict.label)}</span>
-              ${renderTag}
+              <span class="vbadge ${v.level}">${v.level === 'yes' ? IC.check : v.level === 'no' ? IC.x : IC.alert} ${esc(v.label)}</span>
+              <span class="rendertags">${d.desktop ? `<span class="rendertag ${d.desktop.render.type}">${IC.desktop} ${d.desktop.render.type === 'html' ? 'Desktop: HTML' : 'Desktop: JS'}</span>` : ''}${!isPasted && d.mobile ? `<span class="rendertag ${d.mobile.render.type}">${IC.mobile} ${d.mobile.render.type === 'html' ? 'Mobile: HTML' : 'Mobile: JS'}</span>` : ''}</span>
             </div>
-            <div class="vreason">${esc(d.verdict.reason)}</div>
-            ${d.host ? `<div class="vhost">${esc(d.url || d.host)} · ${rt.staticWords} words in the raw HTML</div>` : ''}
-            ${d.fetchNote ? `<div class="note">${esc(d.fetchNote)}</div>` : ''}
-          </div>
+            <div class="vreason">${esc(v.reason)}</div>
+            ${d.host ? `<div class="vhost">${esc(d.url || d.host)}</div>` : ''}
+            ${d.fetchNote ? `<div class="banner bad">${IC.alert}<div>${esc(d.fetchNote)}</div></div>` : ''}
+            ${!isPasted && d.parity && !d.parity.same ? `<div class="banner warn">${IC.alert}<div><b>Mobile ≠ Desktop.</b> ${esc(d.parity.note)}</div></div>` : ''}
+          </div>`;
 
-          <div class="sectitle">Who sees what</div>
-          <div class="viewers">${viewers}</div>
+        if (isPasted) {
+          html += `<div style="margin-top:18px">${tabPanel(d.desktop, true)}</div>`;
+        } else {
+          html += `
+            <div class="tabs">
+              <button class="tab active" data-tab="desktop">${IC.desktop} Desktop</button>
+              <button class="tab" data-tab="mobile">${IC.mobile} Mobile</button>
+            </div>
+            <div class="tabpanel active" id="tab-desktop">${tabPanel(d.desktop, false)}</div>
+            <div class="tabpanel" id="tab-mobile">${tabPanel(d.mobile, false)}</div>`;
+        }
 
-          <div class="sectitle">What LLMs can &amp; can't access on this page</div>
-          <div class="ellist">${els}</div>
+        // shared: who sees what + LLM crawler + robots bots
+        const viewers = (d.viewers || []).map((vw) => {
+          const st = ACCESS_ST[vw.access];
+          return `<div class="viewer ${st}"><div class="vw-top"><span class="vw-who">${esc(vw.who)}</span><span class="vw-js ${vw.rendersJs ? 'yes' : 'no'}">${vw.rendersJs ? 'runs JS' : 'no JS'}</span></div><div class="vw-access ${st}">${vw.access === 'ok' ? IC.check : vw.access === 'partial' ? IC.alert : IC.x} ${vw.access === 'ok' ? 'Can read it' : vw.access === 'partial' ? 'Partial' : 'Blocked'}</div><div class="vw-sees">${esc(vw.sees)}</div></div>`;
+        }).join('');
+        html += `<div class="sectitle">Who sees what</div><div class="viewers">${viewers}</div>`;
 
-          ${bots ? `<div class="sectitle">Are the AI crawlers allowed? (robots.txt)</div><div class="bots">${bots}</div>` : ''}
+        if (d.llmCrawler) {
+          const ok = d.llmCrawler.status === 'ok';
+          html += `<div class="sectitle">LLM crawler (GPTBot)</div><div class="banner ${ok ? 'warn' : 'bad'}" style="background:${ok ? 'var(--ok-bg)' : 'var(--bad-bg)'};color:${ok ? '#0f6b46' : '#9f2828'};border-color:${ok ? '#cdebdd' : '#f4cfcf'}">${ok ? IC.check : IC.x}<div>${esc(d.llmCrawler.note)}</div></div>`;
+        }
+        if (d.bots && d.bots.length) {
+          html += `<div class="sectitle">Are the AI crawlers allowed? (robots.txt)</div><div class="bots">${d.bots.map((b) => `<div class="botrow"><span class="botname">${esc(b.label)}</span><span class="botbadge ${b.status}">${BOT_IC[b.status]} ${b.status === 'blocked' ? 'Blocked' : b.status === 'partial' ? 'Partial' : 'Allowed'}</span></div>`).join('')}</div>`;
+        }
 
-          <div class="note">Googlebot runs JavaScript, so it sees your full page. The AI answer crawlers (ChatGPT, Claude, Perplexity) do <b>not</b> run JavaScript — they only read the raw HTML. Anything injected by JS is invisible to them. Want the full picture (scores, fixes, real-engine citation check)? <a href="/audit">Run the full AEO audit →</a></div>`;
+        html += `<div class="note">Googlebot runs JavaScript, so it sees your full page. The AI answer crawlers (ChatGPT, Claude, Perplexity) do <b>not</b> run JavaScript — they read only the raw HTML, so anything injected by JS is invisible to them. Want scores, fixes and a real-engine citation check? <a href="/audit">Run the full AEO audit →</a></div>`;
+
+        out.innerHTML = html;
+        out.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+          out.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+          out.querySelectorAll('.tabpanel').forEach((x) => x.classList.remove('active'));
+          t.classList.add('active');
+          $('tab-' + t.dataset.tab).classList.add('active');
+        }));
         out.style.display = 'block';
         out.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
@@ -229,31 +314,19 @@
       async function run() {
         hideAlerts();
         const payload = {};
-        if (pasteMode) {
-          const html = $('html').value.trim();
-          if (!html) { showErr('Paste the page HTML to check.'); return; }
-          payload.html = html;
-        } else {
-          const url = $('url').value.trim();
-          if (!url) { showErr('Enter a page URL to check.'); return; }
-          payload.url = url;
-        }
+        if (pasteMode) { const html = $('html').value.trim(); if (!html) { showErr('Paste the page HTML to check.'); return; } payload.html = html; }
+        else { const url = $('url').value.trim(); if (!url) { showErr('Enter a page URL to check.'); return; } payload.url = url; }
         const btn = $('go');
         btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Checking…';
-        $('info').innerHTML = IC.eye + '<span>Fetching the page and checking what each crawler can read…</span>';
+        $('info').innerHTML = IC.eye + '<span>Fetching as Googlebot (desktop &amp; mobile), real devices and GPTBot, then auditing the HTML… ~10–20s.</span>';
         $('info').style.display = 'flex';
         try {
           const res = await fetch('/api/access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           const d = await res.json();
           if (!res.ok) showErr(d.error || 'Something went wrong.');
           else renderResult(d);
-        } catch (e) {
-          showErr('Network error: ' + (e && e.message ? e.message : e));
-        } finally {
-          $('info').style.display = 'none';
-          btn.disabled = false;
-          btn.innerHTML = IC.eye + 'Check access';
-        }
+        } catch (e) { showErr('Network error: ' + (e && e.message ? e.message : e)); }
+        finally { $('info').style.display = 'none'; btn.disabled = false; btn.innerHTML = IC.eye + 'Check access'; }
       }
       $('go').addEventListener('click', run);
       $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });

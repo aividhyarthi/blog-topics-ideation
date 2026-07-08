@@ -39,6 +39,19 @@ export function accessGroups(html: string, f: PageFacts): AccessGroup[] {
   const navM = html.match(/<nav\b[\s\S]*?<\/nav>/i);
   const navLinks = navM ? count(/<a\b[^>]*href=/gi, navM[0]) : 0;
 
+  // Count ALL links in the full HTML (incl. nav + footer) — for an access audit
+  // we care about every link a crawler can follow, not just in-body ones.
+  let allInternal = 0, allExternal = 0;
+  const base = (f.host || '').replace(/^www\./, '');
+  for (const m of html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)) {
+    const href = m[1];
+    if (/^(mailto:|tel:|#|javascript:)/i.test(href)) continue;
+    if (/^https?:\/\//i.test(href)) {
+      try { const h = new URL(href).host.replace(/^www\./, ''); if (base && h === base) allInternal++; else allExternal++; }
+      catch { allExternal++; }
+    } else allInternal++;
+  }
+
   const ogCount = count(/<meta[^>]+property=["']og:[^"']+["']/gi, html);
   const twitter = /<meta[^>]+name=["']twitter:/i.test(html);
   const hreflang = count(/<link[^>]+hreflang=/gi, html);
@@ -70,8 +83,8 @@ export function accessGroups(html: string, f: PageFacts): AccessGroup[] {
   ] });
 
   groups.push({ title: 'Links & navigation', items: [
-    R('Internal links', f.internalLinks ? 'read' : 'missed', `${f.internalLinks} internal link(s) — interlinking helps crawlers discover your pages.`),
-    R('External links', 'info', `${f.externalLinks} outbound link(s) to other domains.`),
+    R('Internal links', allInternal ? 'read' : 'missed', `${allInternal} internal link(s) — interlinking helps crawlers discover and connect your pages.`),
+    R('External links', 'info', `${allExternal} outbound link(s) to other domains.`),
     R('Primary navigation', navM ? 'read' : 'missed', navM ? `<nav> present with ${navLinks} link(s) — readable.` : 'No <nav> landmark in the HTML.'),
     R('Footer', footerM ? 'read' : 'missed', footerM ? `<footer> present with ${footerLinks} link(s) — readable.` : 'No <footer> landmark in the HTML.'),
     ...(nofollow ? [R('Nofollow links', 'info', `${nofollow} link(s) marked rel="nofollow".`)] : []),
