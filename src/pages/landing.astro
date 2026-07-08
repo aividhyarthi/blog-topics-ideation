@@ -1,6 +1,7 @@
 ---
 // AppRankr landing page — served at "/" in product mode (middleware rewrite).
 import { BRAND, PLANS, TRIAL_DAYS, CURRENCY, formatPrice, SITE_URL } from '../lib/saas/plans';
+import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../components/AdSenseMeta.astro';
 const user = Astro.locals.user;
 
@@ -27,6 +28,7 @@ const softwareAppJsonLd = {
 <!doctype html>
 <html lang="en">
   <head>
+    <GoogleAnalytics />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

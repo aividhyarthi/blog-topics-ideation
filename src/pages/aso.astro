@@ -5,6 +5,7 @@
 // Serves two audiences from one page: the internal (Nykaa) toolset, and the
 // AppRankr product (product mode: branded header, trial banner).
 import { BRAND, planOf, checkAccess, ADSENSE_SLOTS } from '../lib/saas/plans';
+import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../components/AdSenseMeta.astro';
 import AdSenseScript from '../components/AdSenseScript.astro';
 import AdSlot from '../components/AdSlot.astro';
@@ -17,6 +18,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
 <!doctype html>
 <html lang="en">
   <head>
+    {product && <GoogleAnalytics />}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

@@ -35,6 +35,9 @@ export const ADSENSE_SLOTS = {
 export const GOOGLE_SITE_VERIFICATION =
   process.env.GOOGLE_SITE_VERIFICATION || 'M5rfPY6hOHg91xlOv9Zsx_oBf1oVha8w8RHNtnPW6eI';
 
+/** Google Analytics (GA4) measurement id — loaded via GoogleAnalytics.astro. */
+export const GA_MEASUREMENT_ID = process.env.GA_MEASUREMENT_ID || 'G-8D07RHSDDJ';
+
 /**
  * Absolute base URL of the live site — used for canonical links, Open Graph
  * tags, JSON-LD, sitemap.xml and llms.txt, all of which need a real domain

@@ -1,5 +1,6 @@
 ---
 import { BRAND } from '../lib/saas/plans';
+import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../components/AdSenseMeta.astro';
 if (Astro.locals.user) return Astro.redirect('/rank');
 const next = Astro.url.searchParams.get('next') || '/rank';
@@ -8,6 +9,7 @@ const next = Astro.url.searchParams.get('next') || '/rank';
 <!doctype html>
 <html lang="en">
   <head>
+    <GoogleAnalytics />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

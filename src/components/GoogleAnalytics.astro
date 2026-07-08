@@ -1,0 +1,19 @@
+---
+// Google tag (gtag.js) for GA4. Belongs as early as possible in every page's
+// <head> (Google's own instructions say "immediately after the <head>
+// element") so pageviews are captured before anything else loads. is:inline
+// keeps Astro from bundling/hoisting this — it needs to run inline, in
+// order, exactly as Google issued it.
+import { GA_MEASUREMENT_ID } from '../lib/saas/plans';
+---
+{GA_MEASUREMENT_ID && (
+  <Fragment>
+    <script async is:inline src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}></script>
+    <script is:inline define:vars={{ GA_MEASUREMENT_ID }}>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', GA_MEASUREMENT_ID);
+    </script>
+  </Fragment>
+)}

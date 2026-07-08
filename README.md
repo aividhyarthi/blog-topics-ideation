@@ -298,6 +298,7 @@ site becomes the product:
 | `ADSENSE_SLOT_ASO` | for ads | Ad unit id shown at the bottom of the ASO Inspector report. |
 | `ADSENSE_SLOT_FOOTER` | for ads | Ad unit id shown on the Account page. |
 | `SITE_URL` | no | Your production domain, no trailing slash. Defaults to `https://apprankr.in` (the real domain), so this only needs setting if the domain changes. Used to build absolute URLs in canonical/OG tags, JSON-LD, `sitemap.xml`, and `llms.txt`. |
+| `GA_MEASUREMENT_ID` | no | Google Analytics (GA4) measurement id (`G-...`). Defaults to the site's current one, so this only needs setting if you switch GA properties. Rendered via `GoogleAnalytics.astro`, as the first thing in every page's `<head>`. |
 | `GOOGLE_SITE_VERIFICATION` | for Search Console | The content value of Google Search Console's HTML-tag verification method. Defaults to the site's current verification code, so this only needs setting if you re-verify with a new one. Rendered in every page's `<head>` via `AdSenseMeta.astro`. |
 
 ## WBR Builder (`/wbr`) — weekly AI-visibility report from SEMrush exports
