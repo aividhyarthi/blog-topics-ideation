@@ -38,10 +38,10 @@ export function renderInfo(html: string, f: PageFacts): RenderInfo {
 // Detect the product's category/vertical from content signals, so a BEAUTY
 // product is audited for shade/ingredients (not RAM/specs), electronics for
 // specs/warranty, fashion for size/fabric, grocery for nutrition, etc.
-export type Vertical = 'beauty' | 'electronics' | 'fashion' | 'grocery' | 'general';
+export type Vertical = 'beauty' | 'electronics' | 'fashion' | 'grocery' | 'automotive' | 'general';
 export function detectVertical(html: string): Vertical {
   const h = html.toLowerCase();
-  const score: Record<Exclude<Vertical, 'general'>, number> = { beauty: 0, electronics: 0, fashion: 0, grocery: 0 };
+  const score: Record<Exclude<Vertical, 'general'>, number> = { beauty: 0, electronics: 0, fashion: 0, grocery: 0, automotive: 0 };
   const hit = (k: keyof typeof score, re: RegExp, n = 1) => { if (re.test(h)) score[k] += n; };
 
   hit('beauty', /\bshade\b/, 2); hit('beauty', /\bspf\b/); hit('beauty', /foundation|concealer|lipstick|mascara|serum|moistur|cleanser|fragrance|perfume|cosmetic/);
@@ -54,12 +54,30 @@ export function detectVertical(html: string): Vertical {
 
   hit('grocery', /nutrition|calorie|per serving/, 2); hit('grocery', /net weight|fssai|shelf life|expiry|preservative/); hit('grocery', /\bveg\b|non[-\s]?veg/);
 
+  hit('automotive', /\bmileage\b|\bkmpl\b|\bbhp\b|\btorque\b/, 2); hit('automotive', /transmission|fuel type|seating capacity|ex[-\s]?showroom|on[-\s]?road price|engine\s?(?:cc|capacity)|airbags?|petrol|diesel/);
+
   let best: Vertical = 'general', top = 1;
   (Object.keys(score) as (keyof typeof score)[]).forEach((k) => { if (score[k] > top) { top = score[k]; best = k; } });
   return best;
 }
 
-const VERTICAL_LABEL: Record<Vertical, string> = { beauty: 'Beauty', electronics: 'Electronics', fashion: 'Fashion', grocery: 'Grocery', general: '' };
+const VERTICAL_LABEL: Record<Vertical, string> = { beauty: 'Beauty', electronics: 'Electronics', fashion: 'Fashion', grocery: 'Grocery', automotive: 'Automotive', general: '' };
+
+// UNIVERSAL: read the product's OWN declared attributes from the HTML — spec
+// tables, definition lists, and schema PropertyValue — so ANY product (a car,
+// a watch, furniture…) is audited using its own labels, no hardcoding needed.
+export function extractAttributes(html: string): string[] {
+  const clean = (s: string) => s.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+  const labels = new Set<string>();
+  const add = (raw: string) => { const t = clean(raw); if (t.length >= 2 && t.length <= 40 && /[a-z]/i.test(t) && !/^\d+$/.test(t)) labels.add(t.replace(/[:：]\s*$/, '')); };
+  // schema.org PropertyValue (e.g. "additionalProperty")
+  for (const m of html.matchAll(/"@type"\s*:\s*"PropertyValue"[\s\S]{0,80}?"name"\s*:\s*"([^"]{2,40})"/gi)) add(m[1]);
+  // definition lists <dt>Label</dt>
+  for (const m of html.matchAll(/<dt[^>]*>([\s\S]{1,60}?)<\/dt>/gi)) add(m[1]);
+  // 2-cell table rows: first cell is the label
+  for (const m of html.matchAll(/<tr[^>]*>\s*<t[hd][^>]*>([\s\S]{1,60}?)<\/t[hd]>\s*<t[hd][^>]*>[\s\S]{1,160}?<\/t[hd]>/gi)) add(m[1]);
+  return [...labels].slice(0, 20);
+}
 
 export function dynamicChecks(html: string, f: PageFacts): AccessGroup[] {
   const R = (label: string, status: AccessStatus, detail: string): AccessItem => ({ label, status, detail });
@@ -190,6 +208,14 @@ export function dynamicChecks(html: string, f: PageFacts): AccessGroup[] {
       const qty = has(/net weight|\b\d+\s?(?:kg|g|gm|ml|l)\b|quantity|pack of/i);
       items.push(R('Weight / quantity', qty ? 'read' : 'info', qty ? 'Weight/quantity is in the HTML.' : 'No weight/quantity detected.'));
       price(); avail();
+    } else if (vertical === 'automotive') {
+      const specs = has(/mileage|kmpl|\bbhp\b|torque|transmission|fuel type|engine/i);
+      items.push(R('Key specs (engine/mileage/fuel)', specs ? 'read' : 'missed', specs ? 'Core car specs (engine, mileage, fuel, transmission) are in the HTML.' : 'No core car specs found in the raw HTML.'));
+      const variants = has(/variant|trim|\b(?:petrol|diesel|ev|electric)\b/i);
+      items.push(R('Variants / trims', variants ? 'read' : 'info', variants ? 'Variant/trim options are in the HTML.' : 'No variant/trim options detected.'));
+      const priceInfo = has(/ex[-\s]?showroom|on[-\s]?road|emi|starting at/i) || f.priceCount > 0;
+      items.push(R('Price (ex-showroom / EMI)', priceInfo ? 'read' : 'missed', priceInfo ? 'Pricing (ex-showroom / on-road / EMI) is in the HTML.' : 'No pricing found in the raw HTML.'));
+      gallery();
     } else {
       const variants = has(/class=["'][^"']*\b(?:swatch|variant|size[-_]?option|colou?r[-_]?option|product[-_]?option|sku)\b/i) || has(/data-sku|data-variant/i);
       items.push(R('Variants', variants ? 'read' : 'info', variants ? 'Variant options are in the HTML.' : 'No variant options detected.'));
@@ -197,6 +223,10 @@ export function dynamicChecks(html: string, f: PageFacts): AccessGroup[] {
       items.push(R('Description', desc ? 'read' : 'missed', desc ? `${f.wordCount} words of product description in the HTML.` : 'Little/no product description in the raw HTML.'));
       price(); avail(); gallery();
     }
+    // UNIVERSAL — the product's own declared attributes, whatever the category.
+    const attrs = extractAttributes(html);
+    if (attrs.length)
+      items.push(R('Declared attributes', 'read', `${attrs.length} product attribute(s) are in the HTML: ${attrs.slice(0, 12).join(', ')}${attrs.length > 12 ? '…' : ''}.`));
     groups.push({ title: `Product details${VERTICAL_LABEL[vertical] ? ` (${VERTICAL_LABEL[vertical]})` : ''}`, items });
   } else {
     // Article / blog / news.
