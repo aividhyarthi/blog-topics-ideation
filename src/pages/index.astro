@@ -1,6 +1,6 @@
 ---
-// CiteRank — AEO auditor. Scores how likely a page is to be cited by LLM
-// answer engines (ChatGPT, Perplexity, Gemini, Google AI Overviews).
+// LLM Access Check — the simple tool. Enter a URL → can LLMs read this page?
+// Shows what a human, Googlebot and LLM crawlers each see, element by element.
 ---
 
 <!doctype html>
@@ -9,13 +9,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>CiteRank — Is your content ready to rank in LLMs?</title>
-    <meta name="description" content="CiteRank checks whether your content is ready to rank in LLMs. Paste a URL or your draft and see how likely ChatGPT, Perplexity, Gemini and Google AI Overviews are to cite it — and exactly what to fix before you publish." />
+    <title>Can LLMs read your page? — CiteRank</title>
+    <meta name="description" content="Enter a URL and instantly see whether ChatGPT, Claude and Perplexity can actually read your page — what's in the HTML they can access, and what's hidden behind JavaScript they can't." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <!-- is:global so styles also apply to the results DOM injected at runtime
-         via innerHTML (Astro's scoped styles only match build-time elements). -->
     <style is:global>
       :root {
         --pink: #5b54e6; --pink-dark: #4840c9; --accent-soft: #eeedfb;
@@ -24,377 +22,103 @@
         --ok: #15915f; --ok-bg: #e6f5ee; --warn: #b07900; --warn-bg: #fbf2da;
         --bad: #d23c3c; --bad-bg: #fcebeb; --na: #9aa0ad; --indigo: #5b54e6;
         --shadow: 0 1px 2px rgba(20,20,40,.04), 0 8px 24px -16px rgba(30,30,70,.18);
-        --shadow-lg: 0 1px 2px rgba(20,20,40,.05), 0 18px 48px -24px rgba(30,30,70,.28);
       }
       * { box-sizing: border-box; }
       html { scroll-behavior: smooth; }
-      body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-      .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+      body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+      .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
       svg { display: block; }
-      a { color: var(--pink-dark); }
 
-      /* ---- sticky top nav ---- */
       .nav { position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,.82); backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid var(--line); }
       .navinner { display: flex; align-items: center; gap: 14px; height: 60px; }
       .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: -.02em; color: var(--ink); }
       .brand .mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(140deg, #6a63f0, #4840c9); display: grid; place-items: center; box-shadow: 0 4px 12px -4px rgba(72,64,201,.6); }
       .brand .mark svg { width: 15px; height: 15px; color: #fff; }
-      .navmeta { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-weight: 500; }
-      .navmeta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
-      @media (max-width: 560px) { .navmeta .hidesm { display: none; } }
-      .acct { display: flex; align-items: center; gap: 8px; margin-left: 14px; }
-      .acct-btn { font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; border-radius: 9px; padding: 7px 13px; border: 1px solid var(--line-2); background: #fff; color: var(--ink-2); transition: .15s; }
-      .acct-btn:hover { border-color: var(--pink); color: var(--pink); }
-      .acct-btn.solid { background: var(--ink); color: #fff; border-color: var(--ink); }
-      .acct-btn.solid:hover { background: var(--pink-dark); border-color: var(--pink-dark); color: #fff; }
-      .acct-email { font-size: 12px; color: var(--muted); font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      @media (max-width: 560px) { .acct-email { display: none; } }
+      .nav-link { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--muted); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+      .nav-link svg { width: 14px; height: 14px; }
+      .nav-link:hover { color: var(--pink); }
 
-      .modal { position: fixed; inset: 0; z-index: 100; background: rgba(20,20,40,.42); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 20px; }
-      .modal-card { background: #fff; border-radius: 18px; width: 100%; max-width: 420px; padding: 26px; box-shadow: 0 24px 64px -24px rgba(20,20,50,.5); position: relative; max-height: 88vh; overflow-y: auto; }
-      .modal-x { position: absolute; top: 14px; right: 16px; border: none; background: none; font-size: 24px; line-height: 1; color: var(--faint); cursor: pointer; }
-      .modal-x:hover { color: var(--ink); }
-      .modal h3 { margin: 0 0 4px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
-      .modal .msub { margin: 0 0 18px; font-size: 13px; color: var(--muted); }
-      .modal label.fld { margin-top: 12px; }
-      .modal .primary { width: 100%; justify-content: center; margin-top: 18px; }
-      .modal-switch { margin-top: 15px; font-size: 12.5px; color: var(--muted); text-align: center; }
-      .modal-switch a { color: var(--pink-dark); font-weight: 700; cursor: pointer; }
-      .modal-err { margin-top: 14px; padding: 10px 12px; border-radius: 9px; font-size: 12.5px; background: var(--bad-bg); color: #b3261e; border: 1px solid #f6c9c6; display: none; }
-      .hist-list { display: grid; gap: 8px; margin-top: 6px; }
-      .hist-item { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; cursor: pointer; background: #fff; transition: .15s; text-align: left; width: 100%; font-family: inherit; }
-      .hist-item:hover { border-color: var(--pink); box-shadow: var(--shadow); }
-      .hist-score { font-weight: 800; font-size: 15px; min-width: 38px; text-align: center; }
-      .hist-main { flex: 1; min-width: 0; }
-      .hist-host { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .hist-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
-      .hist-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 20px; }
-      .savednote { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ok); }
-      .savednote svg { width: 13px; height: 13px; }
+      .hero { border-bottom: 1px solid var(--line); background: radial-gradient(800px 320px at 80% -10%, rgba(91,84,230,.10), transparent 60%); }
+      .hero .wrap { padding: 46px 24px 38px; }
+      .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pink-dark); background: var(--accent-soft); border: 1px solid #e0def7; padding: 5px 12px; border-radius: 999px; margin-bottom: 16px; }
+      .hero h1 { margin: 0 0 12px; font-size: 36px; line-height: 1.1; font-weight: 800; letter-spacing: -.03em; }
+      .hero p { margin: 0; font-size: 16px; color: var(--ink-2); max-width: 60ch; line-height: 1.6; }
+      @media (max-width: 640px) { .hero h1 { font-size: 28px; } }
 
-      /* ---- hero ---- */
-      .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); background:
-        radial-gradient(900px 360px at 78% -8%, rgba(91,84,230,.10), transparent 60%),
-        radial-gradient(700px 320px at 6% 0%, rgba(91,84,230,.07), transparent 55%); }
-      .hero .wrap { padding: 52px 24px 44px; }
-      .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pink-dark); background: var(--accent-soft); border: 1px solid #e0def7; padding: 5px 12px; border-radius: 999px; margin-bottom: 18px; }
-      .hero h1 { margin: 0 0 14px; font-size: 40px; line-height: 1.08; font-weight: 800; letter-spacing: -.032em; max-width: 16ch; }
-      .hero p { margin: 0; font-size: 16.5px; color: var(--ink-2); max-width: 62ch; line-height: 1.6; }
-      .hero p strong { color: var(--ink); font-weight: 700; }
-      .enginerow { margin-top: 26px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
-      .enginerow .lbl { font-size: 12px; color: var(--faint); font-weight: 600; letter-spacing: .02em; }
-      .eng-wm { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
-      .eng-wm .swatch { width: 9px; height: 9px; border-radius: 3px; }
-      @media (max-width: 640px) { .hero h1 { font-size: 31px; } .hero .wrap { padding: 38px 24px 34px; } }
-
-      main { padding: 30px 0 72px; }
-      .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; box-shadow: var(--shadow); }
-      .panel-lead { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
-      .panel-lead .ttl { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-      .panel-lead .sub { font-size: 12.5px; color: var(--muted); margin-left: auto; }
-
-      .svcstatus { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; line-height: 1.5; border-radius: 11px; padding: 10px 13px; margin-bottom: 16px; border: 1px solid; }
-      .svcstatus svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
-      .svcstatus b { font-weight: 700; }
-      .svcstatus.ok { background: var(--ok-bg); color: #0f6b46; border-color: #cdebdd; }
-      .svcstatus.warn { background: var(--warn-bg); color: #8a5d00; border-color: #f0e2b8; }
-      .svcstatus.bad { background: var(--bad-bg); color: #9f2828; border-color: #f4cfcf; }
-      .svcstatus code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
-      .tabs { display: inline-flex; gap: 4px; background: #f1f1f6; border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 18px; }
-      .tab { display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border-radius: 9px; border: none; background: transparent; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); font-family: inherit; transition: .15s; }
-      .tab svg { width: 15px; height: 15px; }
-      .tab.active { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(20,20,40,.12); }
-      label.fld { display: block; font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin: 14px 0 6px; }
-      label.fld .opt { font-weight: 400; color: var(--faint); }
-      input[type=text], input[type=url], textarea, select { width: 100%; border: 1px solid var(--line-2); border-radius: 11px; padding: 11px 13px; font-size: 14px; color: var(--ink); background: #fcfcfe; outline: none; font-family: inherit; transition: .15s; }
-      textarea { min-height: 200px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.55; }
-      input::placeholder, textarea::placeholder { color: var(--faint); }
-      input:focus, textarea:focus, select:focus { border-color: var(--pink); box-shadow: 0 0 0 3.5px rgba(91,84,230,.14); background: #fff; }
-      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-      .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-      @media (max-width: 720px) { .two, .three { grid-template-columns: 1fr; } }
-      .row { display: flex; align-items: center; gap: 14px; margin-top: 20px; flex-wrap: wrap; }
-      button.primary { display: inline-flex; align-items: center; gap: 9px; background: var(--ink); color: #fff; border: none; border-radius: 12px; padding: 13px 26px; font-size: 14.5px; font-weight: 600; cursor: pointer; font-family: inherit; box-shadow: 0 6px 18px -8px rgba(20,21,26,.6); transition: .15s; }
+      main { padding: 28px 0 72px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: var(--shadow); }
+      label.fld { display: block; font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin-bottom: 6px; }
+      .inrow { display: flex; gap: 10px; }
+      @media (max-width: 560px) { .inrow { flex-direction: column; } }
+      input[type=url] { flex: 1; border: 1px solid var(--line-2); border-radius: 12px; padding: 13px 15px; font-size: 15px; color: var(--ink); background: #fcfcfe; outline: none; font-family: inherit; transition: .15s; }
+      input:focus { border-color: var(--pink); box-shadow: 0 0 0 3.5px rgba(91,84,230,.14); background: #fff; }
+      button.primary { display: inline-flex; align-items: center; justify-content: center; gap: 9px; background: var(--ink); color: #fff; border: none; border-radius: 12px; padding: 13px 26px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; box-shadow: 0 6px 18px -8px rgba(20,21,26,.6); transition: .15s; white-space: nowrap; }
       button.primary svg { width: 17px; height: 17px; }
-      button.primary:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -10px rgba(20,21,26,.7); }
-      button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
-      .hint { font-size: 12.5px; color: var(--muted); }
+      button.primary:hover { transform: translateY(-1px); }
+      button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; }
       .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
       @keyframes spin { to { transform: rotate(360deg); } }
-      .alert { margin-top: 16px; padding: 12px 14px; border-radius: 11px; font-size: 13.5px; display: none; align-items: center; gap: 9px; }
+      .pastelink { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+      .pastelink a { color: var(--pink-dark); font-weight: 600; cursor: pointer; }
+      #pastewrap { margin-top: 12px; display: none; }
+      textarea { width: 100%; min-height: 150px; border: 1px solid var(--line-2); border-radius: 12px; padding: 12px 14px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #fcfcfe; outline: none; resize: vertical; }
+      textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3.5px rgba(91,84,230,.14); }
+      .alert { margin-top: 14px; padding: 12px 14px; border-radius: 11px; font-size: 13.5px; display: none; align-items: center; gap: 9px; }
       .alert svg { width: 16px; height: 16px; flex-shrink: 0; }
       .alert.err { background: var(--bad-bg); color: #b3261e; border: 1px solid #f6c9c6; }
       .alert.info { background: var(--accent-soft); color: var(--pink-dark); border: 1px solid #e0def7; }
-      #results { margin-top: 28px; display: none; }
 
-      /* ---- hero score card ---- */
-      .hero-res { display: flex; gap: 30px; align-items: center; flex-wrap: wrap; }
-      .donut { --val: 0; --ring: var(--ok); width: 158px; height: 158px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--ring) calc(var(--val) * 1%), #ececf3 0); flex-shrink: 0; }
-      .donut .inner { width: 124px; height: 124px; border-radius: 50%; background: #fff; display: grid; place-items: center; text-align: center; box-shadow: inset 0 0 0 1px rgba(20,20,40,.04); }
-      .donut .num { font-size: 44px; font-weight: 800; line-height: 1; letter-spacing: -.03em; }
-      .donut .num .pct { font-size: 20px; font-weight: 700; opacity: .6; margin-left: 1px; }
-      .donut .grd { font-size: 11px; color: var(--muted); font-weight: 700; margin-top: 5px; letter-spacing: .08em; text-transform: uppercase; }
-      .verdict { flex: 1; min-width: 280px; }
-      .verdict .vtitle { font-size: 23px; font-weight: 800; margin: 0 0 9px; letter-spacing: -.02em; line-height: 1.2; }
-      .gate { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; margin-bottom: 11px; letter-spacing: .01em; }
-      .gate svg { width: 13px; height: 13px; }
-      .gate.block { background: var(--bad-bg); color: var(--bad); }
-      .gate.warn { background: var(--warn-bg); color: var(--warn); }
-      .gate.strong { background: var(--ok-bg); color: var(--ok); }
-      .gate.optimized { background: var(--accent-soft); color: var(--indigo); }
-      .verdict .vsub { color: var(--muted); font-size: 13px; margin: 0 0 12px; word-break: break-word; }
-      .verdict .vsub b { color: var(--ink-2); font-weight: 600; }
-      .chips { display: flex; gap: 7px; flex-wrap: wrap; }
-      .chip { font-size: 11.5px; font-weight: 600; padding: 4px 11px; border-radius: 999px; background: #f1f1f6; color: var(--ink-2); border: 1px solid var(--line); }
-      .chip.intent { background: var(--accent-soft); color: var(--indigo); border-color: #e0def7; }
-      .chip.band-High { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
-      .chip.band-Medium { background: var(--warn-bg); color: var(--warn); border-color: #f0e2b8; }
-      .chip.band-Low { background: var(--bad-bg); color: var(--bad); border-color: #f4cfcf; }
-      .note-warn { display: flex; gap: 7px; align-items: flex-start; color: var(--warn); font-size: 12.5px; margin-top: 11px; }
-      .note-bad { display: flex; gap: 7px; align-items: flex-start; color: var(--bad); font-size: 12.5px; margin-top: 11px; }
-      .note-warn svg, .note-bad svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
-      .suggest { margin-top: 12px; font-size: 12.5px; background: #f1f1f6; border-radius: 10px; padding: 9px 12px; color: var(--ink-2); }
-      .suggest a { color: var(--pink-dark); font-weight: 600; cursor: pointer; }
+      #out { margin-top: 24px; display: none; }
+      .viscard { border: 1px solid var(--line); border-radius: 18px; padding: 20px; background: #fff; box-shadow: var(--shadow); border-top: 4px solid var(--line-2); }
+      .viscard.yes { border-top-color: var(--ok); } .viscard.partial { border-top-color: var(--warn); } .viscard.no { border-top-color: var(--bad); }
+      .verdicthead { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
+      .vbadge { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; letter-spacing: -.02em; padding: 7px 15px; border-radius: 999px; }
+      .vbadge svg { width: 17px; height: 17px; }
+      .vbadge.yes { background: var(--ok-bg); color: var(--ok); } .vbadge.partial { background: var(--warn-bg); color: var(--warn); } .vbadge.no { background: var(--bad-bg); color: var(--bad); }
+      .rendertag { font-size: 11.5px; font-weight: 700; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); }
+      .rendertag.html { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
+      .rendertag.js { background: var(--bad-bg); color: var(--bad); border-color: #f4cfcf; }
+      .vreason { font-size: 14px; color: var(--ink-2); line-height: 1.6; margin: 13px 0 0; }
+      .vhost { font-size: 12.5px; color: var(--muted); margin-top: 6px; word-break: break-all; }
 
-      /* AI executive summary */
-      .summary { margin-top: 20px; display: flex; gap: 13px; background: linear-gradient(120deg, #f4f3ff, #f0f4ff); border: 1px solid #e6e3fb; border-radius: 14px; padding: 15px 17px; }
-      .summary .sicon { width: 30px; height: 30px; border-radius: 9px; background: #fff; border: 1px solid #e6e3fb; display: grid; place-items: center; flex-shrink: 0; }
-      .summary .sicon svg { width: 16px; height: 16px; color: var(--indigo); }
-      .summary .sbody b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--indigo); margin-bottom: 3px; font-weight: 700; }
-      .summary .sbody p { margin: 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.55; }
-
-      .resbar { display: flex; justify-content: flex-end; gap: 9px; margin: 18px 0 -6px; }
-      .ghostbtn { display: inline-flex; align-items: center; gap: 7px; background: #fff; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; transition: .15s; }
-      .ghostbtn svg { width: 14px; height: 14px; }
-      .ghostbtn:hover { border-color: var(--pink); color: var(--pink); }
-
-      .covbar { height: 9px; border-radius: 999px; background: #edeef4; overflow: hidden; margin: 6px 0 14px; }
-      .covbar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--indigo), #8b85f5); }
-
-      .fixrow .fmeta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
-      .gain { font-size: 12px; font-weight: 700; color: var(--ok); white-space: nowrap; }
-      .ftag { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 2px 8px; border-radius: 999px; }
-      .ftag.high { background: var(--accent-soft); color: var(--indigo); }
-      .ftag.quick { background: var(--ok-bg); color: var(--ok); }
-      .ftag.offpage { background: #f1f1f6; color: var(--muted); }
-      .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 11px; font-size: 13.5px; font-weight: 500; opacity: 0; transition: opacity .2s; pointer-events: none; box-shadow: 0 12px 32px -12px rgba(0,0,0,.5); }
-      .toast.show { opacity: 1; }
-
-      /* ---- section header (eyebrow style, no emoji) ---- */
-      .sectitle { display: flex; align-items: center; gap: 10px; margin: 34px 0 14px; }
-      .sectitle .sicn { width: 30px; height: 30px; border-radius: 9px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; flex-shrink: 0; color: var(--ink-2); box-shadow: var(--shadow); }
-      .sectitle .sicn svg { width: 15px; height: 15px; }
-      .sectitle .stx { display: flex; flex-direction: column; }
-      .sectitle .stx b { font-size: 14.5px; font-weight: 700; letter-spacing: -.01em; }
-      .sectitle .stx span { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 1px; }
-
-      /* ---- per-engine cards ---- */
-      .engcards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; }
-      @media (max-width: 680px) { .engcards { grid-template-columns: 1fr 1fr; } }
-      .engcard { position: relative; border: 1px solid var(--line); border-radius: 15px; padding: 15px 16px 16px; background: #fff; box-shadow: var(--shadow); overflow: hidden; }
-      .engcard::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--e); }
-      .engcard .en { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
-      .engcard .en .swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--e); }
-      .engcard .es { font-size: 30px; font-weight: 800; letter-spacing: -.03em; margin: 8px 0 9px; line-height: 1; }
-      .engcard .es small { font-size: 15px; font-weight: 700; opacity: .55; }
-      .engcard .ebar { height: 6px; border-radius: 999px; background: #edeef4; overflow: hidden; }
-      .engcard .ebar > i { display: block; height: 100%; border-radius: 999px; }
-
-      /* ---- AI crawlability ---- */
-      .crawlbanner { display: flex; gap: 12px; align-items: flex-start; background: var(--bad-bg); border: 1px solid #f4cfcf; border-radius: 14px; padding: 14px 16px; margin-bottom: 4px; font-size: 13px; color: #8f2020; line-height: 1.55; }
-      .crawlbanner svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--bad); margin-top: 1px; }
-      .crawlbanner b { color: var(--bad); }
-      .crawlcards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-      @media (max-width: 620px) { .crawlcards { grid-template-columns: 1fr; } }
-      .crawlcard { border: 1px solid var(--line); border-radius: 14px; padding: 14px 15px; background: #fff; box-shadow: var(--shadow); border-left: 3px solid var(--line-2); }
-      .crawlcard.pass { border-left-color: var(--ok); }
-      .crawlcard.warn { border-left-color: var(--warn); }
-      .crawlcard.fail { border-left-color: var(--bad); }
-      .cc-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-      .cc-name { font-size: 13.5px; font-weight: 700; }
-      .cbadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
-      .cbadge svg { width: 11px; height: 11px; }
-      .cbadge.pass { background: var(--ok-bg); color: var(--ok); }
-      .cbadge.warn { background: var(--warn-bg); color: var(--warn); }
-      .cbadge.fail { background: var(--bad-bg); color: var(--bad); }
-      .cc-detail { font-size: 12px; color: var(--muted); margin-top: 7px; line-height: 1.5; }
-      .cc-fix { font-size: 12.5px; color: #6b5410; margin-top: 8px; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 7px 11px; border-radius: 0 8px 8px 0; line-height: 1.5; }
-
-      /* ---- Can LLMs access this page? (visibility) ---- */
-      .viscard { border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: #fff; box-shadow: var(--shadow); border-top: 3px solid var(--line-2); }
-      .viscard.vis-yes { border-top-color: var(--ok); }
-      .viscard.vis-partial { border-top-color: var(--warn); }
-      .viscard.vis-no { border-top-color: var(--bad); }
-      .vis-verdicthead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-      .vis-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 800; letter-spacing: -.01em; padding: 6px 13px; border-radius: 999px; }
-      .vis-badge svg { width: 15px; height: 15px; }
-      .vis-badge.yes { background: var(--ok-bg); color: var(--ok); }
-      .vis-badge.partial { background: var(--warn-bg); color: var(--warn); }
-      .vis-badge.no { background: var(--bad-bg); color: var(--bad); }
-      .vis-fw { font-size: 11px; font-weight: 700; color: var(--muted); background: #f1f1f6; border: 1px solid var(--line); padding: 3px 9px; border-radius: 999px; }
-      .vis-reason { font-size: 13px; color: var(--ink-2); line-height: 1.6; margin: 11px 0 16px; }
+      .sectitle { font-size: 13px; font-weight: 800; letter-spacing: -.01em; margin: 26px 0 12px; color: var(--ink); }
       .viewers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
       @media (max-width: 680px) { .viewers { grid-template-columns: 1fr; } }
-      .viewer { border: 1px solid var(--line); border-radius: 13px; padding: 13px 14px; background: #fbfbfe; border-left: 3px solid var(--line-2); }
+      .viewer { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: #fff; border-left: 3px solid var(--line-2); box-shadow: var(--shadow); }
       .viewer.pass { border-left-color: var(--ok); } .viewer.warn { border-left-color: var(--warn); } .viewer.fail { border-left-color: var(--bad); }
-      .vw-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
-      .vw-who { font-size: 12.5px; font-weight: 700; line-height: 1.3; }
+      .vw-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+      .vw-who { font-size: 13px; font-weight: 700; line-height: 1.3; }
       .vw-js { font-size: 9.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
       .vw-js.yes { background: #e9e6fb; color: var(--indigo); } .vw-js.no { background: #eef0f5; color: var(--muted); }
-      .vw-access { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; margin-bottom: 6px; }
+      .vw-access { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 800; margin-bottom: 6px; }
       .vw-access svg { width: 13px; height: 13px; }
       .vw-access.pass { color: var(--ok); } .vw-access.warn { color: var(--warn); } .vw-access.fail { color: var(--bad); }
-      .vw-sees { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
-      .vis-elhead { font-size: 12.5px; font-weight: 700; margin: 18px 0 10px; letter-spacing: -.01em; }
-      .ellist { display: grid; gap: 7px; }
-      .elrow { display: flex; gap: 11px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff; }
-      .elchip { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
-      .elchip svg { width: 11px; height: 11px; }
-      .elchip.pass { background: var(--ok-bg); color: var(--ok); } .elchip.warn { background: var(--warn-bg); color: var(--warn); } .elchip.fail { background: var(--bad-bg); color: var(--bad); }
-      .elbody { flex: 1; min-width: 0; }
-      .elname { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .vw-sees { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+      .ellist { display: grid; gap: 8px; }
+      .elrow { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; background: #fff; }
+      .elchip { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
+      .elchip svg { width: 12px; height: 12px; }
+      .elchip.read { background: var(--ok-bg); color: var(--ok); } .elchip.partial { background: var(--warn-bg); color: var(--warn); } .elchip.missed { background: var(--bad-bg); color: var(--bad); }
+      .elname { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .eltag { font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; }
       .eltag.read { background: var(--ok-bg); color: var(--ok); } .eltag.partial { background: var(--warn-bg); color: var(--warn); } .eltag.missed { background: var(--bad-bg); color: var(--bad); }
       .eldetail { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
 
-      /* ---- Verify in real engines ---- */
-      .verifybox { border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: linear-gradient(180deg, #fbfbff, #fff); box-shadow: var(--shadow); }
-      .vfy-intro { font-size: 13.5px; color: var(--ink-2); line-height: 1.6; margin-bottom: 14px; }
-      .vfy-intro b { color: var(--ink); font-weight: 700; }
-      .vfy-fallback { color: var(--warn); font-weight: 600; }
-      .verifybox code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
-      .vfy-btn { font-size: 14px; }
-      .vfy-loading { margin-top: 14px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
-      .vfy-loading::before { content: ''; width: 15px; height: 15px; border: 2px solid var(--line-2); border-top-color: var(--pink); border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
-      .vfy-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
-      @media (max-width: 620px) { .vfy-stats { grid-template-columns: 1fr; } }
-      .vstat { display: flex; align-items: center; gap: 13px; border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px; background: #fff; box-shadow: var(--shadow); }
-      .vstat .vnum { font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1; color: var(--ink); }
-      .vstat .vnum small { font-size: 15px; font-weight: 700; opacity: .55; }
-      .vstat .vlbl { font-size: 12.5px; font-weight: 700; }
-      .vstat .vlbl span { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 2px; line-height: 1.4; }
-      .vfy-engines { margin-top: 14px; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-      .vsub2 { font-size: 13px; font-weight: 700; margin: 20px 0 10px; letter-spacing: -.01em; }
-      .vrows { display: grid; gap: 9px; }
-      .vrow { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; box-shadow: var(--shadow); }
-      .vq { font-size: 13px; font-weight: 600; margin-bottom: 9px; }
-      .vchips { display: flex; gap: 7px; flex-wrap: wrap; }
-      .vchip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); }
-      .vchip svg { width: 11px; height: 11px; }
-      .vchip.pass { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
-      .vchip.fail { background: var(--bad-bg); color: var(--bad); border-color: #f4cfcf; }
-      .vchip.na { background: #eef0f5; color: var(--na); }
-      .sovlist { display: grid; gap: 8px; }
-      .sovrow { display: grid; grid-template-columns: 200px 1fr 36px; align-items: center; gap: 12px; }
-      @media (max-width: 560px) { .sovrow { grid-template-columns: 120px 1fr 30px; } }
-      .sovrow.you .sovdom { color: var(--pink-dark); font-weight: 800; }
-      .sovdom { font-size: 12.5px; font-weight: 600; color: var(--ink-2); display: flex; align-items: center; gap: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .youtag { font-size: 9px; font-weight: 800; letter-spacing: .05em; background: var(--pink); color: #fff; padding: 1px 6px; border-radius: 5px; }
-      .sovbar { height: 9px; border-radius: 999px; background: #edeef4; overflow: hidden; }
-      .sovbar > i { display: block; height: 100%; border-radius: 999px; background: #b9bccb; }
-      .sovrow.you .sovbar > i { background: var(--pink); }
-      .sovrow.rival .sovdom { color: #b07900; font-weight: 700; }
-      .sovrow.rival .sovbar > i { background: #d9a43a; }
-      .rivaltag { font-size: 9px; font-weight: 800; letter-spacing: .05em; background: var(--warn); color: #fff; padding: 1px 6px; border-radius: 5px; }
-      .sovn { font-size: 12.5px; font-weight: 700; text-align: right; color: var(--ink-2); }
+      .bots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      @media (max-width: 560px) { .bots { grid-template-columns: 1fr; } }
+      .botrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; background: #fff; }
+      .botname { font-size: 13px; font-weight: 600; }
+      .botbadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+      .botbadge svg { width: 11px; height: 11px; }
+      .botbadge.allowed, .botbadge.default { background: var(--ok-bg); color: var(--ok); }
+      .botbadge.partial { background: var(--warn-bg); color: var(--warn); }
+      .botbadge.blocked { background: var(--bad-bg); color: var(--bad); }
 
-      /* source gap to-do list */
-      .gaphint { font-size: 12.5px; color: var(--muted); margin: -4px 0 11px; line-height: 1.55; }
-      .gaplist { display: grid; gap: 9px; }
-      .gaprow { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; box-shadow: var(--shadow); }
-      .gaptop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-      .gapdom { font-size: 13.5px; font-weight: 700; }
-      .gapkind { font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
-      .gapaction { font-size: 12.5px; color: var(--ink-2); margin-top: 7px; line-height: 1.55; }
-
-      /* ---- pillar gauges ---- */
-      .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
-      @media (max-width: 760px) { .gauges { grid-template-columns: 1fr 1fr; } }
-      @media (max-width: 460px) { .gauges { grid-template-columns: 1fr; } }
-      .gauge { border: 1px solid var(--line); border-radius: 15px; padding: 15px; background: #fff; cursor: pointer; box-shadow: var(--shadow); transition: box-shadow .18s, transform .18s, border-color .18s; }
-      .gauge:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); border-color: var(--line-2); }
-      .gauge .gtop { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-      .gauge .gname { font-size: 13px; font-weight: 700; line-height: 1.3; }
-      .gauge .gpts { font-size: 23px; font-weight: 800; color: var(--g); white-space: nowrap; letter-spacing: -.02em; }
-      .gauge .gpts small { font-size: 12px; color: var(--faint); font-weight: 700; }
-      .gauge .gpurpose { font-size: 10.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
-      .gbar { height: 6px; border-radius: 999px; background: #edeef4; overflow: hidden; margin-top: 11px; }
-      .gbar > i { display: block; height: 100%; border-radius: 999px; background: var(--g); }
-      .gcounts { display: flex; gap: 11px; margin-top: 11px; font-size: 11px; font-weight: 700; }
-      .gcounts .cok { color: var(--ok); } .gcounts .cwarn { color: var(--warn); } .gcounts .cbad { color: var(--bad); }
-      .gauge .gmore { font-size: 11px; font-weight: 700; color: var(--g); margin-top: 10px; display: inline-flex; align-items: center; gap: 4px; }
-
-      .domain { border: 1px solid var(--line); border-radius: 15px; padding: 16px 18px; background: #fbfbfe; box-shadow: var(--shadow); }
-      .domain .dnote { font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
-      .drow { display: flex; gap: 13px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
-      .drow:first-of-type { border-top: none; padding-top: 2px; }
-      .drow .dscore { font-weight: 700; font-size: 13px; padding: 3px 9px; border-radius: 8px; min-width: 42px; text-align: center; flex-shrink: 0; }
-      .drow .dbody .dname { font-weight: 600; font-size: 13px; }
-      .drow .dbody .ddetail { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
-
-      .prompts { display: grid; gap: 8px; }
-      .prow { display: flex; gap: 11px; align-items: flex-start; border: 1px solid var(--line); border-radius: 11px; padding: 10px 13px; background: #fff; font-size: 13px; box-shadow: var(--shadow); }
-      .prow .pmark { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex-shrink: 0; }
-      .prow .pmark svg { width: 12px; height: 12px; }
-      .prow .pmark.yes { background: var(--ok-bg); color: var(--ok); }
-      .prow .pmark.no { background: var(--bad-bg); color: var(--bad); }
-
-      .fixlist { display: grid; gap: 10px; }
-      .fixrow { display: flex; gap: 13px; align-items: flex-start; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: #fff; border-left: 3px solid var(--fc); box-shadow: var(--shadow); }
-      .fixrow .fnum { font-weight: 800; color: var(--fc); font-size: 14px; min-width: 18px; }
-      .fixrow .ftext { font-size: 13px; flex: 1; line-height: 1.55; }
-      .fixrow .ftext b { display: block; margin-bottom: 3px; font-size: 13.5px; }
-
-      .pillar { border: 1px solid var(--line); border-radius: 15px; overflow: hidden; background: #fff; margin-bottom: 11px; box-shadow: var(--shadow); }
-      .pillar > summary { list-style: none; cursor: pointer; padding: 15px 17px; display: flex; align-items: center; gap: 14px; }
-      .pillar > summary::-webkit-details-marker { display: none; }
-      .pillar .caret { color: var(--faint); transition: transform .15s; display: grid; place-items: center; }
-      .pillar .caret svg { width: 13px; height: 13px; }
-      .pillar[open] .caret { transform: rotate(90deg); }
-      .pillar .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--p); flex-shrink: 0; }
-      .pname { font-weight: 700; font-size: 14.5px; flex: 1; }
-      .pillar .pissues { font-size: 11px; font-weight: 700; color: var(--bad); background: var(--bad-bg); padding: 3px 10px; border-radius: 999px; }
-      .pillar .pclean { font-size: 11px; font-weight: 700; color: var(--ok); background: var(--ok-bg); padding: 3px 10px; border-radius: 999px; }
-      .pbar { height: 7px; border-radius: 999px; background: #edeef4; width: 130px; overflow: hidden; }
-      .pbar > i { display: block; height: 100%; border-radius: 999px; background: var(--p); }
-      @media (max-width: 720px) { .pbar { width: 56px; } }
-      .pscore { font-weight: 800; font-size: 18px; min-width: 40px; text-align: right; color: var(--p); letter-spacing: -.02em; }
-      .signals { padding: 2px 17px 14px; }
-      .signal { display: flex; gap: 13px; padding: 13px 0; border-top: 1px solid var(--line); align-items: flex-start; }
-      .schip { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
-      .schip svg { width: 12px; height: 12px; }
-      .schip.pass { background: var(--ok-bg); color: var(--ok); } .schip.warn { background: var(--warn-bg); color: var(--warn); }
-      .schip.fail { background: var(--bad-bg); color: var(--bad); } .schip.na { background: #eef0f5; color: var(--na); }
-      .sbody { flex: 1; min-width: 0; }
-      .sname { font-weight: 600; font-size: 13.5px; }
-      .sname .tag { font-size: 9px; font-weight: 700; color: var(--indigo); background: var(--accent-soft); border-radius: 5px; padding: 2px 6px; margin-left: 8px; vertical-align: 1px; letter-spacing: .04em; }
-      .sdetail { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
-      .sfix { font-size: 12.5px; color: #6b5410; margin-top: 7px; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 7px 11px; border-radius: 0 8px 8px 0; line-height: 1.5; }
-      .sscore { font-weight: 700; font-size: 13px; padding: 3px 9px; border-radius: 8px; min-width: 42px; text-align: center; flex-shrink: 0; }
-
-      .caveat { margin-top: 24px; font-size: 12px; color: var(--muted); background: #f1f1f6; border-radius: 14px; padding: 14px 16px; line-height: 1.6; }
-      .caveat b { color: var(--ink-2); }
-      footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 32px 24px; border-top: 1px solid var(--line); }
+      .note { margin-top: 16px; font-size: 12px; color: var(--muted); background: #f1f1f6; border-radius: 12px; padding: 12px 14px; line-height: 1.6; }
+      .note a { color: var(--pink-dark); font-weight: 600; }
+      footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 30px 24px; border-top: 1px solid var(--line); }
       footer b { color: var(--ink-2); }
-      ::selection { background: #ddd9fb; }
-
-      /* PDF / print */
-      .printhead { display: none; }
-      @media print {
-        @page { margin: 14mm; }
-        body { background: #fff !important; }
-        body * { visibility: hidden; }
-        #results, #results * { visibility: visible; }
-        #results { position: absolute; left: 0; top: 0; width: 100%; margin: 0; }
-        .nav, .hero, footer, .toast, .resbar, .suggest a { display: none !important; }
-        .printhead { display: block !important; margin-bottom: 14px; border-bottom: 2px solid var(--pink); padding-bottom: 8px; }
-        .printhead .pt-brand { font-size: 18px; font-weight: 800; color: var(--pink-dark); letter-spacing: -.02em; }
-        .printhead .pt-sub { font-size: 11px; color: var(--muted); }
-        .card, .gauge, .engcard, .pillar, .fixrow, .prow, .domain { box-shadow: none !important; border: 1px solid var(--line) !important; break-inside: avoid; }
-        .pillar .signals { display: block !important; }
-        .gauges { break-inside: avoid; }
-        a[href]:after { content: ""; }
-      }
     </style>
   </head>
   <body>
@@ -404,598 +128,135 @@
           <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg></span>
           CiteRank
         </div>
-        <div class="navmeta"><span class="dot"></span><span>AI-powered</span><span class="hidesm">· By Rudra Kasturi Inc</span></div>
-        <div id="acct" class="acct"></div>
-      </div>
-    </div>
-
-    <!-- Auth + history overlay -->
-    <div class="modal" id="modal" style="display:none">
-      <div class="modal-card">
-        <button class="modal-x" id="modalx" aria-label="Close">&times;</button>
-        <div id="modal-body"></div>
+        <a href="/audit" class="nav-link">Full AEO audit <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
       </div>
     </div>
 
     <section class="hero">
       <div class="wrap">
-        <span class="eyebrow">Answer Engine Optimization</span>
-        <h1>Is your content ready to rank in LLMs?</h1>
-        <p>Check your content quality <strong>before you publish.</strong> Paste a URL or your draft and CiteRank scores how ready it is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews — then tells you exactly what to fix.</p>
-        <div class="enginerow">
-          <span class="lbl">Scored against</span>
-          <span class="eng-wm"><span class="swatch" style="background:#10a37f"></span>ChatGPT</span>
-          <span class="eng-wm"><span class="swatch" style="background:#20808d"></span>Perplexity</span>
-          <span class="eng-wm"><span class="swatch" style="background:#4285f4"></span>Gemini</span>
-          <span class="eng-wm"><span class="swatch" style="background:#a855f7"></span>AI Overviews</span>
-        </div>
+        <span class="eyebrow">LLM Access Check</span>
+        <h1>Can LLMs read your page?</h1>
+        <p>Paste a URL and see instantly what a human, Googlebot and the AI crawlers (ChatGPT, Claude, Perplexity) each actually see — what's in your HTML they can read, and what's hidden behind JavaScript they can't.</p>
       </div>
     </section>
 
     <main>
       <div class="wrap">
         <div class="card">
-          <div id="svcstatus" class="svcstatus" style="display:none"></div>
-          <div class="tabs">
-            <button class="tab active" id="tab-url" data-mode="url"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>Audit a URL</button>
-            <button class="tab" id="tab-paste" data-mode="paste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Paste article</button>
+          <label class="fld" for="url">Page URL</label>
+          <div class="inrow">
+            <input id="url" type="url" placeholder="https://example.com/your-page" />
+            <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>Check access</button>
           </div>
-
-          <div id="pane-url">
-            <label class="fld" for="url">Page URL</label>
-            <input id="url" type="url" placeholder="https://example.com/blog/your-article" />
+          <div class="pastelink">Can't fetch it (login-walled or blocked)? <a id="pastetoggle">Paste the HTML instead</a></div>
+          <div id="pastewrap">
+            <textarea id="html" placeholder="Paste the page's HTML source here…"></textarea>
           </div>
-          <div id="pane-paste" style="display:none">
-            <label class="fld" for="html">Page HTML or plain text</label>
-            <textarea id="html" placeholder="Paste the page's HTML (best — keeps headings, schema, prices, links) or plain text. For JavaScript-heavy or e-commerce pages, open the page → right-click → Inspect → copy the &lt;html&gt; and paste it here for an accurate read."></textarea>
-          </div>
-
-          <div class="three">
-            <div>
-              <label class="fld" for="pagetype">Page type <span class="opt">(what is this page?)</span></label>
-              <select id="pagetype">
-                <option value="auto">Auto-detect</option>
-                <option value="article">Article / Blog</option>
-                <option value="product">Product page</option>
-                <option value="listing">Category / Listing page</option>
-              </select>
-            </div>
-            <div>
-              <label class="fld" for="category">Category <span class="opt">(sets the weighting)</span></label>
-              <select id="category">
-                <option value="general">General</option>
-                <option value="entertainment">Entertainment</option>
-                <option value="health">Health</option>
-                <option value="news">Breaking News</option>
-                <option value="lifestyle">Lifestyle</option>
-                <option value="commerce">Beauty / Commerce</option>
-              </select>
-            </div>
-            <div>
-              <label class="fld" for="brand">Brand / site <span class="opt">(optional)</span></label>
-              <input id="brand" type="text" placeholder="Leave blank to use the domain" />
-            </div>
-            <div>
-              <label class="fld" for="topic">Topic <span class="opt">(optional)</span></label>
-              <input id="topic" type="text" placeholder="e.g. Virat Kohli retirement" />
-            </div>
-          </div>
-          <label class="fld" for="target">Target question this page should be the cited answer to <span class="opt">(optional)</span></label>
-          <input id="target" type="text" placeholder="e.g. why did Virat Kohli retire?" />
-          <label class="fld" for="competitors">Competitors to track <span class="opt">(optional — domains, comma-separated; used in “Verify in real engines”)</span></label>
-          <input id="competitors" type="text" placeholder="e.g. sephora.com, sugarcosmetics.com" />
-
-          <div class="row">
-            <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit</button>
-            <span class="hint">Takes 15–30 seconds.</span>
-          </div>
-
           <div class="alert err" id="err"></div>
           <div class="alert info" id="info"></div>
         </div>
 
-        <section id="results"></section>
+        <section id="out"></section>
       </div>
     </main>
 
-    <footer><b>CiteRank</b> · By Rudra Kasturi Inc · category-weighted &amp; evidence-based (Princeton GEO, Ahrefs studies) · predicts citability, not a guarantee</footer>
-    <div class="toast" id="toast"></div>
+    <footer><b>CiteRank</b> · LLM Access Check · Googlebot renders JavaScript — AI crawlers don't, so JS-injected content is invisible to them.</footer>
 
     <script>
       const $ = (id) => document.getElementById(id);
-      let mode = 'url';
-      let SVC = null; // server capability (set by checkHealth): { judge, verify, ... }
-      const CAT_LABEL = { general: 'General', entertainment: 'Entertainment', health: 'Health', news: 'Breaking News', lifestyle: 'Lifestyle', commerce: 'Beauty / Commerce' };
-
-      // Inline SVG icon set (stroke-based, replaces emoji for a cleaner look).
       const IC = {
-        engine: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2.5"/><rect x="9" y="9" width="6" height="6" rx="1.2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>',
-        bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 8V4M9 4h6"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M2 13v2M22 13v2"/></svg>',
-        eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
-        bars: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7" rx="1"/><rect x="12" y="6" width="3" height="11" rx="1"/><rect x="17" y="13" width="3" height="4" rx="1"/></svg>',
-        chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/></svg>',
-        wrench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 6.3a3.7 3.7 0 0 0-4.9 4.7l-6 6a1.7 1.7 0 0 0 0 2.4l.9.9a1.7 1.7 0 0 0 2.4 0l6-6a3.7 3.7 0 0 0 4.7-4.9l-2.5 2.5-2.1-.6-.6-2.1z"/></svg>',
-        globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18"/></svg>',
-        layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg>',
-        sparkle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg>',
-        download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>',
-        copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
         check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>',
-        alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5h.01"/></svg>',
         x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
-        dash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 12h12"/></svg>',
-        caret: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
-        arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>',
-        shieldX: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m10 10 4 4m0-4-4 4"/></svg>',
-        shieldA: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="M12 9v3m0 3h.01"/></svg>',
-        shieldOk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 11.5 2 2 4-4"/></svg>',
-        trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M9 19h6M10 15v4M14 15v4"/></svg>',
+        alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5h.01"/></svg>',
+        eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
       };
-      const STATUS_IC = { pass: IC.check, warn: IC.alert, fail: IC.x, na: IC.dash };
-      const GATE_IC = { block: IC.shieldX, warn: IC.shieldA, strong: IC.shieldOk, optimized: IC.trophy };
-
-      function setMode(m) {
-        mode = m;
-        $('tab-url').classList.toggle('active', m === 'url');
-        $('tab-paste').classList.toggle('active', m === 'paste');
-        $('pane-url').style.display = m === 'url' ? 'block' : 'none';
-        $('pane-paste').style.display = m === 'paste' ? 'block' : 'none';
-      }
-      $('tab-url').addEventListener('click', () => setMode('url'));
-      $('tab-paste').addEventListener('click', () => setMode('paste'));
+      const ACCESS_IC = { ok: IC.check, partial: IC.alert, blocked: IC.x };
+      const ACCESS_ST = { ok: 'pass', partial: 'warn', blocked: 'fail' };
+      const EL_IC = { read: IC.check, partial: IC.alert, missed: IC.x };
+      const BOT_IC = { allowed: IC.check, default: IC.check, partial: IC.alert, blocked: IC.x };
 
       function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-      function showErr(msg) { const e = $('err'); e.innerHTML = IC.alert + '<span>' + esc(msg) + '</span>'; e.style.display = 'flex'; }
+      function showErr(m) { const e = $('err'); e.innerHTML = IC.alert + '<span>' + esc(m) + '</span>'; e.style.display = 'flex'; }
       function hideAlerts() { $('err').style.display = 'none'; $('info').style.display = 'none'; }
 
-      function hexFor(s) { if (s == null) return '#9aa0ad'; if (s >= 75) return '#15915f'; if (s >= 45) return '#b07900'; return '#d23c3c'; }
-      function statusOf(s) { if (s == null) return 'na'; if (s >= 75) return 'pass'; if (s >= 45) return 'warn'; return 'fail'; }
-      function tintFor(s) { const st = statusOf(s); return st === 'pass' ? 'background:var(--ok-bg);color:var(--ok)' : st === 'warn' ? 'background:var(--warn-bg);color:var(--warn)' : st === 'fail' ? 'background:var(--bad-bg);color:var(--bad)' : 'background:#eef0f5;color:var(--na)'; }
-      function sec(icon, title, sub) { return `<div class="sectitle"><span class="sicn">${icon}</span><div class="stx"><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}</div></div>`; }
+      let pasteMode = false;
+      $('pastetoggle').addEventListener('click', () => {
+        pasteMode = !pasteMode;
+        $('pastewrap').style.display = pasteMode ? 'block' : 'none';
+        $('pastetoggle').textContent = pasteMode ? 'use a URL instead' : 'Paste the HTML instead';
+      });
 
-      function render(data) {
-        const r = data.report, m = data.meta || {}, root = $('results');
-        const vc = hexFor(r.overall);
+      function renderResult(d) {
+        const out = $('out');
+        const rt = d.render || {};
+        const renderTag = rt.type === 'html'
+          ? `<span class="rendertag html">Server-rendered HTML${rt.framework ? ' · ' + esc(rt.framework) : ''}</span>`
+          : `<span class="rendertag js">JavaScript-rendered${rt.framework ? ' · ' + esc(rt.framework) : ''}</span>`;
 
-        const chips = [
-          m.pageTypeLabel ? `<span class="chip intent">${esc(m.pageTypeLabel)}${m.pageTypeAuto ? ' (auto)' : ''}</span>` : '',
-          `<span class="chip band-${r.citationBand}">${r.citationBand} citation likelihood</span>`,
-          r.benchmark ? `<span class="chip">${esc(r.benchmark)}</span>` : '',
-          `<span class="chip">${m.wordCount} words</span>`,
-          m.detectedIntent ? `<span class="chip intent">${esc(m.detectedIntent)}</span>` : '',
-          m.brand ? `<span class="chip">brand: ${esc(m.brand)}</span>` : (m.host ? `<span class="chip">site: ${esc(m.host)}</span>` : ''),
-        ].filter(Boolean).join('');
-
-        let suggest = '';
-        if (m.suggestedCategory && m.suggestedCategory !== m.category) {
-          suggest = `<div class="suggest">This reads more like <b>${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)}</b> than ${esc(m.categoryLabel)}. <a id="recat" data-cat="${esc(m.suggestedCategory)}">Re-audit as ${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)} →</a></div>`;
-        }
-
-        const bandLine = r.citationBand === 'High' ? 'Likely to be cited by AI'
-          : r.citationBand === 'Medium' ? 'Some chance of being cited — needs work'
-          : 'Unlikely to be cited as it stands';
-        const hero = `
-          <div class="card">
-            <div class="hero-res">
-              <div class="donut" style="--val:${r.overall};--ring:${vc}">
-                <div class="inner"><div class="num" style="color:${vc}">${r.overall}<span class="pct">%</span></div><div class="grd">AEO · ${esc(r.grade)}</div></div>
-              </div>
-              <div class="verdict">
-                <span class="gate ${r.gate.level}">${GATE_IC[r.gate.level] || IC.shieldA} ${esc(r.gate.label)}</span>
-                <div class="vtitle" style="color:${vc}">${bandLine}</div>
-                <div class="vsub">${esc(m.mode === 'url' ? (m.url || 'Audited URL') : 'Pasted content')}${m.pageTypeLabel ? ` · ${esc(m.pageTypeLabel)}` : ''} · weighted for <b>${esc(m.categoryLabel)}</b></div>
-                <div class="chips">${chips}</div>
-                ${suggest}
-                ${m.fetchNote ? `<div class="note-warn">${IC.alert}<span>${esc(m.fetchNote)}</span></div>` : ''}
-                ${m.aiError ? `<div class="note-bad">${IC.alert}<span>AI-judged signals unavailable — they default to 50. Add a funded API key to the service. (${esc(m.aiError)})</span></div>` : ''}
-              </div>
-            </div>
-            ${r.summary ? `<div class="summary"><span class="sicon">${IC.sparkle}</span><div class="sbody"><b>What this means</b><p>${esc(r.summary)}</p></div></div>` : ''}
-          </div>`;
-
-        // ---- AI crawlability (robots.txt + llms.txt) ----
-        function crawlBadge(s) {
-          if (s.id === 'llms_txt') return s.score >= 100 ? ['Found', 'pass'] : ['Not found', 'warn'];
-          if (s.score >= 100) return ['Allowed', 'pass'];
-          if (s.score === 0) return ['Blocked', 'fail'];
-          if (s.score >= 70) return ['Default-allow', 'pass'];
-          return ['Partly blocked', 'warn'];
-        }
-        const crawl = r.crawlability || [];
-        const crawlPanel = crawl.length ? sec(IC.bot, 'AI crawlability', 'can answer-engine bots actually reach this page? (site-wide — not in the score)') + `
-          <div class="crawlcards">${crawl.map((s) => {
-            const [lbl, st] = crawlBadge(s);
-            return `<div class="crawlcard ${st}"><div class="cc-top"><span class="cc-name">${esc(s.label)}</span><span class="cbadge ${st}">${st === 'pass' ? IC.check : st === 'fail' ? IC.x : IC.alert}${lbl}</span></div><div class="cc-detail">${esc(s.detail)}</div>${s.fix ? `<div class="cc-fix">${esc(s.fix)}</div>` : ''}</div>`;
-          }).join('')}</div>` : '';
-        const crawlBanner = r.crawlBlocked ? `<div class="crawlbanner">${IC.shieldX}<div><b>An answer-engine crawler is blocked.</b> No matter how good this page is, the affected engines can't read it — so they can't cite it. Fix the robots.txt rules flagged in “AI crawlability” below first.</div></div>` : '';
-
-        // ---- Can LLMs access this page? (User vs Googlebot vs LLM) ----
-        const vis = r.visibility;
-        const ACCESS_IC = { ok: IC.check, partial: IC.alert, blocked: IC.x };
-        const ACCESS_ST = { ok: 'pass', partial: 'warn', blocked: 'fail' };
-        const EL_IC = { read: IC.check, partial: IC.alert, missed: IC.x };
-        const visibilityPanel = (vis && vis.applicable) ? sec(IC.eye, 'Can LLMs access this page?', 'what a human, Googlebot and the LLM crawlers each actually see') + `
-          <div class="viscard vis-${vis.verdict.level}">
-            <div class="vis-verdicthead">
-              <span class="vis-badge ${vis.verdict.level}">${vis.verdict.level === 'yes' ? IC.check : vis.verdict.level === 'no' ? IC.x : IC.alert} ${esc(vis.verdict.label)}</span>
-              ${vis.framework ? `<span class="vis-fw">${esc(vis.framework)} detected</span>` : ''}
-            </div>
-            <div class="vis-reason">${esc(vis.verdict.reason)}</div>
-            <div class="viewers">${vis.viewers.map((v) => {
-              const st = ACCESS_ST[v.access];
-              return `<div class="viewer ${st}"><div class="vw-top"><span class="vw-who">${esc(v.who)}</span><span class="vw-js ${v.rendersJs ? 'yes' : 'no'}">${v.rendersJs ? 'runs JS' : 'no JS'}</span></div><div class="vw-access ${st}">${ACCESS_IC[v.access]} ${v.access === 'ok' ? 'Can read it' : v.access === 'partial' ? 'Partial' : 'Blocked'}</div><div class="vw-sees">${esc(v.sees)}</div></div>`;
-            }).join('')}</div>
-            ${vis.elements && vis.elements.length ? `<div class="vis-elhead">Element-by-element — what LLMs get from the raw HTML</div><div class="ellist">${vis.elements.map((e) => `<div class="elrow ${e.status}"><span class="elchip ${e.status === 'read' ? 'pass' : e.status === 'partial' ? 'warn' : 'fail'}">${EL_IC[e.status]}</span><div class="elbody"><div class="elname">${esc(e.label)} <span class="eltag ${e.status}">${e.status === 'read' ? 'LLMs read this' : e.status === 'partial' ? 'partly read' : 'LLMs miss this'}</span></div><div class="eldetail">${esc(e.detail)}</div></div></div>`).join('')}</div>` : ''}
-          </div>` : '';
-
-        const engineMeta = [['chatgpt', 'ChatGPT', '#10a37f'], ['gemini', 'Gemini', '#4285f4'], ['perplexity', 'Perplexity', '#20808d'], ['aiOverviews', 'AI Overviews', '#a855f7']];
-        const enginesPanel = r.engines ? sec(IC.engine, 'Likelihood by engine', 'estimated chance each engine cites this page') + `
-          <div class="engcards">${engineMeta.map(([k, label, brand]) => {
-            const s = typeof r.engines[k] === 'number' ? r.engines[k] : 0; const col = hexFor(s);
-            return `<div class="engcard" style="--e:${brand}"><div class="en"><span class="swatch"></span>${label}</div><div class="es" style="color:${col}">${s}<small>%</small></div><div class="ebar"><i style="width:${s}%;background:${col}"></i></div></div>`;
-          }).join('')}</div>` : '';
-
-        // ---- Verify in real engines (predict -> measure) ----
-        const aiPrompts = (r.promptCoverage || []).map((p) => p.q).filter(Boolean);
-        const verifyPrompts = aiPrompts.length ? aiPrompts : (m.fallbackPrompts || []);
-        const usingFallback = aiPrompts.length === 0 && verifyPrompts.length > 0;
-        const verifyConfigured = SVC ? SVC.verify : true; // assume ok until health says otherwise
-        const canVerify = m.mode === 'url' && verifyPrompts.length > 0;
-        let verifyBody;
-        if (m.mode !== 'url') {
-          verifyBody = `<div class="note-warn">${IC.alert}<span>Verification needs a live domain. Audit a URL (not pasted HTML) to use this.</span></div>`;
-        } else if (!verifyPrompts.length) {
-          verifyBody = `<div class="note-warn">${IC.alert}<span>No prompts to verify. Add a <b>Topic</b> or a <b>Target question</b> in the form and re-run — CiteRank will use those to query the engines.</span></div>`;
-        } else if (!verifyConfigured) {
-          verifyBody = `<div class="note-warn">${IC.alert}<span><b>Live verification is off.</b> This needs web search — add a <code>PERPLEXITY_API_KEY</code>, or enable web search on your <code>OPENAI_API_KEY</code> in Railway, then re-run.</span></div>`;
-        } else {
-          verifyBody = `<button class="primary vfy-btn" id="verifybtn">${IC.bot} Verify against live engines</button><span class="hint">Queries ${verifyPrompts.length} prompt${verifyPrompts.length > 1 ? 's' : ''} · up to ~60s.</span>`;
-        }
-        const verifyPanel = sec(IC.shieldOk, 'Verify in real engines', 'run these prompts through live ChatGPT &amp; Perplexity and see who actually gets cited') + `
-          <div class="verifybox">
-            <div class="vfy-intro"><b>The scores above are a prediction.</b> This runs ${verifyPrompts.length || 'the'} of the page's likely prompts through real answer engines and checks whether <b>${esc(m.host || 'your domain')}</b> is actually cited — ground truth, not an estimate.${usingFallback ? ` <span class="vfy-fallback">Using prompts derived from your page (the AI judge is off).</span>` : ''}</div>
-            ${verifyBody}
-            <div id="verifyout"></div>
-          </div>`;
-
-        const gauges = r.pillars.map((p) => {
-          const col = hexFor(p.score);
-          const counts = p.signals.reduce((a, s) => { const st = s.score == null ? 'na' : statusOf(s.score); a[st] = (a[st] || 0) + 1; return a; }, {});
-          const issues = (counts.warn || 0) + (counts.fail || 0);
-          return `
-            <div class="gauge" style="--g:${col}" data-pill="${p.id}" role="button" tabindex="0" title="Click to see the issues in ${esc(p.label)}">
-              <div class="gtop">
-                <div><div class="gname">${esc(p.label)}</div><div class="gpurpose">${esc(p.purpose)}</div></div>
-                <div class="gpts">${p.points}<small>/${p.weight}</small></div>
-              </div>
-              <div class="gbar"><i style="width:${p.score}%"></i></div>
-              <div class="gcounts">
-                ${counts.pass ? `<span class="cok">✓ ${counts.pass}</span>` : ''}
-                ${counts.warn ? `<span class="cwarn">! ${counts.warn}</span>` : ''}
-                ${counts.fail ? `<span class="cbad">✕ ${counts.fail}</span>` : ''}
-              </div>
-              <div class="gmore">${issues ? `See ${issues} issue${issues > 1 ? 's' : ''}` : 'All good — view details'} ${IC.arrow}</div>
-            </div>`;
+        const viewers = (d.viewers || []).map((v) => {
+          const st = ACCESS_ST[v.access];
+          return `<div class="viewer ${st}"><div class="vw-top"><span class="vw-who">${esc(v.who)}</span><span class="vw-js ${v.rendersJs ? 'yes' : 'no'}">${v.rendersJs ? 'runs JS' : 'no JS'}</span></div><div class="vw-access ${st}">${ACCESS_IC[v.access]} ${v.access === 'ok' ? 'Can read it' : v.access === 'partial' ? 'Partial' : 'Blocked'}</div><div class="vw-sees">${esc(v.sees)}</div></div>`;
         }).join('');
 
-        const dc = (r.domainContext || []).map((s) => `
-          <div class="drow">
-            <span class="dscore" style="${tintFor(s.score)}">${s.score == null ? 'n/a' : s.score}</span>
-            <div class="dbody"><div class="dname">${esc(s.label)}</div><div class="ddetail">${esc(s.detail)}</div></div>
-          </div>`).join('');
-        const domainPanel = dc ? sec(IC.globe, 'Domain context', 'off-page — NOT counted in the score (an editor can\'t change it per article)') + `
-          <div class="domain"><div class="dnote">AI estimate from training data, not a live measurement. Verify with Ahrefs / Semrush.</div>${dc}</div>` : '';
+        const els = (d.elements || []).map((e) => `<div class="elrow"><span class="elchip ${e.status}">${EL_IC[e.status]}</span><div><div class="elname">${esc(e.label)} <span class="eltag ${e.status}">${e.status === 'read' ? 'can access' : e.status === 'partial' ? 'partial' : 'cannot access'}</span></div><div class="eldetail">${esc(e.detail)}</div></div></div>`).join('');
 
-        const pc = (r.promptCoverage || []);
-        const covered = pc.filter((p) => p.covered).length;
-        const covPct = pc.length ? Math.round((covered / pc.length) * 100) : 0;
-        const promptPanel = pc.length ? sec(IC.chat, 'Prompt coverage', `answers ${covered} of ${pc.length} likely AI questions (${covPct}%)`) + `
-          <div class="covbar"><i style="width:${covPct}%"></i></div>
-          <div class="prompts">${pc.map((p) => `<div class="prow"><span class="pmark ${p.covered ? 'yes' : 'no'}">${p.covered ? IC.check : IC.x}</span><div>${esc(p.q)}</div></div>`).join('')}</div>` : '';
-
-        const TAGLBL = { high: 'High impact', quick: 'Quick win', offpage: 'Off-page' };
-        const fixesHtml = (r.topFixes || []).map((fx, i) => {
-          const col = fx.severity === 'fail' ? '#d23c3c' : '#b07900';
-          const gain = fx.gain >= 0.5 ? `<span class="gain">+${fx.gain} pts</span>` : '';
-          return `<div class="fixrow" style="--fc:${col}"><span class="fnum">${i + 1}</span><div class="ftext"><b>${esc(fx.label)}</b>${esc(fx.fix)}</div><div class="fmeta">${gain}<span class="ftag ${fx.tag}">${TAGLBL[fx.tag] || fx.tag}</span></div></div>`;
-        }).join('');
-
-        const statusRank = { fail: 0, warn: 1, na: 2, pass: 3 };
-        const breakdown = r.pillars.map((p) => {
-          const col = hexFor(p.score);
-          const ordered = [...p.signals].sort((a, b) => {
-            const sa = a.score == null ? 'na' : statusOf(a.score);
-            const sb = b.score == null ? 'na' : statusOf(b.score);
-            return statusRank[sa] - statusRank[sb];
-          });
-          const issues = p.signals.filter((s) => s.score != null && statusOf(s.score) !== 'pass').length;
-          const sigs = ordered.map((s) => {
-            const st = s.score == null ? 'na' : statusOf(s.score);
-            const tag = s.source === 'ai' ? '<span class="tag">AI</span>' : '';
-            return `<div class="signal"><span class="schip ${st}">${STATUS_IC[st]}</span><div class="sbody"><div class="sname">${esc(s.label)}${tag}</div><div class="sdetail">${esc(s.detail)}</div>${s.fix ? `<div class="sfix">${esc(s.fix)}</div>` : ''}</div><span class="sscore" style="${tintFor(s.score)}">${s.score == null ? 'n/a' : s.score}</span></div>`;
-          }).join('');
-          const open = p.score < 70 ? ' open' : '';
-          const issueLbl = issues ? `<span class="pissues">${issues} issue${issues > 1 ? 's' : ''} to fix</span>` : '<span class="pclean">no issues</span>';
-          return `<details class="pillar" id="pill-${p.id}" style="--p:${col}"${open}><summary><span class="caret">${IC.caret}</span><span class="pdot"></span><span class="pname">${esc(p.label)}</span>${issueLbl}<span class="pbar"><i style="width:${p.score}%"></i></span><span class="pscore">${p.score}</span></summary><div class="signals">${sigs}</div></details>`;
-        }).join('');
-
-        root.innerHTML = `
-          <div class="printhead">
-            <div class="pt-brand">CiteRank — AEO Audit</div>
-            <div class="pt-sub">${esc(m.mode === 'url' ? (m.url || 'Audited page') : 'Pasted content')}${m.pageTypeLabel ? ` · ${esc(m.pageTypeLabel)}` : ''} · ${esc(new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }))}</div>
-          </div>
-          ${hero}
-          ${crawlBanner}
-          <div class="resbar">${m.savedId ? `<span class="savednote" style="margin-right:auto">${IC.check} Saved to your history</span>` : (ACCOUNTS && !USER ? `<span class="savednote" style="margin-right:auto;color:var(--muted)"><a id="savesignin" style="color:var(--pink-dark);font-weight:700;cursor:pointer">Sign in</a> to save this audit to your history</span>` : '')}<button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
-          ${visibilityPanel}
-          ${enginesPanel}
-          ${verifyPanel}
-          ${crawlPanel}
-          ${sec(IC.bars, 'Pillar scores', 'points shown out of each pillar\'s category weight')}
-          <div class="gauges">${gauges}</div>
-          ${promptPanel}
-          ${fixesHtml ? sec(IC.wrench, 'Top fixes, ranked by impact', '') + `<div class="fixlist">${fixesHtml}</div>` : ''}
-          ${domainPanel}
-          ${sec(IC.layers, 'Full breakdown', '')}
-          ${breakdown}
-          <div class="caveat"><b>How to read this:</b> the score grades only what an editor can change before publishing. Off-page brand authority is the strongest real driver of citation but is shown separately as <b>domain context</b> because it's the same for every article on your site. Signals marked <b>AI</b> are the model's judgement / estimate. Citation behaviour varies between engines (ChatGPT favours Wikipedia, Perplexity favours Reddit), so treat this as one composite signal, not a guarantee.</div>`;
-
-        const recat = $('recat');
-        if (recat) recat.addEventListener('click', () => { $('category').value = recat.dataset.cat; run(); });
-        const copyBtn = $('copyreport');
-        if (copyBtn) copyBtn.addEventListener('click', () => copyReport(r, m));
-        const pdfBtn = $('pdfbtn');
-        if (pdfBtn) pdfBtn.addEventListener('click', () => window.print());
-        const ssi = $('savesignin');
-        if (ssi) ssi.addEventListener('click', () => openAuth('login'));
-
-        const verifyBtn = $('verifybtn');
-        if (verifyBtn) verifyBtn.addEventListener('click', () => runVerify(r, m, verifyPrompts, verifyBtn));
-
-        root.querySelectorAll('.gauge[data-pill]').forEach((g) => {
-          const openPill = () => {
-            const d = document.getElementById('pill-' + g.dataset.pill);
-            if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-          };
-          g.addEventListener('click', openPill);
-          g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPill(); } });
-        });
-
-        root.style.display = 'block';
-        root.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-
-      // ---- Verify in real engines ----
-      async function runVerify(r, m, prompts, btn) {
-        const out = $('verifyout');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span>Querying live engines…';
-        out.innerHTML = '<div class="vfy-loading">Running ' + prompts.length + ' prompt' + (prompts.length > 1 ? 's' : '') + ' through real answer engines. This can take up to a minute…</div>';
-        try {
-          const competitors = ($('competitors').value || '').split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
-          const res = await fetch('/api/aeo-verify', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompts, url: m.url, host: m.host, brand: m.brand, competitors }),
-          });
-          const data = await res.json();
-          if (!res.ok) { out.innerHTML = '<div class="note-bad">' + IC.alert + '<span>' + esc(data.error || 'Verification failed.') + '</span></div>'; }
-          else renderVerify(data.result, out);
-        } catch (e) {
-          out.innerHTML = '<div class="note-bad">' + IC.alert + '<span>Network error: ' + esc(e && e.message ? e.message : e) + '</span></div>';
-        } finally {
-          btn.disabled = false;
-          btn.innerHTML = IC.bot + ' Re-run verification';
-        }
-      }
-
-      function renderVerify(v, out) {
-        if (!v || !v.ran) {
-          out.innerHTML = '<div class="note-warn">' + IC.alert + '<span>' + esc((v && v.note) || 'Verification could not run.') + '</span></div>';
-          return;
-        }
-        const rateCol = hexFor(v.citationRate);
-        // Group probes by prompt for a per-question view.
-        const byPrompt = {};
-        (v.probes || []).forEach((p) => { (byPrompt[p.q] = byPrompt[p.q] || []).push(p); });
-        const promptRows = Object.keys(byPrompt).map((q) => {
-          const chips = byPrompt[q].map((p) => {
-            const cls = p.error ? 'na' : p.cited ? 'pass' : 'fail';
-            const txt = p.error ? 'error' : p.cited ? 'Cited' : 'Not cited';
-            const ico = p.error ? IC.dash : p.cited ? IC.check : IC.x;
-            const srcN = !p.error ? ` · ${p.sources.length} src` : '';
-            return `<span class="vchip ${cls}" title="${esc(p.engine)}${p.error ? ': ' + esc(p.error) : ''}">${ico}${esc(p.engine)}: ${txt}${srcN}</span>`;
-          }).join('');
-          return `<div class="vrow"><div class="vq">${esc(q)}</div><div class="vchips">${chips}</div></div>`;
-        }).join('');
-
-        const maxSov = Math.max(1, ...(v.shareOfVoice || []).map((s) => s.count));
-        const sov = (v.shareOfVoice || []).map((s) => {
-          const cls = s.isYou ? 'you' : s.isCompetitor ? 'rival' : '';
-          const tag = s.isYou ? '<span class="youtag">YOU</span>' : s.isCompetitor ? '<span class="rivaltag">RIVAL</span>' : '';
-          const w = Math.round((s.count / maxSov) * 100);
-          return `<div class="sovrow ${cls}"><div class="sovdom">${esc(s.domain)}${tag}</div><div class="sovbar"><i style="width:${Math.max(w, s.count ? 6 : 0)}%"></i></div><div class="sovn">${s.count}</div></div>`;
-        }).join('');
-
-        const KIND_TINT = { Community: '#5b54e6', Encyclopedia: '#15915f', Video: '#d23c3c', Marketplace: '#b07900', Authority: '#20808d', Publisher: '#3c3f4a' };
-        const gaps = (v.sourceGaps || []).map((g) => {
-          const col = KIND_TINT[g.kind] || '#3c3f4a';
-          return `<div class="gaprow"><div class="gaptop"><span class="gapdom">${esc(g.domain)}</span><span class="gapkind" style="background:${col}1a;color:${col}">${esc(g.kind)} · cited ${g.count}×</span></div><div class="gapaction">${esc(g.action)}</div></div>`;
-        }).join('');
+        const bots = (d.bots || []).map((b) => `<div class="botrow"><span class="botname">${esc(b.label)}</span><span class="botbadge ${b.status}">${BOT_IC[b.status]} ${b.status === 'allowed' ? 'Allowed' : b.status === 'blocked' ? 'Blocked' : b.status === 'default' ? 'Allowed' : 'Partial'}</span></div>`).join('');
 
         out.innerHTML = `
-          ${v.note ? `<div class="note-warn">${IC.alert}<span>${esc(v.note)}</span></div>` : ''}
-          <div class="vfy-stats">
-            <div class="vstat" style="--vc:${rateCol}"><div class="vnum" style="color:${rateCol}">${v.citationRate}<small>%</small></div><div class="vlbl">Citation rate<span>${esc(v.yourDomain)} cited in live answers</span></div></div>
-            <div class="vstat"><div class="vnum">${v.promptCitationRate}<small>%</small></div><div class="vlbl">Prompt coverage<span>prompts where you were cited at least once</span></div></div>
-            <div class="vstat"><div class="vnum">${v.brandMentionRate}<small>%</small></div><div class="vlbl">Brand mention<span>answers that named ${esc(v.brand || 'the brand')}</span></div></div>
+          <div class="viscard ${d.verdict.level}">
+            <div class="verdicthead">
+              <span class="vbadge ${d.verdict.level}">${d.verdict.level === 'yes' ? IC.check : d.verdict.level === 'no' ? IC.x : IC.alert} ${esc(d.verdict.label)}</span>
+              ${renderTag}
+            </div>
+            <div class="vreason">${esc(d.verdict.reason)}</div>
+            ${d.host ? `<div class="vhost">${esc(d.url || d.host)} · ${rt.staticWords} words in the raw HTML</div>` : ''}
+            ${d.fetchNote ? `<div class="note">${esc(d.fetchNote)}</div>` : ''}
           </div>
-          <div class="vfy-engines">Measured live via ${v.engines.map((e) => `<span class="chip">${esc(e)}</span>`).join(' ')}</div>
-          <div class="vsub2">Per-prompt results</div>
-          <div class="vrows">${promptRows}</div>
-          ${sov ? `<div class="vsub2">Share of voice — who got cited across these prompts${v.competitors && v.competitors.length ? ' (your pinned rivals are always shown)' : ''}</div><div class="sovlist">${sov}</div>` : ''}
-          ${gaps ? `<div class="vsub2">Source gap — your off-page to-do list</div><div class="gaphint">These third-party sites get cited for your prompts and you don't. Earning a presence on them is the highest-leverage off-page work for AI citation.</div><div class="gaplist">${gaps}</div>` : ''}
-          <div class="caveat">This is a real-time sample of ${v.promptCount} prompt(s) on a single run — answer engines are non-deterministic, so treat it as a directional read, not a fixed ranking. Re-run for a fresh sample.</div>`;
-        out.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
 
-      function showToast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1900); }
-      async function copyReport(r, m) {
-        const L = [];
-        L.push('CiteRank — AEO audit · By Rudra Kasturi Inc');
-        L.push(m.mode === 'url' ? (m.url || '') : 'Pasted article');
-        L.push(`Category: ${m.categoryLabel}`);
-        L.push(`Score: ${r.overall}/100 (Grade ${r.grade}) — ${r.citationBand} citation likelihood — ${r.gate.label}`);
-        if (r.benchmark) L.push(r.benchmark);
-        if (r.engines) { L.push(''); L.push(`Likelihood by engine: ChatGPT ${r.engines.chatgpt}% · Gemini ${r.engines.gemini}% · Perplexity ${r.engines.perplexity}% · AI Overviews ${r.engines.aiOverviews}%`); }
-        if (r.crawlability && r.crawlability.length) {
-          L.push(''); L.push('AI crawlability:');
-          r.crawlability.forEach((s) => L.push(`  - ${s.label}: ${s.detail}`));
-          if (r.crawlBlocked) L.push('  ⚠ A primary answer-engine crawler is BLOCKED — fix robots.txt first.');
-        }
-        L.push('');
-        L.push(`AI verdict: ${r.summary}`);
-        L.push('');
-        L.push('Pillar scores:');
-        r.pillars.forEach((p) => L.push(`  - ${p.label}: ${p.points}/${p.weight}`));
-        if (r.promptCoverage && r.promptCoverage.length) {
-          const cov = r.promptCoverage.filter((p) => p.covered).length;
-          L.push(''); L.push(`Prompt coverage: ${cov}/${r.promptCoverage.length}`);
-          r.promptCoverage.forEach((p) => L.push(`  [${p.covered ? 'x' : ' '}] ${p.q}`));
-        }
-        if (r.topFixes && r.topFixes.length) {
-          L.push(''); L.push('Top fixes (ranked by impact):');
-          r.topFixes.forEach((f, i) => L.push(`  ${i + 1}. ${f.label}${f.gain >= 0.5 ? ` (+${f.gain} pts)` : ''} — ${f.fix}`));
-        }
-        L.push(''); L.push('Generated by CiteRank · By Rudra Kasturi Inc');
-        try { await navigator.clipboard.writeText(L.join('\n')); showToast('Report copied to clipboard'); }
-        catch { showToast('Copy failed — select & copy manually'); }
+          <div class="sectitle">Who sees what</div>
+          <div class="viewers">${viewers}</div>
+
+          <div class="sectitle">What LLMs can &amp; can't access on this page</div>
+          <div class="ellist">${els}</div>
+
+          ${bots ? `<div class="sectitle">Are the AI crawlers allowed? (robots.txt)</div><div class="bots">${bots}</div>` : ''}
+
+          <div class="note">Googlebot runs JavaScript, so it sees your full page. The AI answer crawlers (ChatGPT, Claude, Perplexity) do <b>not</b> run JavaScript — they only read the raw HTML. Anything injected by JS is invisible to them. Want the full picture (scores, fixes, real-engine citation check)? <a href="/audit">Run the full AEO audit →</a></div>`;
+        out.style.display = 'block';
+        out.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
       async function run() {
         hideAlerts();
-        const payload = { brand: $('brand').value.trim(), topic: $('topic').value.trim(), target: $('target').value.trim(), category: $('category').value, pageType: $('pagetype').value };
-        if (mode === 'url') { payload.url = $('url').value.trim(); if (!payload.url) { showErr('Enter a page URL to audit.'); return; } }
-        else { payload.html = $('html').value.trim(); if (!payload.html) { showErr('Paste the article HTML or text to audit.'); return; } }
-
+        const payload = {};
+        if (pasteMode) {
+          const html = $('html').value.trim();
+          if (!html) { showErr('Paste the page HTML to check.'); return; }
+          payload.html = html;
+        } else {
+          const url = $('url').value.trim();
+          if (!url) { showErr('Enter a page URL to check.'); return; }
+          payload.url = url;
+        }
         const btn = $('go');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span>Auditing…';
-        $('info').innerHTML = IC.sparkle + '<span>' + (mode === 'url' ? 'Fetching the page and scoring it. This can take 15–30 seconds.' : 'Scoring the content. This can take 15–30 seconds.') + '</span>';
+        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Checking…';
+        $('info').innerHTML = IC.eye + '<span>Fetching the page and checking what each crawler can read…</span>';
         $('info').style.display = 'flex';
-
         try {
-          const res = await fetch('/api/aeo-audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-          const data = await res.json();
-          if (!res.ok) showErr(data.error || 'Something went wrong. Please try again.');
-          else render(data);
+          const res = await fetch('/api/access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          const d = await res.json();
+          if (!res.ok) showErr(d.error || 'Something went wrong.');
+          else renderResult(d);
         } catch (e) {
           showErr('Network error: ' + (e && e.message ? e.message : e));
         } finally {
           $('info').style.display = 'none';
           btn.disabled = false;
-          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit';
+          btn.innerHTML = IC.eye + 'Check access';
         }
       }
       $('go').addEventListener('click', run);
-
-      // ---- service status: show the user, up front, what the server can do ----
-      async function checkHealth() {
-        const el = $('svcstatus');
-        try {
-          const h = await (await fetch('/api/aeo-health')).json();
-          SVC = h;
-          let cls, ico, msg;
-          if (h.judge && h.verify) {
-            cls = 'ok'; ico = IC.check;
-            msg = `<b>Fully configured.</b> AI scoring is on (${h.openai ? 'OpenAI' : 'Claude'}) and live verification is ready${h.openai ? ' — note OpenAI web search must be enabled on the key for Verify to return citations' : ' (Perplexity)'}.`;
-          } else if (h.judge && !h.verify) {
-            cls = 'warn'; ico = IC.alert;
-            msg = `<b>AI scoring on, live verification off.</b> Audits & fixes work, but “Verify in real engines”, competitors and source-gaps need web search — add <code>PERPLEXITY_API_KEY</code>, or enable web search on your <code>OPENAI_API_KEY</code>.`;
-          } else {
-            cls = 'bad'; ico = IC.alert;
-            msg = `<b>No AI key on the server.</b> Scores fall back to rule-based signals only; the AI verdict, target-query check, competitors and verification stay blank. Add <code>OPENAI_API_KEY</code> (with web search) in Railway → Variables, then redeploy.`;
-          }
-          el.className = 'svcstatus ' + cls;
-          el.innerHTML = ico + '<span>' + msg + '</span>';
-          el.style.display = 'flex';
-        } catch { /* stay hidden if the probe fails */ }
-      }
-      checkHealth();
-
-      // ---- accounts + saved-audit history ----
-      let USER = null, ACCOUNTS = false;
-      async function refreshAuth() {
-        try { const d = await (await fetch('/api/auth/me')).json(); ACCOUNTS = !!d.accountsEnabled; USER = d.user; }
-        catch { ACCOUNTS = false; USER = null; }
-        renderAcct();
-      }
-      function renderAcct() {
-        const el = $('acct'); if (!el) return;
-        if (!ACCOUNTS) { el.innerHTML = ''; return; }
-        if (USER) {
-          el.innerHTML = `<span class="acct-email">${esc(USER.email)}</span><button class="acct-btn" id="myaudits">My audits</button><button class="acct-btn" id="signout">Sign out</button>`;
-          $('myaudits').onclick = showAudits; $('signout').onclick = signOut;
-        } else {
-          el.innerHTML = `<button class="acct-btn solid" id="signin">Sign in</button>`;
-          $('signin').onclick = () => openAuth('login');
-        }
-      }
-      function openModal(html) { $('modal-body').innerHTML = html; $('modal').style.display = 'flex'; }
-      function closeModal() { $('modal').style.display = 'none'; }
-      $('modalx').onclick = closeModal;
-      $('modal').addEventListener('click', (e) => { if (e.target === $('modal')) closeModal(); });
-
-      function openAuth(mode) {
-        const isLogin = mode === 'login';
-        openModal(`
-          <h3>${isLogin ? 'Welcome back' : 'Create your account'}</h3>
-          <p class="msub">${isLogin ? 'Sign in to see your saved audits and history.' : 'Save every audit and build a history you can track over time.'}</p>
-          <label class="fld" for="au-email">Email</label>
-          <input id="au-email" type="email" placeholder="you@company.com" autocomplete="email" />
-          <label class="fld" for="au-pw">Password</label>
-          <input id="au-pw" type="password" placeholder="${isLogin ? 'Your password' : 'At least 8 characters'}" autocomplete="${isLogin ? 'current-password' : 'new-password'}" />
-          <div class="modal-err" id="au-err"></div>
-          <button class="primary" id="au-go">${isLogin ? 'Sign in' : 'Create account'}</button>
-          <div class="modal-switch">${isLogin ? 'New here? <a id="au-switch">Create an account</a>' : 'Have an account? <a id="au-switch">Sign in</a>'}</div>
-        `);
-        $('au-go').onclick = () => submitAuth(mode);
-        $('au-switch').onclick = () => openAuth(isLogin ? 'signup' : 'login');
-        $('au-pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(mode); });
-        $('au-email').focus();
-      }
-      async function submitAuth(mode) {
-        const email = $('au-email').value.trim(), pw = $('au-pw').value;
-        const err = $('au-err'); err.style.display = 'none';
-        const btn = $('au-go'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Please wait…';
-        const reset = () => { btn.disabled = false; btn.textContent = mode === 'login' ? 'Sign in' : 'Create account'; };
-        try {
-          const res = await fetch('/api/auth/' + (mode === 'login' ? 'login' : 'signup'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pw }) });
-          const d = await res.json();
-          if (!res.ok) { err.textContent = d.error || 'Something went wrong.'; err.style.display = 'block'; reset(); return; }
-          closeModal(); await refreshAuth(); showToast(mode === 'login' ? 'Signed in' : 'Account created — welcome!');
-        } catch { err.textContent = 'Network error. Try again.'; err.style.display = 'block'; reset(); }
-      }
-      async function signOut() { try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {} await refreshAuth(); showToast('Signed out'); }
-
-      async function showAudits() {
-        openModal('<h3>Your audits</h3><p class="msub">Click any audit to reload it.</p><div class="hist-list" id="hist"><div class="hist-empty">Loading…</div></div>');
-        try {
-          const d = await (await fetch('/api/audits')).json();
-          const list = d.audits || [], box = $('hist');
-          if (!list.length) { box.innerHTML = '<div class="hist-empty">No saved audits yet. Run an audit while signed in and it will appear here.</div>'; return; }
-          box.innerHTML = list.map((a) => {
-            const col = hexFor(a.overall);
-            const when = a.createdAt ? new Date(a.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : '';
-            return `<button class="hist-item" data-id="${a.id}"><span class="hist-score" style="color:${col}">${a.overall == null ? '–' : a.overall}</span><span class="hist-main"><span class="hist-host">${esc(a.host || a.url || 'Pasted content')}</span><span class="hist-meta">${esc(a.pageType || '')}${a.grade ? ' · ' + esc(a.grade) : ''}${when ? ' · ' + when : ''}</span></span></button>`;
-          }).join('');
-          box.querySelectorAll('.hist-item').forEach((b) => { b.onclick = () => loadAudit(b.dataset.id); });
-        } catch { $('hist').innerHTML = '<div class="hist-empty">Could not load your audits.</div>'; }
-      }
-      async function loadAudit(id) {
-        try { const d = await (await fetch('/api/audits/' + id)).json(); if (d.report) { closeModal(); render({ report: d.report, meta: d.meta }); } }
-        catch {}
-      }
-      refreshAuth();
+      $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
     </script>
   </body>
 </html>
