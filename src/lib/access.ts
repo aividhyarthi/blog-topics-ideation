@@ -35,6 +35,32 @@ export function renderInfo(html: string, f: PageFacts): RenderInfo {
 // panels, "read more" truncation, "load more"/infinite scroll, JS-only prices.
 // The core trick: compare what the page DECLARES (schema counts, "N reviews"
 // text) against what is actually IN the raw HTML that LLM crawlers receive.
+// Detect the product's category/vertical from content signals, so a BEAUTY
+// product is audited for shade/ingredients (not RAM/specs), electronics for
+// specs/warranty, fashion for size/fabric, grocery for nutrition, etc.
+export type Vertical = 'beauty' | 'electronics' | 'fashion' | 'grocery' | 'general';
+export function detectVertical(html: string): Vertical {
+  const h = html.toLowerCase();
+  const score: Record<Exclude<Vertical, 'general'>, number> = { beauty: 0, electronics: 0, fashion: 0, grocery: 0 };
+  const hit = (k: keyof typeof score, re: RegExp, n = 1) => { if (re.test(h)) score[k] += n; };
+
+  hit('beauty', /\bshade\b/, 2); hit('beauty', /\bspf\b/); hit('beauty', /foundation|concealer|lipstick|mascara|serum|moistur|cleanser|fragrance|perfume|cosmetic/);
+  hit('beauty', /ingredient/); hit('beauty', /dermatolog|paraben|cruelty[-\s]?free|sulphate|hyaluronic|retinol/); hit('beauty', /skin type|how to use|swatch/);
+
+  hit('electronics', /\bram\b/); hit('electronics', /\b\d+\s?gb\b/, 2); hit('electronics', /\bmah\b|\bmp\b|processor|chipset|octa[-\s]?core|refresh rate|\b5g\b|display size|warranty/);
+  hit('electronics', /specification|tech spec/);
+
+  hit('fashion', /size chart|size guide/, 2); hit('fashion', /fabric|cotton|polyester|denim|linen|leather/); hit('fashion', /wash care|neckline|sleeve|fit type|apparel|footwear/);
+
+  hit('grocery', /nutrition|calorie|per serving/, 2); hit('grocery', /net weight|fssai|shelf life|expiry|preservative/); hit('grocery', /\bveg\b|non[-\s]?veg/);
+
+  let best: Vertical = 'general', top = 1;
+  (Object.keys(score) as (keyof typeof score)[]).forEach((k) => { if (score[k] > top) { top = score[k]; best = k; } });
+  return best;
+}
+
+const VERTICAL_LABEL: Record<Vertical, string> = { beauty: 'Beauty', electronics: 'Electronics', fashion: 'Fashion', grocery: 'Grocery', general: '' };
+
 export function dynamicChecks(html: string, f: PageFacts): AccessGroup[] {
   const R = (label: string, status: AccessStatus, detail: string): AccessItem => ({ label, status, detail });
   const has = (re: RegExp) => re.test(html);
@@ -122,20 +148,56 @@ export function dynamicChecks(html: string, f: PageFacts): AccessGroup[] {
     groups.push({ title: 'Listing / catalogue', items });
   } else if (f.pageType === 'product') {
     const items: AccessItem[] = [];
-    items.push(R('Price', f.priceCount > 0 ? 'read' : 'missed',
-      f.priceCount > 0 ? 'A price is present in the HTML — readable by AI shopping answers.' : 'No price in the raw HTML — it likely loads via JavaScript, so LLMs can’t read it.'));
-    // Variants (size / colour / SKU options).
-    const variants = has(/class=["'][^"']*\b(?:swatch|variant|size[-_]?option|colou?r[-_]?option|product[-_]?option|sku)\b/i) || has(/data-sku|data-variant/i);
-    items.push(R('Variants (size / colour)', variants ? 'read' : 'info', variants ? 'Variant options are in the HTML.' : 'No variant options detected in the HTML.'));
-    // Specs / attributes.
-    const specs = has(/class=["'][^"']*\b(?:spec|specification|tech[-_]?spec|attribute|key[-_]?feature|product[-_]?detail)s?\b/i) || cnt(/<table/gi) > 0;
-    items.push(R('Specifications', specs ? 'read' : 'missed', specs ? 'A specs/attributes block is in the HTML — AI can extract the product details.' : 'No specs table/attributes found in the raw HTML.'));
-    // Availability.
-    const avail = has(/in\s?stock|out\s?of\s?stock|add\s?to\s?(?:cart|bag|basket)|"availability"/i);
-    items.push(R('Availability', avail ? 'read' : 'info', avail ? 'Stock/availability or add-to-cart is in the HTML.' : 'No availability signal detected in the HTML.'));
-    // Image gallery.
-    items.push(R('Image gallery', f.images >= 2 ? 'read' : f.images === 1 ? 'partial' : 'missed', `${f.images} product image(s) in the HTML (${f.imagesWithAlt} with alt text).`));
-    groups.push({ title: 'Product details', items });
+    const vertical = detectVertical(html);
+    const price = () => items.push(R('Price', f.priceCount > 0 ? 'read' : 'missed',
+      f.priceCount > 0 ? 'A price is present in the HTML — readable by AI shopping answers.' : 'No price in the raw HTML — it likely loads via JavaScript.'));
+    const avail = () => { const a = has(/in\s?stock|out\s?of\s?stock|add\s?to\s?(?:cart|bag|basket)|"availability"/i); items.push(R('Availability', a ? 'read' : 'info', a ? 'Stock/availability or add-to-cart is in the HTML.' : 'No availability signal detected.')); };
+    const gallery = () => items.push(R('Image gallery', f.images >= 2 ? 'read' : f.images === 1 ? 'partial' : 'missed', `${f.images} product image(s) in the HTML (${f.imagesWithAlt} with alt text).`));
+
+    if (vertical === 'beauty') {
+      const shade = has(/\bshade\b|swatch|data-shade|colou?r[-_]?option|variant/i);
+      items.push(R('Shade / variant', shade ? 'read' : 'info', shade ? 'Shade/variant options are in the HTML.' : 'No shade/variant options detected in the HTML.'));
+      const size = has(/\b\d+\s?(?:ml|g|gm|oz)\b|size[-_]?option/i);
+      items.push(R('Size / volume', size ? 'read' : 'info', size ? 'Product size/volume is in the HTML.' : 'No size/volume detected in the HTML.'));
+      const ingr = has(/ingredient/i);
+      items.push(R('Ingredients', ingr ? 'read' : 'missed', ingr ? 'An ingredients list is in the HTML — AI can answer “is it paraben/sulphate-free?”.' : 'No ingredients in the raw HTML — LLMs can’t answer ingredient questions (paraben-free, etc.). Big gap for beauty.'));
+      const howto = has(/how to use|directions|key benefit|benefits|suitable for|skin type/i);
+      items.push(R('How to use / benefits', howto ? 'read' : 'missed', howto ? 'Usage/benefits/skin-type info is in the HTML.' : 'No how-to-use / benefits / skin-type content in the HTML.'));
+      price(); gallery();
+    } else if (vertical === 'electronics') {
+      const specs = has(/class=["'][^"']*\b(?:spec|specification|tech[-_]?spec|attribute|key[-_]?feature)s?\b/i) || has(/\b\d+\s?gb\b|\bmah\b|processor|chipset/i) || cnt(/<table/gi) > 0;
+      items.push(R('Specifications', specs ? 'read' : 'missed', specs ? 'A specs block (RAM/storage/battery/display) is in the HTML — AI can extract them.' : 'No specifications found in the raw HTML.'));
+      const variants = has(/storage|\d+\s?gb\b|variant|colou?r[-_]?option|swatch/i);
+      items.push(R('Variants (storage / colour)', variants ? 'read' : 'info', variants ? 'Variant options are in the HTML.' : 'No variant options detected.'));
+      const warranty = has(/warranty/i);
+      items.push(R('Warranty', warranty ? 'read' : 'info', warranty ? 'Warranty info is in the HTML.' : 'No warranty info detected.'));
+      price(); avail(); gallery();
+    } else if (vertical === 'fashion') {
+      const sz = has(/size[-_]?(?:chart|option|guide|selector)|\bselect size\b/i);
+      items.push(R('Size options', sz ? 'read' : 'info', sz ? 'Size options/chart are in the HTML.' : 'No size options detected.'));
+      const col = has(/colou?r[-_]?option|swatch|data-colou?r/i);
+      items.push(R('Colour options', col ? 'read' : 'info', col ? 'Colour options are in the HTML.' : 'No colour options detected.'));
+      const fabric = has(/fabric|material|cotton|polyester|denim|linen|leather/i);
+      items.push(R('Fabric / material', fabric ? 'read' : 'missed', fabric ? 'Fabric/material info is in the HTML.' : 'No fabric/material info in the HTML.'));
+      const care = has(/wash care|care instruction|machine wash/i);
+      items.push(R('Care instructions', care ? 'read' : 'info', care ? 'Care instructions are in the HTML.' : 'No care instructions detected.'));
+      price(); gallery();
+    } else if (vertical === 'grocery') {
+      const ingr = has(/ingredient/i);
+      items.push(R('Ingredients', ingr ? 'read' : 'missed', ingr ? 'An ingredients list is in the HTML.' : 'No ingredients in the raw HTML.'));
+      const nutri = has(/nutrition|per serving|calorie/i);
+      items.push(R('Nutrition', nutri ? 'read' : 'missed', nutri ? 'Nutrition info is in the HTML.' : 'No nutrition info in the HTML.'));
+      const qty = has(/net weight|\b\d+\s?(?:kg|g|gm|ml|l)\b|quantity|pack of/i);
+      items.push(R('Weight / quantity', qty ? 'read' : 'info', qty ? 'Weight/quantity is in the HTML.' : 'No weight/quantity detected.'));
+      price(); avail();
+    } else {
+      const variants = has(/class=["'][^"']*\b(?:swatch|variant|size[-_]?option|colou?r[-_]?option|product[-_]?option|sku)\b/i) || has(/data-sku|data-variant/i);
+      items.push(R('Variants', variants ? 'read' : 'info', variants ? 'Variant options are in the HTML.' : 'No variant options detected.'));
+      const desc = !f.jsDependent && f.wordCount >= 80;
+      items.push(R('Description', desc ? 'read' : 'missed', desc ? `${f.wordCount} words of product description in the HTML.` : 'Little/no product description in the raw HTML.'));
+      price(); avail(); gallery();
+    }
+    groups.push({ title: `Product details${VERTICAL_LABEL[vertical] ? ` (${VERTICAL_LABEL[vertical]})` : ''}`, items });
   } else {
     // Article / blog / news.
     const items: AccessItem[] = [];
