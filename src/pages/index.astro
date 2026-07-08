@@ -83,6 +83,29 @@
       .rendertag.js { background: var(--bad-bg); color: var(--bad); border-color: #f4cfcf; }
       .vreason { font-size: 14px; color: var(--ink-2); line-height: 1.6; margin: 13px 0 0; }
       .vhost { font-size: 12.5px; color: var(--muted); margin-top: 6px; word-break: break-all; }
+
+      /* extracted content */
+      .content-card { border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: var(--shadow); padding: 20px; }
+      .cprod { border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 4px; }
+      .cname { font-size: 19px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
+      .cmeta { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+      .cpill { font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px; background: #f1f1f6; color: var(--ink-2); border: 1px solid var(--line); }
+      .cpill.price { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
+      .cpill.rating { background: var(--warn-bg); color: var(--warn); border-color: #f0e2b8; }
+      .cdesc { font-size: 13px; color: var(--ink-2); line-height: 1.6; margin-top: 11px; }
+      .csub { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 18px 0 9px; }
+      .cattrs { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+      @media (max-width: 560px) { .cattrs { grid-template-columns: 1fr; } }
+      .cattr { display: flex; gap: 8px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; background: #fbfbfe; }
+      .cattr .ck { color: var(--muted); font-weight: 600; flex-shrink: 0; }
+      .cattr .cv { color: var(--ink); font-weight: 600; }
+      .csec { margin-top: 12px; }
+      .csech { font-size: 13px; font-weight: 700; }
+      .csect { font-size: 12.5px; color: var(--ink-2); line-height: 1.6; margin-top: 3px; }
+      .cfaq { border-left: 3px solid var(--line-2); padding: 2px 0 2px 12px; margin-bottom: 11px; }
+      .cfq { font-size: 13px; font-weight: 700; }
+      .cfa { font-size: 12.5px; color: var(--ink-2); line-height: 1.55; margin-top: 3px; }
+      .crev { font-size: 12.5px; color: var(--ink-2); line-height: 1.55; background: #f7f7fa; border-radius: 10px; padding: 9px 12px; margin-bottom: 7px; font-style: italic; }
       .banner { display: flex; gap: 10px; align-items: flex-start; border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-size: 13px; line-height: 1.55; }
       .banner svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
       .banner.warn { background: var(--warn-bg); color: #8a5d00; border: 1px solid #f0e2b8; }
@@ -196,7 +219,7 @@
       </div>
     </main>
 
-    <footer><b>CiteRank</b> · LLM Access Check <b>v2.4</b> · self-adapting product audit (reads any product’s own attributes) · Googlebot renders JavaScript — AI crawlers don’t, so JS-injected content is invisible to them.</footer>
+    <footer><b>CiteRank</b> · LLM Access Check <b>v2.5</b> · extracts the page content (name, rating, ingredients, FAQs, reviews) like ChatGPT · Googlebot renders JavaScript — AI crawlers don’t, so JS-injected content is invisible to them.</footer>
 
     <script>
       const $ = (id) => document.getElementById(id);
@@ -256,6 +279,25 @@
           ${groupHtml(view.groups)}`;
       }
 
+      function contentBlock(c) {
+        if (!c || !c.hasAny) return '';
+        const rows = [];
+        if (c.name) rows.push(`<div class="cname">${esc(c.name)}</div>`);
+        const meta = [];
+        if (c.brand) meta.push(`<span class="cpill">${esc(c.brand)}</span>`);
+        if (c.price) meta.push(`<span class="cpill price">${esc(c.price)}</span>`);
+        if (c.availability) meta.push(`<span class="cpill">${esc(c.availability)}</span>`);
+        if (c.rating && c.rating.value) meta.push(`<span class="cpill rating">★ ${esc(c.rating.value)}${c.rating.ratings ? ` · ${Number(c.rating.ratings).toLocaleString()} ratings` : ''}${c.rating.reviews ? ` · ${Number(c.rating.reviews).toLocaleString()} reviews` : ''}</span>`);
+        if (meta.length) rows.push(`<div class="cmeta">${meta.join('')}</div>`);
+        if (c.description) rows.push(`<div class="cdesc">${esc(c.description)}</div>`);
+        let html = `<div class="cprod">${rows.join('')}</div>`;
+        if (c.attributes && c.attributes.length) html += `<div class="csub">Attributes / specs</div><div class="cattrs">${c.attributes.map((a) => `<div class="cattr"><span class="ck">${esc(a.name)}</span><span class="cv">${esc(a.value)}</span></div>`).join('')}</div>`;
+        if (c.sections && c.sections.length) html += c.sections.map((s) => `<div class="csec"><div class="csech">${esc(s.heading)}</div><div class="csect">${esc(s.text)}</div></div>`).join('');
+        if (c.faqs && c.faqs.length) html += `<div class="csub">FAQs (${c.faqs.length})</div>` + c.faqs.map((f) => `<div class="cfaq"><div class="cfq">${esc(f.q)}</div><div class="cfa">${esc(f.a)}</div></div>`).join('');
+        if (c.reviews && c.reviews.length) html += `<div class="csub">Review snippets (${c.reviews.length} in the HTML)</div>` + c.reviews.map((r) => `<div class="crev">“${esc(r)}”</div>`).join('');
+        return `<div class="sectitle" style="margin-top:22px">Content extracted from this page <span style="font-weight:500;color:var(--muted)">— the actual data an LLM pulls</span></div><div class="content-card">${html}</div>`;
+      }
+
       function renderResult(d) {
         const out = $('out'), isPasted = d.mode === 'pasted';
         const v = d.overall;
@@ -270,6 +312,8 @@
             ${d.fetchNote ? `<div class="banner bad">${IC.alert}<div>${esc(d.fetchNote)}</div></div>` : ''}
             ${!isPasted && d.parity && !d.parity.same ? `<div class="banner warn">${IC.alert}<div><b>Mobile ≠ Desktop.</b> ${esc(d.parity.note)}</div></div>` : ''}
           </div>`;
+
+        html += contentBlock(d.content);
 
         if (isPasted) {
           html += `<div style="margin-top:18px">${tabPanel(d.desktop, true)}</div>`;
