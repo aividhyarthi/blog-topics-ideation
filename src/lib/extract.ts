@@ -14,10 +14,24 @@ export interface Extracted {
   rating?: { value?: string; ratings?: string; reviews?: string };
   description?: string;
   attributes: { name: string; value: string }[];
-  sections: { heading: string; text: string }[];
+  sections: { heading: string; text: string; words: number }[];
   faqs: { q: string; a: string }[];
   reviews: string[];
+  keywords: string[];
   hasAny: boolean;
+}
+
+const STOP = new Set(['the', 'and', 'for', 'with', 'your', 'you', 'are', 'this', 'that', 'best', 'how', 'what', 'why', 'from', 'has', 'have', 'will', 'can', 'all', 'our', 'more', 'now', 'get', 'buy', 'shop', 'online', 'india', 'price', 'off', 'new', 'top']);
+function extractKeywords(html: string): string[] {
+  const heads: string[] = [];
+  for (const m of html.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)) heads.push(clean(m[1]));
+  const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '';
+  const md = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || [])[1] || '';
+  const text = `${clean(title)} ${heads.join(' ')} ${clean(md)}`.toLowerCase();
+  const words = text.split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !STOP.has(w) && !/^\d+$/.test(w));
+  const freq: Record<string, number> = {};
+  for (const w of words) freq[w] = (freq[w] || 0) + 1;
+  return Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 12).map((x) => x[0]);
 }
 
 // ---- JSON-LD: collect every node (walk @graph / mainEntity / arrays) ----
@@ -45,16 +59,16 @@ const CUR: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£
 
 // ---- HTML sections: grab text after known headings ----
 const SECTION_RE = /^(ingredients?|key ingredients?|how to use|directions?|benefits?|key benefits?|about (?:the )?(?:product|brand)?|description|product description|suitable for|who (?:can|should) use|features?|highlights?|specifications?|expert tips?)$/i;
-function extractSections(html: string): { heading: string; text: string }[] {
-  const out: { heading: string; text: string }[] = [];
+function extractSections(html: string): { heading: string; text: string; words: number }[] {
+  const out: { heading: string; text: string; words: number }[] = [];
   const heads: { text: string; start: number; contentStart: number }[] = [];
   const re = /<(h[1-6])[^>]*>([\s\S]*?)<\/\1>/gi; let m: RegExpExecArray | null;
   while ((m = re.exec(html))) heads.push({ text: clean(m[2]), start: m.index, contentStart: m.index + m[0].length });
   for (let i = 0; i < heads.length && out.length < 8; i++) {
     if (!SECTION_RE.test(heads[i].text)) continue;
     const end = i + 1 < heads.length ? heads[i + 1].start : Math.min(html.length, heads[i].contentStart + 2500);
-    const text = clean(html.slice(heads[i].contentStart, end)).slice(0, 600);
-    if (text.length >= 20) out.push({ heading: heads[i].text, text });
+    const full = clean(html.slice(heads[i].contentStart, end));
+    if (full.length >= 20) out.push({ heading: heads[i].text, text: full.slice(0, 600), words: full.split(' ').filter(Boolean).length });
   }
   return out;
 }
@@ -64,7 +78,7 @@ export function extractContent(html: string): Extracted {
   const product = nodes.find((n) => typesOf(n).some((t) => t === 'product' || t === 'productgroup'));
   const faqPage = nodes.find((n) => typesOf(n).includes('faqpage'));
 
-  const out: Extracted = { attributes: [], sections: [], faqs: [], reviews: [], hasAny: false };
+  const out: Extracted = { attributes: [], sections: [], faqs: [], reviews: [], keywords: [], hasAny: false };
 
   if (product) {
     if (product.name) out.name = clean(String(product.name));
@@ -134,6 +148,7 @@ export function extractContent(html: string): Extracted {
   }
   out.reviews = out.reviews.slice(0, 6);
 
-  out.hasAny = Boolean(out.name || out.price || out.rating || out.attributes.length || out.sections.length || out.faqs.length || out.reviews.length);
+  out.keywords = extractKeywords(html);
+  out.hasAny = Boolean(out.name || out.price || out.rating || out.attributes.length || out.sections.length || out.faqs.length || out.reviews.length || out.keywords.length);
   return out;
 }

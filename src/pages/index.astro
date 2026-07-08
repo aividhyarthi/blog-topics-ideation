@@ -106,6 +106,36 @@
       .cfq { font-size: 13px; font-weight: 700; }
       .cfa { font-size: 12.5px; color: var(--ink-2); line-height: 1.55; margin-top: 3px; }
       .crev { font-size: 12.5px; color: var(--ink-2); line-height: 1.55; background: #f7f7fa; border-radius: 10px; padding: 9px 12px; margin-bottom: 7px; font-style: italic; }
+      .cwords { font-size: 10.5px; font-weight: 700; color: var(--muted); background: #f1f1f6; border-radius: 999px; padding: 1px 7px; margin-left: 6px; }
+      .ckeys { display: flex; gap: 6px; flex-wrap: wrap; }
+      .ckey { font-size: 12px; font-weight: 600; color: var(--pink-dark); background: var(--accent-soft); border: 1px solid #e0def7; padding: 4px 10px; border-radius: 999px; }
+
+      .resbar { display: flex; justify-content: flex-end; gap: 9px; margin: 14px 0 -4px; }
+      .ghostbtn { display: inline-flex; align-items: center; gap: 7px; background: #fff; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; transition: .15s; }
+      .ghostbtn svg { width: 14px; height: 14px; }
+      .ghostbtn:hover { border-color: var(--pink); color: var(--pink); }
+      .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 11px; font-size: 13.5px; font-weight: 500; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 200; box-shadow: 0 12px 32px -12px rgba(0,0,0,.5); }
+      .toast.show { opacity: 1; }
+
+      .gaps-card { border: 1px solid #f4cfcf; border-radius: 14px; background: linear-gradient(180deg, #fef7f7, #fff); box-shadow: var(--shadow); padding: 6px 16px; }
+      .gap2 { display: flex; gap: 11px; align-items: flex-start; padding: 11px 0; border-top: 1px solid #f6dede; }
+      .gap2:first-child { border-top: none; }
+      .gap2 svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; color: var(--bad); }
+      .gap2 b { font-size: 13px; font-weight: 700; display: block; }
+      .gap2 span { font-size: 12px; color: var(--muted); line-height: 1.5; }
+      .pasted-note { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--pink-dark); background: var(--accent-soft); border: 1px solid #e0def7; border-radius: 11px; padding: 10px 13px; margin: 12px 0; line-height: 1.5; }
+      .pasted-note svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+
+      @media print {
+        @page { margin: 14mm; }
+        body { background: #fff !important; }
+        .nav, .hero, main > .wrap > .card, footer, .resbar, .toast, .tabs { display: none !important; }
+        #out { display: block !important; margin: 0 !important; }
+        .tabpanel { display: block !important; }
+        .content-card, .viscard, .grp, .gaps-card, .viewer, .arow, .botrow { box-shadow: none !important; break-inside: avoid; }
+        .grp .gitems { display: block !important; }
+        a[href]:after { content: ""; }
+      }
       .banner { display: flex; gap: 10px; align-items: flex-start; border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-size: 13px; line-height: 1.55; }
       .banner svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
       .banner.warn { background: var(--warn-bg); color: #8a5d00; border: 1px solid #f0e2b8; }
@@ -219,7 +249,7 @@
       </div>
     </main>
 
-    <footer><b>CiteRank</b> · LLM Access Check <b>v2.5</b> · extracts the page content (name, rating, ingredients, FAQs, reviews) like ChatGPT · Googlebot renders JavaScript — AI crawlers don’t, so JS-injected content is invisible to them.</footer>
+    <footer><b>CiteRank</b> · LLM Access Check <b>v2.6</b> · content extract + keywords + gaps + Desktop/Mobile/ChatGPT tabs + copy &amp; PDF · Googlebot renders JavaScript — AI crawlers don’t, so JS-injected content is invisible to them.</footer>
 
     <script>
       const $ = (id) => document.getElementById(id);
@@ -232,6 +262,9 @@
         caret: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
         desktop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
         mobile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>',
+        bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 8V4M9 4h6"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M2 13v2M22 13v2"/></svg>',
+        copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+        download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>',
       };
       const CHIP = { read: 'read', partial: 'partial', missed: 'missed', warn: 'warn', info: 'info' };
       const CHIP_IC = { read: IC.check, partial: IC.alert, missed: IC.x, warn: IC.alert, info: IC.info };
@@ -291,8 +324,9 @@
         if (meta.length) rows.push(`<div class="cmeta">${meta.join('')}</div>`);
         if (c.description) rows.push(`<div class="cdesc">${esc(c.description)}</div>`);
         let html = `<div class="cprod">${rows.join('')}</div>`;
+        if (c.keywords && c.keywords.length) html += `<div class="csub">Topics / keywords the page targets</div><div class="ckeys">${c.keywords.map((k) => `<span class="ckey">${esc(k)}</span>`).join('')}</div>`;
         if (c.attributes && c.attributes.length) html += `<div class="csub">Attributes / specs</div><div class="cattrs">${c.attributes.map((a) => `<div class="cattr"><span class="ck">${esc(a.name)}</span><span class="cv">${esc(a.value)}</span></div>`).join('')}</div>`;
-        if (c.sections && c.sections.length) html += c.sections.map((s) => `<div class="csec"><div class="csech">${esc(s.heading)}</div><div class="csect">${esc(s.text)}</div></div>`).join('');
+        if (c.sections && c.sections.length) html += `<div class="csub">Content sections</div>` + c.sections.map((s) => `<div class="csec"><div class="csech">${esc(s.heading)} <span class="cwords">${s.words} words</span></div><div class="csect">${esc(s.text)}</div></div>`).join('');
         if (c.faqs && c.faqs.length) html += `<div class="csub">FAQs (${c.faqs.length})</div>` + c.faqs.map((f) => `<div class="cfaq"><div class="cfq">${esc(f.q)}</div><div class="cfa">${esc(f.a)}</div></div>`).join('');
         if (c.reviews && c.reviews.length) html += `<div class="csub">Review snippets (${c.reviews.length} in the HTML)</div>` + c.reviews.map((r) => `<div class="crev">“${esc(r)}”</div>`).join('');
         return `<div class="sectitle" style="margin-top:22px">Content extracted from this page <span style="font-weight:500;color:var(--muted)">— the actual data an LLM pulls</span></div><div class="content-card">${html}</div>`;
@@ -311,21 +345,29 @@
             ${d.host ? `<div class="vhost">${esc(d.url || d.host)}${d.pageTypeLabel ? ` · detected as <b>${esc(d.pageTypeLabel)}</b>` : ''}</div>` : (d.pageTypeLabel ? `<div class="vhost">Detected as <b>${esc(d.pageTypeLabel)}</b></div>` : '')}
             ${d.fetchNote ? `<div class="banner bad">${IC.alert}<div>${esc(d.fetchNote)}</div></div>` : ''}
             ${!isPasted && d.parity && !d.parity.same ? `<div class="banner warn">${IC.alert}<div><b>Mobile ≠ Desktop.</b> ${esc(d.parity.note)}</div></div>` : ''}
-          </div>`;
+          </div>
+          <div class="resbar"><button class="ghostbtn" id="copyall">${IC.copy} Copy all</button><button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button></div>`;
 
         html += contentBlock(d.content);
 
-        if (isPasted) {
-          html += `<div style="margin-top:18px">${tabPanel(d.desktop, true)}</div>`;
-        } else {
-          html += `
-            <div class="tabs">
-              <button class="tab active" data-tab="desktop">${IC.desktop} Desktop</button>
-              <button class="tab" data-tab="mobile">${IC.mobile} Mobile</button>
-            </div>
-            <div class="tabpanel active" id="tab-desktop">${tabPanel(d.desktop, false)}</div>
-            <div class="tabpanel" id="tab-mobile">${tabPanel(d.mobile, false)}</div>`;
+        // Content gaps — the missing bits competitors / ChatGPT exploit.
+        if (d.gaps && d.gaps.length) {
+          html += `<div class="sectitle" style="margin-top:22px">Content gaps <span style="font-weight:500;color:var(--muted)">— what's missing (competitors &amp; AI exploit these)</span></div><div class="gaps-card">${d.gaps.map((g) => `<div class="gap2">${IC.x}<div><b>${esc(g.label)}</b><span>${esc(g.detail)}</span></div></div>`).join('')}</div>`;
         }
+
+        // Tabs: Desktop | Mobile | ChatGPT (always; pasted shows same HTML for each).
+        const cg = d.chatgpt;
+        const cgPanel = cg ? (cg.blocked ? `<div class="banner bad" style="margin-top:14px">${IC.x}<div>${esc(cg.note)}</div></div>` : tabPanel(cg, isPasted)) : '<div class="note">No ChatGPT-crawler view available.</div>';
+        html += `
+          <div class="tabs">
+            <button class="tab active" data-tab="desktop">${IC.desktop} Desktop</button>
+            <button class="tab" data-tab="mobile">${IC.mobile} Mobile</button>
+            <button class="tab" data-tab="chatgpt">${IC.bot} ChatGPT bot</button>
+          </div>
+          ${isPasted ? `<div class="pasted-note">${IC.info} Pasted HTML is a single snapshot — Desktop, Mobile and ChatGPT show the same content. Enter a live <b>URL</b> to compare how the site actually serves each agent.</div>` : ''}
+          <div class="tabpanel active" id="tab-desktop">${tabPanel(d.desktop, isPasted)}</div>
+          <div class="tabpanel" id="tab-mobile">${tabPanel(d.mobile, isPasted)}</div>
+          <div class="tabpanel" id="tab-chatgpt">${cgPanel}</div>`;
 
         // shared: who sees what + LLM crawler + robots bots
         const viewers = (d.viewers || []).map((vw) => {
@@ -351,8 +393,32 @@
           t.classList.add('active');
           $('tab-' + t.dataset.tab).classList.add('active');
         }));
+        const pdfBtn = $('pdfbtn'); if (pdfBtn) pdfBtn.addEventListener('click', () => window.print());
+        const copyBtn = $('copyall'); if (copyBtn) copyBtn.addEventListener('click', () => copyAll(d));
         out.style.display = 'block';
         out.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function showToast(msg) { let t = $('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); } t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1900); }
+      async function copyAll(d) {
+        const c = d.content || {}, L = [];
+        L.push(`# LLM Access Check — ${d.url || 'Pasted HTML'}`);
+        if (d.pageTypeLabel) L.push(`Page type: ${d.pageTypeLabel}`);
+        L.push(`Verdict: ${d.overall.label} — ${d.overall.reason}`);
+        L.push('');
+        if (c.name) L.push(`## ${c.name}`);
+        const meta = [c.brand, c.price, c.availability, c.rating && c.rating.value ? `★ ${c.rating.value}${c.rating.ratings ? ` · ${c.rating.ratings} ratings` : ''}${c.rating.reviews ? ` · ${c.rating.reviews} reviews` : ''}` : ''].filter(Boolean);
+        if (meta.length) L.push(meta.join(' · '));
+        if (c.description) { L.push(''); L.push(c.description); }
+        if (c.keywords && c.keywords.length) { L.push(''); L.push(`Keywords: ${c.keywords.join(', ')}`); }
+        if (c.attributes && c.attributes.length) { L.push(''); L.push('### Attributes'); c.attributes.forEach((a) => L.push(`- ${a.name}: ${a.value}`)); }
+        if (c.sections && c.sections.length) { c.sections.forEach((s) => { L.push(''); L.push(`### ${s.heading} (${s.words} words)`); L.push(s.text); }); }
+        if (c.faqs && c.faqs.length) { L.push(''); L.push('### FAQs'); c.faqs.forEach((f) => { L.push(`**${f.q}**`); L.push(f.a); }); }
+        if (c.reviews && c.reviews.length) { L.push(''); L.push('### Review snippets'); c.reviews.forEach((r) => L.push(`- "${r}"`)); }
+        if (d.gaps && d.gaps.length) { L.push(''); L.push('### Content gaps'); d.gaps.forEach((g) => L.push(`- ${g.label}: ${g.detail}`)); }
+        L.push(''); L.push('Generated by CiteRank · LLM Access Check');
+        try { await navigator.clipboard.writeText(L.join('\n')); showToast('Copied all content to clipboard'); }
+        catch { showToast('Copy failed — select & copy manually'); }
       }
 
       async function run() {

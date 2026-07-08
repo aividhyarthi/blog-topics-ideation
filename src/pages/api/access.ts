@@ -51,7 +51,12 @@ export const POST: APIRoute = async ({ request }) => {
     const crawl = crawlabilitySignals({ isUrl: false });
     const vis = buildVisibility(facts, crawl);
     const view = { render: renderInfo(html, facts), verdict: vis.verdict, access: [], groups: accessGroups(html, facts) };
-    return json({ mode: 'pasted', url: null, host: null, pageType: facts.pageType, pageTypeLabel: PAGE_TYPE_LABEL[facts.pageType], overall: vis.verdict, viewers: vis.viewers, content: extractContent(html), desktop: view, mobile: view, bots: [], llmCrawler: null, parity: null, llmsTxt: null });
+    const pastedContent = extractContent(html);
+    const pastedGaps: { label: string; detail: string }[] = [];
+    const seenP = new Set<string>();
+    for (const g of view.groups) for (const it of g.items) if (it.status === 'missed' && !seenP.has(it.label)) { seenP.add(it.label); pastedGaps.push({ label: it.label, detail: it.detail }); }
+    if (!pastedContent.faqs.length) pastedGaps.push({ label: 'FAQ content', detail: 'No FAQ schema/content found — AI Overviews and ChatGPT favour Q&A-structured pages.' });
+    return json({ mode: 'pasted', url: null, host: null, pageType: facts.pageType, pageTypeLabel: PAGE_TYPE_LABEL[facts.pageType], overall: vis.verdict, viewers: vis.viewers, content: pastedContent, gaps: pastedGaps, desktop: view, mobile: view, chatgpt: view, bots: [], llmCrawler: null, parity: null, llmsTxt: null });
   }
 
   if (!inputUrl) return json({ error: 'Enter a URL (or paste the page HTML).' }, 400);
@@ -131,15 +136,37 @@ export const POST: APIRoute = async ({ request }) => {
     note: gp.ok ? `GPTBot was served ${wc(gp.body)} words (HTTP ${gp.status}).` : `GPTBot got HTTP ${gp.status || 'no response'} — this site may be blocking the ChatGPT crawler.`,
   };
 
+  // ChatGPT (GPTBot) view — exactly what OpenAI's crawler received (raw HTML, no JS).
+  let chatgpt: any;
+  if (gp.ok) {
+    const factsG = analyzeHtml(gp.body, { isUrl: true, host, robotsTxt });
+    chatgpt = {
+      render: renderInfo(gp.body, factsG), verdict: buildVisibility(factsG, crawl).verdict,
+      access: [{ who: 'GPTBot (ChatGPT crawler)', kind: 'bot', status: 'ok', note: rowNote(gp, factsG.wordCount) }],
+      groups: accessGroups(gp.body, factsG),
+    };
+  } else {
+    chatgpt = { blocked: true, note: `GPTBot got HTTP ${gp.status || 'no response'} — this site blocks the ChatGPT crawler, so ChatGPT can’t read this page for organic citation.` };
+  }
+
+  // Content gaps ChatGPT/competitors would exploit — the "missed" items + no-FAQ.
+  const content = extractContent(desktopHtml || mobileHtml);
+  const gaps: { label: string; detail: string }[] = [];
+  const seen = new Set<string>();
+  for (const g of desktop.groups) for (const it of g.items) {
+    if (it.status === 'missed' && !seen.has(it.label)) { seen.add(it.label); gaps.push({ label: it.label, detail: it.detail }); }
+  }
+  if (!content.faqs.length && !seen.has('FAQ content')) gaps.push({ label: 'FAQ content', detail: 'No FAQ schema/content found — AI Overviews and ChatGPT favour Q&A-structured pages.' });
+
   let fetchNote: string | undefined;
   if (factsM.wordCount < 120 && factsD.wordCount < 120) fetchNote = 'Both fetches returned very little text — the page is likely JavaScript-rendered (content loads client-side).';
 
   return json({
     mode: 'url', url: inputUrl, host,
     pageType: factsM.pageType, pageTypeLabel: PAGE_TYPE_LABEL[factsM.pageType],
-    content: extractContent(desktopHtml || mobileHtml),
+    content, gaps,
     overall, viewers: visM.viewers, parity, bots, llmCrawler,
     llmsTxt: (llmsTxtSignal?.score ?? 0) >= 100,
-    desktop, mobile, fetchNote,
+    desktop, mobile, chatgpt, fetchNote,
   });
 };
