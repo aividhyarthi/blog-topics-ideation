@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { analyzeHtml, crawlabilitySignals, buildVisibility } from '../../lib/aeo';
+import { analyzeHtml, crawlabilitySignals, buildVisibility, PAGE_TYPE_LABEL } from '../../lib/aeo';
 import { accessGroups, renderInfo } from '../../lib/access';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
@@ -50,7 +50,7 @@ export const POST: APIRoute = async ({ request }) => {
     const crawl = crawlabilitySignals({ isUrl: false });
     const vis = buildVisibility(facts, crawl);
     const view = { render: renderInfo(html, facts), verdict: vis.verdict, access: [], groups: accessGroups(html, facts) };
-    return json({ mode: 'pasted', url: null, host: null, overall: vis.verdict, viewers: vis.viewers, desktop: view, mobile: view, bots: [], llmCrawler: null, parity: null, llmsTxt: null });
+    return json({ mode: 'pasted', url: null, host: null, pageType: facts.pageType, pageTypeLabel: PAGE_TYPE_LABEL[facts.pageType], overall: vis.verdict, viewers: vis.viewers, desktop: view, mobile: view, bots: [], llmCrawler: null, parity: null, llmsTxt: null });
   }
 
   if (!inputUrl) return json({ error: 'Enter a URL (or paste the page HTML).' }, 400);
@@ -135,6 +135,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   return json({
     mode: 'url', url: inputUrl, host,
+    pageType: factsM.pageType, pageTypeLabel: PAGE_TYPE_LABEL[factsM.pageType],
     overall, viewers: visM.viewers, parity, bots, llmCrawler,
     llmsTxt: (llmsTxtSignal?.score ?? 0) >= 100,
     desktop, mobile, fetchNote,

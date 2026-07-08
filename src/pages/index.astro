@@ -266,7 +266,7 @@
               <span class="rendertags">${d.desktop ? `<span class="rendertag ${d.desktop.render.type}">${IC.desktop} ${d.desktop.render.type === 'html' ? 'Desktop: HTML' : 'Desktop: JS'}</span>` : ''}${!isPasted && d.mobile ? `<span class="rendertag ${d.mobile.render.type}">${IC.mobile} ${d.mobile.render.type === 'html' ? 'Mobile: HTML' : 'Mobile: JS'}</span>` : ''}</span>
             </div>
             <div class="vreason">${esc(v.reason)}</div>
-            ${d.host ? `<div class="vhost">${esc(d.url || d.host)}</div>` : ''}
+            ${d.host ? `<div class="vhost">${esc(d.url || d.host)}${d.pageTypeLabel ? ` · detected as <b>${esc(d.pageTypeLabel)}</b>` : ''}</div>` : (d.pageTypeLabel ? `<div class="vhost">Detected as <b>${esc(d.pageTypeLabel)}</b></div>` : '')}
             ${d.fetchNote ? `<div class="banner bad">${IC.alert}<div>${esc(d.fetchNote)}</div></div>` : ''}
             ${!isPasted && d.parity && !d.parity.same ? `<div class="banner warn">${IC.alert}<div><b>Mobile ≠ Desktop.</b> ${esc(d.parity.note)}</div></div>` : ''}
           </div>`;
