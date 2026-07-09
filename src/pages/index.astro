@@ -206,6 +206,22 @@
       .botbadge.partial { background: var(--warn-bg); color: var(--warn); }
       .botbadge.blocked { background: var(--bad-bg); color: var(--bad); }
 
+      /* live AI-crawler matrix */
+      .aigrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      @media (max-width: 620px) { .aigrid { grid-template-columns: 1fr; } }
+      .airow { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; box-shadow: var(--shadow); border-left: 3px solid var(--line-2); }
+      .airow.allowed { border-left-color: var(--ok); }
+      .airow.partial { border-left-color: var(--warn); }
+      .airow.blocked { border-left-color: var(--bad); }
+      .aitop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .ainame { font-size: 13px; font-weight: 700; }
+      .aibadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+      .aibadge svg { width: 11px; height: 11px; }
+      .aibadge.allowed { background: var(--ok-bg); color: var(--ok); }
+      .aibadge.partial { background: var(--warn-bg); color: var(--warn); }
+      .aibadge.blocked { background: var(--bad-bg); color: var(--bad); }
+      .ainote { font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+
       .note { margin-top: 16px; font-size: 12px; color: var(--muted); background: #f1f1f6; border-radius: 12px; padding: 12px 14px; line-height: 1.6; }
       .note a { color: var(--pink-dark); font-weight: 600; }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 30px 24px; border-top: 1px solid var(--line); }
@@ -249,7 +265,7 @@
       </div>
     </main>
 
-    <footer><b>CiteRank</b> · LLM Access Check <b>v2.7</b> · reconciled GPTBot result (robots-allows vs WAF-blocks vs timeout) · Googlebot renders JavaScript — AI crawlers don’t, so JS-injected content is invisible to them.</footer>
+    <footer><b>CiteRank</b> · LLM Access Check <b>v2.8</b> · live access for every AI crawler (GPTBot, Perplexity, Claude, Copilot/Bing, Google AI) · Googlebot renders JavaScript — AI crawlers don’t, so JS-injected content is invisible to them.</footer>
 
     <script>
       const $ = (id) => document.getElementById(id);
@@ -376,9 +392,14 @@
         }).join('');
         html += `<div class="sectitle">Who sees what</div><div class="viewers">${viewers}</div>`;
 
-        if (d.llmCrawler) {
-          const ok = d.llmCrawler.status === 'ok';
-          html += `<div class="sectitle">LLM crawler (GPTBot)</div><div class="banner ${ok ? 'warn' : 'bad'}" style="background:${ok ? 'var(--ok-bg)' : 'var(--bad-bg)'};color:${ok ? '#0f6b46' : '#9f2828'};border-color:${ok ? '#cdebdd' : '#f4cfcf'}">${ok ? IC.check : IC.x}<div>${esc(d.llmCrawler.note)}</div></div>`;
+        if (d.aiCrawlers && d.aiCrawlers.length) {
+          const STXT = { ok: 'Can read', blocked: 'Blocked', noresponse: 'No response', partial: 'Partial' };
+          const SCLS = { ok: 'allowed', blocked: 'blocked', noresponse: 'blocked', partial: 'partial' };
+          html += `<div class="sectitle">Live AI-crawler access <span style="font-weight:500;color:var(--muted)">— we fetched the page AS each bot</span></div><div class="aigrid">${d.aiCrawlers.map((b) => {
+            const cls = SCLS[b.status] || 'partial';
+            const ic = b.status === 'ok' ? IC.check : b.status === 'partial' ? IC.alert : IC.x;
+            return `<div class="airow ${cls}"><div class="aitop"><span class="ainame">${esc(b.label)}</span><span class="aibadge ${cls}">${ic} ${STXT[b.status] || b.status}${b.status === 'ok' && b.words ? ` · ${b.words}w` : ''}</span></div><div class="ainote">${esc(b.note)}</div></div>`;
+          }).join('')}</div>`;
         }
         if (d.bots && d.bots.length) {
           html += `<div class="sectitle">Are the AI crawlers allowed? (robots.txt)</div><div class="bots">${d.bots.map((b) => `<div class="botrow"><span class="botname">${esc(b.label)}</span><span class="botbadge ${b.status}">${BOT_IC[b.status]} ${b.status === 'blocked' ? 'Blocked' : b.status === 'partial' ? 'Partial' : 'Allowed'}</span></div>`).join('')}</div>`;

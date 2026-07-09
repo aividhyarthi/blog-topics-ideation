@@ -13,6 +13,10 @@ const UA = {
   chrome_d: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   chrome_m: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
   gptbot: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.1; +https://openai.com/gptbot)',
+  oai_search: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)',
+  perplexity: 'Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)',
+  claude: 'Mozilla/5.0 (compatible; ClaudeBot/1.0; +http://www.anthropic.com/claude-bot)',
+  bing: 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
 };
 
 interface Fetched { ok: boolean; status: number; body: string; redirected?: boolean; finalUrl?: string }
@@ -66,12 +70,16 @@ export const POST: APIRoute = async ({ request }) => {
   const origin = (() => { try { return new URL(inputUrl).origin; } catch { return ''; } })();
 
   // Fetch the page as every agent + robots/llms, in parallel.
-  const [gd, gm, cd, cm, gp, robots, llms] = await Promise.all([
+  const [gd, gm, cd, cm, gp, pplx, claude, bing, oai, robots, llms] = await Promise.all([
     fetchAs(inputUrl, UA.gbot_d, 15000),
     fetchAs(inputUrl, UA.gbot_m, 15000),
     fetchAs(inputUrl, UA.chrome_d, 15000),
     fetchAs(inputUrl, UA.chrome_m, 15000),
     fetchAs(inputUrl, UA.gptbot, 15000),
+    fetchAs(inputUrl, UA.perplexity, 15000),
+    fetchAs(inputUrl, UA.claude, 15000),
+    fetchAs(inputUrl, UA.bing, 15000),
+    fetchAs(inputUrl, UA.oai_search, 15000),
     origin ? fetchAs(`${origin}/robots.txt`, UA.gbot_d, 6000) : Promise.resolve({ ok: false, status: 0, body: '' } as Fetched),
     origin ? fetchAs(`${origin}/llms.txt`, UA.gbot_d, 6000) : Promise.resolve({ ok: false, status: 0, body: '' } as Fetched),
   ]);
@@ -174,6 +182,36 @@ export const POST: APIRoute = async ({ request }) => {
     chatgpt = { blocked: true, note: gptMsg };
   }
 
+  // ---- Live AI-crawler access matrix ----
+  const sigAllows = (id: string) => { const s = crawl.find((x) => x.id === id); return !s || s.score !== 0; };
+  const robotsDisallowsAll = (uaToken: string) => Boolean(robotsTxt) && new RegExp(`user-agent:\\s*${uaToken}[\\s\\S]*?disallow:\\s*/\\s*(?:\\n|$)`, 'i').test(robotsTxt as string);
+  const classifyBot = (label: string, engine: string, f: Fetched, robotsAllowed: boolean) => {
+    const status = f.ok ? 'ok' : (f.status >= 400 ? 'blocked' : 'noresponse');
+    const words = f.ok ? wc(f.body) : 0;
+    const note = status === 'ok'
+      ? `Served ${words} words (HTTP ${f.status}) — this crawler can read the page.`
+      : status === 'blocked'
+        ? `Blocked (HTTP ${f.status})${robotsAllowed ? ' at the server/CDN — robots.txt allows it, so this is a WAF/edge block on the user-agent.' : ' — matches your robots.txt disallow.'}`
+        : `No response (timeout or connection dropped).${robotsAllowed ? ' robots.txt allows it, so if it persists it’s likely an edge/CDN block on this user-agent, not robots.' : ''}`;
+    return { label, engine, status, words, note };
+  };
+  const googleExtendedAllowed = !robotsDisallowsAll('google-extended');
+  const geBase = gd.ok ? 'ok' : (gd.status >= 400 ? 'blocked' : 'noresponse');
+  const googleRow = {
+    label: 'Google AI — Gemini · AI Overviews · AI Mode', engine: 'Google AI',
+    status: gd.ok ? (googleExtendedAllowed ? 'ok' : 'partial') : geBase,
+    words: gd.ok ? wc(gd.body) : 0,
+    note: `There is no separate Gemini/AI-Overviews crawler — Google AI reads via Googlebot. Googlebot ${gd.ok ? `served ${wc(gd.body)} words` : (geBase === 'blocked' ? `was blocked (HTTP ${gd.status})` : 'was unreachable')}. Gemini/Vertex grounding & training permission (Google-Extended): ${googleExtendedAllowed ? 'allowed' : 'BLOCKED — you are opted out of Gemini grounding/training'}.`,
+  };
+  const aiCrawlers = [
+    classifyBot('ChatGPT — GPTBot', 'ChatGPT', gpb, sigAllows('bot_openai')),
+    classifyBot('ChatGPT Search — OAI-SearchBot', 'ChatGPT Search', oai, sigAllows('bot_openai')),
+    classifyBot('Perplexity — PerplexityBot', 'Perplexity', pplx, sigAllows('bot_perplexity')),
+    classifyBot('Claude — ClaudeBot', 'Claude', claude, sigAllows('bot_anthropic')),
+    classifyBot('Copilot — Bingbot', 'Copilot', bing, !robotsDisallowsAll('bingbot')),
+    googleRow,
+  ];
+
   // Content gaps ChatGPT/competitors would exploit — the "missed" items + no-FAQ.
   const content = extractContent(desktopHtml || mobileHtml);
   const gaps: { label: string; detail: string }[] = [];
@@ -190,7 +228,7 @@ export const POST: APIRoute = async ({ request }) => {
     mode: 'url', url: inputUrl, host,
     pageType: factsM.pageType, pageTypeLabel: PAGE_TYPE_LABEL[factsM.pageType],
     content, gaps,
-    overall, viewers: visM.viewers, parity, bots, llmCrawler,
+    overall, viewers: visM.viewers, parity, bots, llmCrawler, aiCrawlers,
     llmsTxt: (llmsTxtSignal?.score ?? 0) >= 100,
     desktop, mobile, chatgpt, fetchNote,
   });
