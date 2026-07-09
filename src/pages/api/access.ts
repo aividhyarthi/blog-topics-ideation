@@ -60,7 +60,7 @@ export const POST: APIRoute = async ({ request }) => {
     const seenP = new Set<string>();
     for (const g of view.groups) for (const it of g.items) if (it.status === 'missed' && !seenP.has(it.label)) { seenP.add(it.label); pastedGaps.push({ label: it.label, detail: it.detail }); }
     if (!pastedContent.faqs.length) pastedGaps.push({ label: 'FAQ content', detail: 'No FAQ schema/content found — AI Overviews and ChatGPT favour Q&A-structured pages.' });
-    return json({ mode: 'pasted', url: null, host: null, pageType: facts.pageType, pageTypeLabel: PAGE_TYPE_LABEL[facts.pageType], overall: vis.verdict, viewers: vis.viewers, content: pastedContent, gaps: pastedGaps, desktop: view, mobile: view, chatgpt: view, bots: [], llmCrawler: null, parity: null, llmsTxt: null });
+    return json({ mode: 'pasted', url: null, host: null, pageType: facts.pageType, pageTypeLabel: PAGE_TYPE_LABEL[facts.pageType], overall: vis.verdict, viewers: vis.viewers, content: pastedContent, gaps: pastedGaps, desktop: view, mobile: view, botTabs: [], bots: [], parity: null, llmsTxt: null });
   }
 
   if (!inputUrl) return json({ error: 'Enter a URL (or paste the page HTML).' }, 400);
@@ -69,10 +69,9 @@ export const POST: APIRoute = async ({ request }) => {
   try { host = new URL(inputUrl).host; } catch { return json({ error: 'Could not parse that URL.' }, 400); }
   const origin = (() => { try { return new URL(inputUrl).origin; } catch { return ''; } })();
 
-  // Fetch as every agent — but NOT all at once. Hitting a host with 11 parallel
-  // requests can trip its rate-limiter and produce false "no response" results
-  // that look like blocks but are self-inflicted. So we wave it: core viewport
-  // fetches first, then the AI bots at low concurrency.
+  // Core fetch only: viewport agents + robots/llms. The individual AI crawlers
+  // are run ON-DEMAND, one at a time, from their own tabs (with a cooldown) so we
+  // never burst the host and trigger false rate-limit "blocks".
   const [gd, gm, cd, cm, robots, llms] = await Promise.all([
     fetchAs(inputUrl, UA.gbot_d, 15000),
     fetchAs(inputUrl, UA.gbot_m, 15000),
@@ -81,25 +80,12 @@ export const POST: APIRoute = async ({ request }) => {
     origin ? fetchAs(`${origin}/robots.txt`, UA.gbot_d, 6000) : Promise.resolve({ ok: false, status: 0, body: '' } as Fetched),
     origin ? fetchAs(`${origin}/llms.txt`, UA.gbot_d, 6000) : Promise.resolve({ ok: false, status: 0, body: '' } as Fetched),
   ]);
-  // AI-bot wave: max 3 in flight.
-  const aiTasks = [UA.gptbot, UA.perplexity, UA.claude, UA.bing, UA.oai_search].map((ua) => () => fetchAs(inputUrl, ua, 15000));
-  const aiRes: Fetched[] = new Array(aiTasks.length);
-  let ti = 0;
-  await Promise.all(Array.from({ length: 3 }, async () => {
-    while (true) { const i = ti++; if (i >= aiTasks.length) break; aiRes[i] = await aiTasks[i](); }
-  }));
-  const [gp, pplx, claude, bing, oai] = aiRes;
 
   const desktopHtml = gd.ok ? gd.body : (cd.ok ? cd.body : '');
   const mobileHtml = gm.ok ? gm.body : (cm.ok ? cm.body : desktopHtml);
   if (!desktopHtml && !mobileHtml) {
     return json({ error: `Could not read that URL${gd.status ? ` (HTTP ${gd.status})` : ''}. The site may be blocking bots — try pasting the HTML instead.` }, 502);
   }
-
-  // GPTBot can flake on a single try (timeout / edge rate-limit). Retry once on a
-  // no-response (status 0) so we don't wrongly declare "blocked" from a timeout.
-  let gpb = gp;
-  if (!gpb.ok && gpb.status === 0) gpb = await fetchAs(inputUrl, UA.gptbot, 15000);
 
   const robotsTxt = robots.ok ? robots.body : null;
   const llmsTxt = llms.ok && /\S/.test(llms.body) && !/<html/i.test(llms.body.slice(0, 400)) ? llms.body : null;
@@ -150,84 +136,19 @@ export const POST: APIRoute = async ({ request }) => {
   }));
   const llmsTxtSignal = crawl.find((s) => s.id === 'llms_txt');
 
-  // Reconcile the LIVE GPTBot result with robots.txt + content-in-HTML so the
-  // panels tell one coherent story instead of contradicting each other.
-  const robotsAllowsGpt = !bots.some((b) => /openai|chatgpt/i.test(b.label) && b.status === 'blocked');
-  const gptExplicitBlock = gpb.status >= 400;        // 403/401/429 = the server said no
-  const gptNoResponse = !gpb.ok && gpb.status === 0; // timeout / connection dropped
-  const gptMsg = gpb.ok
-    ? `GPTBot was served ${wc(gpb.body)} words (HTTP ${gpb.status}) — the ChatGPT crawler can read this page.`
-    : gptExplicitBlock
-      ? `GPTBot was blocked (HTTP ${gpb.status})${robotsAllowsGpt ? ' — even though robots.txt allows it, so the block is at your server/CDN (WAF), not robots. Many WAFs block the OpenAI user-agent by default.' : ' — consistent with your robots.txt disallowing it.'}`
-      : `The live GPTBot request got no response (timed out or the connection was dropped, twice). ${robotsAllowsGpt ? 'robots.txt allows it and the content is in your HTML, so if this persists it’s likely an edge/CDN block on the OpenAI user-agent — not a robots issue.' : ''} Re-run to rule out a slow response.`;
-
-  const llmCrawler = { status: gpb.ok ? 'ok' : 'blocked', note: gptMsg };
-
-  // If the live fetch failed but robots allows + content is in HTML, downgrade the
-  // "LLM crawlers" viewer from a flat "can read it" to an honest, reconciled note.
-  if (!gpb.ok && robotsAllowsGpt) {
-    const lv = visM.viewers.find((v) => /LLM crawlers/i.test(v.who));
-    if (lv) {
-      lv.access = gptExplicitBlock ? 'blocked' : 'partial';
-      lv.sees = gptExplicitBlock
-        ? `Blocked in practice — the live GPTBot request returned HTTP ${gpb.status}. Your robots.txt allows it, so the block is at your server/CDN, not robots.`
-        : `In principle yes — the content is in your HTML and robots.txt allows AI bots — but the live GPTBot fetch got no response (a likely CDN/WAF block on the OpenAI user-agent, or a timeout). Worth confirming.`;
-    }
-  }
-
-  // ChatGPT (GPTBot) view — exactly what OpenAI's crawler received (raw HTML, no JS).
-  let chatgpt: any;
-  if (gpb.ok) {
-    const factsG = analyzeHtml(gpb.body, { isUrl: true, host, robotsTxt });
-    chatgpt = {
-      render: renderInfo(gpb.body, factsG), verdict: buildVisibility(factsG, crawl).verdict,
-      access: [{ who: 'GPTBot (ChatGPT crawler)', kind: 'bot', status: 'ok', note: rowNote(gpb, factsG.wordCount) }],
-      groups: accessGroups(gpb.body, factsG),
-    };
-  } else {
-    chatgpt = { blocked: true, note: gptMsg };
-  }
-
-  // ---- Live AI-crawler access matrix ----
-  const sigAllows = (id: string) => { const s = crawl.find((x) => x.id === id); return !s || s.score !== 0; };
-  const robotsDisallowsAll = (uaToken: string) => Boolean(robotsTxt) && new RegExp(`user-agent:\\s*${uaToken}[\\s\\S]*?disallow:\\s*/\\s*(?:\\n|$)`, 'i').test(robotsTxt as string);
-  const classifyBot = (label: string, engine: string, f: Fetched, robotsAllowed: boolean) => {
-    const status = f.ok ? 'ok' : (f.status >= 400 ? 'blocked' : 'noresponse');
-    const words = f.ok ? wc(f.body) : 0;
-    const note = status === 'ok'
-      ? `Served ${words} words (HTTP ${f.status}) — this crawler can read the page.`
-      : status === 'blocked'
-        ? `Blocked (HTTP ${f.status})${robotsAllowed ? ' at the server/CDN — robots.txt allows it, so this is a WAF/edge block on the user-agent.' : ' — matches your robots.txt disallow.'}`
-        : `No response (timeout or connection dropped).${robotsAllowed ? ' robots.txt allows it, so if it persists it’s likely an edge/CDN block on this user-agent, not robots.' : ''}`;
-    return { label, engine, status, words, note };
-  };
-  const googleExtendedAllowed = !robotsDisallowsAll('google-extended');
-  const geBase = gd.ok ? 'ok' : (gd.status >= 400 ? 'blocked' : 'noresponse');
-  const googleRow = {
-    label: 'Google AI — Gemini · AI Overviews · AI Mode', engine: 'Google AI',
-    status: gd.ok ? (googleExtendedAllowed ? 'ok' : 'partial') : geBase,
-    words: gd.ok ? wc(gd.body) : 0,
-    note: `There is no separate Gemini/AI-Overviews crawler — Google AI reads via Googlebot. Googlebot ${gd.ok ? `served ${wc(gd.body)} words` : (geBase === 'blocked' ? `was blocked (HTTP ${gd.status})` : 'was unreachable')}. Gemini/Vertex grounding & training permission (Google-Extended): ${googleExtendedAllowed ? 'allowed' : 'BLOCKED — you are opted out of Gemini grounding/training'}.`,
-  };
-  const aiCrawlers = [
-    classifyBot('ChatGPT — GPTBot', 'ChatGPT', gpb, sigAllows('bot_openai')),
-    classifyBot('ChatGPT Search — OAI-SearchBot', 'ChatGPT Search', oai, sigAllows('bot_openai')),
-    classifyBot('Perplexity — PerplexityBot', 'Perplexity', pplx, sigAllows('bot_perplexity')),
-    classifyBot('Claude — ClaudeBot', 'Claude', claude, sigAllows('bot_anthropic')),
-    classifyBot('Copilot — Bingbot', 'Copilot', bing, !robotsDisallowsAll('bingbot')),
-    googleRow,
-  ];
-
-  // "Is it us or them?" — if our own fetch is healthy (Googlebot/Chrome got 200)
-  // then any bot failures below are the SITE discriminating by user-agent, not a
-  // tool error. If nothing came back at all, it's the site/our IP, not the bots.
+  // Whether our own fetch is healthy — so the client can say "is it us or them?".
   const ourFetchOk = gd.ok || gm.ok || cd.ok || cm.ok;
-  const anyAiBlocked = aiCrawlers.some((b) => b.status !== 'ok' && b.engine !== 'Google AI');
-  const aiDiag = ourFetchOk
-    ? (anyAiBlocked
-      ? `Our fetch is healthy — Googlebot/Chrome got HTTP 200 (${wc(gd.ok ? gd.body : (cd.ok ? cd.body : mobileHtml))} words). So any “blocked / no response” above is the SITE treating that bot’s user-agent differently — a real block, not a tool error.`
-      : `Our fetch is healthy and every AI crawler was served — no blocks detected.`)
-    : `We couldn’t reach this site with ANY user-agent (including Googlebot). That points to the site being down, geo-blocking, or blocking our server’s IP — not something specific to the AI bots. Try again, or paste the HTML.`;
+  const ourWords = wc(gd.ok ? gd.body : (cd.ok ? cd.body : mobileHtml));
+
+  // Bot tabs are run ON-DEMAND (one at a time, with a cooldown) from the client.
+  const botTabs = [
+    { id: 'gptbot', label: 'ChatGPT', sub: 'GPTBot' },
+    { id: 'oai', label: 'ChatGPT Search', sub: 'OAI-SearchBot' },
+    { id: 'perplexity', label: 'Perplexity', sub: 'PerplexityBot' },
+    { id: 'claude', label: 'Claude', sub: 'ClaudeBot' },
+    { id: 'bing', label: 'Copilot', sub: 'Bingbot' },
+    { id: 'googlebot', label: 'Google AI', sub: 'Googlebot' },
+  ];
 
   // Content gaps ChatGPT/competitors would exploit — the "missed" items + no-FAQ.
   const content = extractContent(desktopHtml || mobileHtml);
@@ -245,8 +166,8 @@ export const POST: APIRoute = async ({ request }) => {
     mode: 'url', url: inputUrl, host,
     pageType: factsM.pageType, pageTypeLabel: PAGE_TYPE_LABEL[factsM.pageType],
     content, gaps,
-    overall, viewers: visM.viewers, parity, bots, llmCrawler, aiCrawlers, aiDiag,
+    overall, viewers: visM.viewers, parity, bots, botTabs, ourFetchOk, ourWords,
     llmsTxt: (llmsTxtSignal?.score ?? 0) >= 100,
-    desktop, mobile, chatgpt, fetchNote,
+    desktop, mobile, fetchNote,
   });
 };
