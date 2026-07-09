@@ -69,20 +69,26 @@ export const POST: APIRoute = async ({ request }) => {
   try { host = new URL(inputUrl).host; } catch { return json({ error: 'Could not parse that URL.' }, 400); }
   const origin = (() => { try { return new URL(inputUrl).origin; } catch { return ''; } })();
 
-  // Fetch the page as every agent + robots/llms, in parallel.
-  const [gd, gm, cd, cm, gp, pplx, claude, bing, oai, robots, llms] = await Promise.all([
+  // Fetch as every agent — but NOT all at once. Hitting a host with 11 parallel
+  // requests can trip its rate-limiter and produce false "no response" results
+  // that look like blocks but are self-inflicted. So we wave it: core viewport
+  // fetches first, then the AI bots at low concurrency.
+  const [gd, gm, cd, cm, robots, llms] = await Promise.all([
     fetchAs(inputUrl, UA.gbot_d, 15000),
     fetchAs(inputUrl, UA.gbot_m, 15000),
     fetchAs(inputUrl, UA.chrome_d, 15000),
     fetchAs(inputUrl, UA.chrome_m, 15000),
-    fetchAs(inputUrl, UA.gptbot, 15000),
-    fetchAs(inputUrl, UA.perplexity, 15000),
-    fetchAs(inputUrl, UA.claude, 15000),
-    fetchAs(inputUrl, UA.bing, 15000),
-    fetchAs(inputUrl, UA.oai_search, 15000),
     origin ? fetchAs(`${origin}/robots.txt`, UA.gbot_d, 6000) : Promise.resolve({ ok: false, status: 0, body: '' } as Fetched),
     origin ? fetchAs(`${origin}/llms.txt`, UA.gbot_d, 6000) : Promise.resolve({ ok: false, status: 0, body: '' } as Fetched),
   ]);
+  // AI-bot wave: max 3 in flight.
+  const aiTasks = [UA.gptbot, UA.perplexity, UA.claude, UA.bing, UA.oai_search].map((ua) => () => fetchAs(inputUrl, ua, 15000));
+  const aiRes: Fetched[] = new Array(aiTasks.length);
+  let ti = 0;
+  await Promise.all(Array.from({ length: 3 }, async () => {
+    while (true) { const i = ti++; if (i >= aiTasks.length) break; aiRes[i] = await aiTasks[i](); }
+  }));
+  const [gp, pplx, claude, bing, oai] = aiRes;
 
   const desktopHtml = gd.ok ? gd.body : (cd.ok ? cd.body : '');
   const mobileHtml = gm.ok ? gm.body : (cm.ok ? cm.body : desktopHtml);
@@ -212,6 +218,17 @@ export const POST: APIRoute = async ({ request }) => {
     googleRow,
   ];
 
+  // "Is it us or them?" — if our own fetch is healthy (Googlebot/Chrome got 200)
+  // then any bot failures below are the SITE discriminating by user-agent, not a
+  // tool error. If nothing came back at all, it's the site/our IP, not the bots.
+  const ourFetchOk = gd.ok || gm.ok || cd.ok || cm.ok;
+  const anyAiBlocked = aiCrawlers.some((b) => b.status !== 'ok' && b.engine !== 'Google AI');
+  const aiDiag = ourFetchOk
+    ? (anyAiBlocked
+      ? `Our fetch is healthy — Googlebot/Chrome got HTTP 200 (${wc(gd.ok ? gd.body : (cd.ok ? cd.body : mobileHtml))} words). So any “blocked / no response” above is the SITE treating that bot’s user-agent differently — a real block, not a tool error.`
+      : `Our fetch is healthy and every AI crawler was served — no blocks detected.`)
+    : `We couldn’t reach this site with ANY user-agent (including Googlebot). That points to the site being down, geo-blocking, or blocking our server’s IP — not something specific to the AI bots. Try again, or paste the HTML.`;
+
   // Content gaps ChatGPT/competitors would exploit — the "missed" items + no-FAQ.
   const content = extractContent(desktopHtml || mobileHtml);
   const gaps: { label: string; detail: string }[] = [];
@@ -228,7 +245,7 @@ export const POST: APIRoute = async ({ request }) => {
     mode: 'url', url: inputUrl, host,
     pageType: factsM.pageType, pageTypeLabel: PAGE_TYPE_LABEL[factsM.pageType],
     content, gaps,
-    overall, viewers: visM.viewers, parity, bots, llmCrawler, aiCrawlers,
+    overall, viewers: visM.viewers, parity, bots, llmCrawler, aiCrawlers, aiDiag,
     llmsTxt: (llmsTxtSignal?.score ?? 0) >= 100,
     desktop, mobile, chatgpt, fetchNote,
   });

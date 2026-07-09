@@ -265,7 +265,7 @@
       </div>
     </main>
 
-    <footer><b>CiteRank</b> · LLM Access Check <b>v2.8</b> · live access for every AI crawler (GPTBot, Perplexity, Claude, Copilot/Bing, Google AI) · Googlebot renders JavaScript — AI crawlers don’t, so JS-injected content is invisible to them.</footer>
+    <footer><b>CiteRank</b> · LLM Access Check <b>v2.9</b> · AI-crawler matrix (prominent) + “is it us or them?” diagnosis + polite fetch pacing · Googlebot renders JavaScript — AI crawlers don’t, so JS-injected content is invisible to them.</footer>
 
     <script>
       const $ = (id) => document.getElementById(id);
@@ -371,19 +371,28 @@
           html += `<div class="sectitle" style="margin-top:22px">Content gaps <span style="font-weight:500;color:var(--muted)">— what's missing (competitors &amp; AI exploit these)</span></div><div class="gaps-card">${d.gaps.map((g) => `<div class="gap2">${IC.x}<div><b>${esc(g.label)}</b><span>${esc(g.detail)}</span></div></div>`).join('')}</div>`;
         }
 
-        // Tabs: Desktop | Mobile | ChatGPT (always; pasted shows same HTML for each).
-        const cg = d.chatgpt;
-        const cgPanel = cg ? (cg.blocked ? `<div class="banner bad" style="margin-top:14px">${IC.x}<div>${esc(cg.note)}</div></div>` : tabPanel(cg, isPasted)) : '<div class="note">No ChatGPT-crawler view available.</div>';
+        // Live AI-crawler access — the clear per-bot section (moved up, prominent).
+        if (d.aiCrawlers && d.aiCrawlers.length) {
+          const STXT = { ok: 'Can read', blocked: 'Blocked', noresponse: 'No response', partial: 'Partial' };
+          const SCLS = { ok: 'allowed', blocked: 'blocked', noresponse: 'blocked', partial: 'partial' };
+          html += `<div class="sectitle" style="margin-top:22px">Live AI-crawler access <span style="font-weight:500;color:var(--muted)">— we fetched the page AS each bot</span></div><div class="aigrid">${d.aiCrawlers.map((b) => {
+            const cls = SCLS[b.status] || 'partial';
+            const ic = b.status === 'ok' ? IC.check : b.status === 'partial' ? IC.alert : IC.x;
+            return `<div class="airow ${cls}"><div class="aitop"><span class="ainame">${esc(b.label)}</span><span class="aibadge ${cls}">${ic} ${STXT[b.status] || b.status}${b.status === 'ok' && b.words ? ` · ${b.words}w` : ''}</span></div><div class="ainote">${esc(b.note)}</div></div>`;
+          }).join('')}</div>`;
+          if (d.aiDiag) { const okDiag = /healthy/.test(d.aiDiag) && !/couldn/.test(d.aiDiag); html += `<div class="banner ${okDiag ? 'warn' : 'bad'}" style="margin-top:12px;${okDiag ? 'background:var(--accent-soft);color:var(--pink-dark);border-color:#e0def7' : ''}">${IC.info}<div><b>Is it us or them?</b> ${esc(d.aiDiag)}</div></div>`; }
+        }
+
+        // Element audit tabs: Desktop | Mobile (viewports).
         html += `
+          <div class="sectitle" style="margin-top:22px">Full element audit <span style="font-weight:500;color:var(--muted)">— navigation to footer</span></div>
           <div class="tabs">
             <button class="tab active" data-tab="desktop">${IC.desktop} Desktop</button>
             <button class="tab" data-tab="mobile">${IC.mobile} Mobile</button>
-            <button class="tab" data-tab="chatgpt">${IC.bot} ChatGPT bot</button>
           </div>
-          ${isPasted ? `<div class="pasted-note">${IC.info} Pasted HTML is a single snapshot — Desktop, Mobile and ChatGPT show the same content. Enter a live <b>URL</b> to compare how the site actually serves each agent.</div>` : ''}
+          ${isPasted ? `<div class="pasted-note">${IC.info} Pasted HTML is a single snapshot — Desktop and Mobile show the same content. Enter a live <b>URL</b> to compare how the site serves each, and to run the live AI-crawler checks.</div>` : ''}
           <div class="tabpanel active" id="tab-desktop">${tabPanel(d.desktop, isPasted)}</div>
-          <div class="tabpanel" id="tab-mobile">${tabPanel(d.mobile, isPasted)}</div>
-          <div class="tabpanel" id="tab-chatgpt">${cgPanel}</div>`;
+          <div class="tabpanel" id="tab-mobile">${tabPanel(d.mobile, isPasted)}</div>`;
 
         // shared: who sees what + LLM crawler + robots bots
         const viewers = (d.viewers || []).map((vw) => {
@@ -392,15 +401,6 @@
         }).join('');
         html += `<div class="sectitle">Who sees what</div><div class="viewers">${viewers}</div>`;
 
-        if (d.aiCrawlers && d.aiCrawlers.length) {
-          const STXT = { ok: 'Can read', blocked: 'Blocked', noresponse: 'No response', partial: 'Partial' };
-          const SCLS = { ok: 'allowed', blocked: 'blocked', noresponse: 'blocked', partial: 'partial' };
-          html += `<div class="sectitle">Live AI-crawler access <span style="font-weight:500;color:var(--muted)">— we fetched the page AS each bot</span></div><div class="aigrid">${d.aiCrawlers.map((b) => {
-            const cls = SCLS[b.status] || 'partial';
-            const ic = b.status === 'ok' ? IC.check : b.status === 'partial' ? IC.alert : IC.x;
-            return `<div class="airow ${cls}"><div class="aitop"><span class="ainame">${esc(b.label)}</span><span class="aibadge ${cls}">${ic} ${STXT[b.status] || b.status}${b.status === 'ok' && b.words ? ` · ${b.words}w` : ''}</span></div><div class="ainote">${esc(b.note)}</div></div>`;
-          }).join('')}</div>`;
-        }
         if (d.bots && d.bots.length) {
           html += `<div class="sectitle">Are the AI crawlers allowed? (robots.txt)</div><div class="bots">${d.bots.map((b) => `<div class="botrow"><span class="botname">${esc(b.label)}</span><span class="botbadge ${b.status}">${BOT_IC[b.status]} ${b.status === 'blocked' ? 'Blocked' : b.status === 'partial' ? 'Partial' : 'Allowed'}</span></div>`).join('')}</div>`;
         }
