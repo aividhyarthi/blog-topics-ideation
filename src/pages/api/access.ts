@@ -82,6 +82,11 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: `Could not read that URL${gd.status ? ` (HTTP ${gd.status})` : ''}. The site may be blocking bots — try pasting the HTML instead.` }, 502);
   }
 
+  // GPTBot can flake on a single try (timeout / edge rate-limit). Retry once on a
+  // no-response (status 0) so we don't wrongly declare "blocked" from a timeout.
+  let gpb = gp;
+  if (!gpb.ok && gpb.status === 0) gpb = await fetchAs(inputUrl, UA.gptbot, 15000);
+
   const robotsTxt = robots.ok ? robots.body : null;
   const llmsTxt = llms.ok && /\S/.test(llms.body) && !/<html/i.test(llms.body.slice(0, 400)) ? llms.body : null;
 
@@ -131,22 +136,42 @@ export const POST: APIRoute = async ({ request }) => {
   }));
   const llmsTxtSignal = crawl.find((s) => s.id === 'llms_txt');
 
-  const llmCrawler = {
-    status: gp.ok ? 'ok' : 'blocked',
-    note: gp.ok ? `GPTBot was served ${wc(gp.body)} words (HTTP ${gp.status}).` : `GPTBot got HTTP ${gp.status || 'no response'} — this site may be blocking the ChatGPT crawler.`,
-  };
+  // Reconcile the LIVE GPTBot result with robots.txt + content-in-HTML so the
+  // panels tell one coherent story instead of contradicting each other.
+  const robotsAllowsGpt = !bots.some((b) => /openai|chatgpt/i.test(b.label) && b.status === 'blocked');
+  const gptExplicitBlock = gpb.status >= 400;        // 403/401/429 = the server said no
+  const gptNoResponse = !gpb.ok && gpb.status === 0; // timeout / connection dropped
+  const gptMsg = gpb.ok
+    ? `GPTBot was served ${wc(gpb.body)} words (HTTP ${gpb.status}) — the ChatGPT crawler can read this page.`
+    : gptExplicitBlock
+      ? `GPTBot was blocked (HTTP ${gpb.status})${robotsAllowsGpt ? ' — even though robots.txt allows it, so the block is at your server/CDN (WAF), not robots. Many WAFs block the OpenAI user-agent by default.' : ' — consistent with your robots.txt disallowing it.'}`
+      : `The live GPTBot request got no response (timed out or the connection was dropped, twice). ${robotsAllowsGpt ? 'robots.txt allows it and the content is in your HTML, so if this persists it’s likely an edge/CDN block on the OpenAI user-agent — not a robots issue.' : ''} Re-run to rule out a slow response.`;
+
+  const llmCrawler = { status: gpb.ok ? 'ok' : 'blocked', note: gptMsg };
+
+  // If the live fetch failed but robots allows + content is in HTML, downgrade the
+  // "LLM crawlers" viewer from a flat "can read it" to an honest, reconciled note.
+  if (!gpb.ok && robotsAllowsGpt) {
+    const lv = visM.viewers.find((v) => /LLM crawlers/i.test(v.who));
+    if (lv) {
+      lv.access = gptExplicitBlock ? 'blocked' : 'partial';
+      lv.sees = gptExplicitBlock
+        ? `Blocked in practice — the live GPTBot request returned HTTP ${gpb.status}. Your robots.txt allows it, so the block is at your server/CDN, not robots.`
+        : `In principle yes — the content is in your HTML and robots.txt allows AI bots — but the live GPTBot fetch got no response (a likely CDN/WAF block on the OpenAI user-agent, or a timeout). Worth confirming.`;
+    }
+  }
 
   // ChatGPT (GPTBot) view — exactly what OpenAI's crawler received (raw HTML, no JS).
   let chatgpt: any;
-  if (gp.ok) {
-    const factsG = analyzeHtml(gp.body, { isUrl: true, host, robotsTxt });
+  if (gpb.ok) {
+    const factsG = analyzeHtml(gpb.body, { isUrl: true, host, robotsTxt });
     chatgpt = {
-      render: renderInfo(gp.body, factsG), verdict: buildVisibility(factsG, crawl).verdict,
-      access: [{ who: 'GPTBot (ChatGPT crawler)', kind: 'bot', status: 'ok', note: rowNote(gp, factsG.wordCount) }],
-      groups: accessGroups(gp.body, factsG),
+      render: renderInfo(gpb.body, factsG), verdict: buildVisibility(factsG, crawl).verdict,
+      access: [{ who: 'GPTBot (ChatGPT crawler)', kind: 'bot', status: 'ok', note: rowNote(gpb, factsG.wordCount) }],
+      groups: accessGroups(gpb.body, factsG),
     };
   } else {
-    chatgpt = { blocked: true, note: `GPTBot got HTTP ${gp.status || 'no response'} — this site blocks the ChatGPT crawler, so ChatGPT can’t read this page for organic citation.` };
+    chatgpt = { blocked: true, note: gptMsg };
   }
 
   // Content gaps ChatGPT/competitors would exploit — the "missed" items + no-FAQ.
