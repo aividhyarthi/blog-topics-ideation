@@ -32,7 +32,7 @@ const { recentPosts = [] } = Astro.props as Props;
 
 <style>
   .blog-sidebar { display: flex; flex-direction: column; gap: 20px; }
-  .cta-card { background: linear-gradient(160deg, #4338ca, #6d28d9); border-radius: 14px; padding: 22px; color: #fff; }
+  .cta-card { background: #111114; border-radius: 14px; padding: 22px; color: #fff; }
   .cta-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 8px; }
   .cta-body { font-size: 13.5px; line-height: 1.55; opacity: 0.92; margin: 0 0 16px; }
   .cta-btn { display: inline-block; background: #fff; color: #4338ca; font-weight: 700; font-size: 13.5px; text-decoration: none; padding: 9px 15px; border-radius: 8px; }
@@ -41,5 +41,5 @@ const { recentPosts = [] } = Astro.props as Props;
   .recent-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #6b7280; margin-bottom: 10px; }
   .recent-card ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   .recent-card a { color: #16181d; text-decoration: none; font-size: 13.5px; font-weight: 600; line-height: 1.4; }
-  .recent-card a:hover { color: #4338ca; }
+  .recent-card a:hover { color: #111; text-decoration: underline; }
 </style>

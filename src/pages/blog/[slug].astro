@@ -106,7 +106,7 @@ const breadcrumbJsonLd = {
       .crumbs a:hover { color: var(--ink); text-decoration: underline; }
       .crumbs .sep { margin: 0 7px; color: #cbd0da; }
       .crumbs .here { color: var(--ink); font-weight: 600; }
-      .posttheme { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pink-dark); }
+      .posttheme { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #52525b; }
       h1 { font-size: 30px; letter-spacing: -0.02em; margin: 8px 0 8px; line-height: 1.25; }
       .postmeta { font-size: 13px; color: var(--muted); margin-bottom: 30px; }
       article :global(h2) { font-size: 20px; letter-spacing: -0.01em; margin: 34px 0 12px; color: var(--ink); }
@@ -114,12 +114,13 @@ const breadcrumbJsonLd = {
       article :global(strong) { color: var(--ink); }
       article :global(ul), article :global(ol) { color: #2b2f38; font-size: 16px; margin: 0 0 16px; padding-left: 22px; }
       article :global(li) { margin: 0 0 8px; }
-      article :global(a) { color: var(--pink-dark); }
+      article :global(a) { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
+      article :global(a:hover) { text-decoration-color: var(--muted); }
       article :global(table) { width: 100%; border-collapse: collapse; margin: 4px 0 22px; font-size: 14.5px; }
       article :global(th), article :global(td) { text-align: left; padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
       article :global(thead th) { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); }
       article :global(tbody tr:last-child td) { border-bottom: none; }
-      article :global(blockquote) { margin: 0 0 20px; padding: 14px 18px; background: #f5f4ff; border-left: 4px solid var(--pink); border-radius: 0 8px 8px 0; }
+      article :global(blockquote) { margin: 0 0 20px; padding: 14px 18px; background: #f7f7f8; border-left: 4px solid var(--ink); border-radius: 0 8px 8px 0; }
       article :global(blockquote p) { margin: 0 0 8px; font-size: 15px; }
       article :global(blockquote p:last-child) { margin-bottom: 0; }
       .faq-block { margin-top: 38px; padding-top: 6px; border-top: 1px solid var(--line); }
