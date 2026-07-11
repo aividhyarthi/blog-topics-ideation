@@ -14,7 +14,7 @@
 //     Snapshot, Live AEO) are not part of the product and 404
 import { defineMiddleware } from 'astro:middleware';
 import { userFromSessionToken, readCookie, SESSION_COOKIE } from './lib/saas/auth';
-import { checkAccess } from './lib/saas/plans';
+import { checkAccess, isAdminEmail } from './lib/saas/plans';
 import { checkDataPersistence } from './lib/rank/persistence-check';
 import { startNightlyScheduler } from './lib/rank/scheduler';
 
@@ -34,7 +34,7 @@ if (process.env.PRODUCT_MODE) {
 // search engines) without a login, same as /about.
 const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/blog', '/api/auth/', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.
-const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
+const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/admin', '/api/admin', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
 // The two paid tools — gated on a live trial/subscription (checked below).
 const PAID_TOOL_PREFIXES = ['/rank', '/api/rank', '/aso', '/api/aso', '/api/aso-variants'];
 
@@ -73,8 +73,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
         : context.redirect(`/login?next=${encodeURIComponent(path)}`);
     }
 
-    // Both paid tools need a live trial or an active subscription.
-    if (PAID_TOOL_PREFIXES.some(matches)) {
+    // Both paid tools need a live trial or an active subscription. Admins
+    // (the owner) are whitelisted unconditionally — their own account never
+    // locks itself out over trial/plan status.
+    if (PAID_TOOL_PREFIXES.some(matches) && !isAdminEmail(user.email)) {
       const access = checkAccess(user.status, user.trialEndsAt);
       context.locals.access = access;
       if (!access.allowed) {

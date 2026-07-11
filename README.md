@@ -300,6 +300,8 @@ site becomes the product:
 | `PRODUCT_MODE` | yes (product deploy only) | `1` switches this deployment to AppRankr. Leave unset on the internal deployment. |
 | `RANK_DATA_DIR` | yes | Volume mount path — holds the user DB and all rank data. |
 | `CRON_SECRET` | for the nightly check | Required to use `GET /api/cron/rank-check?secret=...` (see the Rank Tracker section above) — pick any long random string. |
+| `ADMIN_EMAILS` | no | Comma-separated super-admin emails. Admins get the `/admin` panel (see every user, activate/cancel plans after a UPI payment, extend trials, run a full check on demand, and see when the last automatic check ran) and always keep access to the paid tools regardless of their own trial/plan status. Defaults to the owner's email. |
+| `NIGHTLY_CHECK_UTC` | no | Time of day (UTC, `HH:MM`) for the in-process automatic daily check. Defaults to `06:30` = 12:00 noon IST. |
 | `RESEND_API_KEY` | for daily email reports | API key from [resend.com](https://resend.com) (free tier). Sign up, verify a sending domain (Resend gives you a couple of DNS records to add wherever the domain is registered), create an API key, set it here. Report sending is silently disabled (logged once) until this is set. |
 | `REPORT_FROM_EMAIL` | no | The "from" address on report emails — must be on the domain verified with Resend above. Defaults to `reports@<your SITE_URL domain>`. |
 | `UPI_ID` | for billing | Your UPI id (e.g. `yourname@okhdfcbank`) — shown as text and encoded into the QR/deep link. |

@@ -16,6 +16,7 @@ import { loadConfig, loadSnapshots } from './store';
 import { runCheck, checkCoverageBatch, checkRating } from './check';
 import { keywordTrends, overviewSeries } from './track';
 import { parseReportEmails, buildDailyReportEmail, sendReportEmail } from './email';
+import { writeNightlyStatus } from './run-status';
 import { checkAccess } from '../saas/plans';
 import type { SearchHit } from './fetch';
 
@@ -35,12 +36,17 @@ export interface NightlyResult {
  * left off, so a coverage list too big to finish in one run just keeps
  * making progress on each subsequent trigger instead of failing outright.
  */
-export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000): Promise<NightlyResult> {
+export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger = 'unknown'): Promise<NightlyResult> {
   const cache = new Map<string, SearchHit[]>();
   let checkedApps = 0;
   let checkedCoverage = 0;
   const lines: string[] = [];
   const deadline = Date.now() + overallBudgetMs;
+  const startedAt = new Date().toISOString();
+  // Record the run as started immediately — if it crashes mid-way, the
+  // status file shows startedAt with finishedAt still null, which is itself
+  // useful diagnostic information on the /admin panel.
+  writeNightlyStatus({ startedAt, finishedAt: null, trigger, checkedApps: 0, checkedCoverage: 0, lines: [], error: null });
 
   async function checkTenant(label: string, userId?: string) {
     const cfg = loadConfig(userId);
@@ -122,6 +128,11 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000): Promise<
   lines.push(checkedApps
     ? `Done — checked ${checkedApps} app(s)${checkedCoverage ? `, ${checkedCoverage} coverage list(s)` : ''}.`
     : 'Nothing to check yet.');
+
+  writeNightlyStatus({
+    startedAt, finishedAt: new Date().toISOString(), trigger,
+    checkedApps, checkedCoverage, lines: lines.slice(-100), error: null,
+  });
 
   return { checkedApps, checkedCoverage, lines };
 }

@@ -30,7 +30,7 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   try {
-    const result = await runNightlyCheck();
+    const result = await runNightlyCheck(4 * 60 * 1000, 'http-cron');
     return new Response(JSON.stringify(result, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (e) {
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {

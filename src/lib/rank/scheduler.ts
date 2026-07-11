@@ -6,29 +6,54 @@
 // it needs to be anyway), the check runs on its own, once a day, no extra
 // setup, nothing to verify in a separate dashboard.
 //
-// Targets 06:00 UTC (11:30am IST) to match the schedule this project has
-// documented all along. Started once, lazily, from the first real incoming
-// request (see src/middleware.ts) — NOT at module import time, because
-// `astro build` also loads this module, and a pending setTimeout would keep
-// a build process alive until it fires.
+// Default check time is 06:30 UTC = 12:00 IST (noon), matching the owner's
+// expectation; override with NIGHTLY_CHECK_UTC="HH:MM" if it ever needs to
+// move. Started once, lazily, from the first real incoming request (see
+// src/middleware.ts) — NOT at module import time, because `astro build`
+// also loads this module, and a pending setTimeout would keep a build
+// process alive until it fires.
 import { runNightlyCheck } from './nightly';
+import { readNightlyStatus, writeNightlyStatus } from './run-status';
 
 let started = false;
 
-function msUntilNextRun(hourUtc = 6, minuteUtc = 0): number {
-  const now = new Date();
-  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hourUtc, minuteUtc, 0, 0));
+function checkTimeUtc(): { hour: number; minute: number } {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(process.env.NIGHTLY_CHECK_UTC || '');
+  if (m) {
+    const hour = Math.min(23, parseInt(m[1], 10));
+    const minute = Math.min(59, parseInt(m[2], 10));
+    return { hour, minute };
+  }
+  return { hour: 6, minute: 30 }; // 06:30 UTC = 12:00 IST
+}
+
+export function nextRunAt(now = new Date()): Date {
+  const { hour, minute } = checkTimeUtc();
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour, minute, 0, 0));
   if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
-  return next.getTime() - now.getTime();
+  return next;
+}
+
+export function schedulerInfo(): { started: boolean; nextRunAt: string; checkTimeUtc: string } {
+  const { hour, minute } = checkTimeUtc();
+  return {
+    started,
+    nextRunAt: nextRunAt().toISOString(),
+    checkTimeUtc: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+  };
 }
 
 async function runAndLog() {
   console.log(`[nightly-scheduler] starting automatic check at ${new Date().toISOString()}`);
   try {
-    const result = await runNightlyCheck(20 * 60 * 1000);
+    const result = await runNightlyCheck(20 * 60 * 1000, 'scheduler');
     for (const line of result.lines) console.log(`[nightly-scheduler] ${line}`);
   } catch (e) {
     console.error(`[nightly-scheduler] FAILED:`, e);
+    const prev = readNightlyStatus();
+    if (prev && !prev.finishedAt) {
+      writeNightlyStatus({ ...prev, finishedAt: new Date().toISOString(), error: e instanceof Error ? e.message : String(e) });
+    }
   }
 }
 
@@ -37,7 +62,7 @@ export function startNightlyScheduler() {
   started = true;
 
   const armNext = () => {
-    const delay = msUntilNextRun();
+    const delay = nextRunAt().getTime() - Date.now();
     console.log(`[nightly-scheduler] next automatic check at ${new Date(Date.now() + delay).toISOString()}`);
     setTimeout(async () => {
       await runAndLog();

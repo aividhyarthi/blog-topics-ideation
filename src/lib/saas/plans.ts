@@ -61,6 +61,18 @@ export const SITE_URL = (process.env.SITE_URL || 'https://apprankr.in').replace(
 export const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 export const REPORT_FROM_EMAIL = process.env.REPORT_FROM_EMAIL || `reports@${SITE_URL.replace(/^https?:\/\//, '')}`;
 
+/**
+ * Super-admin emails (comma-separated). Admins get the /admin panel (see
+ * every user, activate/cancel plans after a UPI payment, run checks on
+ * demand) and always have full access to the paid tools regardless of
+ * their own trial/plan status. Defaults to the owner's email.
+ */
+export const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'rudra@appstudiox.com')
+  .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+export const isAdminEmail = (email: string | null | undefined): boolean =>
+  !!email && ADMIN_EMAILS.includes(email.toLowerCase());
+
 export type PlanId = 'starter' | 'pro';
 
 export interface Plan {

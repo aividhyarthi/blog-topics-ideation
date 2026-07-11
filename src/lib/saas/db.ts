@@ -91,13 +91,14 @@ export function getPwHash(email: string): string | null {
 }
 
 export function updateUserBilling(userId: string, fields: {
-  plan?: PlanId; status?: UserStatus; subscriptionId?: string;
+  plan?: PlanId; status?: UserStatus; subscriptionId?: string; trialEndsAt?: string;
 }): void {
   const sets: string[] = [];
   const vals: (string | null)[] = [];
   if (fields.plan) { sets.push('plan = ?'); vals.push(fields.plan); }
   if (fields.status) { sets.push('status = ?'); vals.push(fields.status); }
   if (fields.subscriptionId) { sets.push('subscription_id = ?'); vals.push(fields.subscriptionId); }
+  if (fields.trialEndsAt) { sets.push('trial_ends_at = ?'); vals.push(fields.trialEndsAt); }
   if (!sets.length) return;
   vals.push(userId);
   getDb().prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
