@@ -205,6 +205,13 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
      to the same `RANK_DATA_DIR` Volume the website uses — Railway allows
      attaching an existing Volume to a second service in the same project.
 - **Export CSV** of the current ranking table.
+- **Daily email report** — per app, save a comma-separated list of team
+  emails under "Email report" and everyone on it gets a report right after
+  that app's automatic check each day: Top 1/10/30/100 counts (with movement
+  vs yesterday), the Search Visibility Score, and the biggest keyword
+  gains/drops. Sent via [Resend](https://resend.com) (`src/lib/rank/email.ts`)
+  — see `RESEND_API_KEY` below to turn it on; harmless (just doesn't send,
+  logs once) if left unset.
 
 Data sources are keyless and free: `google-play-scraper` (already used by
 `/aso`) for Play search/charts, Apple's **iTunes Search API** + marketing RSS
@@ -293,6 +300,8 @@ site becomes the product:
 | `PRODUCT_MODE` | yes (product deploy only) | `1` switches this deployment to AppRankr. Leave unset on the internal deployment. |
 | `RANK_DATA_DIR` | yes | Volume mount path — holds the user DB and all rank data. |
 | `CRON_SECRET` | for the nightly check | Required to use `GET /api/cron/rank-check?secret=...` (see the Rank Tracker section above) — pick any long random string. |
+| `RESEND_API_KEY` | for daily email reports | API key from [resend.com](https://resend.com) (free tier). Sign up, verify a sending domain (Resend gives you a couple of DNS records to add wherever the domain is registered), create an API key, set it here. Report sending is silently disabled (logged once) until this is set. |
+| `REPORT_FROM_EMAIL` | no | The "from" address on report emails — must be on the domain verified with Resend above. Defaults to `reports@<your SITE_URL domain>`. |
 | `UPI_ID` | for billing | Your UPI id (e.g. `yourname@okhdfcbank`) — shown as text and encoded into the QR/deep link. |
 | `UPI_PAYEE_NAME` | no | Name shown in the payer's UPI app during payment. Defaults to `BRAND_NAME`. |
 | `WHATSAPP_NUMBER` | for billing | Your WhatsApp number in international format, digits only (e.g. `919876543210`). |

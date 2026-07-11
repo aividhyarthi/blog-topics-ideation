@@ -990,6 +990,7 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="edit-kw">Add / edit keywords</button>
               <button class="ghost" data-act="edit-coverage">Coverage list</button>
               <button class="ghost" data-act="add-annotation">Add annotation</button>
+              <button class="ghost" data-act="edit-report">Email report</button>
               <button class="ghost" data-act="pdf">Export PDF</button>
               <button class="ghost danger" data-act="remove">Remove</button>
             </div>
@@ -1011,6 +1012,13 @@ ai photo enhancer"></textarea>
             <textarea data-role="ann-label" placeholder="e.g. Rewrote title to include &quot;photo editor&quot;, or Started a ₹50k UAC campaign" rows="2"></textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-annotation">Save annotation</button>
+            </div>
+          </div>
+          <div class="annedit no-print" data-role="reportedit">
+            <p class="hint" style="margin:10px 0 6px;">Comma-separated email addresses — everyone on this list gets a daily rank report for this app, right after each automatic check. Leave blank to turn it off.</p>
+            <input type="text" data-role="report-emails" placeholder="you@company.com, teammate@company.com" value="${escAttr(app.reportEmails || '')}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13.5px;font-family:inherit;" />
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-report-emails">Save recipients</button>
             </div>
           </div>
           <div class="kwedit no-print" data-role="covedit">
@@ -1246,6 +1254,16 @@ ai photo enhancer"></textarea>
             }
             if (p) showToast(p.done ? `Coverage check complete — ${p.total} keywords` : `Checked ${p.totalDone}/${p.total} so far — click "Check coverage now" again to continue`);
             else if (data.note) showInfo(data.note);
+            return data;
+          });
+          return;
+        }
+        if (act === 'edit-report') { card.querySelector('[data-role="reportedit"]').classList.toggle('open'); return; }
+        if (act === 'save-report-emails') {
+          withBusy(btn, 'Saving…', async () => {
+            const reportEmails = card.querySelector('[data-role="report-emails"]').value.trim();
+            const data = await api({ action: 'set-report-emails', key, reportEmails });
+            showToast(reportEmails ? 'Report recipients saved' : 'Report emails turned off for this app');
             return data;
           });
           return;

@@ -12,8 +12,10 @@
 //  - AppRankr product users (one config per user; only users with a live
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
-import { loadConfig } from './store';
+import { loadConfig, loadSnapshots } from './store';
 import { runCheck, checkCoverageBatch, checkRating } from './check';
+import { keywordTrends, overviewSeries } from './track';
+import { parseReportEmails, buildDailyReportEmail, sendReportEmail } from './email';
 import { checkAccess } from '../saas/plans';
 import type { SearchHit } from './fetch';
 
@@ -56,6 +58,29 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000): Promise<
     for (const app of cfg.apps) {
       try { await checkRating(app, userId); }
       catch (e) { lines.push(`  [${label}] ${app.key}: rating check failed: ${e instanceof Error ? e.message : String(e)}`); }
+    }
+
+    // Daily rank-report email — one per app with a saved recipient list,
+    // sent right after that app's check above so the numbers in it are
+    // today's, not yesterday's. Silently skipped per-app if no recipients
+    // are set, and skipped entirely (see email.ts) if RESEND_API_KEY isn't
+    // configured yet.
+    for (const app of cfg.apps) {
+      const recipients = parseReportEmails(app.reportEmails);
+      if (!recipients.length) continue;
+      try {
+        const snaps = loadSnapshots(2, userId);
+        const days = overviewSeries(app, snaps, 2);
+        const todayDay = days[days.length - 1];
+        if (!todayDay) continue; // nothing checked for this app yet today
+        const yesterdayDay = days.length > 1 ? days[days.length - 2] : null;
+        const trends = keywordTrends(app, snaps, 2);
+        const { subject, html } = buildDailyReportEmail(app, todayDay, yesterdayDay, trends);
+        await sendReportEmail(recipients, subject, html);
+        lines.push(`  [${label}] ${app.key}: report emailed to ${recipients.length} recipient(s).`);
+      } catch (e) {
+        lines.push(`  [${label}] ${app.key}: report email failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
 
     // Coverage lists (up to 2000 keywords) run here rather than on-demand

@@ -46,6 +46,21 @@ export const GA_MEASUREMENT_ID = process.env.GA_MEASUREMENT_ID || 'G-8D07RHSDDJ'
  */
 export const SITE_URL = (process.env.SITE_URL || 'https://apprankr.in').replace(/\/$/, '');
 
+/**
+ * Daily rank-report emails (src/lib/rank/email.ts), sent via Resend
+ * (resend.com) — a plain HTTP API, no SDK dependency needed. Unset
+ * RESEND_API_KEY disables report sending entirely (logs once, never throws),
+ * same "safe to leave unset" pattern as AdSense above.
+ *
+ * To turn this on: sign up at resend.com (free tier), verify a sending
+ * domain there (it walks you through adding a couple of DNS records at
+ * whoever your domain is registered with), create an API key, then set
+ * RESEND_API_KEY and REPORT_FROM_EMAIL (an address on that verified domain,
+ * e.g. reports@apprankr.in) in Railway.
+ */
+export const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+export const REPORT_FROM_EMAIL = process.env.REPORT_FROM_EMAIL || `reports@${SITE_URL.replace(/^https?:\/\//, '')}`;
+
 export type PlanId = 'starter' | 'pro';
 
 export interface Plan {

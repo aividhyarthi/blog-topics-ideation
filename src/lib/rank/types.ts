@@ -46,6 +46,10 @@ export interface TrackedApp {
    * keyword discovery. Keyed by keyword text so it survives independent of
    * which list (tracked vs coverage) that keyword happens to be in. */
   keywordVolumes?: Record<string, number>;
+  /** Comma-separated email addresses for the daily rank report — sent by the
+   * nightly scheduler after this app's check completes. Blank/unset means no
+   * report is sent for this app. */
+  reportEmails?: string;
 }
 
 export interface TrackerConfig {

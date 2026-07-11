@@ -13,6 +13,7 @@ import { runCheck, checkOne, checkCoverageBatch } from '../../lib/rank/check';
 import { discoverKeywords } from '../../lib/rank/discover';
 import type { Annotation, TrackedApp } from '../../lib/rank/types';
 import { parseKeywordsWithVolumes } from '../../lib/rank/keywords';
+import { parseReportEmails } from '../../lib/rank/email';
 import { randomUUID } from 'node:crypto';
 
 const json = (data: unknown, status = 200) =>
@@ -247,6 +248,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const parsedCov = parseKeywordsWithVolumes(body.keywords, MAX_COVERAGE_KEYWORDS);
     app.coverageKeywords = parsedCov.keywords;
     app.keywordVolumes = { ...(app.keywordVolumes || {}), ...parsedCov.volumes };
+    saveConfig(cfg, userId);
+    return json({ ok: true, ...statePayload(userId) });
+  }
+
+  if (action === 'set-report-emails') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    const raw = String(body.reportEmails || '').trim();
+    const valid = parseReportEmails(raw);
+    if (raw && !valid.length) return json({ error: 'That doesn\'t look like a valid email address.' }, 400);
+    app.reportEmails = valid.join(', ');
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });
   }
