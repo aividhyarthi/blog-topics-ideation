@@ -8,6 +8,8 @@ import GoogleAnalytics from '../../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../../components/AdSenseMeta.astro';
 import AdSenseScript from '../../components/AdSenseScript.astro';
 import BlogSidebar from '../../components/BlogSidebar.astro';
+import InlineTrialBanner from '../../components/InlineTrialBanner.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
 
 export async function getStaticPaths() {
   const posts = await getCollection('blog');
@@ -133,6 +135,7 @@ const faqJsonLd = faqs.length > 0 ? {
           <h1>{post.data.title}</h1>
           <div class="postmeta">{fmt(post.data.publishDate)} · {post.data.author}</div>
           <article><Content /></article>
+          <InlineTrialBanner />
 
           {faqs.length > 0 && (
             <div class="faq-block">
@@ -152,8 +155,6 @@ const faqJsonLd = faqs.length > 0 ? {
         </div>
       </div>
     </main>
-    <footer>
-      <div class="wrap">© {new Date().getFullYear()} {BRAND} · <a href="/blog">Blog</a> · <a href="/">Home</a></div>
-    </footer>
+    <SiteFooter />
   </body>
 </html>

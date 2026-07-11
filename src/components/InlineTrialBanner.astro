@@ -1,0 +1,30 @@
+---
+// Horizontal free-trial CTA placed inline in the article body, right after
+// the content and before the FAQ — the sidebar CTA (BlogSidebar.astro) is
+// out of view for most of a long read, especially on mobile where the
+// sidebar drops below the article entirely. This one shows up exactly when
+// someone's finished reading and is deciding what to do next.
+import { BRAND, TRIAL_DAYS } from '../lib/saas/plans';
+---
+<div class="inline-trial">
+  <div class="inline-trial-text">
+    <div class="inline-trial-title">Track this for your own app</div>
+    <div class="inline-trial-body">{BRAND} checks your keyword rankings every day and audits your store listing — free for {TRIAL_DAYS} days, no card required.</div>
+  </div>
+  <a class="inline-trial-btn" href="/signup">Start free trial →</a>
+</div>
+
+<style>
+  .inline-trial {
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+    background: linear-gradient(160deg, #4338ca, #6d28d9); border-radius: 14px;
+    padding: 22px 26px; margin: 36px 0; color: #fff; flex-wrap: wrap;
+  }
+  .inline-trial-title { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .inline-trial-body { font-size: 13.5px; opacity: 0.92; max-width: 46ch; }
+  .inline-trial-btn {
+    display: inline-block; background: #fff; color: #4338ca; font-weight: 700; font-size: 13.5px;
+    text-decoration: none; padding: 11px 18px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;
+  }
+  .inline-trial-btn:hover { background: #f2f1ff; }
+</style>

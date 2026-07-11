@@ -13,6 +13,7 @@ import GoogleAnalytics from '../../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../../components/AdSenseMeta.astro';
 import AdSenseScript from '../../components/AdSenseScript.astro';
 import BlogSidebar from '../../components/BlogSidebar.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
 
 const posts = (await getCollection('blog')).sort(
   (a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf(),
@@ -62,12 +63,16 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
       .themefilter button { border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: 13px; font-weight: 600; padding: 7px 13px; border-radius: 999px; cursor: pointer; font-family: inherit; }
       .themefilter button:hover { border-color: #cbd0da; color: var(--ink); }
       .themefilter button.active { background: var(--pink); border-color: var(--pink); color: #fff; }
-      .postlist { display: flex; flex-direction: column; gap: 4px; }
-      .postcard { display: block; text-decoration: none; color: inherit; padding: 20px 0; border-bottom: 1px solid var(--line); }
-      .postcard:first-child { padding-top: 0; }
+      .postlist { display: flex; flex-direction: column; gap: 12px; }
+      .postcard {
+        display: block; text-decoration: none; color: inherit;
+        padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; background: #fff;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+      }
+      .postcard:hover { border-color: #cbd0da; box-shadow: 0 6px 20px rgba(20,20,40,0.07); transform: translateY(-1px); }
       .posttheme { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pink-dark); }
-      .postcard h2 { font-size: 20px; margin: 6px 0 6px; letter-spacing: -0.01em; }
-      .postcard p { color: var(--muted); font-size: 14.5px; margin: 0 0 8px; }
+      .postcard h2 { font-size: 19px; margin: 7px 0 6px; letter-spacing: -0.01em; }
+      .postcard p { color: var(--muted); font-size: 14.5px; margin: 0 0 10px; }
       .postmeta { font-size: 12.5px; color: var(--muted); }
       .sidebar-slot { position: sticky; top: 24px; }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 30px 0; border-top: 1px solid var(--line); margin-top: 30px; }
@@ -111,9 +116,7 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
         </div>
       </div>
     </main>
-    <footer>
-      <div class="wrap">© {new Date().getFullYear()} {BRAND} · <a href="/">Home</a> · <a href="/about">About</a></div>
-    </footer>
+    <SiteFooter />
     <script>
       const buttons = document.querySelectorAll('#themefilter button');
       const cards = document.querySelectorAll('#postlist .postcard');

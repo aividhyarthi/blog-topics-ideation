@@ -3,6 +3,8 @@
 import { BRAND, PLANS, TRIAL_DAYS, CURRENCY, formatPrice, SITE_URL } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../components/AdSenseMeta.astro';
+import Icon from '../components/Icon.astro';
+import SiteFooter from '../components/SiteFooter.astro';
 const user = Astro.locals.user;
 
 const pageTitle = `${BRAND} — App Rank Tracker & ASO Tool for Google Play + App Store`;
@@ -72,7 +74,7 @@ const softwareAppJsonLd = {
       .feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
       @media (max-width: 840px) { .feats { grid-template-columns: 1fr; } .hero h1 { font-size: 32px; } }
       .feat { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
-      .feat .ico { font-size: 22px; }
+      .feat .ico { width: 42px; height: 42px; border-radius: 10px; background: rgba(99,102,241,0.1); color: var(--pink-dark); display: grid; place-items: center; }
       .feat h3 { margin: 8px 0 6px; font-size: 16px; }
       .feat p { margin: 0; font-size: 13.5px; color: var(--muted); }
       .pricing { padding: 56px 0 30px; text-align: center; }
@@ -98,6 +100,7 @@ const softwareAppJsonLd = {
       <header class="top">
         <div class="logo"><span class="mark">▲</span>{BRAND}<span class="betatag">Beta 1.0</span></div>
         <div class="navlinks">
+          <a class="btn ghost" href="#pricing">Pricing</a>
           <a class="btn ghost" href="/blog">Blog</a>
           <a class="btn ghost" href="/about">About</a>
           {user
@@ -121,18 +124,18 @@ const softwareAppJsonLd = {
     <div class="band">
       <div class="wrap">
         <div class="feats">
-          <div class="feat"><div class="ico">🏆</div><h3>Rank Tracker</h3>
+          <div class="feat"><div class="ico"><Icon name="trending" size={22} /></div><h3>Rank Tracker</h3>
             <p>Daily position, movement vs yesterday, best-ever rank and a trend for every keyword — plus Top 1/10/30/100 counts, a search visibility score, top-chart position, and one-click keyword discovery (finds every keyword you already rank for in the top 200).</p></div>
-          <div class="feat"><div class="ico">📱</div><h3>ASO Inspector</h3>
+          <div class="feat"><div class="ico"><Icon name="search" size={22} /></div><h3>ASO Inspector</h3>
             <p>Paste a Google Play listing and get an ASO score, keyword coverage, competitor comparison, and AI-rewritten title/description copy — all from the live listing.</p></div>
-          <div class="feat"><div class="ico">🥊</div><h3>Competitor watch</h3>
+          <div class="feat"><div class="ico"><Icon name="radar" size={22} /></div><h3>Competitor watch</h3>
             <p>Track rival apps on the same keywords in Rank Tracker, see who holds #1 for each term, and compare listings side by side in ASO Inspector.</p></div>
         </div>
       </div>
     </div>
 
     <div class="wrap">
-      <section class="pricing">
+      <section class="pricing" id="pricing">
         <h2>Simple pricing</h2>
         <p class="sub">Every plan starts with a {TRIAL_DAYS}-day free trial. Pay by UPI — scan, tap, or WhatsApp us. Cancel anytime.</p>
         <div class="cards">
@@ -169,6 +172,6 @@ const softwareAppJsonLd = {
       </section>
     </div>
 
-    <footer>© {new Date().getFullYear()} {BRAND} · Built by Rudra Kasturi · <a href="/about" style="color:inherit;">About</a></footer>
+    <SiteFooter />
   </body>
 </html>
