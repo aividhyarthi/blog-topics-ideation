@@ -168,9 +168,16 @@ movement over time — the core of what App Radar / AppTweak / Sensor Tower sell
 - **Top-chart position** — the app's spot in Play's **Top Free chart for its
   category** (iOS: the storefront's overall Top Free, via Apple's public RSS).
 - **History** — every check is saved as a per-day snapshot in `RANK_DATA_DIR`
-  (mount a Railway Volume so it persists). Check on demand from the UI, or set
-  up a **daily cron** so trends (and large coverage lists — see above) accrue
-  automatically. Two ways to wire that up:
+  (mount a Railway Volume so it persists). Check on demand from the UI, or let
+  it happen automatically — **the site schedules its own nightly check**
+  (`src/lib/rank/scheduler.ts`), started the moment the server handles its
+  first real request. No external scheduler or second Railway service is
+  required for this to work: it targets 06:00 UTC (11:30am IST) daily and
+  logs `[nightly-scheduler] ...` lines in Railway's Deploy Logs each time it
+  runs, so you can always confirm it fired by checking there. Two other ways
+  to trigger the same check still exist, if you'd rather not depend on the
+  in-process scheduler (e.g. you want the check to survive the site being
+  down, or want it on a service separate from the website):
 
   1. **HTTP endpoint on the existing site (simplest)** — `GET
      /api/cron/rank-check?secret=<CRON_SECRET>` runs the exact same check

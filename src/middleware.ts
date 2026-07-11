@@ -16,6 +16,7 @@ import { defineMiddleware } from 'astro:middleware';
 import { userFromSessionToken, readCookie, SESSION_COOKIE } from './lib/saas/auth';
 import { checkAccess } from './lib/saas/plans';
 import { checkDataPersistence } from './lib/rank/persistence-check';
+import { startNightlyScheduler } from './lib/rank/scheduler';
 
 // Runs once at server boot (module load, not per-request) — loud and early so
 // it's impossible to miss in Railway's Deploy Logs. A missing/unmounted
@@ -42,6 +43,13 @@ const json = (data: unknown, status: number) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const onRequest = defineMiddleware(async (context, next) => {
+  // Started on the first real incoming request, not at module load — see the
+  // comment in scheduler.ts for why (a pending setTimeout at import time
+  // would keep `astro build` alive until it fires). Safe to call on every
+  // request: the module-level `started` flag makes every call after the
+  // first a no-op.
+  startNightlyScheduler();
+
   const path = context.url.pathname;
 
   /* ------------------------------ product mode ----------------------------- */
