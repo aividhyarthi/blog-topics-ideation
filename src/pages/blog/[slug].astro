@@ -49,6 +49,16 @@ const faqJsonLd = faqs.length > 0 ? {
     acceptedAnswer: { '@type': 'Answer', text: f.answer },
   })),
 } : null;
+
+const breadcrumbJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+    { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
+    { '@type': 'ListItem', position: 3, name: post.data.title, item: canonicalUrl },
+  ],
+};
 ---
 
 <!doctype html>
@@ -73,6 +83,7 @@ const faqJsonLd = faqs.length > 0 ? {
     <meta name="twitter:description" content={post.data.description} />
     <script type="application/ld+json" set:html={JSON.stringify(articleJsonLd)} />
     {faqJsonLd && <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
+    <script type="application/ld+json" set:html={JSON.stringify(breadcrumbJsonLd)} />
     <style>
       :root { --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }
       * { box-sizing: border-box; }
@@ -90,8 +101,11 @@ const faqJsonLd = faqs.length > 0 ? {
       main { padding: 34px 0 60px; }
       .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 48px; align-items: start; }
       @media (max-width: 860px) { .layout { grid-template-columns: 1fr; gap: 30px; } }
-      .backlink { display: inline-block; color: var(--muted); text-decoration: none; font-size: 13.5px; font-weight: 600; margin-bottom: 18px; }
-      .backlink:hover { color: var(--ink); }
+      .crumbs { font-size: 13px; margin-bottom: 18px; color: var(--muted); }
+      .crumbs a { color: var(--muted); text-decoration: none; font-weight: 600; }
+      .crumbs a:hover { color: var(--ink); text-decoration: underline; }
+      .crumbs .sep { margin: 0 7px; color: #cbd0da; }
+      .crumbs .here { color: var(--ink); font-weight: 600; }
       .posttheme { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pink-dark); }
       h1 { font-size: 30px; letter-spacing: -0.02em; margin: 8px 0 8px; line-height: 1.25; }
       .postmeta { font-size: 13px; color: var(--muted); margin-bottom: 30px; }
@@ -130,7 +144,9 @@ const faqJsonLd = faqs.length > 0 ? {
     <main>
       <div class="wrap layout">
         <div>
-          <a class="backlink" href="/blog">← All articles</a>
+          <nav class="crumbs" aria-label="Breadcrumb">
+            <a href="/">Home</a><span class="sep">/</span><a href="/blog">Blog</a><span class="sep">/</span><span class="here">{post.data.title}</span>
+          </nav>
           <span class="posttheme">{post.data.theme}</span>
           <h1>{post.data.title}</h1>
           <div class="postmeta">{fmt(post.data.publishDate)} · {post.data.author}</div>
