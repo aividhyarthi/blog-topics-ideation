@@ -92,7 +92,11 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
     // Coverage lists (up to 2000 keywords) run here rather than on-demand
     // from the UI — a synchronous HTTP request has no realistic chance of
     // finishing a check that large before the connection times out. Each
-    // app gets a slice of whatever time budget is left for this whole run.
+    // app gets whatever time is left of the whole run's budget: a hundreds-
+    // strong list takes many minutes, and slicing it thinner than that
+    // (an earlier version capped each app at 60s/day) meant a big list
+    // could never finish within the day it started — the snapshot resets
+    // at midnight, so it permanently showed "not checked yet".
     for (const app of cfg.apps) {
       if (!(app.coverageKeywords || []).length) continue;
       const remaining = deadline - Date.now();
@@ -101,7 +105,7 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
         continue;
       }
       try {
-        const r = await checkCoverageBatch(app, userId, Math.min(remaining, 60000));
+        const r = await checkCoverageBatch(app, userId, remaining);
         lines.push(`  [${label}] ${app.key}: coverage ${r.done ? 'fully checked' : 'partially checked'} (${r.totalDone}/${r.total} keywords)`);
         if (r.checkedNow > 0) checkedCoverage++;
       } catch (e) {

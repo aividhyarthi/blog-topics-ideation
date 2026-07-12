@@ -46,7 +46,10 @@ export function schedulerInfo(): { started: boolean; nextRunAt: string; checkTim
 async function runAndLog() {
   console.log(`[nightly-scheduler] starting automatic check at ${new Date().toISOString()}`);
   try {
-    const result = await runNightlyCheck(20 * 60 * 1000, 'scheduler');
+    // 90 min budget: two 500-keyword coverage lists at ~1.5s/keyword is
+    // already ~25 min, and this runs in-process with no HTTP timeout to
+    // worry about — a roomy budget just means big lists actually finish.
+    const result = await runNightlyCheck(90 * 60 * 1000, 'scheduler');
     for (const line of result.lines) console.log(`[nightly-scheduler] ${line}`);
   } catch (e) {
     console.error(`[nightly-scheduler] FAILED:`, e);

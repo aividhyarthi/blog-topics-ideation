@@ -84,7 +84,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Fire and forget — a full check can take many minutes, far beyond any
     // sane HTTP timeout. The run's progress/result is visible via the
     // nightly-status file this response already surfaces.
-    runNightlyCheck(20 * 60 * 1000, 'admin')
+    runNightlyCheck(90 * 60 * 1000, 'admin')
       .catch((e) => console.error('[admin] manual check failed:', e))
       .finally(() => { manualRunInFlight = false; });
     return json({ ok: true, note: 'Check started — refresh this page in a few minutes to see the result.', ...statePayload() });

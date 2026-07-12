@@ -33,6 +33,13 @@ async function checkKeywordsBounded(
   const rows: KeywordRank[] = [];
   const depth = searchDepth(app.store);
   const start = Date.now();
+  // A run of consecutive failures almost always means the store has started
+  // rate-limiting us, not that these specific keywords are broken — keep
+  // going and every remaining keyword burns as an "err" row. Back off after
+  // each error, and abandon the batch entirely after several in a row;
+  // errored keywords are NOT treated as done (see checkCoverageBatch), so
+  // they're retried by the next batch/run once the throttle clears.
+  let consecutiveErrors = 0;
   for (const kw of keywordList) {
     if (Date.now() - start > timeBudgetMs) return { rows, exhausted: false };
     const cacheKey = `${app.store}|${app.country}|${app.lang}|${kw.toLowerCase()}`;
@@ -44,8 +51,12 @@ async function checkKeywordsBounded(
         await sleep(delayMs); // stay polite with the store endpoints
       }
       rows.push(keywordRank(app.appId, kw, hits, depth));
+      consecutiveErrors = 0;
     } catch (e) {
       rows.push({ keyword: kw, position: null, depth, top: [], error: e instanceof Error ? e.message : String(e) });
+      consecutiveErrors++;
+      if (consecutiveErrors >= 8) return { rows, exhausted: false };
+      await sleep(delayMs * 4); // errors usually mean throttling — slow down
     }
   }
   return { rows, exhausted: true };
@@ -148,7 +159,9 @@ export async function checkCoverageBatch(app: TrackedApp, userId?: string, timeB
   const dateKey = todayKey();
   const existingSnap = loadCoverageSnapshot(dateKey, userId);
   const existingRow = existingSnap?.apps.find((a) => a.key === app.key) || null;
-  const doneSet = new Set((existingRow?.keywords || []).map((k) => k.keyword));
+  // Rows that errored (usually store rate-limiting) do NOT count as done —
+  // they get retried by the next batch/run, once the throttle has cleared.
+  const doneSet = new Set((existingRow?.keywords || []).filter((k) => !k.error).map((k) => k.keyword));
   const remaining = list.filter((kw) => !doneSet.has(kw));
 
   if (!remaining.length) {
@@ -156,7 +169,10 @@ export async function checkCoverageBatch(app: TrackedApp, userId?: string, timeB
   }
 
   const { rows, exhausted } = await checkKeywordsBounded(app, remaining, new Map(), 400, timeBudgetMs);
-  const mergedKeywords = [...(existingRow?.keywords || []), ...rows];
+  // A retried keyword replaces its previous (errored) row rather than
+  // duplicating it.
+  const rechecked = new Set(rows.map((r) => r.keyword));
+  const mergedKeywords = [...(existingRow?.keywords || []).filter((k) => !rechecked.has(k.keyword)), ...rows];
   const result: AppRankResult = {
     key: app.key, store: app.store, appId: app.appId, country: app.country,
     keywords: mergedKeywords,
