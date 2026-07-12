@@ -204,16 +204,51 @@ const limitsText = product && plan
       .kwtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 16px 0 14px; }
       .kwtab { background: none; border: none; border-bottom: 2px solid transparent; padding: 8px 4px; margin-right: 18px; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; font-family: inherit; }
       .kwtab:hover { color: var(--ink); }
-      .kwtab.active { color: var(--pink); border-bottom-color: var(--pink); }
+      .kwtab.active { color: var(--ink); border-bottom-color: var(--ink); }
       .cattabs { border-bottom-style: dashed; margin: 0 0 12px; }
       .cattabs .cattab { font-size: 12.5px; padding: 6px 3px; margin-right: 14px; }
+      /* --- app-shell layout (sidebar + one-section-at-a-time content) --- */
+      .shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 18px; align-items: start; }
+      .sidebar { position: sticky; top: 16px; }
+      .side-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 12px; }
+      .side-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 4px 8px 8px; }
+      .side-app { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink); border: none; background: none; width: 100%; text-align: left; font-family: inherit; }
+      .side-app:hover { background: var(--bg); }
+      .side-app.selected { background: var(--ink); color: #fff; }
+      .side-app img, .side-app .fi { width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0; }
+      .side-app .fi { display: grid; place-items: center; background: var(--bg); font-size: 11px; }
+      .side-app .tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+      .side-app .tick { font-size: 10px; font-weight: 700; opacity: 0.6; flex-shrink: 0; }
+      .side-add { display: block; width: 100%; margin-top: 6px; }
+      .snav { display: flex; flex-direction: column; gap: 2px; }
+      .snav button { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; border: none; background: none; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; font-family: inherit; text-align: left; width: 100%; }
+      .snav button:hover { background: var(--bg); color: var(--ink); }
+      .snav button.active { background: var(--ink); color: #fff; }
+      .snav .cnt { margin-left: auto; font-size: 11px; font-weight: 700; opacity: 0.65; }
+      .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 2px 0 12px; }
+      .section-head h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
+      .section-head .hint { margin: 0; }
+      .dangerzone { border: 1px solid #f6c9c6; border-radius: 10px; padding: 14px 16px; margin-top: 18px; }
+      .dangerzone h4 { margin: 0 0 6px; font-size: 13px; color: var(--bad); }
+      .settings-block { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; background: #fff; }
+      .settings-block h4 { margin: 0 0 4px; font-size: 13.5px; }
+      @media (max-width: 900px) {
+        .shell { grid-template-columns: 1fr; }
+        .sidebar { position: static; }
+        .side-card .side-apps { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+        .side-card .side-app { width: auto; flex-shrink: 0; max-width: 180px; }
+        .snav { flex-direction: row; overflow-x: auto; }
+        .snav button { white-space: nowrap; width: auto; }
+        .snav .cnt { margin-left: 6px; }
+      }
       svg.spark { display: block; }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px; }
       .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13.5px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 50; }
       .toast.show { opacity: 1; }
       .print-only { display: none; }
       @media print {
-        .no-print, header nav.top, footer, .toast { display: none !important; }
+        .no-print, header nav.top, footer, .toast, .sidebar { display: none !important; }
+        .shell { display: block; }
         header { background: none !important; color: var(--ink) !important; padding: 0 0 14px; }
         header .aipill, header .by { display: none !important; }
         body { background: #fff; }
@@ -285,8 +320,8 @@ const limitsText = product && plan
         <div class="alert err no-print" id="err"></div>
         <div class="alert info no-print" id="info"></div>
 
-        <div class="card no-print" id="add-app-card">
-          <h3>➕ Track an app</h3>
+        <div class="card no-print" id="add-app-card" style="display:none;">
+          <h3>Track an app</h3>
           <p class="hint">
             Paste a <b>Google Play URL / package id</b> (e.g. <code>com.whatsapp</code>) or an
             <b>App Store URL / id</b> (e.g. <code>https://apps.apple.com/in/app/…/id310633997</code>).
@@ -310,18 +345,25 @@ ai photo enhancer"></textarea>
         <div class="toolbar no-print">
           <span class="lastcheck" id="lastcheck"></span>
           <div class="row">
-            <button class="ghost" id="csv-btn">⬇️ Export CSV</button>
+            <button class="ghost" id="csv-btn">Export CSV</button>
             <button class="primary" id="checkall-btn">Check all rankings now</button>
           </div>
         </div>
 
-        <div id="app-tabs-wrap" class="no-print" style="display:none;">
-          <div class="row" style="margin-bottom:10px;">
-            <input type="text" id="app-filter" placeholder="Filter your tracked apps…" style="flex:1;min-width:200px;" />
+        <div class="shell">
+          <div class="sidebar no-print" id="sidebar" style="display:none;">
+            <div class="side-card">
+              <div class="side-label">Your apps</div>
+              <div class="side-apps" id="side-apps"></div>
+              <button class="ghost side-add" id="toggle-add-app">＋ Track an app</button>
+            </div>
+            <div class="side-card">
+              <div class="side-label">Sections</div>
+              <div class="snav" id="snav"></div>
+            </div>
           </div>
-          <div id="app-tabs" class="app-tabs"></div>
+          <div id="apps"></div>
         </div>
-        <div id="apps"></div>
         {product && <div class="no-print"><AdSlot slot={ADSENSE_SLOTS.rank} /></div>}
       </div>
     </main>
@@ -337,13 +379,20 @@ ai photo enhancer"></textarea>
       const $ = (id) => document.getElementById(id);
       let state = { apps: [], lastCheckedAt: null, snapshotDays: [] };
       let selectedAppKey = null;
-      let tabFilter = '';
       const sortState = {};
       const covSortState = {};
-      // Which sub-tab is showing per app: 'daily' (tracked list + its charts)
-      // or 'coverage' (full keyword universe) — so you only ever see one
-      // table at a time instead of scrolling past one to reach the other.
-      const kwTabState = {};
+      // Which section of the app-shell is showing: one job per screen, like
+      // the international ASO tools — switched from the left sidebar.
+      const SECTIONS = [
+        { id: 'overview', label: 'Overview' },
+        { id: 'keywords', label: 'Keywords' },
+        { id: 'coverage', label: 'Coverage' },
+        { id: 'trends', label: 'Trends' },
+        { id: 'settings', label: 'Settings' },
+      ];
+      let currentSection = 'overview';
+      // "Export PDF" prints every section stacked, not just the open one.
+      let printAll = false;
       // Which category sub-tab is active within the coverage view, per app.
       const catTabState = {};
 
@@ -728,16 +777,9 @@ ai photo enhancer"></textarea>
 
       function overviewHtml(app) {
         const ov = app.overview;
-        if (!ov || !ov.days || !ov.days.length) return '';
+        if (!ov || !ov.days || !ov.days.length) return '<p class="hint">No check data yet — hit <b>Check now</b> to record the first data point.</p>';
         const c = ov.counts || {}, p = ov.prevCounts || null;
         const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
-        // Category chart trend only makes sense once the app has actually
-        // ranked in a top chart at least once — otherwise it's an empty line.
-        const chartHist = (app.chart && app.chart.history) || [];
-        const isChartRanking = chartHist.some((v) => v != null);
-        const catChartBox = isChartRanking
-          ? `<div class="chartbox"><h4>Category chart rank trend${app.chart.chart ? ` — ${esc(app.chart.chart)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}</div>`
-          : '';
         return `<div class="ov">
           <div class="tiles">
             ${tileHtml('Top 1 rankings', c.top1, p && p.top1)}
@@ -749,9 +791,21 @@ ai photo enhancer"></textarea>
           <div class="charts">
             <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div></div>
             <div class="chartbox"><h4>Search visibility score (0–100)</h4>${visChart(ov.days, app.annotations)}</div>
-            ${catChartBox}
-            <div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}</div>
           </div>
+        </div>`;
+      }
+
+      function trendChartsHtml(app) {
+        // Category chart trend only makes sense once the app has actually
+        // ranked in a top chart at least once — otherwise it's an empty line.
+        const chartHist = (app.chart && app.chart.history) || [];
+        const isChartRanking = chartHist.some((v) => v != null);
+        const catChartBox = isChartRanking
+          ? `<div class="chartbox"><h4>Category chart rank trend${app.chart.chart ? ` — ${esc(app.chart.chart)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}</div>`
+          : '<div class="chartbox"><h4>Category chart rank trend</h4><p class="hint">Not ranked in a top chart yet.</p></div>';
+        return `<div class="charts">
+          ${catChartBox}
+          <div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}</div>
         </div>`;
       }
 
@@ -975,10 +1029,8 @@ ai photo enhancer"></textarea>
               <tbody>${rows}</tbody>
             </table></div>`
           : '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>';
-        return `
-        <div class="card appcard" data-key="${escAttr(app.key)}">
-          <div class="print-only">${esc(BRAND_NAME)} — Rank Report · generated ${new Date().toLocaleDateString()}</div>
-          <div class="apphead">
+        const apphead = `
+          <div class="apphead" style="margin-bottom:14px;">
             ${icon}
             <div class="names">
               <div class="t">${app.url ? `<a href="${escAttr(app.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${esc(app.title)}</a>` : esc(app.title)}</div>
@@ -986,27 +1038,39 @@ ai photo enhancer"></textarea>
             </div>
             <div class="btns no-print">
               <button class="ghost" data-act="check-one">Check now</button>
-              <button class="ghost" data-act="discover">Discover keywords</button>
-              <button class="ghost" data-act="edit-kw">Add / edit keywords</button>
-              <button class="ghost" data-act="edit-coverage">Coverage list</button>
-              <button class="ghost" data-act="add-annotation">Add annotation</button>
-              <button class="ghost" data-act="edit-report">Email report</button>
               <button class="ghost" data-act="pdf">Export PDF</button>
-              <button class="ghost danger" data-act="remove">Remove</button>
             </div>
+          </div>`;
+
+        const sectionOverview = `
+          <div class="section-head"><h2>Overview</h2><p class="hint">Today's headline numbers for the ${(app.keywords || []).length} daily-tracked keywords.</p></div>
+          ${overviewHtml(app)}
+          <div class="no-print" style="margin-top:14px;">${asoSummaryHtml(app)}</div>`;
+
+        const sectionKeywords = `
+          <div class="section-head"><h2>Keywords</h2>
+            <div class="row no-print"><button class="ghost" data-act="discover">Discover keywords</button></div>
           </div>
-          <div class="kwedit no-print" data-role="kwedit">
-            <p class="hint" style="margin:10px 0 6px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line — the volume shows up in the Volume column below. Saving re-checks this app's rankings right away. <b>This is the daily-checked list, capped by your plan</b> — if you have a bigger list, paste the rest into the "Coverage list" further down instead; it isn't capped and covers the same volume/rank tracking, just checked less often.</p>
-            <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
-            <div class="row" style="margin-top:8px;">
-              <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
-            </div>
+          <div class="no-print">${discoverHtml(app)}</div>
+          ${table}`;
+
+        const sectionCoverage = `
+          <div class="section-head"><h2>Coverage</h2>
+            <div class="row no-print"><button class="ghost" data-act="check-coverage">Check coverage now</button></div>
           </div>
-          <div class="annedit no-print" data-role="annedit">
-            <p class="hint" style="margin:10px 0 6px;">Log an ASO experiment (title/screenshot/keyword change) or a paid marketing push, and we'll compare average visibility score in the 14 days before vs after.</p>
+          ${(app.coverageKeywords || []).length
+            ? coverageHtml(app)
+            : '<p class="hint">No coverage list yet — paste your full keyword universe (up to ' + MAX_COVERAGE + ') under <b>Settings</b> to monitor every keyword you care about beyond the plan-capped daily list.</p>'}`;
+
+        const sectionTrends = `
+          <div class="section-head"><h2>Trends</h2><p class="hint">Longer-horizon signals: category chart position, rating health, and your logged experiments.</p></div>
+          ${trendChartsHtml(app)}
+          <div class="annedit open no-print" data-role="annedit" style="margin-top:16px;">
+            <h4 style="margin:0 0 6px;font-size:13.5px;">Log an annotation</h4>
+            <p class="hint" style="margin:0 0 8px;">An ASO experiment (title/screenshot/keyword change) or a paid marketing push — we'll compare average visibility in the 14 days before vs after.</p>
             <div class="row">
               <div><label>Date</label><input type="date" data-role="ann-date" value="${new Date().toISOString().slice(0, 10)}" max="${new Date().toISOString().slice(0, 10)}" /></div>
-              <div><label>Type</label><select data-role="ann-type"><option value="experiment">🧪 ASO experiment</option><option value="paid">📢 Paid marketing push</option></select></div>
+              <div><label>Type</label><select data-role="ann-type"><option value="experiment">ASO experiment</option><option value="paid">Paid marketing push</option></select></div>
             </div>
             <label>What did you change / run?</label>
             <textarea data-role="ann-label" placeholder="e.g. Rewrote title to include &quot;photo editor&quot;, or Started a ₹50k UAC campaign" rows="2"></textarea>
@@ -1014,43 +1078,54 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="save-annotation">Save annotation</button>
             </div>
           </div>
-          <div class="annedit no-print" data-role="reportedit">
-            <p class="hint" style="margin:10px 0 6px;">Comma-separated email addresses — everyone on this list gets a daily rank report for this app, right after each automatic check. Leave blank to turn it off.</p>
-            <input type="text" data-role="report-emails" placeholder="you@company.com, teammate@company.com" value="${escAttr(app.reportEmails || '')}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13.5px;font-family:inherit;" />
+          ${annotationsHtml(app)}`;
+
+        const sectionSettings = `
+          <div class="section-head"><h2>Settings</h2><p class="hint">Everything you can edit for this app lives here.</p></div>
+          <div class="settings-block no-print">
+            <h4>Daily-tracked keywords</h4>
+            <p class="hint" style="margin:0 0 8px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line. Saving re-checks this app's rankings right away. <b>This list is checked daily and capped by your plan</b> — bigger lists go in the Coverage list below.</p>
+            <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
+            </div>
+          </div>
+          <div class="settings-block no-print">
+            <h4>Coverage list <span class="hint" style="display:inline;">— your full keyword universe, up to ${MAX_COVERAGE}</span></h4>
+            <p class="hint" style="margin:0 0 8px;">Separate from the daily list above and not capped by your plan. Checked automatically by the nightly check; "Check coverage now" on the Coverage section runs it on demand.</p>
+            <textarea data-role="covtext" placeholder="One keyword per line or comma-separated — up to ${MAX_COVERAGE}">${esc((app.coverageKeywords || []).join('\n'))}</textarea>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-coverage">Save coverage list</button>
+            </div>
+          </div>
+          <div class="settings-block no-print">
+            <h4>Daily email report</h4>
+            <p class="hint" style="margin:0 0 8px;">Comma-separated email addresses — everyone on this list gets a daily rank report for this app, right after each automatic check. Leave blank to turn it off.</p>
+            <input type="text" data-role="report-emails" placeholder="you@company.com, teammate@company.com" value="${escAttr(app.reportEmails || '')}" style="width:100%;" />
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-report-emails">Save recipients</button>
             </div>
           </div>
-          <div class="kwedit no-print" data-role="covedit">
-            <p class="hint" style="margin:10px 0 6px;">Paste your FULL keyword universe here — up to ${MAX_COVERAGE} — separate from the keywords list above (which is checked daily and capped by your plan). Straight from a spreadsheet with a volume column works too, same format as above. "Check coverage now" works for any size list — it checks in safe batches and picks up where it left off, so for a very large list it may take a few clicks (or a bit of waiting) to fully finish. It's also picked up automatically by the nightly check either way.</p>
-            <textarea data-role="covtext" placeholder="One keyword per line or comma-separated — up to ${MAX_COVERAGE}">${esc((app.coverageKeywords || []).join('\n'))}</textarea>
-            <div class="row" style="margin-top:8px;">
-              <button class="ghost" data-act="save-coverage">Save coverage list</button>
-              <button class="ghost" data-act="check-coverage">Check coverage now</button>
-            </div>
-          </div>
-          <div class="no-print">${asoSummaryHtml(app)}</div>
-          <div class="no-print">${discoverHtml(app)}</div>
-          ${kwTabsHtml(app, table)}
-        </div>`;
-      }
+          <div class="dangerzone no-print">
+            <h4>Danger zone</h4>
+            <p class="hint" style="margin:0 0 8px;">Stops tracking this app. Its saved history stays on disk but will no longer be shown.</p>
+            <button class="ghost danger" data-act="remove">Remove this app</button>
+          </div>`;
 
-      // Two sub-tabs so the daily-tracked table and the (potentially much
-      // longer) coverage table are never both on screen / scrolled-past at
-      // once — click between them instead of scrolling past a 2000-row list
-      // to reach the 60-row one, or vice versa.
-      function kwTabsHtml(app, dailyTable) {
-        const tab = kwTabState[app.key] || 'daily';
-        const dailyCount = (app.keywords || []).length;
-        const covCount = (app.coverageKeywords || []).length;
-        const tabs = `<div class="kwtabs no-print">
-          <button class="kwtab ${tab === 'daily' ? 'active' : ''}" data-kwtab="daily">Daily tracked (${dailyCount})</button>
-          <button class="kwtab ${tab === 'coverage' ? 'active' : ''}" data-kwtab="coverage">All keywords (${covCount})</button>
+        const bySection = {
+          overview: sectionOverview, keywords: sectionKeywords,
+          coverage: sectionCoverage, trends: sectionTrends, settings: sectionSettings,
+        };
+        const body = printAll
+          ? [sectionOverview, sectionKeywords, sectionCoverage, sectionTrends].join('<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">')
+          : bySection[currentSection] || sectionOverview;
+
+        return `
+        <div class="card appcard" data-key="${escAttr(app.key)}">
+          <div class="print-only">${esc(BRAND_NAME)} — Rank Report · generated ${new Date().toLocaleDateString()}</div>
+          ${apphead}
+          ${body}
         </div>`;
-        const body = tab === 'coverage'
-          ? `<div class="no-print">${coverageHtml(app)}</div>`
-          : `${overviewHtml(app)}<div class="no-print">${annotationsHtml(app)}</div>${dailyTable}`;
-        return tabs + body;
       }
 
       function tabIcon(app) {
@@ -1059,28 +1134,38 @@ ai photo enhancer"></textarea>
           : `<div class="fi">${app.store === 'play' ? '🤖' : '📱'}</div>`;
       }
 
-      function renderTabs() {
-        const wrap = $('app-tabs-wrap');
-        if (!state.apps.length) { wrap.style.display = 'none'; return; }
-        wrap.style.display = 'block';
-        const q = tabFilter.trim().toLowerCase();
-        const visible = q ? state.apps.filter((a) => (a.title || '').toLowerCase().includes(q) || (a.appId || '').toLowerCase().includes(q)) : state.apps;
-        $('app-tabs').innerHTML = visible.map((app) => `
-          <div class="app-tab ${app.key === selectedAppKey ? 'selected' : ''}" data-key="${escAttr(app.key)}">
+      function sectionCount(app, id) {
+        if (id === 'keywords') return (app.keywords || []).length || '';
+        if (id === 'coverage') return (app.coverageKeywords || []).length || '';
+        return '';
+      }
+
+      function renderSidebar() {
+        const sb = $('sidebar');
+        if (!state.apps.length) { sb.style.display = 'none'; return; }
+        sb.style.display = 'block';
+        $('side-apps').innerHTML = state.apps.map((app) => `
+          <button class="side-app ${app.key === selectedAppKey ? 'selected' : ''}" data-key="${escAttr(app.key)}">
             ${tabIcon(app)}
             <span class="tt">${esc(app.title)}</span>
             <span class="tick">${app.store === 'play' ? 'GP' : 'AS'}</span>
-          </div>`).join('') || '<p class="hint" style="margin:0;">No apps match that filter.</p>';
+          </button>`).join('');
+        const app = state.apps.find((a) => a.key === selectedAppKey);
+        $('snav').innerHTML = SECTIONS.map((s) => {
+          const cnt = app ? sectionCount(app, s.id) : '';
+          return `<button class="${s.id === currentSection ? 'active' : ''}" data-section="${s.id}">${s.label}${cnt !== '' ? `<span class="cnt">${cnt}</span>` : ''}</button>`;
+        }).join('');
       }
 
       function render() {
         const box = $('apps');
         if (!state.apps.length) {
-          $('app-tabs-wrap').style.display = 'none';
+          $('sidebar').style.display = 'none';
+          $('add-app-card').style.display = 'block';
           box.innerHTML = '<div class="card"><div class="empty">No apps tracked yet. Add your app (and your competitors’ apps) above to start tracking rankings.</div></div>';
         } else {
           if (!selectedAppKey || !state.apps.some((a) => a.key === selectedAppKey)) selectedAppKey = state.apps[0].key;
-          renderTabs();
+          renderSidebar();
           const current = state.apps.find((a) => a.key === selectedAppKey);
           box.innerHTML = renderApp(current);
         }
@@ -1155,13 +1240,17 @@ ai photo enhancer"></textarea>
       $('checkall-btn').addEventListener('click', () =>
         withBusy($('checkall-btn'), 'Checking rankings… this can take a minute', () => api({ action: 'check' })));
 
-      $('app-tabs').addEventListener('click', (ev) => {
-        const tab = ev.target.closest('.app-tab');
-        if (!tab) return;
-        selectedAppKey = tab.getAttribute('data-key');
-        render();
+      $('sidebar').addEventListener('click', (ev) => {
+        const appBtn = ev.target.closest('.side-app');
+        if (appBtn) { selectedAppKey = appBtn.getAttribute('data-key'); render(); return; }
+        const secBtn = ev.target.closest('[data-section]');
+        if (secBtn) { currentSection = secBtn.getAttribute('data-section'); render(); return; }
       });
-      $('app-filter').addEventListener('input', (ev) => { tabFilter = ev.target.value; renderTabs(); });
+      $('toggle-add-app').addEventListener('click', () => {
+        const card = $('add-app-card');
+        card.style.display = card.style.display === 'none' ? 'block' : 'none';
+        if (card.style.display === 'block') card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
 
       $('apps').addEventListener('click', (ev) => {
         // Stash the already-computed ASO result before the deep link opens
@@ -1191,13 +1280,6 @@ ai photo enhancer"></textarea>
           render();
           return;
         }
-        const kwTab = ev.target.closest('.kwtab');
-        if (kwTab) {
-          const card = kwTab.closest('.appcard');
-          kwTabState[card.getAttribute('data-key')] = kwTab.getAttribute('data-kwtab');
-          render();
-          return;
-        }
         const sortTh = ev.target.closest('th.sortable');
         if (sortTh) {
           const card = sortTh.closest('.appcard');
@@ -1214,7 +1296,6 @@ ai photo enhancer"></textarea>
         const card = btn.closest('.appcard');
         const key = card.getAttribute('data-key');
         const act = btn.getAttribute('data-act');
-        if (act === 'edit-kw') { card.querySelector('[data-role="kwedit"]').classList.toggle('open'); return; }
         if (act === 'save-kw') {
           withBusy(btn, 'Saving & checking ranks…', async () => {
             const data = await api({ action: 'set-keywords', key, keywords: card.querySelector('[data-role="kwtext"]').value });
@@ -1228,7 +1309,6 @@ ai photo enhancer"></textarea>
           });
           return;
         }
-        if (act === 'edit-coverage') { card.querySelector('[data-role="covedit"]').classList.toggle('open'); return; }
         if (act === 'save-coverage') {
           withBusy(btn, 'Saving…', async () => {
             const data = await api({ action: 'set-coverage-keywords', key, keywords: card.querySelector('[data-role="covtext"]').value });
@@ -1258,7 +1338,6 @@ ai photo enhancer"></textarea>
           });
           return;
         }
-        if (act === 'edit-report') { card.querySelector('[data-role="reportedit"]').classList.toggle('open'); return; }
         if (act === 'save-report-emails') {
           withBusy(btn, 'Saving…', async () => {
             const reportEmails = card.querySelector('[data-role="report-emails"]').value.trim();
@@ -1268,7 +1347,6 @@ ai photo enhancer"></textarea>
           });
           return;
         }
-        if (act === 'add-annotation') { card.querySelector('[data-role="annedit"]').classList.toggle('open'); return; }
         if (act === 'save-annotation') {
           withBusy(btn, 'Saving…', async () => {
             const date = card.querySelector('[data-role="ann-date"]').value;
@@ -1298,7 +1376,12 @@ ai photo enhancer"></textarea>
           if (app) withBusy(btn, 'Checking…', async () => { await checkAsoFor(app); return null; });
           return;
         }
-        if (act === 'pdf') { window.print(); return; }
+        if (act === 'pdf') {
+          // Print every section stacked, not just the one currently open.
+          printAll = true; render();
+          setTimeout(() => { window.print(); printAll = false; render(); }, 60);
+          return;
+        }
         if (act === 'discover') {
           withBusy(btn, 'Scanning stores… 1–2 min', async () => {
             const data = await api({ action: 'discover', key });
