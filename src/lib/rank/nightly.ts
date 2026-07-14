@@ -12,8 +12,9 @@
 //  - AppRankr product users (one config per user; only users with a live
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
-import { loadConfig, loadSnapshots } from './store';
+import { loadConfig, saveConfig, loadSnapshots } from './store';
 import { runCheck, checkCoverageBatch, checkRating } from './check';
+import { backfillDeveloperId } from './fetch';
 import { keywordTrends, overviewSeries } from './track';
 import { parseReportEmails, buildDailyReportEmail, sendReportEmail } from './email';
 import { writeNightlyStatus } from './run-status';
@@ -51,6 +52,16 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
   async function checkTenant(label: string, userId?: string) {
     const cfg = loadConfig(userId);
     if (!cfg.apps.length) return;
+
+    // Best-effort backfill for apps tracked before developerId existed — see
+    // backfillDeveloperId's own comment. Self-heals overnight without
+    // needing a manual "Check now" click.
+    let backfilled = false;
+    for (const a of cfg.apps) {
+      try { if (await backfillDeveloperId(a)) backfilled = true; } catch { /* best-effort */ }
+    }
+    if (backfilled) saveConfig(cfg, userId);
+
     const snap = await runCheck(cfg.apps, userId, cache);
     for (const app of snap.apps.slice(-cfg.apps.length)) {
       const ranked = app.keywords.filter((k) => k.position != null).length;

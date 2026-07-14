@@ -11,7 +11,7 @@
 // consistent, comparable-over-time signal — exactly what commercial ASO
 // trackers show — not a per-device guarantee.
 import gplay from 'google-play-scraper';
-import type { Store } from './types';
+import type { Store, TrackedApp } from './types';
 
 export interface SearchHit {
   appId: string;
@@ -23,6 +23,10 @@ export interface AppMeta {
   appId: string;
   title: string;
   developer: string | null;
+  /** Stable publisher id (Play's developerId / iOS's artistId) — used to tell
+   * a real rival apart from another app in the SAME developer's own
+   * portfolio, which "similar apps" carousels routinely mix in. */
+  developerId: string | null;
   icon: string | null;
   url: string | null;
   genreId: string | null;
@@ -79,6 +83,7 @@ export async function fetchAppMeta(store: Store, appId: string, country: string,
       store, appId,
       title: String(a.title || appId),
       developer: a.developer || null,
+      developerId: a.developerId ? String(a.developerId) : null,
       icon: a.icon || null,
       url: a.url || `https://play.google.com/store/apps/details?id=${appId}`,
       genreId: a.genreId || null,
@@ -93,12 +98,33 @@ export async function fetchAppMeta(store: Store, appId: string, country: string,
     store, appId: String(a.trackId),
     title: String(a.trackName || appId),
     developer: a.artistName || null,
+    developerId: a.artistId != null ? String(a.artistId) : null,
     icon: a.artworkUrl100 || a.artworkUrl60 || null,
     url: a.trackViewUrl || null,
     genreId: a.primaryGenreId ? String(a.primaryGenreId) : null,
     score: typeof a.averageUserRating === 'number' ? Math.round(a.averageUserRating * 10) / 10 : null,
     ratings: typeof a.userRatingCount === 'number' ? a.userRatingCount : null,
   };
+}
+
+/**
+ * Fills in `developerId` on an app tracked before that field existed, so the
+ * "is this actually a competitor, or the same publisher's own app" check
+ * (comparableApps in rank.astro, the sibling filter in the discover action)
+ * works for apps added before this fix. `undefined` (never attempted) is the
+ * only state this touches — once set (to a string OR null, meaning "fetched,
+ * this store just doesn't expose one"), it's never re-fetched. Best-effort:
+ * a failed lookup leaves it undefined, tried again on the next check.
+ */
+export async function backfillDeveloperId(app: TrackedApp): Promise<boolean> {
+  if (app.developerId !== undefined) return false;
+  try {
+    const meta = await fetchAppMeta(app.store, app.appId, app.country, app.lang);
+    app.developerId = meta.developerId;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /* ----------------------------- keyword search ----------------------------- */

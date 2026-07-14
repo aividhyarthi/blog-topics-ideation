@@ -29,6 +29,10 @@ export interface TrackedApp {
   /** Display metadata captured when the app was added (best-effort). */
   title: string;
   developer: string | null;
+  /** Play's developerId / iOS's artistId, captured when the app was added.
+   * Older tracked apps predate this field and have it as null/undefined —
+   * treat that as "unknown", never as "definitely a different developer". */
+  developerId?: string | null;
   icon: string | null;
   url: string | null;
   genreId: string | null; // Play category id (used for top-charts lookup)

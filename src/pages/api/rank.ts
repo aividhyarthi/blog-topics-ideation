@@ -6,7 +6,7 @@
 // Product mode (AppRankr): middleware guarantees a logged-in user with a live
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
-import { parseAppInput, fetchAppMeta } from '../../lib/rank/fetch';
+import { parseAppInput, fetchAppMeta, backfillDeveloperId } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, ConfigReadError } from '../../lib/rank/store';
 import { runCheck, checkOne, checkCoverageBatch } from '../../lib/rank/check';
@@ -188,6 +188,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       key, store: parsed.store, appId: meta?.appId || parsed.appId, country, lang,
       title: meta?.title || parsed.appId,
       developer: meta?.developer || null,
+      developerId: meta?.developerId || null,
       icon: meta?.icon || null,
       url: meta?.url || null,
       genreId: meta?.genreId || null,
@@ -237,7 +238,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!app) return json({ error: 'App not found.' }, 404);
     // The user's OTHER tracked apps in the same store+country are treated as
     // the competitor set — their listings get mined for candidates too.
-    const siblings = cfg.apps.filter((a) => a.key !== app.key && a.store === app.store && a.country === app.country);
+    // Excludes apps sharing the same developerId (same publisher's own
+    // portfolio, not a real rival) — same signal ASO Inspector's
+    // auto-discovery uses. Apps added before developerId was captured have
+    // it as null/undefined and are never excluded on that basis alone.
+    const siblings = cfg.apps.filter((a) =>
+      a.key !== app.key && a.store === app.store && a.country === app.country &&
+      !(app.developerId && a.developerId && app.developerId === a.developerId));
     try {
       const result = await discoverKeywords(app, 120, siblings);
       return json({ ok: true, discovery: result });
@@ -335,6 +342,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const key = body.key ? String(body.key) : null;
     const targets = key ? cfg.apps.filter((a) => a.key === key) : cfg.apps;
     if (!targets.length) return json({ error: key ? 'App not found.' : 'No apps tracked yet — add one first.' }, 400);
+
+    // Best-effort backfill for apps tracked before developerId existed — the
+    // "is this actually a competitor, or my own other app" filter (Compare,
+    // keyword-mining) needs it. Never blocks the check itself on failure.
+    let backfilled = false;
+    for (const a of targets) {
+      try { if (await backfillDeveloperId(a)) backfilled = true; } catch { /* best-effort */ }
+    }
+    if (backfilled) saveConfig(cfg, userId);
 
     if (key) {
       const already = alreadyCheckedToday(targets[0].key, userId);

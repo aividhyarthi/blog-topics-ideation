@@ -1002,8 +1002,17 @@ ai photo enhancer"></textarea>
       // only has a rank for a keyword if that keyword is in ITS daily or
       // coverage list — the "Track these on X" button closes that gap by
       // appending your keywords to the rival's (uncapped) coverage list.
+      // A "competitor" must actually be a rival, not another app from the
+      // same publisher (your own portfolio, or another client's unrelated
+      // app sitting in the same account). developerId is the reliable
+      // signal for that — only exclude when BOTH apps have one and they
+      // match; older tracked apps predate this field (developerId
+      // undefined), so those are never wrongly excluded, just not
+      // wrongly-included either — they still show, same as before.
       function comparableApps(app) {
-        return state.apps.filter((a) => a.key !== app.key && a.store === app.store && a.country === app.country);
+        return state.apps.filter((a) =>
+          a.key !== app.key && a.store === app.store && a.country === app.country &&
+          !(app.developerId && a.developerId && app.developerId === a.developerId));
       }
 
       function trendMap(a) {
