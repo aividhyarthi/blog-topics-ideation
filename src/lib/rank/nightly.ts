@@ -15,6 +15,7 @@
 import { loadConfig, saveConfig, loadSnapshots } from './store';
 import { runCheck, checkCoverageBatch, checkRating } from './check';
 import { backfillDeveloperId } from './fetch';
+import { withTenantLock } from './lock';
 import { keywordTrends, overviewSeries } from './track';
 import { parseReportEmails, buildDailyReportEmail, sendReportEmail } from './email';
 import { writeNightlyStatus } from './run-status';
@@ -49,7 +50,15 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
   // useful diagnostic information on the /admin panel.
   writeNightlyStatus({ startedAt, finishedAt: null, trigger, checkedApps: 0, checkedCoverage: 0, lines: [], error: null });
 
+  // Serialized per tenant (see lock.ts) — this whole function reads then
+  // overwrites the tenant's shared snapshot files, so it must never run
+  // concurrently with another trigger (a manual "Check now" click, the HTTP
+  // cron endpoint, an admin "Run now") touching the SAME tenant.
   async function checkTenant(label: string, userId?: string) {
+    return withTenantLock(userId || '__internal__', () => doCheckTenant(label, userId));
+  }
+
+  async function doCheckTenant(label: string, userId?: string) {
     const cfg = loadConfig(userId);
     if (!cfg.apps.length) return;
 

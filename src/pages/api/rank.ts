@@ -10,6 +10,7 @@ import { parseAppInput, fetchAppMeta, backfillDeveloperId } from '../../lib/rank
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, ConfigReadError } from '../../lib/rank/store';
 import { runCheck, checkOne, checkCoverageBatch } from '../../lib/rank/check';
+import { withTenantLock } from '../../lib/rank/lock';
 import { discoverKeywords } from '../../lib/rank/discover';
 import { fetchTrendsScores } from '../../lib/rank/trends';
 import type { Annotation, TrackedApp } from '../../lib/rank/types';
@@ -310,8 +311,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // `coverageProgress.done` comes back true. This is what makes a
     // hundreds-strong coverage list actually finish instead of the whole
     // request timing out silently.
+    // Serialized per tenant (see lock.ts): this app's coverage snapshot file
+    // is SHARED across every app the tenant tracks, so this must never run
+    // concurrently with the nightly/admin check or another manual click —
+    // whichever saved last would silently erase the other's results.
     let progress;
-    try { progress = await checkCoverageBatch(app, userId, 20000); }
+    try { progress = await withTenantLock(userId || '__internal__', () => checkCoverageBatch(app, userId, 20000)); }
     catch (e) { return json({ error: `Coverage check failed: ${e instanceof Error ? e.message : String(e)}` }, 502); }
     return json({ ok: true, coverageProgress: progress, ...statePayload(userId) });
   }
@@ -357,7 +362,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (already) {
         return json({ ok: true, note: `Already checked today (${new Date(already).toLocaleString()}) — the next automatic check runs tonight.`, ...statePayload(userId) });
       }
-      try { await checkOne(targets[0], userId); }
+      // Serialized per tenant (see lock.ts) — this app's daily snapshot file
+      // is SHARED across every app the tenant tracks, so this must never
+      // race the nightly/admin check or another manual click for the same
+      // account, or whichever save lands last silently erases the other's
+      // freshly-checked keywords.
+      try { await withTenantLock(userId || '__internal__', () => checkOne(targets[0], userId)); }
       catch (e) { return json({ error: `Check failed: ${e instanceof Error ? e.message : String(e)}` }, 502); }
       return json({ ok: true, ...statePayload(userId) });
     }
@@ -369,7 +379,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!due.length) {
       return json({ ok: true, note: 'Every app was already checked today — the next automatic check runs tonight.', ...statePayload(userId) });
     }
-    try { await runCheck(due, userId); }
+    try { await withTenantLock(userId || '__internal__', () => runCheck(due, userId)); }
     catch (e) { return json({ error: `Check failed: ${e instanceof Error ? e.message : String(e)}` }, 502); }
     const skipped = targets.length - due.length;
     return json({ ok: true, note: skipped ? `Checked ${due.length} app(s) — ${skipped} already checked today were skipped.` : undefined, ...statePayload(userId) });
