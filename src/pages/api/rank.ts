@@ -11,6 +11,7 @@ import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCK
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, ConfigReadError } from '../../lib/rank/store';
 import { runCheck, checkOne, checkCoverageBatch } from '../../lib/rank/check';
 import { discoverKeywords } from '../../lib/rank/discover';
+import { fetchTrendsScores } from '../../lib/rank/trends';
 import type { Annotation, TrackedApp } from '../../lib/rank/types';
 import { parseKeywordsWithVolumes } from '../../lib/rank/keywords';
 import { parseReportEmails } from '../../lib/rank/email';
@@ -234,12 +235,38 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'discover') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
+    // The user's OTHER tracked apps in the same store+country are treated as
+    // the competitor set — their listings get mined for candidates too.
+    const siblings = cfg.apps.filter((a) => a.key !== app.key && a.store === app.store && a.country === app.country);
     try {
-      const result = await discoverKeywords(app);
+      const result = await discoverKeywords(app, 120, siblings);
       return json({ ok: true, discovery: result });
     } catch (e) {
       return json({ error: `Discovery failed: ${e instanceof Error ? e.message : String(e)}` }, 502);
     }
+  }
+
+  if (action === 'estimate-volumes') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    const volumes = app.keywordVolumes || {};
+    const all = [...new Set([...app.keywords, ...(app.coverageKeywords || [])].map((k) => k.toLowerCase()))];
+    const missing = all.filter((k) => volumes[k] == null);
+    if (!missing.length) return json({ ok: true, note: 'Every keyword already has a volume.', ...statePayload(userId) });
+    // ~3 requests + politeness delay per keyword against an unofficial
+    // endpoint — cap per call so the HTTP request finishes well inside any
+    // proxy timeout; the button just gets clicked again for the rest.
+    const batch = missing.slice(0, 25);
+    const scores = await fetchTrendsScores(batch, app.country.toUpperCase());
+    let filled = 0;
+    for (const [kw, s] of scores) if (s != null) { volumes[kw] = s; filled++; }
+    app.keywordVolumes = volumes;
+    saveConfig(cfg, userId);
+    const left = missing.length - batch.length;
+    const note = filled === 0
+      ? 'No estimates came back this run — the free Trends source is best-effort and sometimes blocks requests. Try again in a few minutes.'
+      : `Estimated ${filled} of ${batch.length} keywords (Google Trends 0-100 popularity proxy).${left > 0 ? ` ${left} keywords still missing — click again to continue.` : ''}`;
+    return json({ ok: true, note, ...statePayload(userId) });
   }
 
   if (action === 'set-coverage-keywords') {

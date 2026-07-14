@@ -31,7 +31,7 @@ export interface DiscoveredKeyword {
   keyword: string;
   /** null = scanned but the app isn't in the top 200 for this term yet (an opportunity, not a rank). */
   position: number | null;
-  source: 'listing' | 'autocomplete' | 'ai';
+  source: 'listing' | 'autocomplete' | 'ai' | 'competitor';
   /** 0-100 Google Trends popularity proxy, or null if unavailable (unofficial API — best-effort only). */
   volume: number | null;
 }
@@ -135,7 +135,7 @@ List 30 search keywords/phrases (1-3 words each, lowercase) that real users in t
  * nature — one store search per candidate (~250 ms apart), so ~75-110 s for
  * a full run at the default candidate count.
  */
-export async function discoverKeywords(app: TrackedApp, maxCandidates = 120): Promise<DiscoveryResult> {
+export async function discoverKeywords(app: TrackedApp, maxCandidates = 120, siblingApps: TrackedApp[] = []): Promise<DiscoveryResult> {
   const errors: string[] = [];
   const sources = new Map<string, DiscoveredKeyword['source']>(); // keyword -> first source
   const addAll = (terms: string[], source: DiscoveredKeyword['source']) => {
@@ -147,6 +147,20 @@ export async function discoverKeywords(app: TrackedApp, maxCandidates = 120): Pr
   try { texts = await listingTexts(app); }
   catch (e) { errors.push(`Listing read failed: ${e instanceof Error ? e.message : String(e)}`); }
   addAll(candidatesFromListing(texts.title, texts.summary, texts.description), 'listing');
+
+  // 1a². competitor listings — the terms a rival's title/description repeats
+  // are terms they're deliberately targeting, which makes them candidates
+  // for this app's universe too. Uses the user's own tracked apps in the
+  // same store+country as the competitor set (they added them to watch for
+  // exactly this reason), capped to keep the extra listing fetches modest.
+  for (const rival of siblingApps.slice(0, 3)) {
+    try {
+      const rt = await listingTexts(rival);
+      addAll(candidatesFromListing(rt.title, rt.summary, rt.description, 15), 'competitor');
+    } catch (e) {
+      errors.push(`Competitor listing (${rival.title || rival.appId}) skipped: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 
   // 1b. autocomplete, seeded with title words + the strongest listing terms
   const seeds = [...new Set([

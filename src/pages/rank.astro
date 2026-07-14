@@ -387,9 +387,12 @@ ai photo enhancer"></textarea>
         { id: 'overview', label: 'Overview' },
         { id: 'keywords', label: 'Keywords' },
         { id: 'coverage', label: 'Coverage' },
+        { id: 'compare', label: 'Compare' },
         { id: 'trends', label: 'Trends' },
         { id: 'settings', label: 'Settings' },
       ];
+      // Which competitor apps (their keys) are selected in Compare, per app.
+      const compareState = {};
       let currentSection = 'overview';
       // "Export PDF" prints every section stacked, not just the open one.
       let printAll = false;
@@ -674,7 +677,7 @@ ai photo enhancer"></textarea>
         const items = d.discovery.discovered;
         const ranking = items.filter((k) => k.position != null);
         const opportunities = items.filter((k) => k.position == null);
-        const srcPill = { listing: 'from listing', autocomplete: 'autocomplete', ai: 'AI idea' };
+        const srcPill = { listing: 'from listing', autocomplete: 'autocomplete', ai: 'AI idea', competitor: 'from competitor' };
         const volPill = (v) => v == null ? '' : `<span class="pill vol" title="Google Trends popularity proxy, 0-100 — unofficial data source, best-effort only">📊 ${v}</span>`;
         const row = (k) => `
           <label class="disc-row">
@@ -961,8 +964,15 @@ ai photo enhancer"></textarea>
       function openKeywordHistory(appKey, listType, keyword) {
         const app = state.apps.find((a) => a.key === appKey);
         if (!app) return;
-        const trends = listType === 'coverage' ? (app.coverageTrends || []) : (app.trends || []);
-        const t = trends.find((x) => x.keyword === keyword);
+        let trends = listType === 'coverage' ? (app.coverageTrends || []) : (app.trends || []);
+        let t = trends.find((x) => x.keyword === keyword);
+        // Compare links pass 'daily' but the keyword may only be in coverage
+        // (or vice versa) — fall back to the other list before giving up.
+        if (!t) {
+          listType = listType === 'coverage' ? 'daily' : 'coverage';
+          trends = listType === 'coverage' ? (app.coverageTrends || []) : (app.trends || []);
+          t = trends.find((x) => x.keyword === keyword);
+        }
         if (!t) return;
         const dateKeys = (listType === 'coverage' ? (app.coverageOverview && app.coverageOverview.days) : (app.overview && app.overview.days)) || [];
         const dks = dateKeys.map((d) => d.dateKey);
@@ -986,6 +996,93 @@ ai photo enhancer"></textarea>
         $('kwmodal-backdrop').classList.add('open');
       }
       function closeKeywordHistory() { $('kwmodal-backdrop').classList.remove('open'); }
+
+      // --- side-by-side competitor comparison --------------------------------
+      // Uses data already collected: every tracked app's own trends. A rival
+      // only has a rank for a keyword if that keyword is in ITS daily or
+      // coverage list — the "Track these on X" button closes that gap by
+      // appending your keywords to the rival's (uncapped) coverage list.
+      function comparableApps(app) {
+        return state.apps.filter((a) => a.key !== app.key && a.store === app.store && a.country === app.country);
+      }
+
+      function trendMap(a) {
+        const m = {};
+        for (const t of (a.coverageTrends || [])) m[t.keyword] = t;
+        for (const t of (a.trends || [])) m[t.keyword] = t; // daily-tracked wins (fresher)
+        return m;
+      }
+
+      function compareHtml(app) {
+        const others = comparableApps(app);
+        if (!others.length) {
+          return `<p class="hint">To compare, track your competitors' apps too (<b>＋ Track an app</b> in the sidebar) — same store and country as this one. Their ranks will appear here next to yours, keyword by keyword.</p>`;
+        }
+        let sel = (compareState[app.key] || others.slice(0, 3).map((o) => o.key)).filter((k) => others.some((o) => o.key === k)).slice(0, 3);
+        compareState[app.key] = sel;
+        const picker = `<div class="row no-print" style="margin-bottom:12px;">
+          <span class="hint" style="margin:0;">Compare against (max 3):</span>
+          ${others.map((o) => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer;">
+            <input type="checkbox" data-comp-toggle="${escAttr(o.key)}" ${sel.includes(o.key) ? 'checked' : ''} /> ${esc(o.title)}
+          </label>`).join('')}
+        </div>`;
+        const comps = sel.map((k) => others.find((o) => o.key === k)).filter(Boolean);
+        const kws = (app.keywords || []).length ? app.keywords : (app.coverageKeywords || []).slice(0, 60);
+        if (!kws.length) return picker + '<p class="hint">Add keywords to this app first — the comparison uses your keyword list.</p>';
+        if (!comps.length) return picker + '<p class="hint">Tick at least one competitor above.</p>';
+
+        const volumes = app.keywordVolumes || {};
+        const mine = trendMap(app);
+        const maps = comps.map(trendMap);
+
+        const posOf = (t) => (t && !t.error && t.position != null) ? t.position : null;
+        const rows = kws.map((kw) => {
+          const myT = mine[kw];
+          const myPos = posOf(myT);
+          const compCells = comps.map((c, i) => {
+            let t = maps[i][kw];
+            let pos = posOf(t);
+            let fromTop3 = false;
+            // Freebie: even if the rival doesn't track this keyword, our own
+            // check stored the top-3 apps for it — if the rival is in there,
+            // that IS their rank.
+            if (!t && myT && (myT.top || []).length) {
+              const idx = myT.top.findIndex((x) => x.appId === c.appId);
+              if (idx !== -1) { pos = idx + 1; fromTop3 = true; }
+            }
+            return { pos, tracked: !!t || fromTop3, checked: t ? t.checked !== false : fromTop3 };
+          });
+          const all = [myPos, ...compCells.map((c) => c.pos)].filter((p) => p != null);
+          const best = all.length ? Math.min(...all) : null;
+          const cell = (pos, tracked, checked) => {
+            if (pos != null) return `<td class="pos" ${pos === best ? 'style="background:#e6f5ef;"' : ''}>#${pos}</td>`;
+            if (!tracked) return '<td class="pos"><span class="un" title="This keyword isn\'t in this app\'s tracked or coverage list yet — use the button below to add it.">not tracked</span></td>';
+            if (!checked) return '<td class="pos"><span class="un">not checked yet</span></td>';
+            return '<td class="pos"><span class="un">&gt;200</span></td>';
+          };
+          return `<tr>
+            <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(kw)}" data-list="daily">${esc(kw)}</button></td>
+            <td class="pos">${volumes[kw] != null ? volumes[kw].toLocaleString() : '<span class="un">–</span>'}</td>
+            ${cell(myPos, true, myT ? myT.checked !== false : false)}
+            ${compCells.map((c) => cell(c.pos, c.tracked, c.checked)).join('')}
+          </tr>`;
+        }).join('');
+
+        const syncBtns = comps.map((c, i) => {
+          const missing = kws.filter((kw) => !maps[i][kw]);
+          if (!missing.length) return '';
+          return `<button class="ghost" data-act="sync-comp" data-comp="${escAttr(c.key)}">Track these ${missing.length} keyword${missing.length === 1 ? '' : 's'} on ${esc(c.title)}</button>`;
+        }).filter(Boolean).join(' ');
+
+        return `${picker}
+          <p class="scrollhint no-print">↔ Swipe to see all columns</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Keyword</th><th>Volume</th><th>${esc(app.title)} (you)</th>${comps.map((c) => `<th>${esc(c.title)}</th>`).join('')}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+          <p class="hint" style="margin-top:8px;">Green cell = best rank for that keyword. "Not tracked" means the competitor's own keyword lists don't include that term yet — their rank can't be known until it's checked on their side:</p>
+          ${syncBtns ? `<div class="row no-print">${syncBtns}</div>` : ''}`;
+      }
 
       function renderApp(app) {
         const storePill = app.store === 'play'
@@ -1062,6 +1159,10 @@ ai photo enhancer"></textarea>
             ? coverageHtml(app)
             : '<p class="hint">No coverage list yet — paste your full keyword universe (up to ' + MAX_COVERAGE + ') under <b>Settings</b> to monitor every keyword you care about beyond the plan-capped daily list.</p>'}`;
 
+        const sectionCompare = `
+          <div class="section-head"><h2>Compare</h2><p class="hint">Your keywords, your rank vs your competitors' — side by side.</p></div>
+          ${compareHtml(app)}`;
+
         const sectionTrends = `
           <div class="section-head"><h2>Trends</h2><p class="hint">Longer-horizon signals: category chart position, rating health, and your logged experiments.</p></div>
           ${trendChartsHtml(app)}
@@ -1106,6 +1207,11 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="save-report-emails">Save recipients</button>
             </div>
           </div>
+          <div class="settings-block no-print">
+            <h4>Keyword volumes</h4>
+            <p class="hint" style="margin:0 0 8px;">Volumes you paste alongside keywords (from App Radar or any research export) are used as-is. This button fills in the <b>missing</b> ones with a free Google Trends popularity estimate (0–100, relative — the same kind of scale paid tools show). Best-effort: it estimates up to 25 keywords per click, so click again if some are still blank.</p>
+            <button class="ghost" data-act="estimate-volumes">Estimate missing volumes</button>
+          </div>
           <div class="dangerzone no-print">
             <h4>Danger zone</h4>
             <p class="hint" style="margin:0 0 8px;">Stops tracking this app. Its saved history stays on disk but will no longer be shown.</p>
@@ -1113,11 +1219,11 @@ ai photo enhancer"></textarea>
           </div>`;
 
         const bySection = {
-          overview: sectionOverview, keywords: sectionKeywords,
-          coverage: sectionCoverage, trends: sectionTrends, settings: sectionSettings,
+          overview: sectionOverview, keywords: sectionKeywords, coverage: sectionCoverage,
+          compare: sectionCompare, trends: sectionTrends, settings: sectionSettings,
         };
         const body = printAll
-          ? [sectionOverview, sectionKeywords, sectionCoverage, sectionTrends].join('<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">')
+          ? [sectionOverview, sectionKeywords, sectionCoverage, sectionCompare, sectionTrends].join('<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">')
           : bySection[currentSection] || sectionOverview;
 
         return `
@@ -1137,6 +1243,7 @@ ai photo enhancer"></textarea>
       function sectionCount(app, id) {
         if (id === 'keywords') return (app.keywords || []).length || '';
         if (id === 'coverage') return (app.coverageKeywords || []).length || '';
+        if (id === 'compare') return comparableApps(app).length || '';
         return '';
       }
 
@@ -1365,6 +1472,24 @@ ai photo enhancer"></textarea>
           withBusy(btn, '…', () => api({ action: 'remove-annotation', key, id }));
           return;
         }
+        if (act === 'sync-comp') {
+          const compKey = btn.getAttribute('data-comp');
+          const me = state.apps.find((a) => a.key === key);
+          const comp = state.apps.find((a) => a.key === compKey);
+          if (!me || !comp) return;
+          const kws = (me.keywords || []).length ? me.keywords : (me.coverageKeywords || []).slice(0, 60);
+          const merged = [...new Set([...(comp.coverageKeywords || []), ...kws])];
+          withBusy(btn, 'Adding…', async () => {
+            const data = await api({ action: 'set-coverage-keywords', key: compKey, keywords: merged.join('\n') });
+            showToast(`Keywords added to ${comp.title}'s coverage list — ranks appear after its next check (nightly, or "Check coverage now" on that app).`);
+            return data;
+          });
+          return;
+        }
+        if (act === 'estimate-volumes') {
+          withBusy(btn, 'Estimating… up to ~1 min', () => api({ action: 'estimate-volumes', key }));
+          return;
+        }
         if (act === 'check-one') {
           // Rank check only re-checks keyword positions — the listing itself
           // hasn't changed, so this must NOT trigger a fresh (paid) ASO audit.
@@ -1414,6 +1539,24 @@ ai photo enhancer"></textarea>
           if (!confirm('Stop tracking this app? Its saved history stays on disk but will no longer be shown.')) return;
           withBusy(btn, 'Removing…', () => api({ action: 'remove-app', key }));
         }
+      });
+
+      // Compare-section competitor checkboxes (change, not click — checkboxes).
+      $('apps').addEventListener('change', (ev) => {
+        const toggle = ev.target.closest && ev.target.closest('[data-comp-toggle]');
+        if (!toggle) return;
+        const card = toggle.closest('.appcard');
+        const key = card.getAttribute('data-key');
+        const compKey = toggle.getAttribute('data-comp-toggle');
+        let sel = compareState[key] || [];
+        if (toggle.checked) {
+          if (sel.length >= 3) { toggle.checked = false; showToast('Max 3 competitors at a time — untick one first.'); return; }
+          sel = [...sel, compKey];
+        } else {
+          sel = sel.filter((k) => k !== compKey);
+        }
+        compareState[key] = sel;
+        render();
       });
 
       // CSV export: one row per app × keyword with today's rank + delta + best.
