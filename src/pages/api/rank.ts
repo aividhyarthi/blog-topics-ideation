@@ -7,7 +7,7 @@
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey } from '../../lib/rank/track';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey, universeSizeSeries } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, ConfigReadError } from '../../lib/rank/store';
 import { runCheck, checkOne, checkCoverageBatch } from '../../lib/rank/check';
 import { withTenantLock } from '../../lib/rank/lock';
@@ -122,7 +122,12 @@ function statePayload(userId?: string) {
           counts: covToday ? countsFromBuckets(covToday.buckets) : null,
           prevCounts: covPrev ? countsFromBuckets(covPrev.buckets) : null,
           lastCheckedAt: covLatest?.checkedAt || null,
+          // Real historical list size per day (not today's list re-applied
+          // backwards, unlike `days` above) — answers "is my keyword
+          // universe actually growing over time".
+          universeTrend: universeSizeSeries(app, covSnapshots, 90),
         },
+        dailyUniverseTrend: universeSizeSeries(app, snapshots, 90),
         // Per-keyword rows for the FULL coverage universe (not just the
         // plan-limited daily-tracked subset) — lets the owner see where every
         // keyword they care about ranks, sorted by volume, regardless of

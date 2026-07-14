@@ -668,6 +668,43 @@ ai photo enhancer"></textarea>
         return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
       }
 
+      // How big is the tracked keyword list on each day it was actually
+      // checked — answers "is my keyword universe growing over time" with
+      // real historical sizes (see universeSizeSeries server-side), not
+      // today's count re-applied to every past day.
+      function universeSizeChart(points, color = '#4338ca') {
+        const pts = points || [];
+        if (pts.length < 2) return '<p class="hint">Not enough history yet to show a trend — check back after a few more days of checks.</p>';
+        const W = 400, H = 170, padL = 34, padB = 18, padT = 8;
+        const plotW = W - padL - 8, plotH = H - padT - padB;
+        const counts = pts.map((p) => p.count);
+        const maxY = Math.max(4, Math.ceil(Math.max(...counts) * 1.1));
+        const x = (i) => padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
+        const y = (v) => padT + plotH - (v / maxY) * plotH;
+        let out = '';
+        for (const v of [maxY, Math.round(maxY / 2)]) {
+          out += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - 6}" y2="${y(v).toFixed(1)}" stroke="#e7e8ef" stroke-width="1"/>
+            <text x="${padL - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#898781">${v}</text>`;
+        }
+        out += `<line x1="${padL}" y1="${(padT + plotH).toFixed(1)}" x2="${W - 6}" y2="${(padT + plotH).toFixed(1)}" stroke="#c3c2b7" stroke-width="1"/>`;
+        const d = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.count).toFixed(1)}`).join(' ');
+        out += `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        const labelEvery = Math.ceil(pts.length / 6);
+        pts.forEach((p, i) => {
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(p.count).toFixed(1)}" r="3" fill="${color}" stroke="#fff" stroke-width="2"/>`;
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(p.dateKey))}</div><div class="tt-r"><span>Keywords tracked</span><b>${p.count}</b></div>`);
+          const cw = pts.length === 1 ? plotW : plotW / (pts.length - 1);
+          out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
+          if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#898781">${esc(fmtDay(p.dateKey))}</text>`;
+        });
+        const first = counts[0], last = counts[counts.length - 1];
+        const change = last - first;
+        const changeLabel = change > 0 ? `<span class="delta up">▲ +${change} since ${esc(fmtDay(pts[0].dateKey))}</span>`
+          : change < 0 ? `<span class="delta down">▼ ${change} since ${esc(fmtDay(pts[0].dateKey))}</span>`
+          : `<span class="delta flat">＝ unchanged since ${esc(fmtDay(pts[0].dateKey))}</span>`;
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg><div class="hint" style="margin-top:6px;">${last} tracked today ${changeLabel}</div>`;
+      }
+
       // --- keyword discovery panel -------------------------------------------
       const DISCOVER = {}; // key -> discovery result, shown until tracked/dismissed
 
@@ -908,14 +945,15 @@ ai photo enhancer"></textarea>
         const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
         return `<div class="ov covov">
           <h4 class="covhead">Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords, last checked ${cov.lastCheckedAt ? new Date(cov.lastCheckedAt).toLocaleString() : 'never'}</span></h4>
+          <div class="charts">
+            <div class="chartbox"><h4>Keyword universe size over time</h4>${universeSizeChart(cov.universeTrend)}</div>
+            <div class="chartbox"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>
+          </div>
           <div class="tiles">
             ${tileHtml('Top 1', c.top1, p && p.top1)}
             ${tileHtml('Top 10', c.top10, p && p.top10)}
             ${tileHtml('Top 30', c.top30, p && p.top30)}
             ${tileHtml('Top 100', c.top100, p && p.top100)}
-          </div>
-          <div class="charts">
-            <div class="chartbox" style="grid-column:1/-1;"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>
           </div>
           <h4 class="covhead" style="margin-top:16px;">Every keyword you're monitoring here, ranking or not, sorted by volume</h4>
           <p class="hint" style="margin:0 0 6px;">This list can overlap with the "Daily tracked" tab, that's normal. It's checked by the nightly check, not the "Check now" button up top — click <b>Check coverage now</b> below for a smaller list you want checked right away.</p>

@@ -160,6 +160,24 @@ export function overviewSeries(app: TrackedApp, snapshots: RankSnapshot[], days 
   }).filter((d): d is OverviewDay => d !== null);
 }
 
+export interface UniverseSizePoint { dateKey: string; count: number }
+
+/**
+ * How many keywords were actually in this app's list on each day it was
+ * checked — the REAL historical size, unlike overviewSeries' bucket/tracked
+ * count (which applies TODAY's keyword list retroactively to every past
+ * day, so it can never show growth). This is what answers "is my keyword
+ * universe growing over time" — each snapshot's own keyword-row length,
+ * not today's list length re-applied backwards.
+ */
+export function universeSizeSeries(app: TrackedApp, snapshots: RankSnapshot[], days = 60): UniverseSizePoint[] {
+  return snapshots.slice(-days).map((s) => {
+    const r = s.apps.find((a) => a.key === app.key) || null;
+    if (!r) return null;
+    return { dateKey: s.dateKey, count: r.keywords.length };
+  }).filter((d): d is UniverseSizePoint => d !== null);
+}
+
 export interface AnnotationImpact {
   before: { avgVisibility: number | null; days: number };
   after: { avgVisibility: number | null; days: number };
