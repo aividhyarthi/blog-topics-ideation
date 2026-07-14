@@ -332,10 +332,15 @@ const limitsText = product && plan
             <input type="text" id="add-country" placeholder="Country (us)" maxlength="2" />
             <input type="text" id="add-lang" placeholder="Lang (en)" maxlength="2" />
           </div>
+          <div class="row" style="margin:8px 0;">
+            <label class="hint" style="margin:0;" for="add-likeapp">This app is a competitor for:</label>
+            <select id="add-likeapp"><option value="">— none, this is my own app —</option></select>
+          </div>
           <textarea id="add-keywords" placeholder="Keywords to track — one per line or comma-separated, e.g.
 photo editor
 collage maker
 ai photo enhancer"></textarea>
+          <p class="hint" id="add-likeapp-hint" style="display:none;"></p>
           <div class="row" style="margin-top:10px;">
             <button class="primary" id="add-btn">Add app</button>
             <span class="hint" style="margin:0;">{limitsText} No keywords yet? Add the app, then hit <b>Discover keywords</b>.</span>
@@ -763,7 +768,15 @@ ai photo enhancer"></textarea>
       async function checkAsoFor(app) {
         if (app.store !== 'play' || !app.keywords || !app.keywords.length) return;
         ASO_CACHE[app.key] = { status: 'loading' };
-        if (app.key === selectedAppKey) render();
+        // Guard against re-rendering off a stale `state` that doesn't have
+        // this app yet — a caller right after add-app fires this before the
+        // fresh API response has replaced `state`, and an unconditional
+        // render() here would rebuild the sidebar from the OLD app list,
+        // which resets selectedAppKey back to the first app (see render()'s
+        // "selectedAppKey not in state.apps" fallback) and silently un-selects
+        // the app that was just added.
+        const inState = () => state.apps.some((a) => a.key === app.key);
+        if (app.key === selectedAppKey && inState()) render();
         const focusList = app.keywords.slice(0, 3);
         try {
           const res = await fetch('/api/aso', {
@@ -776,7 +789,7 @@ ai photo enhancer"></textarea>
         } catch (e) {
           ASO_CACHE[app.key] = { status: 'error', error: e && e.message ? e.message : String(e) };
         }
-        if (app.key === selectedAppKey) render();
+        if (app.key === selectedAppKey && inState()) render();
       }
 
       function asoSummaryHtml(app) {
@@ -1311,6 +1324,14 @@ ai photo enhancer"></textarea>
         }).join('');
       }
 
+      function renderLikeAppOptions() {
+        const sel = $('add-likeapp');
+        const prev = sel.value;
+        sel.innerHTML = '<option value="">— none, this is my own app —</option>' + state.apps.map((a) =>
+          `<option value="${escAttr(a.key)}">${esc(a.title)} (${a.store === 'play' ? 'Google Play' : 'App Store'} · ${esc(a.country.toUpperCase())})</option>`).join('');
+        if (state.apps.some((a) => a.key === prev)) sel.value = prev;
+      }
+
       function render() {
         const box = $('apps');
         if (!state.apps.length) {
@@ -1323,6 +1344,7 @@ ai photo enhancer"></textarea>
           const current = state.apps.find((a) => a.key === selectedAppKey);
           box.innerHTML = renderApp(current);
         }
+        renderLikeAppOptions();
         const days = state.snapshotDays || [];
         $('lastcheck').textContent = state.lastCheckedAt
           ? `Last checked ${new Date(state.lastCheckedAt).toLocaleString()} · ${days.length} day${days.length === 1 ? '' : 's'} of history`
@@ -1366,6 +1388,25 @@ ai photo enhancer"></textarea>
         }
       }
 
+      $('add-likeapp').addEventListener('change', () => {
+        const key = $('add-likeapp').value;
+        const hint = $('add-likeapp-hint');
+        const kwBox = $('add-keywords');
+        if (!key) {
+          hint.style.display = 'none';
+          kwBox.placeholder = 'Keywords to track — one per line or comma-separated, e.g.\nphoto editor\ncollage maker\nai photo enhancer';
+          return;
+        }
+        const ref = state.apps.find((a) => a.key === key);
+        if (ref) {
+          if (!$('add-country').value.trim()) $('add-country').value = ref.country;
+          if (!$('add-lang').value.trim()) $('add-lang').value = ref.lang;
+        }
+        hint.style.display = 'block';
+        hint.textContent = `Leave keywords blank to auto-track the same keyword list as "${ref ? ref.title : 'that app'}" — we'll also look for this rival's own keywords in the background and add anything new we find.`;
+        kwBox.placeholder = 'Leave blank to inherit keywords automatically, or paste your own to override.';
+      });
+
       $('add-btn').addEventListener('click', () =>
         withBusy($('add-btn'), 'Adding…', async () => {
           const app = $('add-app').value.trim();
@@ -1375,13 +1416,16 @@ ai photo enhancer"></textarea>
             country: $('add-country').value.trim(),
             lang: $('add-lang').value.trim(),
             keywords: $('add-keywords').value,
+            likeApp: $('add-likeapp').value,
           });
           const notes = [];
           if (data.metaError) notes.push('App added, but its listing could not be read right now: ' + data.metaError);
           if (data.keywordsTruncated) notes.push(truncationMsg(data.keywordsTruncated));
           if (!data.metaError && data.checkError) notes.push(data.checkError);
+          if (data.discoveryQueued) notes.push('Also looking for more of this rival’s own keywords in the background — check the Coverage tab in a minute.');
           if (notes.length) showInfo(notes.join(' '));
-          $('add-app').value = ''; $('add-keywords').value = '';
+          $('add-app').value = ''; $('add-keywords').value = ''; $('add-likeapp').value = '';
+          $('add-likeapp-hint').style.display = 'none';
           showToast('App added');
           if (data.apps && data.apps.length) {
             const newApp = data.apps[data.apps.length - 1];

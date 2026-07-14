@@ -48,8 +48,38 @@ function tenant(locals: APIContext['locals']) {
  */
 async function checkAfterEdit(app: TrackedApp, userId?: string): Promise<string | undefined> {
   if (!app.keywords.length) return undefined;
-  try { await checkOne(app, userId); return undefined; }
+  try { await withTenantLock(userId || '__internal__', () => checkOne(app, userId)); return undefined; }
   catch (e) { return `Keywords saved, but the rank check failed: ${e instanceof Error ? e.message : String(e)}`; }
+}
+
+/**
+ * Fired-and-forgotten right after a competitor app is added (see 'add-app'
+ * with likeApp): finds this rival's own keyword universe — seeded partly by
+ * the primary app's listing, since terms it targets are relevant competitive
+ * ground — and folds anything new straight into the coverage list. This is
+ * what makes adding a competitor a one-step action instead of "add it, then
+ * separately click Discover, then separately click track selected": too slow
+ * (a full scan is 30-60s of store searches) to do inline on the add request,
+ * so it runs after the response has already gone back to the browser.
+ * Capped smaller than the manual Discover button's default to keep the
+ * background cost/time modest — this is happening on every competitor add,
+ * not on a single deliberate click.
+ */
+function queueCompetitorDiscovery(app: TrackedApp, userId: string | undefined, likeApp: TrackedApp): void {
+  withTenantLock(userId || '__internal__', async () => {
+    let result;
+    try { result = await discoverKeywords(app, 50, [likeApp]); }
+    catch { return; }
+    if (!result.discovered.length) return;
+    const cfg = loadConfig(userId);
+    const a = cfg.apps.find((x) => x.key === app.key);
+    if (!a) return; // removed before discovery finished
+    const existing = new Set([...a.keywords, ...(a.coverageKeywords || [])].map((k) => k.toLowerCase()));
+    const fresh = result.discovered.map((d) => d.keyword).filter((k) => !existing.has(k));
+    if (!fresh.length) return;
+    a.coverageKeywords = [...new Set([...(a.coverageKeywords || []), ...fresh])].slice(0, MAX_COVERAGE_KEYWORDS);
+    saveConfig(cfg, userId);
+  }).catch(() => {});
 }
 
 /**
@@ -171,8 +201,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!parsed) {
       return json({ error: 'Paste a Google Play URL / package id (com.example.app) or an App Store URL / numeric id (id310633997).' }, 400);
     }
-    const country = (String(body.country || parsed.country || 'us').trim() || 'us').toLowerCase();
-    const lang = (String(body.lang || 'en').trim() || 'en').toLowerCase();
+    // "Track this as a competitor of <app>" — instead of asking for a fresh
+    // keyword paste, inherit that app's own keyword lists (both the daily
+    // subset and the full coverage universe) so a competitor add is one step,
+    // not "add the app, then re-type every keyword we already have".
+    // Country/lang also default from the reference app so the pair lines up
+    // for Compare (which requires matching store + country).
+    const likeApp = body.likeApp ? cfg.apps.find((a) => a.key === String(body.likeApp)) : null;
+    const country = (String(body.country || parsed.country || likeApp?.country || 'us').trim() || 'us').toLowerCase();
+    const lang = (String(body.lang || likeApp?.lang || 'en').trim() || 'en').toLowerCase();
     const key = `${parsed.store}:${parsed.appId}:${country}`;
     if (cfg.apps.some((a) => a.key === key)) return json({ error: 'That app + country is already tracked.' }, 400);
     if (cfg.apps.length >= maxApps) return json({ error: `Your plan tracks up to ${maxApps} apps — remove one first or upgrade.` }, 400);
@@ -184,12 +221,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
     try { meta = await fetchAppMeta(parsed.store, parsed.appId, country, lang); }
     catch (e) { metaError = e instanceof Error ? e.message : String(e); }
 
-    // Parsed once uncapped just to detect + report truncation — this box is
-    // the daily-tracked list (checked automatically, capped by plan); a
-    // paste bigger than the cap silently lost everything past it before,
-    // with no indication anything was dropped.
-    const totalParsed = parseKeywordsWithVolumes(body.keywords, Infinity).keywords.length;
-    const parsedKw = parseKeywordsWithVolumes(body.keywords, maxKeywords);
+    // A pasted keyword list always wins; otherwise inherit from likeApp.
+    const hasOwnKeywords = String(body.keywords || '').trim().length > 0;
+    let keywords: string[]; let keywordVolumes: Record<string, number>; let keywordsTruncated: { saved: number; total: number } | null;
+    if (hasOwnKeywords) {
+      // Parsed once uncapped just to detect + report truncation — this box is
+      // the daily-tracked list (checked automatically, capped by plan); a
+      // paste bigger than the cap silently lost everything past it before,
+      // with no indication anything was dropped.
+      const totalParsed = parseKeywordsWithVolumes(body.keywords, Infinity).keywords.length;
+      const parsedKw = parseKeywordsWithVolumes(body.keywords, maxKeywords);
+      keywords = parsedKw.keywords;
+      keywordVolumes = parsedKw.volumes;
+      keywordsTruncated = totalParsed > parsedKw.keywords.length ? { saved: parsedKw.keywords.length, total: totalParsed } : null;
+    } else if (likeApp) {
+      keywords = likeApp.keywords.slice(0, maxKeywords);
+      keywordVolumes = { ...(likeApp.keywordVolumes || {}) };
+      keywordsTruncated = likeApp.keywords.length > keywords.length ? { saved: keywords.length, total: likeApp.keywords.length } : null;
+    } else {
+      keywords = []; keywordVolumes = {}; keywordsTruncated = null;
+    }
+    const coverageKeywords = !hasOwnKeywords && likeApp
+      ? [...new Set([...(likeApp.coverageKeywords || []), ...likeApp.keywords])].slice(0, MAX_COVERAGE_KEYWORDS)
+      : undefined;
+
     const app: TrackedApp = {
       key, store: parsed.store, appId: meta?.appId || parsed.appId, country, lang,
       title: meta?.title || parsed.appId,
@@ -198,16 +253,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
       icon: meta?.icon || null,
       url: meta?.url || null,
       genreId: meta?.genreId || null,
-      keywords: parsedKw.keywords,
-      keywordVolumes: parsedKw.volumes,
+      keywords, keywordVolumes,
+      ...(coverageKeywords ? { coverageKeywords } : {}),
       addedAt: new Date().toISOString(),
     };
     cfg.apps.push(app);
     saveConfig(cfg, userId);
     const checkError = metaError ? undefined : await checkAfterEdit(app, userId);
-    const keywordsTruncated = totalParsed > parsedKw.keywords.length
-      ? { saved: parsedKw.keywords.length, total: totalParsed } : null;
-    return json({ ok: true, metaError, checkError, keywordsTruncated, ...statePayload(userId) });
+    // Competitor add with no manual keyword paste: go find this rival's own
+    // keyword universe in the background too, so nothing further needs
+    // clicking — see queueCompetitorDiscovery's own comment.
+    let discoveryQueued = false;
+    if (likeApp && !hasOwnKeywords) { queueCompetitorDiscovery(app, userId, likeApp); discoveryQueued = true; }
+    return json({ ok: true, metaError, checkError, keywordsTruncated, discoveryQueued, ...statePayload(userId) });
   }
 
   if (action === 'remove-app') {
