@@ -30,7 +30,7 @@ const limitsText = product && plan
     <meta name="description" content="Track where your apps rank in Google Play and App Store search for your keywords, with daily history and trends." />
     <style is:global>
       :root {
-        --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280;
+        --pink: #ff5a1f; --pink-dark: #e0480d; --ink: #16181d; --muted: #6b7280;
         --line: #e5e7eb; --bg: #f8f9fb; --card: #ffffff; --ok: #0a8a5f; --warn: #b8790a; --bad: #c0392b;
       }
       * { box-sizing: border-box; }
@@ -42,7 +42,7 @@ const limitsText = product && plan
       nav.top { margin-top: 12px; display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
       nav.top a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; background: none; border: 1px solid transparent; padding: 6px 11px; border-radius: 7px; }
       nav.top a:hover { color: var(--ink); background: var(--bg); }
-      nav.top a.active { color: var(--pink); background: #eef0fd; }
+      nav.top a.active { color: var(--pink); background: #fff1eb; }
       .usermenu { position: relative; margin-left: auto; }
       .usertrigger { color: var(--muted); font-size: 13px; font-weight: 600; background: none; border: 1px solid var(--line); padding: 6px 11px; border-radius: 7px; cursor: pointer; font-family: inherit; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .usertrigger:hover { border-color: #cbd0da; color: var(--ink); }
@@ -66,7 +66,7 @@ const limitsText = product && plan
         border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font-size: 13.5px;
         color: var(--ink); background: #fff; outline: none; font-family: inherit;
       }
-      input:focus, textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(67,56,202,0.1); }
+      input:focus, textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(255,90,31,0.15); }
       textarea { width: 100%; min-height: 74px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
       .addrow { display: grid; grid-template-columns: 2.2fr 110px 110px; gap: 10px; margin-bottom: 10px; }
       @media (max-width: 760px) { .addrow { grid-template-columns: 1fr; } }
@@ -94,7 +94,7 @@ const limitsText = product && plan
       .pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; }
       .pill.play { background: #e6f6ee; color: #0a7a4e; }
       .pill.ios { background: #eaeeff; color: #364fc7; }
-      .pill.chart { background: #eef0fd; color: var(--pink); }
+      .pill.chart { background: #fff1eb; color: var(--pink); }
       .pill.cc { background: var(--bg); color: var(--muted); }
       .pill.vol { background: #eaeeff; color: #364fc7; cursor: help; }
       /* --- overview (tiles + charts) --- */
@@ -107,14 +107,22 @@ const limitsText = product && plan
       .tile .val .d.up { color: var(--ok); }
       .tile .val .d.down { color: var(--bad); }
       .tile .val .d.flat { color: var(--muted); }
-      .wn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+      .wn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
       @media (max-width: 880px) { .wn-grid { grid-template-columns: 1fr; } }
-      .wn-card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 13px; }
-      .wn-card h4 { margin: 0 0 8px; font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
-      .wn-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; }
+      .wn-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px; box-shadow: 0 1px 2px rgba(20,20,40,0.03); }
+      .wn-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
+      .wn-card-ico { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; background: #fff1eb; color: var(--pink); }
+      .wn-card h4 { margin: 0; font-size: 11.5px; color: var(--ink); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+      .wn-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; padding: 5px 0; border-top: 1px solid var(--bg); }
+      .wn-row:first-of-type { border-top: none; }
       .wn-row .wn-kw { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .wn-empty { color: var(--muted); font-size: 12.5px; }
-      .wn-line { font-size: 13px; padding: 2px 0; }
+      .wn-line { font-size: 13px; padding: 6px 0; border-top: 1px solid var(--bg); }
+      .wn-line:first-of-type { border-top: none; padding-top: 0; }
+      .wn-linkline { display: block; width: 100%; text-align: left; background: none; border: none; padding: 6px 0; border-top: 1px solid var(--bg); cursor: pointer; font-family: inherit; color: inherit; }
+      .wn-linkline:first-of-type { border-top: none; padding-top: 0; }
+      .wn-linkline:hover .wn-line-title { color: var(--pink); }
+      .wn-line-title { font-size: 13px; color: var(--ink); }
       .charts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-top: 12px; }
       @media (max-width: 880px) { .charts { grid-template-columns: 1fr; } }
       .chartbox { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 12px 8px; }
@@ -138,7 +146,12 @@ const limitsText = product && plan
       .viztip .tt-r b { color: var(--ink); font-variant-numeric: tabular-nums; }
       .scrollhint { display: none; font-size: 11px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; }
       @media (max-width: 760px) { .scrollhint { display: block; } }
-      .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; margin-top: 12px; -webkit-overflow-scrolling: touch; }
+      /* overflow-y: hidden + touch-action: pan-x make the scroll axis
+         unambiguous — without this, a horizontally-scrollable table nested
+         inside a vertically-scrollable page can swallow vertical swipes on
+         touch devices, making the page feel stuck while a finger is over
+         a table (only the table's own content ever appears to move). */
+      .table-wrap { overflow-x: auto; overflow-y: hidden; touch-action: pan-x; border: 1px solid var(--line); border-radius: 8px; background: #fff; margin-top: 12px; -webkit-overflow-scrolling: touch; }
       table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 13px; }
       th, td { text-align: left; padding: 8px 12px; vertical-align: middle; border-bottom: 1px solid var(--line); }
       th { background: var(--bg); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 700; }
@@ -167,7 +180,7 @@ const limitsText = product && plan
       .annrow { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
       .annrow:last-child { border-bottom: none; }
       .anntype { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 5px; white-space: nowrap; flex-shrink: 0; }
-      .anntype.experiment { background: #eef0fd; color: var(--pink); }
+      .anntype.experiment { background: #fff1eb; color: var(--pink); }
       .anntype.paid { background: #fdf3dd; color: var(--warn); }
       .anntext { flex: 1; font-size: 13px; }
       .annimpact { margin-top: 4px; font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -182,7 +195,7 @@ const limitsText = product && plan
       .discover h4 { margin: 0 0 8px; font-size: 13px; }
       .disc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; max-height: 300px; overflow-y: auto; }
       .disc-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
-      .disc-row:hover { background: #eef0fd; }
+      .disc-row:hover { background: #fff1eb; }
       .disc-row .kw { flex: 1; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink); }
       .disc-row b { font-variant-numeric: tabular-nums; }
       .asobox { margin-top: 12px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--ink); }
@@ -204,7 +217,7 @@ const limitsText = product && plan
       .app-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
       .app-tab { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 6px 7px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink); transition: border-color 0.15s; max-width: 220px; }
       .app-tab:hover { border-color: #cbd0da; }
-      .app-tab.selected { border-color: var(--pink); background: #eef0fd; color: var(--pink); }
+      .app-tab.selected { border-color: var(--pink); background: #fff1eb; color: var(--pink); }
       .app-tab img, .app-tab .fi { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; }
       .app-tab .fi { display: grid; place-items: center; background: var(--bg); font-size: 11px; }
       .app-tab .tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -217,7 +230,7 @@ const limitsText = product && plan
       .cattabs .cattab { font-size: 12.5px; padding: 6px 3px; margin-right: 14px; }
       /* --- app-shell layout (sidebar + one-section-at-a-time content) --- */
       .shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 18px; align-items: start; }
-      .sidebar { position: sticky; top: 16px; }
+      .sidebar { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
       .side-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 12px; }
       .side-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 4px 8px 8px; }
       .side-app { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink); border: none; background: none; width: 100%; text-align: left; font-family: inherit; }
@@ -231,11 +244,13 @@ const limitsText = product && plan
       .side-app.sub img, .side-app.sub .fi { width: 18px; height: 18px; }
       .side-app.sub.selected { color: #fff; }
       .side-add { display: block; width: 100%; margin-top: 6px; }
-      .snav { display: flex; flex-direction: column; gap: 2px; }
-      .snav button { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; border: none; background: none; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; font-family: inherit; text-align: left; width: 100%; }
-      .snav button:hover { background: var(--bg); color: var(--ink); }
-      .snav button.active { background: var(--ink); color: #fff; }
-      .snav .cnt { margin-left: auto; font-size: 11px; font-weight: 700; opacity: 0.65; }
+      .main-col { min-width: 0; }
+      .toptabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); margin-bottom: 18px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .toptabs button { display: flex; align-items: center; gap: 7px; padding: 11px 15px; border: none; background: none; font-size: 13.5px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: inherit; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.12s, border-color 0.12s; }
+      .toptabs button:hover { color: var(--ink); }
+      .toptabs button.active { color: var(--pink); border-bottom-color: var(--pink); }
+      .toptabs .cnt { font-size: 10.5px; font-weight: 700; background: var(--bg); color: var(--muted); padding: 1px 6px; border-radius: 999px; }
+      .toptabs button.active .cnt { background: #fff1eb; color: var(--pink); }
       .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 2px 0 12px; }
       .section-head h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
       .section-head .hint { margin: 0; }
@@ -245,12 +260,9 @@ const limitsText = product && plan
       .settings-block h4 { margin: 0 0 4px; font-size: 13.5px; }
       @media (max-width: 900px) {
         .shell { grid-template-columns: 1fr; }
-        .sidebar { position: static; }
+        .sidebar { position: static; max-height: none; }
         .side-card .side-apps { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
         .side-card .side-app { width: auto; flex-shrink: 0; max-width: 180px; }
-        .snav { flex-direction: row; overflow-x: auto; }
-        .snav button { white-space: nowrap; width: auto; }
-        .snav .cnt { margin-left: 6px; }
       }
       svg.spark { display: block; }
       footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px; }
@@ -346,12 +358,11 @@ const limitsText = product && plan
               <div class="side-apps" id="side-apps"></div>
               <button class="ghost side-add" id="toggle-add-app">＋ Track an app</button>
             </div>
-            <div class="side-card">
-              <div class="side-label">Sections</div>
-              <div class="snav" id="snav"></div>
-            </div>
           </div>
-          <div id="apps"></div>
+          <div class="main-col">
+            <div class="toptabs no-print" id="snav"></div>
+            <div id="apps"></div>
+          </div>
         </div>
         {product && <div class="no-print"><AdSlot slot={ADSENSE_SLOTS.rank} /></div>}
       </div>
@@ -513,8 +524,8 @@ ai photo enhancer"></textarea>
         const d = pts.map((pt, j) => `${j ? 'L' : 'M'}${x(pt.i).toFixed(1)},${y(pt.p).toFixed(1)}`).join(' ');
         const last = pts[pts.length - 1];
         return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-          <path d="${d}" fill="none" stroke="#4338ca" stroke-width="1.8" stroke-linecap="round"/>
-          <circle cx="${x(last.i).toFixed(1)}" cy="${y(last.p).toFixed(1)}" r="2.6" fill="#4338ca"/>
+          <path d="${d}" fill="none" stroke="#ff5a1f" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="${x(last.i).toFixed(1)}" cy="${y(last.p).toFixed(1)}" r="2.6" fill="#ff5a1f"/>
         </svg>`;
       }
 
@@ -596,10 +607,10 @@ ai photo enhancer"></textarea>
         }
         out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - 6}" y2="${padT + plotH}" stroke="#c3c2b7" stroke-width="1"/>`;
         const d = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-        out += `<path d="${d}" fill="none" stroke="#4338ca" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        out += `<path d="${d}" fill="none" stroke="#ff5a1f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(days.length / 6);
         days.forEach((day, i) => {
-          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3" fill="#4338ca" stroke="#fff" stroke-width="2"/>`;
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3" fill="#ff5a1f" stroke="#fff" stroke-width="2"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(day.dateKey))}</div><div class="tt-r"><span>Visibility score</span><b>${vals[i].toFixed(1)}</b></div>`);
           const cw = days.length === 1 ? plotW : plotW / (days.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
@@ -609,7 +620,7 @@ ai photo enhancer"></textarea>
           const idx = days.findIndex((d) => d.dateKey === a.date);
           if (idx === -1) return;
           const ax = x(idx);
-          const color = a.type === 'paid' ? '#b8790a' : '#4338ca';
+          const color = a.type === 'paid' ? '#b8790a' : '#ff5a1f';
           out += `<line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,2"/>`;
           out += `<circle cx="${ax.toFixed(1)}" cy="${(padT - 2).toFixed(1)}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(a.date))} · ${esc(ANN_TYPE_LABEL[a.type] || a.type)}</div><div class="tt-r"><span>${esc(a.label)}</span></div>`);
@@ -640,11 +651,11 @@ ai photo enhancer"></textarea>
           d += `${started ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
           started = true;
         });
-        out += `<path d="${d}" fill="none" stroke="#4338ca" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        out += `<path d="${d}" fill="none" stroke="#ff5a1f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(history.length / 6);
         history.forEach((v, i) => {
           if (v == null) return;
-          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="#4338ca" stroke="#fff" stroke-width="2"/>`;
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="#ff5a1f" stroke="#fff" stroke-width="2"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(dateKeys[i]))}</div><div class="tt-r"><span>${esc(label)}</span><b>#${v}</b></div>`);
           const cw = history.length === 1 ? plotW : plotW / (history.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
@@ -693,7 +704,7 @@ ai photo enhancer"></textarea>
       // checked — answers "is my keyword universe growing over time" with
       // real historical sizes (see universeSizeSeries server-side), not
       // today's count re-applied to every past day.
-      function universeSizeChart(points, color = '#4338ca') {
+      function universeSizeChart(points, color = '#ff5a1f') {
         const pts = points || [];
         if (pts.length < 2) return '<p class="hint">Not enough history yet to show a trend — check back after a few more days of checks.</p>';
         const W = 400, H = 170, padL = 34, padB = 18, padT = 8;
@@ -815,7 +826,7 @@ ai photo enhancer"></textarea>
           return `<div class="asobox na">No ASO check yet for this app. <button class="ghost small" data-act="recheck-aso">Run ASO check</button></div>`;
         }
         if (cached.status === 'loading') {
-          return `<div class="asobox"><span class="spinner" style="border-color:rgba(99,102,241,0.3);border-top-color:var(--pink);"></span>Getting ASO recommendations for your tracked keywords…</div>`;
+          return `<div class="asobox"><span class="spinner" style="border-color:rgba(255,90,31,0.3);border-top-color:var(--pink);"></span>Getting ASO recommendations for your tracked keywords…</div>`;
         }
         if (cached.status === 'error') {
           return `<div class="asobox err">⚠︎ Couldn't fetch ASO recommendations: ${esc(cached.error)}</div>`;
@@ -844,11 +855,23 @@ ai photo enhancer"></textarea>
         </div>`;
       }
 
+      // Small inline-SVG icons, matching Icon.astro's stroke style — these
+      // cards are built client-side from template strings, so the Astro
+      // <Icon> component itself isn't usable here; same currentColor/
+      // stroke-width convention, hand-copied for the three card headers.
+      const SVG_COMMON = 'width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+      const ICO_TREND = `<svg ${SVG_COMMON}><polyline points="3 17 9 11 13 15 21 7"></polyline><polyline points="14 7 21 7 21 14"></polyline></svg>`;
+      const ICO_RADAR = `<svg ${SVG_COMMON}><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"></circle><path d="M12 3v3M21 12h-3"></path></svg>`;
+      const ICO_STAR = `<svg ${SVG_COMMON}><polygon points="12 2.5 15 9 22 10 17 15 18.2 21.5 12 18.3 5.8 21.5 7 15 2 10 9 9"></polygon></svg>`;
+      const wnCardHead = (ico, label) => `<div class="wn-card-head"><span class="wn-card-ico">${ico}</span><h4>${label}</h4></div>`;
+
       // "What changed since your last check" — the questions an app owner
       // actually asks first, ahead of the aggregate tiles/charts below:
       // which keywords moved, which competitor is gaining, is the rating
       // trend healthy. Everything here reuses data already collected by the
-      // regular daily check — no extra fetches, no extra cost.
+      // regular daily check — no extra fetches, no extra cost. Each card
+      // links straight into the tab with the full detail (Compare, Trends)
+      // rather than trying to cram that detail onto Overview itself.
       function moversHtml(app) {
         const trends = app.trends || [];
         const withDelta = trends.filter((t) => t.delta != null && t.delta !== 0);
@@ -856,15 +879,17 @@ ai photo enhancer"></textarea>
         const losers = withDelta.filter((t) => t.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 3);
         const newlyRanked = trends.filter((t) => t.position != null && t.prevPosition == null).slice(0, 3);
         const droppedOut = trends.filter((t) => t.position == null && t.prevPosition != null).slice(0, 3);
-        const moves = [...gainers, ...losers, ...newlyRanked.map((t) => ({ ...t, _new: true })), ...droppedOut.map((t) => ({ ...t, _out: true }))];
-        if (!moves.length) return `<div class="wn-card"><h4>Rank movers since last check</h4><p class="wn-empty">No keyword moved position since the last check — check back after the next one.</p></div>`;
+        const head = wnCardHead(ICO_TREND, 'Rank movers since last check');
+        const moves = [...gainers, ...losers, ...newlyRanked, ...droppedOut];
+        if (!moves.length) return `<div class="wn-card">${head}<p class="wn-empty">No keyword moved position since the last check — check back after the next one.</p></div>`;
         const rows = [...gainers, ...newlyRanked, ...losers, ...droppedOut].slice(0, 5).map((t) =>
           `<div class="wn-row"><button class="kwlink wn-kw" data-kwhistory="${escAttr(t.keyword)}" data-list="daily">${esc(t.keyword)}</button>${deltaCell(t)}</div>`).join('');
-        return `<div class="wn-card"><h4>Rank movers since last check</h4>${rows}</div>`;
+        return `<div class="wn-card">${head}${rows}</div>`;
       }
 
       function competitorPulseHtml(app) {
         const comps = state.apps.filter((a) => a.competitorOf === app.key);
+        const head = wnCardHead(ICO_RADAR, 'Competitor pulse');
         if (!comps.length) return '';
         const kws = (app.keywords || []).length ? app.keywords : (app.coverageKeywords || []).slice(0, 60);
         if (!kws.length) return '';
@@ -887,28 +912,29 @@ ai photo enhancer"></textarea>
               if (theirPrev != null && (myPrev == null || theirPrev < myPrev)) prevWin++;
             }
           }
-          if (!curTotal) return `<div class="wn-line">${esc(c.title)} — no shared keyword data checked yet.</div>`;
+          if (!curTotal) return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-title">${esc(c.title)}</span> — no shared keyword data checked yet.</button>`;
           const diff = prevTotal ? curWin - prevWin : null;
           const trend = diff == null || diff === 0 ? '' : diff > 0
             ? ` <span class="delta down">▲ ${diff} since last check</span>`
             : ` <span class="delta up">▼ ${-diff} since last check</span>`;
-          return `<div class="wn-line"><b>${esc(c.title)}</b> beats you on <b>${curWin}/${curTotal}</b> shared keywords${trend}</div>`;
+          return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-title"><b>${esc(c.title)}</b> beats you on <b>${curWin}/${curTotal}</b> shared keywords</span>${trend}</button>`;
         }).join('');
-        return `<div class="wn-card"><h4>Competitor pulse</h4>${lines}</div>`;
+        return `<div class="wn-card">${head}${lines}<p class="wn-empty" style="margin-top:6px;">Click any competitor for the full keyword-by-keyword breakdown.</p></div>`;
       }
 
       function ratingPulseHtml(app) {
         const rh = app.ratingHistory || [];
-        if (!rh.length) return `<div class="wn-card"><h4>Rating health</h4><p class="wn-empty">${app.store === 'play' ? 'No rating data checked yet.' : 'Rating breakdown tracking is Google Play only.'}</p></div>`;
+        const head = wnCardHead(ICO_STAR, 'Rating health');
+        if (!rh.length) return `<div class="wn-card">${head}<p class="wn-empty">${app.store === 'play' ? 'No rating data checked yet.' : 'Rating breakdown tracking is Google Play only.'}</p></div>`;
         const latest = rh[rh.length - 1];
         const prev = rh.length > 1 ? rh[rh.length - 2] : null;
         const toneColor = { good: 'up', mid: 'flat', bad: 'down', na: 'flat' }[latest.tone] || 'flat';
         const diff = prev ? Math.round((latest.negativeShare - prev.negativeShare) * 10) / 10 : null;
         const diffHtml = diff == null || diff === 0 ? '' : diff > 0
           ? ` <span class="delta down">▲ ${diff}pt</span>` : ` <span class="delta up">▼ ${-diff}pt</span>`;
-        return `<div class="wn-card"><h4>Rating health</h4>
-          <div class="wn-line"><span class="delta ${toneColor}">${latest.negativeShare}%</span> of the last ${latest.total} reviews are 1-2★${diffHtml}</div>
-          <p class="wn-empty" style="margin-top:4px;">Lower is healthier — a rising 1-2★ share ahead of a rank drop is often the early warning, not the other way round.</p>
+        return `<div class="wn-card">${head}
+          <button class="wn-linkline" data-goto-section="trends"><span class="wn-line-title"><span class="delta ${toneColor}">${latest.negativeShare}%</span> of the last ${latest.total} reviews are 1-2★</span>${diffHtml}</button>
+          <p class="wn-empty" style="margin-top:6px;">Lower is healthier — a rising 1-2★ share ahead of a rank drop is often the early warning. Click for the full trend.</p>
         </div>`;
       }
 
@@ -1173,7 +1199,11 @@ ai photo enhancer"></textarea>
         return m;
       }
 
-      const COMPARE_COLORS = ['#4338ca', '#c0392b', '#0e9f6e', '#d97706'];
+      // "You" always in brand orange; competitors in colors far enough
+      // around the wheel from orange (and from each other) to stay
+      // distinguishable on the trend chart — red-orange competitors used to
+      // clash with the brand accent.
+      const COMPARE_COLORS = ['#ff5a1f', '#2563eb', '#0e9f6e', '#7c3aed'];
 
       // 0-100 popularity-style score, same curve as the server-side
       // visibilityScore (track.ts) — reimplemented here since the trend
@@ -1738,6 +1768,17 @@ ai photo enhancer"></textarea>
 
       $('apps').addEventListener('click', (ev) => {
         if (ev.target.closest('#empty-add-app')) { openAddAppModal(); return; }
+        const gotoCompare = ev.target.closest('[data-goto-compare]');
+        if (gotoCompare) {
+          const compKey = gotoCompare.getAttribute('data-goto-compare');
+          currentSection = 'compare';
+          const sel = compareState[selectedAppKey] || [];
+          if (!sel.includes(compKey)) compareState[selectedAppKey] = [...sel, compKey].slice(-3);
+          render();
+          return;
+        }
+        const gotoSection = ev.target.closest('[data-goto-section]');
+        if (gotoSection) { currentSection = gotoSection.getAttribute('data-goto-section'); render(); return; }
         // Stash the already-computed ASO result before the deep link opens
         // /aso (in a new, noopener tab — so sessionStorage isn't shared;
         // localStorage is, since it's scoped to the origin, not the opener
