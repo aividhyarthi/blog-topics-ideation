@@ -386,6 +386,7 @@ ai photo enhancer"></textarea>
       let selectedAppKey = null;
       const sortState = {};
       const covSortState = {};
+      const compareSortState = {};
       // Which section of the app-shell is showing: one job per screen, like
       // the international ASO tools — switched from the left sidebar.
       const SECTIONS = [
@@ -1073,6 +1074,73 @@ ai photo enhancer"></textarea>
         return m;
       }
 
+      const COMPARE_COLORS = ['#4338ca', '#c0392b', '#0e9f6e', '#d97706'];
+
+      // 0-100 popularity-style score, same curve as the server-side
+      // visibilityScore (track.ts) — reimplemented here since the trend
+      // chart only has per-keyword position HISTORY on the client, not raw
+      // snapshots to send back to the server for.
+      function visScore(pos) {
+        if (pos == null || pos > 200) return 0;
+        return 100 * (1 - Math.log(pos) / Math.log(201));
+      }
+
+      // Visibility trend for `app` measured against `kws` (the PRIMARY app's
+      // keyword list, not app's own) — every app's keyword-trend `history`
+      // array is date-aligned to the same tenant-wide snapshot list (see
+      // keywordTrends in track.ts), so this is a fair apples-to-apples read
+      // of "how visible is this app on the keywords I actually care about,
+      // over time" even for a rival that tracks a totally different list of
+      // its own. A keyword the app doesn't track at all just contributes 0
+      // (same as truly unranked) at every day.
+      function compareTrendSeries(app, kws, days) {
+        const map = trendMap(app);
+        const histLen = Math.max(0, ...kws.map((kw) => (map[kw]?.history || []).length));
+        const n = Math.min(days, histLen);
+        if (!n) return [];
+        const out = [];
+        for (let i = 0; i < n; i++) {
+          const idx = histLen - n + i; // align to the most recent `n` days
+          const scores = kws.map((kw) => visScore((map[kw]?.history || [])[idx] ?? null));
+          out.push(scores.reduce((a, b) => a + b, 0) / scores.length);
+        }
+        return out;
+      }
+
+      function compareTrendChart(app, comps, kws) {
+        const dateKeys = (state.snapshotDays || []).slice(-30);
+        const series = [{ title: app.title + ' (you)', color: COMPARE_COLORS[0], vals: compareTrendSeries(app, kws, 30) },
+          ...comps.map((c, i) => ({ title: c.title, color: COMPARE_COLORS[i + 1], vals: compareTrendSeries(c, kws, 30) }))];
+        const n = Math.max(...series.map((s) => s.vals.length));
+        if (n < 2) return '';
+        const dates = dateKeys.slice(-n);
+        const W = 720, H = 200, padL = 32, padB = 20, padT = 10;
+        const plotW = W - padL - 8, plotH = H - padT - padB;
+        const x = (i) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+        const y = (v) => padT + plotH - (v / 100) * plotH;
+        let out = '';
+        for (const v of [100, 50, 0]) {
+          out += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - 6}" y2="${y(v).toFixed(1)}" stroke="#e7e8ef" stroke-width="1"/>
+            <text x="${padL - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#898781">${v}</text>`;
+        }
+        const labelEvery = Math.ceil(n / 6);
+        for (let i = 0; i < n; i++) {
+          if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#898781">${esc(fmtDay(dates[i] || ''))}</text>`;
+        }
+        for (const s of series) {
+          const vals = s.vals.slice(-n);
+          let d = '';
+          vals.forEach((v, i) => { d += `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; });
+          out += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        }
+        const legend = series.map((s) => `<span class="li"><span class="sw" style="background:${s.color}"></span>${esc(s.title)}</span>`).join('');
+        return `<div class="chartbox"><h4>Visibility trend on your keywords — you vs competitors</h4>
+          <svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>
+          <div class="legend">${legend}</div>
+          <p class="hint" style="margin-top:6px;">0–100 score, same scale as the Overview visibility score — averaged across your keyword list for each app, using only that app's own tracked/coverage keywords (untracked keywords count as 0, same as "not ranking"). Trend direction matters more than the exact number on any single day.</p>
+        </div>`;
+      }
+
       function compareHtml(app) {
         const others = comparableApps(app);
         if (!others.length) {
@@ -1096,7 +1164,7 @@ ai photo enhancer"></textarea>
         const maps = comps.map(trendMap);
 
         const posOf = (t) => (t && !t.error && t.position != null) ? t.position : null;
-        const rows = kws.map((kw) => {
+        let rows = kws.map((kw) => {
           const myT = mine[kw];
           const myPos = posOf(myT);
           const compCells = comps.map((c, i) => {
@@ -1114,19 +1182,41 @@ ai photo enhancer"></textarea>
           });
           const all = [myPos, ...compCells.map((c) => c.pos)].filter((p) => p != null);
           const best = all.length ? Math.min(...all) : null;
-          const cell = (pos, tracked, checked) => {
-            if (pos != null) return `<td class="pos" ${pos === best ? 'style="background:#e6f5ef;"' : ''}>#${pos}</td>`;
-            if (!tracked) return '<td class="pos"><span class="un" title="This keyword isn\'t in this app\'s tracked or coverage list yet — use the button below to add it.">not tracked</span></td>';
-            if (!checked) return '<td class="pos"><span class="un">not checked yet</span></td>';
-            return '<td class="pos"><span class="un">&gt;200</span></td>';
+          return { kw, volume: volumes[kw] ?? null, myPos, myChecked: myT ? myT.checked !== false : false, compCells, best };
+        });
+
+        const sort = compareSortState[app.key] || {};
+        if (sort.col) {
+          const valOf = (r) => {
+            if (sort.col === 'kw') return r.kw;
+            if (sort.col === 'volume') return r.volume;
+            if (sort.col === 'mine') return r.myPos;
+            if (sort.col === 'best') return r.best;
+            if (sort.col.startsWith('comp:')) return r.compCells[Number(sort.col.slice(5))]?.pos;
+            return null;
           };
-          return `<tr>
-            <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(kw)}" data-list="daily">${esc(kw)}</button></td>
-            <td class="pos">${volumes[kw] != null ? volumes[kw].toLocaleString() : '<span class="un">–</span>'}</td>
-            ${cell(myPos, true, myT ? myT.checked !== false : false)}
-            ${compCells.map((c) => cell(c.pos, c.tracked, c.checked)).join('')}
-          </tr>`;
-        }).join('');
+          rows = rows.slice().sort((a, b) => {
+            const av = valOf(a), bv = valOf(b);
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            if (typeof av === 'string') return av.localeCompare(bv) * sort.dir;
+            return (av - bv) * sort.dir;
+          });
+        }
+
+        const cell = (pos, tracked, checked, best) => {
+          if (pos != null) return `<td class="pos" ${pos === best ? 'style="background:#e6f5ef;"' : ''}>#${pos}</td>`;
+          if (!tracked) return '<td class="pos"><span class="un" title="This keyword isn\'t in this app\'s tracked or coverage list yet — use the button below to add it.">not tracked</span></td>';
+          if (!checked) return '<td class="pos"><span class="un">not checked yet</span></td>';
+          return '<td class="pos"><span class="un">&gt;200</span></td>';
+        };
+        const rowsHtml = rows.map((r) => `<tr>
+            <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(r.kw)}" data-list="daily">${esc(r.kw)}</button></td>
+            <td class="pos">${r.volume != null ? r.volume.toLocaleString() : '<span class="un">–</span>'}</td>
+            ${cell(r.myPos, true, r.myChecked, r.best)}
+            ${r.compCells.map((c) => cell(c.pos, c.tracked, c.checked, r.best)).join('')}
+          </tr>`).join('');
 
         const syncBtns = comps.map((c, i) => {
           const missing = kws.filter((kw) => !maps[i][kw]);
@@ -1134,11 +1224,15 @@ ai photo enhancer"></textarea>
           return `<button class="ghost" data-act="sync-comp" data-comp="${escAttr(c.key)}">Track these ${missing.length} keyword${missing.length === 1 ? '' : 's'} on ${esc(c.title)}</button>`;
         }).filter(Boolean).join(' ');
 
+        const arrow = (col) => sort.col === col ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
+        const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
+
         return `${picker}
+          ${compareTrendChart(app, comps, kws)}
           <p class="scrollhint no-print">↔ Swipe to see all columns</p>
-          <div class="table-wrap"><table>
-            <thead><tr><th>Keyword</th><th>Volume</th><th>${esc(app.title)} (you)</th>${comps.map((c) => `<th>${esc(c.title)}</th>`).join('')}</tr></thead>
-            <tbody>${rows}</tbody>
+          <div class="table-wrap comparetable"><table>
+            <thead><tr>${th('kw', 'Keyword')}${th('volume', 'Volume')}${th('mine', esc(app.title) + ' (you)')}${comps.map((c, i) => th(`comp:${i}`, esc(c.title))).join('')}</tr></thead>
+            <tbody>${rowsHtml}</tbody>
           </table></div>
           <p class="hint" style="margin-top:8px;">Green cell = best rank for that keyword. "Not tracked" means the competitor's own keyword lists don't include that term yet — their rank can't be known until it's checked on their side:</p>
           ${syncBtns ? `<div class="row no-print">${syncBtns}</div>` : ''}`;
@@ -1307,16 +1401,29 @@ ai photo enhancer"></textarea>
         return '';
       }
 
+      // Apps added via "this app is a competitor for X" carry competitorOf —
+      // grouped separately in the sidebar so the list reads as "your apps"
+      // vs "who you're watching", instead of a flat list of identical-looking
+      // entries. Clicking one jumps straight to ITS primary app's Compare
+      // tab (pre-ticked) rather than opening its own Overview — that's the
+      // view competitor tracking is actually for — while its own Keywords/
+      // Coverage/Settings tabs stay one click away if it needs managing.
+      function sideAppBtn(app) {
+        return `<button class="side-app ${app.key === selectedAppKey ? 'selected' : ''}" data-key="${escAttr(app.key)}" ${app.competitorOf ? `data-competitor-of="${escAttr(app.competitorOf)}"` : ''}>
+            ${tabIcon(app)}
+            <span class="tt">${esc(app.title)}</span>
+            <span class="tick">${app.store === 'play' ? 'GP' : 'AS'}</span>
+          </button>`;
+      }
+
       function renderSidebar() {
         const sb = $('sidebar');
         if (!state.apps.length) { sb.style.display = 'none'; return; }
         sb.style.display = 'block';
-        $('side-apps').innerHTML = state.apps.map((app) => `
-          <button class="side-app ${app.key === selectedAppKey ? 'selected' : ''}" data-key="${escAttr(app.key)}">
-            ${tabIcon(app)}
-            <span class="tt">${esc(app.title)}</span>
-            <span class="tick">${app.store === 'play' ? 'GP' : 'AS'}</span>
-          </button>`).join('');
+        const mine = state.apps.filter((a) => !a.competitorOf);
+        const comps = state.apps.filter((a) => a.competitorOf);
+        $('side-apps').innerHTML = mine.map(sideAppBtn).join('') +
+          (comps.length ? `<div class="side-label" style="padding-top:8px;">Competitors</div>${comps.map(sideAppBtn).join('')}` : '');
         const app = state.apps.find((a) => a.key === selectedAppKey);
         $('snav').innerHTML = SECTIONS.map((s) => {
           const cnt = app ? sectionCount(app, s.id) : '';
@@ -1440,7 +1547,24 @@ ai photo enhancer"></textarea>
 
       $('sidebar').addEventListener('click', (ev) => {
         const appBtn = ev.target.closest('.side-app');
-        if (appBtn) { selectedAppKey = appBtn.getAttribute('data-key'); render(); return; }
+        if (appBtn) {
+          const compOf = appBtn.getAttribute('data-competitor-of');
+          const key = appBtn.getAttribute('data-key');
+          if (compOf && state.apps.some((a) => a.key === compOf)) {
+            // A competitor entry's whole reason for existing is the Compare
+            // view — jump straight there, pre-ticked, instead of landing on
+            // its own (mostly empty-feeling) Overview. Its own tabs are still
+            // reachable by selecting it normally from under "Competitors".
+            selectedAppKey = compOf;
+            currentSection = 'compare';
+            const sel = compareState[compOf] || [];
+            if (!sel.includes(key)) compareState[compOf] = [...sel, key].slice(-3);
+          } else {
+            selectedAppKey = key;
+          }
+          render();
+          return;
+        }
         const secBtn = ev.target.closest('[data-section]');
         if (secBtn) { currentSection = secBtn.getAttribute('data-section'); render(); return; }
       });
@@ -1483,7 +1607,7 @@ ai photo enhancer"></textarea>
           const card = sortTh.closest('.appcard');
           const key = card.getAttribute('data-key');
           const col = sortTh.getAttribute('data-sort');
-          const store = sortTh.closest('.covtable') ? covSortState : sortState;
+          const store = sortTh.closest('.comparetable') ? compareSortState : sortTh.closest('.covtable') ? covSortState : sortState;
           const cur = store[key] || (store === covSortState ? { col: 'volume', dir: -1 } : {});
           store[key] = { col, dir: cur.col === col ? -cur.dir : 1 };
           render();

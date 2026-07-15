@@ -255,6 +255,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       genreId: meta?.genreId || null,
       keywords, keywordVolumes,
       ...(coverageKeywords ? { coverageKeywords } : {}),
+      ...(likeApp ? { competitorOf: likeApp.key } : {}),
       addedAt: new Date().toISOString(),
     };
     cfg.apps.push(app);

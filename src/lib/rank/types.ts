@@ -54,6 +54,14 @@ export interface TrackedApp {
    * nightly scheduler after this app's check completes. Blank/unset means no
    * report is sent for this app. */
   reportEmails?: string;
+  /** Set when this app was added via "this app is a competitor for <X>"
+   * (see api/rank.ts's add-app likeApp handling) — the key of that primary
+   * app. Purely a UI hint: groups this app under "Competitors" in the
+   * sidebar and lets its own listing shortcut straight into that app's
+   * Compare tab instead of its own Overview. Never affects checking —
+   * a competitor app is still checked and stored exactly like any other
+   * tracked app. Unset for apps added directly (your own apps). */
+  competitorOf?: string;
 }
 
 export interface TrackerConfig {
