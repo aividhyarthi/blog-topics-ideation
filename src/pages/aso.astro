@@ -29,10 +29,10 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
     <!-- is:global so styles also apply to the results DOM injected at runtime. -->
     <style is:global>
       :root {
-        --pink: #ff5a1f; --pink-dark: #e0480d; --ink: #16181d; --muted: #6b7280;
+        --pink: #16181d; --pink-dark: #000000; --ink: #16181d; --muted: #6b7280;
         --line: #e5e7eb; --bg: #f8f9fb; --card: #ffffff;
         --ok: #0a8a5f; --ok-bg: #e6f6ef; --warn: #b8790a; --warn-bg: #fdf3dd;
-        --bad: #c0392b; --bad-bg: #fdecec; --na: #9aa0ad; --indigo: #ff5a1f;
+        --bad: #c0392b; --bad-bg: #fdecec; --na: #9aa0ad; --indigo: #16181d;
       }
       * { box-sizing: border-box; }
       body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; font-size: 14px; }
@@ -49,7 +49,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       nav.top { margin-top: 12px; display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
       nav.top a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; background: none; border: 1px solid transparent; padding: 6px 11px; border-radius: 7px; }
       nav.top a:hover { color: var(--ink); background: var(--bg); }
-      nav.top a.active { color: var(--pink); background: #fff1eb; }
+      nav.top a.active { color: var(--pink); background: #eceef1; }
       .usermenu { position: relative; margin-left: auto; }
       .usertrigger { color: var(--muted); font-size: 13px; font-weight: 600; background: none; border: 1px solid var(--line); padding: 6px 11px; border-radius: 7px; cursor: pointer; font-family: inherit; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .usertrigger:hover { border-color: #cbd0da; color: var(--ink); }
@@ -65,7 +65,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       label.fld { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin: 12px 0 5px; }
       input[type=text], input[type=url], textarea, select { width: 100%; border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font-size: 13.5px; color: var(--ink); background: #fff; outline: none; font-family: inherit; }
       textarea { min-height: 70px; resize: vertical; font-size: 13px; }
-      input:focus, textarea:focus, select:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(255,90,31,0.15); }
+      input:focus, textarea:focus, select:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(22,24,29,0.15); }
       .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
       .three { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
       @media (max-width: 720px) { .two, .three { grid-template-columns: 1fr; } }
@@ -147,12 +147,12 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         .tablewrap::before { content: '↔ Swipe to see all columns'; display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
       }
       .me-row td { background: #f3f1ff; font-weight: 600; }
-      .gapcount { font-weight: 800; background: #fff1eb; color: var(--indigo); padding: 2px 9px; border-radius: 7px; }
+      .gapcount { font-weight: 800; background: #eceef1; color: var(--indigo); padding: 2px 9px; border-radius: 7px; }
       .gap-row td { background: #f6f4ff; }
       /* keyword sub-tabs */
       .ktabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
       .ktab { padding: 8px 14px; border-radius: 9px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 13px; font-weight: 700; color: var(--muted); }
-      .ktab.active { border-color: var(--pink); color: var(--pink); background: #fff4ef; }
+      .ktab.active { border-color: var(--pink); color: var(--pink); background: #eceef1; }
       .scorepill { font-weight: 800; padding: 2px 8px; border-radius: 7px; }
 
       /* AI improvement cards */
@@ -185,7 +185,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       .fvic { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
       .fvic.ok { background: var(--ok-bg); color: var(--ok); }
       .fvic.bad { background: var(--bad-bg); color: var(--bad); }
-      .fvic.alt { background: #fff1eb; color: var(--indigo); }
+      .fvic.alt { background: #eceef1; color: var(--indigo); }
 
       /* market signals */
       .market { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -213,7 +213,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       .fixrow .fmeta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
       .gain { font-size: 12px; font-weight: 800; color: var(--ok); white-space: nowrap; }
       .ftag { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; }
-      .ftag.high { background: #fff1eb; color: var(--indigo); }
+      .ftag.high { background: #eceef1; color: var(--indigo); }
       .ftag.quick { background: var(--ok-bg); color: var(--ok); }
 
       /* full breakdown */
@@ -396,7 +396,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
           : `<td class="num kmark ${changed ? 'n' : 'y'}">${changed ? '✦ diff' : '✓ same'}</td>`;
         const body = apps.map((a) => {
           const badge = a.hasVariants
-            ? '<span class="fvrate" style="background:#fff1eb;color:var(--indigo)">Localized listings detected</span>'
+            ? '<span class="fvrate" style="background:#eceef1;color:var(--indigo)">Localized listings detected</span>'
             : '<span class="fvrate" style="background:var(--ok-bg);color:var(--ok)">Same across markets</span>';
           const rows = (a.markets || []).map((mk) => {
             if (!mk.ok) return `<tr><td>${esc(mk.country)}/${esc(mk.lang)}</td><td colspan="4" style="color:var(--bad);font-size:12px">couldn't load${mk.error ? ': ' + esc(mk.error) : ''}</td></tr>`;
@@ -589,7 +589,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
             <div class="itext">${esc(text)}</div>
             <button class="ghostbtn icopy" data-copy="${esc(text)}">📋 Copy</button></div>`;
         };
-        const PLACE = { main: { t: 'Main listing', c: 'var(--ok)', bg: 'var(--ok-bg)' }, custom: { t: 'Custom store listing', c: 'var(--indigo)', bg: '#fff1eb' } };
+        const PLACE = { main: { t: 'Main listing', c: 'var(--ok)', bg: 'var(--ok-bg)' }, custom: { t: 'Custom store listing', c: 'var(--indigo)', bg: '#eceef1' } };
         const verdictCard = (kwTerm, idx) => {
           const fv = vById[String(kwTerm).toLowerCase()] || verdicts[idx] || {};
           if (!(fv.willWork || fv.wontWork || fv.bestAlternative || fv.recoTitle)) return '';

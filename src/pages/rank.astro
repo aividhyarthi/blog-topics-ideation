@@ -30,7 +30,7 @@ const limitsText = product && plan
     <meta name="description" content="Track where your apps rank in Google Play and App Store search for your keywords, with daily history and trends." />
     <style is:global>
       :root {
-        --pink: #ff5a1f; --pink-dark: #e0480d; --ink: #16181d; --muted: #6b7280;
+        --pink: #16181d; --pink-dark: #000000; --ink: #16181d; --muted: #6b7280;
         --line: #e5e7eb; --bg: #f8f9fb; --card: #ffffff; --ok: #0a8a5f; --warn: #b8790a; --bad: #c0392b;
       }
       * { box-sizing: border-box; }
@@ -42,7 +42,7 @@ const limitsText = product && plan
       nav.top { margin-top: 12px; display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
       nav.top a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; background: none; border: 1px solid transparent; padding: 6px 11px; border-radius: 7px; }
       nav.top a:hover { color: var(--ink); background: var(--bg); }
-      nav.top a.active { color: var(--pink); background: #fff1eb; }
+      nav.top a.active { color: var(--pink); background: #eceef1; }
       .usermenu { position: relative; margin-left: auto; }
       .usertrigger { color: var(--muted); font-size: 13px; font-weight: 600; background: none; border: 1px solid var(--line); padding: 6px 11px; border-radius: 7px; cursor: pointer; font-family: inherit; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .usertrigger:hover { border-color: #cbd0da; color: var(--ink); }
@@ -66,7 +66,7 @@ const limitsText = product && plan
         border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font-size: 13.5px;
         color: var(--ink); background: #fff; outline: none; font-family: inherit;
       }
-      input:focus, textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(255,90,31,0.15); }
+      input:focus, textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(22,24,29,0.15); }
       textarea { width: 100%; min-height: 74px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
       .addrow { display: grid; grid-template-columns: 2.2fr 110px 110px; gap: 10px; margin-bottom: 10px; }
       @media (max-width: 760px) { .addrow { grid-template-columns: 1fr; } }
@@ -94,7 +94,7 @@ const limitsText = product && plan
       .pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; }
       .pill.play { background: #e6f6ee; color: #0a7a4e; }
       .pill.ios { background: #eaeeff; color: #364fc7; }
-      .pill.chart { background: #fff1eb; color: var(--pink); }
+      .pill.chart { background: #eceef1; color: var(--pink); }
       .pill.cc { background: var(--bg); color: var(--muted); }
       .pill.vol { background: #eaeeff; color: #364fc7; cursor: help; }
       /* --- overview (tiles + charts) --- */
@@ -111,7 +111,7 @@ const limitsText = product && plan
       @media (max-width: 880px) { .wn-grid { grid-template-columns: 1fr; } }
       .wn-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px; box-shadow: 0 1px 2px rgba(20,20,40,0.03); }
       .wn-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
-      .wn-card-ico { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; background: #fff1eb; color: var(--pink); }
+      .wn-card-ico { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; background: #eceef1; color: var(--pink); }
       .wn-card h4 { margin: 0; font-size: 11.5px; color: var(--ink); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
       .wn-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; padding: 5px 0; border-top: 1px solid var(--bg); }
       .wn-row:first-of-type { border-top: none; }
@@ -124,7 +124,7 @@ const limitsText = product && plan
       .wn-linkline:hover .wn-line-title { color: var(--pink); }
       .wn-linkline:hover .wn-viewcta { background: var(--pink); color: #fff; }
       .wn-line-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-      .wn-viewcta { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--pink); background: #fff1eb; padding: 4px 9px; border-radius: 999px; white-space: nowrap; transition: background 0.12s, color 0.12s; }
+      .wn-viewcta { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--pink); background: #eceef1; padding: 4px 9px; border-radius: 999px; white-space: nowrap; transition: background 0.12s, color 0.12s; }
       .wn-line-title { font-size: 13px; color: var(--ink); }
       .charts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-top: 12px; }
       @media (max-width: 880px) { .charts { grid-template-columns: 1fr; } }
@@ -185,7 +185,7 @@ const limitsText = product && plan
       .annrow { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
       .annrow:last-child { border-bottom: none; }
       .anntype { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 5px; white-space: nowrap; flex-shrink: 0; }
-      .anntype.experiment { background: #fff1eb; color: var(--pink); }
+      .anntype.experiment { background: #eceef1; color: var(--pink); }
       .anntype.paid { background: #fdf3dd; color: var(--warn); }
       .anntext { flex: 1; font-size: 13px; }
       .annimpact { margin-top: 4px; font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -200,7 +200,7 @@ const limitsText = product && plan
       .discover h4 { margin: 0 0 8px; font-size: 13px; }
       .disc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; max-height: 300px; overflow-y: auto; }
       .disc-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
-      .disc-row:hover { background: #fff1eb; }
+      .disc-row:hover { background: #eceef1; }
       .disc-row .kw { flex: 1; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--pink); }
       .disc-row b { font-variant-numeric: tabular-nums; }
       .asobox { margin-top: 12px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--ink); }
@@ -222,7 +222,7 @@ const limitsText = product && plan
       .app-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
       .app-tab { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 6px 7px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink); transition: border-color 0.15s; max-width: 220px; }
       .app-tab:hover { border-color: #cbd0da; }
-      .app-tab.selected { border-color: var(--pink); background: #fff1eb; color: var(--pink); }
+      .app-tab.selected { border-color: var(--pink); background: #eceef1; color: var(--pink); }
       .app-tab img, .app-tab .fi { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; }
       .app-tab .fi { display: grid; place-items: center; background: var(--bg); font-size: 11px; }
       .app-tab .tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -255,7 +255,7 @@ const limitsText = product && plan
       .toptabs button:hover { color: var(--ink); }
       .toptabs button.active { color: var(--pink); border-bottom-color: var(--pink); }
       .toptabs .cnt { font-size: 10.5px; font-weight: 700; background: var(--bg); color: var(--muted); padding: 1px 6px; border-radius: 999px; }
-      .toptabs button.active .cnt { background: #fff1eb; color: var(--pink); }
+      .toptabs button.active .cnt { background: #eceef1; color: var(--pink); }
       .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 2px 0 12px; }
       .section-head h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
       .section-head .hint { margin: 0; }
@@ -529,8 +529,8 @@ ai photo enhancer"></textarea>
         const d = pts.map((pt, j) => `${j ? 'L' : 'M'}${x(pt.i).toFixed(1)},${y(pt.p).toFixed(1)}`).join(' ');
         const last = pts[pts.length - 1];
         return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-          <path d="${d}" fill="none" stroke="#ff5a1f" stroke-width="1.8" stroke-linecap="round"/>
-          <circle cx="${x(last.i).toFixed(1)}" cy="${y(last.p).toFixed(1)}" r="2.6" fill="#ff5a1f"/>
+          <path d="${d}" fill="none" stroke="#16181d" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="${x(last.i).toFixed(1)}" cy="${y(last.p).toFixed(1)}" r="2.6" fill="#16181d"/>
         </svg>`;
       }
 
@@ -612,10 +612,10 @@ ai photo enhancer"></textarea>
         }
         out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - 6}" y2="${padT + plotH}" stroke="#c3c2b7" stroke-width="1"/>`;
         const d = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-        out += `<path d="${d}" fill="none" stroke="#ff5a1f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        out += `<path d="${d}" fill="none" stroke="#16181d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(days.length / 6);
         days.forEach((day, i) => {
-          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3" fill="#ff5a1f" stroke="#fff" stroke-width="2"/>`;
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3" fill="#16181d" stroke="#fff" stroke-width="2"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(day.dateKey))}</div><div class="tt-r"><span>Visibility score</span><b>${vals[i].toFixed(1)}</b></div>`);
           const cw = days.length === 1 ? plotW : plotW / (days.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
@@ -625,7 +625,7 @@ ai photo enhancer"></textarea>
           const idx = days.findIndex((d) => d.dateKey === a.date);
           if (idx === -1) return;
           const ax = x(idx);
-          const color = a.type === 'paid' ? '#b8790a' : '#ff5a1f';
+          const color = a.type === 'paid' ? '#b8790a' : '#16181d';
           out += `<line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,2"/>`;
           out += `<circle cx="${ax.toFixed(1)}" cy="${(padT - 2).toFixed(1)}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(a.date))} · ${esc(ANN_TYPE_LABEL[a.type] || a.type)}</div><div class="tt-r"><span>${esc(a.label)}</span></div>`);
@@ -656,11 +656,11 @@ ai photo enhancer"></textarea>
           d += `${started ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
           started = true;
         });
-        out += `<path d="${d}" fill="none" stroke="#ff5a1f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        out += `<path d="${d}" fill="none" stroke="#16181d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(history.length / 6);
         history.forEach((v, i) => {
           if (v == null) return;
-          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="#ff5a1f" stroke="#fff" stroke-width="2"/>`;
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="#16181d" stroke="#fff" stroke-width="2"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(dateKeys[i]))}</div><div class="tt-r"><span>${esc(label)}</span><b>#${v}</b></div>`);
           const cw = history.length === 1 ? plotW : plotW / (history.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
@@ -709,7 +709,7 @@ ai photo enhancer"></textarea>
       // checked — answers "is my keyword universe growing over time" with
       // real historical sizes (see universeSizeSeries server-side), not
       // today's count re-applied to every past day.
-      function universeSizeChart(points, color = '#ff5a1f') {
+      function universeSizeChart(points, color = '#16181d') {
         const pts = points || [];
         if (pts.length < 2) return '<p class="hint">Not enough history yet to show a trend — check back after a few more days of checks.</p>';
         const W = 400, H = 170, padL = 34, padB = 18, padT = 8;
@@ -831,7 +831,7 @@ ai photo enhancer"></textarea>
           return `<div class="asobox na">No ASO check yet for this app. <button class="ghost small" data-act="recheck-aso">Run ASO check</button></div>`;
         }
         if (cached.status === 'loading') {
-          return `<div class="asobox"><span class="spinner" style="border-color:rgba(255,90,31,0.3);border-top-color:var(--pink);"></span>Getting ASO recommendations for your tracked keywords…</div>`;
+          return `<div class="asobox"><span class="spinner" style="border-color:rgba(22,24,29,0.3);border-top-color:var(--pink);"></span>Getting ASO recommendations for your tracked keywords…</div>`;
         }
         if (cached.status === 'error') {
           return `<div class="asobox err">⚠︎ Couldn't fetch ASO recommendations: ${esc(cached.error)}</div>`;
@@ -1207,7 +1207,7 @@ ai photo enhancer"></textarea>
       // around the wheel from orange (and from each other) to stay
       // distinguishable on the trend chart — red-orange competitors used to
       // clash with the brand accent.
-      const COMPARE_COLORS = ['#ff5a1f', '#2563eb', '#0e9f6e', '#7c3aed'];
+      const COMPARE_COLORS = ['#16181d', '#2563eb', '#0e9f6e', '#7c3aed'];
 
       // Icon + short name instead of the full store title in comparison
       // TABLE headers specifically — a real app title ("PhonePe: UPI,
