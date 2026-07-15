@@ -9,7 +9,7 @@ import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey, universeSizeSeries } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, ConfigReadError } from '../../lib/rank/store';
-import { runCheck, checkOne, checkCoverageBatch } from '../../lib/rank/check';
+import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/rank/check';
 import { withTenantLock } from '../../lib/rank/lock';
 import { discoverKeywords } from '../../lib/rank/discover';
 import { fetchTrendsScores } from '../../lib/rank/trends';
@@ -48,8 +48,14 @@ function tenant(locals: APIContext['locals']) {
  */
 async function checkAfterEdit(app: TrackedApp, userId?: string): Promise<string | undefined> {
   if (!app.keywords.length) return undefined;
-  try { await withTenantLock(userId || '__internal__', () => checkOne(app, userId)); return undefined; }
-  catch (e) { return `Keywords saved, but the rank check failed: ${e instanceof Error ? e.message : String(e)}`; }
+  try {
+    await withTenantLock(userId || '__internal__', () => checkOne(app, userId));
+    // Best-effort, same as the nightly cron's own rating point — otherwise
+    // the Trends tab's rating chart stays empty until the NEXT nightly run
+    // even though the app was just checked, which reads as broken.
+    try { await checkRating(app, userId); } catch { /* best-effort */ }
+    return undefined;
+  } catch (e) { return `Keywords saved, but the rank check failed: ${e instanceof Error ? e.message : String(e)}`; }
 }
 
 /**
@@ -457,6 +463,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       // freshly-checked keywords.
       try { await withTenantLock(userId || '__internal__', () => checkOne(targets[0], userId)); }
       catch (e) { return json({ error: `Check failed: ${e instanceof Error ? e.message : String(e)}` }, 502); }
+      // Best-effort — same reasoning as checkAfterEdit: without this, the
+      // Trends tab's rating chart only gets a fresh point once a day from
+      // the nightly cron, even right after a manual check.
+      try { await checkRating(targets[0], userId); } catch { /* best-effort */ }
       return json({ ok: true, ...statePayload(userId) });
     }
 
@@ -469,6 +479,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
     try { await withTenantLock(userId || '__internal__', () => runCheck(due, userId)); }
     catch (e) { return json({ error: `Check failed: ${e instanceof Error ? e.message : String(e)}` }, 502); }
+    for (const a of due) { try { await checkRating(a, userId); } catch { /* best-effort */ } }
     const skipped = targets.length - due.length;
     return json({ ok: true, note: skipped ? `Checked ${due.length} app(s) — ${skipped} already checked today were skipped.` : undefined, ...statePayload(userId) });
   }

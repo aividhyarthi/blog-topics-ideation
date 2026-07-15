@@ -119,9 +119,12 @@ const limitsText = product && plan
       .wn-empty { color: var(--muted); font-size: 12.5px; }
       .wn-line { font-size: 13px; padding: 6px 0; border-top: 1px solid var(--bg); }
       .wn-line:first-of-type { border-top: none; padding-top: 0; }
-      .wn-linkline { display: block; width: 100%; text-align: left; background: none; border: none; padding: 6px 0; border-top: 1px solid var(--bg); cursor: pointer; font-family: inherit; color: inherit; }
+      .wn-linkline { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; background: none; border: none; padding: 8px 0; border-top: 1px solid var(--bg); cursor: pointer; font-family: inherit; color: inherit; }
       .wn-linkline:first-of-type { border-top: none; padding-top: 0; }
       .wn-linkline:hover .wn-line-title { color: var(--pink); }
+      .wn-linkline:hover .wn-viewcta { background: var(--pink); color: #fff; }
+      .wn-line-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+      .wn-viewcta { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--pink); background: #fff1eb; padding: 4px 9px; border-radius: 999px; white-space: nowrap; transition: background 0.12s, color 0.12s; }
       .wn-line-title { font-size: 13px; color: var(--ink); }
       .charts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-top: 12px; }
       @media (max-width: 880px) { .charts { grid-template-columns: 1fr; } }
@@ -152,6 +155,8 @@ const limitsText = product && plan
          touch devices, making the page feel stuck while a finger is over
          a table (only the table's own content ever appears to move). */
       .table-wrap { overflow-x: auto; overflow-y: hidden; touch-action: pan-x; border: 1px solid var(--line); border-radius: 8px; background: #fff; margin-top: 12px; -webkit-overflow-scrolling: touch; }
+      .cthead { display: inline-flex; align-items: center; gap: 5px; }
+      .cticon { width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0; }
       table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 13px; }
       th, td { text-align: left; padding: 8px 12px; vertical-align: middle; border-bottom: 1px solid var(--line); }
       th { background: var(--bg); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 700; }
@@ -912,14 +917,14 @@ ai photo enhancer"></textarea>
               if (theirPrev != null && (myPrev == null || theirPrev < myPrev)) prevWin++;
             }
           }
-          if (!curTotal) return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-title">${esc(c.title)}</span> — no shared keyword data checked yet.</button>`;
+          if (!curTotal) return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main"><span class="wn-line-title">${esc(c.title)}</span><span class="wn-empty">No shared keyword data checked yet</span></span><span class="wn-viewcta">Compare →</span></button>`;
           const diff = prevTotal ? curWin - prevWin : null;
           const trend = diff == null || diff === 0 ? '' : diff > 0
             ? ` <span class="delta down">▲ ${diff} since last check</span>`
             : ` <span class="delta up">▼ ${-diff} since last check</span>`;
-          return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-title"><b>${esc(c.title)}</b> beats you on <b>${curWin}/${curTotal}</b> shared keywords</span>${trend}</button>`;
+          return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main"><span class="wn-line-title"><b>${esc(c.title)}</b> beats you on <b>${curWin}/${curTotal}</b> shared keywords</span><span class="wn-empty">${trend || 'No change since last check'}</span></span><span class="wn-viewcta">Compare →</span></button>`;
         }).join('');
-        return `<div class="wn-card">${head}${lines}<p class="wn-empty" style="margin-top:6px;">Click any competitor for the full keyword-by-keyword breakdown.</p></div>`;
+        return `<div class="wn-card">${head}${lines}</div>`;
       }
 
       function ratingPulseHtml(app) {
@@ -933,8 +938,7 @@ ai photo enhancer"></textarea>
         const diffHtml = diff == null || diff === 0 ? '' : diff > 0
           ? ` <span class="delta down">▲ ${diff}pt</span>` : ` <span class="delta up">▼ ${-diff}pt</span>`;
         return `<div class="wn-card">${head}
-          <button class="wn-linkline" data-goto-section="trends"><span class="wn-line-title"><span class="delta ${toneColor}">${latest.negativeShare}%</span> of the last ${latest.total} reviews are 1-2★</span>${diffHtml}</button>
-          <p class="wn-empty" style="margin-top:6px;">Lower is healthier — a rising 1-2★ share ahead of a rank drop is often the early warning. Click for the full trend.</p>
+          <button class="wn-linkline" data-goto-section="trends"><span class="wn-line-main"><span class="wn-line-title"><span class="delta ${toneColor}">${latest.negativeShare}%</span> of the last ${latest.total} reviews are 1-2★${diffHtml}</span><span class="wn-empty">Lower is healthier — watch for a rise ahead of a rank drop</span></span><span class="wn-viewcta">Trend →</span></button>
         </div>`;
       }
 
@@ -1096,10 +1100,10 @@ ai photo enhancer"></textarea>
             ${tileHtml('Top 30', c.top30, p && p.top30)}
             ${tileHtml('Top 100', c.top100, p && p.top100)}
           </div>
-          <h4 class="covhead" style="margin-top:16px;">Every keyword you're monitoring here, ranking or not, sorted by volume</h4>
-          <p class="hint" style="margin:0 0 6px;">This list can overlap with the "Daily Keyword Snapshot" tab, that's normal — a keyword on both is now always shown with its daily-checked position here too, so the two tabs never disagree. This list is checked by the nightly check, not the "Check now" button up top — click <b>Check all keyword rankings</b> below for a smaller list you want checked right away.</p>
-          ${RANK_LEGEND}
           ${categorizedCoverageHtml(app)}
+          <h4 class="covhead" style="margin-top:14px;">Every keyword you're monitoring here, ranking or not, sorted by volume</h4>
+          <p class="hint" style="margin:0 0 6px;">This list can overlap with the "Daily Keyword Snapshot" tab, that's normal — a keyword on both is now always shown with its daily-checked position here too, so the two tabs never disagree. This list is checked by the nightly check, not the "Check now" button up top — click <b>Check all keyword rankings</b> above for a smaller list you want checked right away.</p>
+          ${RANK_LEGEND}
         </div>`;
       }
 
@@ -1205,6 +1209,17 @@ ai photo enhancer"></textarea>
       // clash with the brand accent.
       const COMPARE_COLORS = ['#ff5a1f', '#2563eb', '#0e9f6e', '#7c3aed'];
 
+      // Icon + short name instead of the full store title in comparison
+      // TABLE headers specifically — a real app title ("PhonePe: UPI,
+      // Recharge, Bill Pay & Insurance") can be 40+ characters, which is
+      // what was forcing the Compare table into permanent horizontal
+      // scroll with 3 competitor columns. Full name is still on hover.
+      function compLabel(a, isYou) {
+        const short = a.title.length > 14 ? a.title.slice(0, 13) + '…' : a.title;
+        const icon = a.icon ? `<img src="${escAttr(a.icon)}" alt="" class="cticon" />` : '';
+        return `<span class="cthead" title="${escAttr(a.title)}">${icon}<span>${esc(short)}${isYou ? ' (you)' : ''}</span></span>`;
+      }
+
       // 0-100 popularity-style score, same curve as the server-side
       // visibilityScore (track.ts) — reimplemented here since the trend
       // chart only has per-keyword position HISTORY on the client, not raw
@@ -1238,8 +1253,8 @@ ai photo enhancer"></textarea>
 
       function compareTrendChart(app, comps, kws) {
         const dateKeys = (state.snapshotDays || []).slice(-30);
-        const series = [{ title: app.title + ' (you)', color: COMPARE_COLORS[0], vals: compareTrendSeries(app, kws, 30) },
-          ...comps.map((c, i) => ({ title: c.title, color: COMPARE_COLORS[i + 1], vals: compareTrendSeries(c, kws, 30) }))];
+        const series = [{ titleHtml: compLabel(app, true), color: COMPARE_COLORS[0], vals: compareTrendSeries(app, kws, 30) },
+          ...comps.map((c, i) => ({ titleHtml: compLabel(c, false), color: COMPARE_COLORS[i + 1], vals: compareTrendSeries(c, kws, 30) }))];
         const n = Math.max(...series.map((s) => s.vals.length));
         if (n < 2) return '';
         const dates = dateKeys.slice(-n);
@@ -1262,7 +1277,7 @@ ai photo enhancer"></textarea>
           vals.forEach((v, i) => { d += `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; });
           out += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
         }
-        const legend = series.map((s) => `<span class="li"><span class="sw" style="background:${s.color}"></span>${esc(s.title)}</span>`).join('');
+        const legend = series.map((s) => `<span class="li"><span class="sw" style="background:${s.color}"></span>${s.titleHtml}</span>`).join('');
         return `<div class="chartbox"><h4>Visibility trend on your keywords — you vs competitors</h4>
           <svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>
           <div class="legend">${legend}</div>
@@ -1290,7 +1305,7 @@ ai photo enhancer"></textarea>
           const best = Math.max(...scores);
           return { cat, count: catKws.length, scores, best };
         });
-        const head = `<th>Category</th><th>${esc(app.title)} (you)</th>${comps.map((c) => `<th>${esc(c.title)}</th>`).join('')}`;
+        const head = `<th>Category</th><th>${compLabel(app, true)}</th>${comps.map((c) => `<th>${compLabel(c, false)}</th>`).join('')}`;
         const body = rows.map((r) => `<tr>
             <td class="kw">${esc(r.cat)} <span class="hint" style="margin:0;">(${r.count})</span></td>
             ${r.scores.map((s) => `<td class="pos" ${s === r.best ? 'style="background:#e6f5ef;"' : ''}>${s}</td>`).join('')}
@@ -1311,7 +1326,7 @@ ai photo enhancer"></textarea>
         const picker = `<div class="row no-print" style="margin-bottom:12px;">
           <span class="hint" style="margin:0;">Compare against (max 3):</span>
           ${others.map((o) => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer;">
-            <input type="checkbox" data-comp-toggle="${escAttr(o.key)}" ${sel.includes(o.key) ? 'checked' : ''} /> ${esc(o.title)}
+            <input type="checkbox" data-comp-toggle="${escAttr(o.key)}" ${sel.includes(o.key) ? 'checked' : ''} /> ${compLabel(o, false)}
           </label>`).join('')}
         </div>`;
         const comps = sel.map((k) => others.find((o) => o.key === k)).filter(Boolean);
@@ -1392,7 +1407,7 @@ ai photo enhancer"></textarea>
           ${categoryStrengthHtml(app, comps, kws)}
           <p class="scrollhint no-print">↔ Swipe to see all columns</p>
           <div class="table-wrap comparetable"><table>
-            <thead><tr>${th('kw', 'Keyword')}${th('volume', 'Volume')}${th('mine', esc(app.title) + ' (you)')}${comps.map((c, i) => th(`comp:${i}`, esc(c.title))).join('')}</tr></thead>
+            <thead><tr>${th('kw', 'Keyword')}${th('volume', 'Volume')}${th('mine', compLabel(app, true))}${comps.map((c, i) => th(`comp:${i}`, compLabel(c, false))).join('')}</tr></thead>
             <tbody>${rowsHtml}</tbody>
           </table></div>
           <p class="hint" style="margin-top:8px;">Green cell = best rank for that keyword. "Not tracked" means the competitor's own keyword lists don't include that term yet — their rank can't be known until it's checked on their side:</p>
@@ -1434,12 +1449,13 @@ ai photo enhancer"></textarea>
             <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
         const table = (app.keywords || []).length
-          ? `<h4 class="covhead">Daily-tracked keywords <span class="hint" style="display:inline;margin:0;">— ${app.keywords.length} keyword${app.keywords.length === 1 ? '' : 's'}, checked automatically every day</span></h4>
-            ${RANK_LEGEND}
+          ? `<div class="chartbox" style="margin-bottom:14px;"><h4>Search visibility score (0–100)</h4>${visChart(app.overview.days, app.annotations)}</div>
             <p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
               <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
               <tbody>${rows}</tbody>
-            </table></div>`
+            </table></div>
+            <h4 class="covhead" style="margin-top:14px;">Daily-tracked keywords <span class="hint" style="display:inline;margin:0;">— ${app.keywords.length} keyword${app.keywords.length === 1 ? '' : 's'}, checked automatically every day</span></h4>
+            ${RANK_LEGEND}`
           : '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>';
         const apphead = `
           <div class="apphead" style="margin-bottom:14px;">
