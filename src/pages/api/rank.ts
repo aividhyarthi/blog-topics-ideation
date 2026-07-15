@@ -278,6 +278,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ ok: true, ...statePayload(userId) });
   }
 
+  // Sets/clears which app THIS app is a competitor for, after the fact —
+  // covers apps added before the "this is a competitor for X" picker
+  // existed, and lets a wrongly-linked (or unlinked) app be fixed without
+  // deleting and re-adding it. This link is what scopes an app into a
+  // single primary app's Compare tab instead of showing up for every app
+  // in the account (see comparableApps on the client).
+  if (action === 'set-competitor-of') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    const target = String(body.competitorOf || '');
+    if (!target) {
+      delete app.competitorOf;
+    } else {
+      if (target === app.key) return json({ error: 'An app cannot be a competitor for itself.' }, 400);
+      if (!cfg.apps.some((a) => a.key === target)) return json({ error: 'Target app not found.' }, 404);
+      app.competitorOf = target;
+    }
+    saveConfig(cfg, userId);
+    return json({ ok: true, ...statePayload(userId) });
+  }
+
   if (action === 'set-keywords' || action === 'add-keywords') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
@@ -301,15 +322,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'discover') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
-    // The user's OTHER tracked apps in the same store+country are treated as
-    // the competitor set — their listings get mined for candidates too.
-    // Excludes apps sharing the same developerId (same publisher's own
-    // portfolio, not a real rival) — same signal ASO Inspector's
-    // auto-discovery uses. Apps added before developerId was captured have
-    // it as null/undefined and are never excluded on that basis alone.
-    const siblings = cfg.apps.filter((a) =>
-      a.key !== app.key && a.store === app.store && a.country === app.country &&
-      !(app.developerId && a.developerId && app.developerId === a.developerId));
+    // Only apps EXPLICITLY linked to this one via competitorOf are mined —
+    // matching on store+country alone pulled in every other app in the
+    // whole account (every client's own apps, every client's competitors),
+    // which is wrong once an account manages more than one client's apps.
+    const siblings = cfg.apps.filter((a) => a.key !== app.key && (a.competitorOf === app.key || app.competitorOf === a.key));
     try {
       const result = await discoverKeywords(app, 120, siblings);
       return json({ ok: true, discovery: result });
@@ -336,8 +353,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     saveConfig(cfg, userId);
     const left = missing.length - batch.length;
     const note = filled === 0
-      ? 'No estimates came back this run — the free Trends source is best-effort and sometimes blocks requests. Try again in a few minutes.'
-      : `Estimated ${filled} of ${batch.length} keywords (Google Trends 0-100 popularity proxy).${left > 0 ? ` ${left} keywords still missing — click again to continue.` : ''}`;
+      ? 'No estimates came back this run — try again in a few minutes.'
+      : `Estimated ${filled} of ${batch.length} keywords.${left > 0 ? ` ${left} keywords still missing — click again to continue.` : ''}`;
     return json({ ok: true, note, ...statePayload(userId) });
   }
 
