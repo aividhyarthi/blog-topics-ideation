@@ -99,14 +99,29 @@ const limitsText = product && plan
       .pill.vol { background: #eaeeff; color: #364fc7; cursor: help; }
       /* --- overview (tiles + charts) --- */
       .ov { margin-top: 14px; }
-      .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
-      .tile { flex: 1; min-width: 128px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+      /* One unified strip, not N separate boxed cards — a border/shadow
+         per number reads as "clutter" once you have 4-5 of them stacked
+         next to charts and cards that are ALSO individually boxed. A
+         single container with thin dividers between numbers is one visual
+         unit, not five competing ones. */
+      .tiles { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+      .tile { flex: 1; min-width: 128px; padding: 12px 16px; border-right: 1px solid var(--line); }
+      .tile:last-child { border-right: none; }
       .tile .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 700; }
       .tile .val { font-size: 20px; font-weight: 700; line-height: 1.2; display: flex; align-items: baseline; gap: 7px; }
       .tile .val .d { font-size: 12px; font-weight: 700; }
       .tile .val .d.up { color: var(--ok); }
       .tile .val .d.down { color: var(--bad); }
       .tile .val .d.flat { color: var(--muted); }
+      /* Tiles + the category tabs + the table below them used to be three
+         separately-floating pieces with their own spacing, which read as
+         a gap or a break between sections that are actually one continuous
+         story ("here's your coverage, broken down by category"). One
+         shared border makes that explicit. */
+      .statblock { border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden; }
+      .statblock .tiles { border: none; border-radius: 0; border-bottom: 1px solid var(--line); }
+      .statblock .kwtabs.cattabs { margin: 0; padding: 10px 14px 0; }
+      .statblock .table-wrap { border: none; border-radius: 0; border-top: 1px solid var(--line); margin-top: 10px; }
       .wn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
       @media (max-width: 880px) { .wn-grid { grid-template-columns: 1fr; } }
       .wn-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px; box-shadow: 0 1px 2px rgba(20,20,40,0.03); }
@@ -1094,13 +1109,15 @@ ai photo enhancer"></textarea>
             <div class="chartbox"><h4>Keyword universe size over time</h4>${universeSizeChart(cov.universeTrend)}</div>
             <div class="chartbox"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>
           </div>
-          <div class="tiles">
-            ${tileHtml('Top 1', c.top1, p && p.top1)}
-            ${tileHtml('Top 10', c.top10, p && p.top10)}
-            ${tileHtml('Top 30', c.top30, p && p.top30)}
-            ${tileHtml('Top 100', c.top100, p && p.top100)}
+          <div class="statblock">
+            <div class="tiles">
+              ${tileHtml('Top 1', c.top1, p && p.top1)}
+              ${tileHtml('Top 10', c.top10, p && p.top10)}
+              ${tileHtml('Top 30', c.top30, p && p.top30)}
+              ${tileHtml('Top 100', c.top100, p && p.top100)}
+            </div>
+            ${categorizedCoverageHtml(app)}
           </div>
-          ${categorizedCoverageHtml(app)}
           <h4 class="covhead" style="margin-top:14px;">Every keyword you're monitoring here, ranking or not, sorted by volume</h4>
           <p class="hint" style="margin:0 0 6px;">This list can overlap with the "Daily Keyword Snapshot" tab, that's normal — a keyword on both is now always shown with its daily-checked position here too, so the two tabs never disagree. This list is checked by the nightly check, not the "Check now" button up top — click <b>Check all keyword rankings</b> above for a smaller list you want checked right away.</p>
           ${RANK_LEGEND}
@@ -1237,13 +1254,25 @@ ai photo enhancer"></textarea>
       // over time" even for a rival that tracks a totally different list of
       // its own. A keyword the app doesn't track at all just contributes 0
       // (same as truly unranked) at every day.
-      function compareTrendSeries(app, kws, days) {
+      function compareTrendSeries(app, kws, days, dateKeys) {
         const map = trendMap(app);
         const histLen = Math.max(0, ...kws.map((kw) => (map[kw]?.history || []).length));
-        const n = Math.min(days, histLen);
+        const n = Math.min(days, histLen, dateKeys.length);
         if (!n) return [];
+        // A competitor added partway through the window has no real data
+        // for the days before it existed — history[] can't tell "not
+        // tracked yet" apart from "tracked, ranked nowhere" (both are
+        // null), so use the app's own addedAt date instead. Without this,
+        // every pre-add day scored 0 (same as "ranked nowhere"), which
+        // drew a flat line at zero followed by a vertical cliff the day
+        // tracking actually started — reading as an overnight ranking
+        // surge that never happened, when it was really "we only started
+        // watching this app a few days ago."
+        const addedDate = app.addedAt ? app.addedAt.slice(0, 10) : null;
+        const alignedDates = dateKeys.slice(-n);
         const out = [];
         for (let i = 0; i < n; i++) {
+          if (addedDate && alignedDates[i] < addedDate) { out.push(null); continue; }
           const idx = histLen - n + i; // align to the most recent `n` days
           const scores = kws.map((kw) => visScore((map[kw]?.history || [])[idx] ?? null));
           out.push(scores.reduce((a, b) => a + b, 0) / scores.length);
@@ -1253,8 +1282,8 @@ ai photo enhancer"></textarea>
 
       function compareTrendChart(app, comps, kws) {
         const dateKeys = (state.snapshotDays || []).slice(-30);
-        const series = [{ titleHtml: compLabel(app, true), color: COMPARE_COLORS[0], vals: compareTrendSeries(app, kws, 30) },
-          ...comps.map((c, i) => ({ titleHtml: compLabel(c, false), color: COMPARE_COLORS[i + 1], vals: compareTrendSeries(c, kws, 30) }))];
+        const series = [{ titleHtml: compLabel(app, true), color: COMPARE_COLORS[0], vals: compareTrendSeries(app, kws, 30, dateKeys) },
+          ...comps.map((c, i) => ({ titleHtml: compLabel(c, false), color: COMPARE_COLORS[i + 1], vals: compareTrendSeries(c, kws, 30, dateKeys) }))];
         const n = Math.max(...series.map((s) => s.vals.length));
         if (n < 2) return '';
         const dates = dateKeys.slice(-n);
@@ -1273,8 +1302,16 @@ ai photo enhancer"></textarea>
         }
         for (const s of series) {
           const vals = s.vals.slice(-n);
-          let d = '';
-          vals.forEach((v, i) => { d += `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; });
+          let d = '', started = false;
+          // null = wasn't tracked yet (see compareTrendSeries) — break the
+          // line instead of drawing through it, so a competitor added
+          // partway through the window starts its line only from its own
+          // first real day, not a flat zero leading up to a fake cliff.
+          vals.forEach((v, i) => {
+            if (v == null) { started = false; return; }
+            d += `${started ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+            started = true;
+          });
           out += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
         }
         const legend = series.map((s) => `<span class="li"><span class="sw" style="background:${s.color}"></span>${s.titleHtml}</span>`).join('');
