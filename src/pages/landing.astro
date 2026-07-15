@@ -70,6 +70,12 @@ const softwareAppJsonLd = {
       .hero h1 em { font-style: normal; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: 3px; text-underline-offset: 7px; }
       .hero p { font-size: 17px; color: var(--muted); max-width: 640px; margin: 0 auto 26px; }
       .trialnote { font-size: 13px; color: var(--muted); margin-top: 10px; }
+      .trustbar { padding: 8px 0 40px; text-align: center; }
+      .trustbar .label { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0 0 18px; }
+      .trustbar .logos { display: flex; align-items: center; justify-content: center; gap: 40px; flex-wrap: wrap; }
+      .trustbar .logos img { height: 30px; max-width: 130px; object-fit: contain; filter: grayscale(1); opacity: 0.55; transition: opacity 0.15s, filter 0.15s; }
+      .trustbar .logos img:hover { filter: grayscale(0); opacity: 1; }
+      @media (max-width: 560px) { .trustbar .logos { gap: 26px; } .trustbar .logos img { height: 24px; max-width: 100px; } }
       .band { background: var(--bg); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 46px 0; margin-top: 50px; }
       .feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
       @media (max-width: 840px) { .feats { grid-template-columns: 1fr; } .hero h1 { font-size: 32px; } }
@@ -118,6 +124,16 @@ const softwareAppJsonLd = {
         </p>
         <a class="btn primary" href="/signup" style="font-size:16px;padding:13px 26px;">Start your {TRIAL_DAYS}-day free trial</a>
         <div class="trialnote">Full access for {TRIAL_DAYS} days · no card needed to start</div>
+      </section>
+
+      <section class="trustbar" id="trustbar">
+        <p class="label">Trusted by teams at</p>
+        <div class="logos">
+          <img src="https://images.yourstory.com/cs/images/companies/logosC2031575978376942png" alt="CRED" loading="lazy" onerror="this.style.display='none'" />
+          <img src="https://static.toiimg.com/thumb/msid-95254840,imgsize-87273,width-400,resizemode-4/95254840.jpg" alt="Times of India" loading="lazy" onerror="this.style.display='none'" />
+          <img src="https://i0.wp.com/premom.in/wp-content/uploads/2026/03/premom-logo-1920x1080-1.png?resize=600%2C338&ssl=1" alt="PreMom India" loading="lazy" onerror="this.style.display='none'" />
+          <img src="https://play-lh.googleusercontent.com/ApJ4Qv86goaDayg53TXS9X9L2PjS1uR4JUkJg4LxVgOeK6is-qXOAzTCE7VNCIP-2RVMwGc_6ZI28uCTEC8eQw" alt="Kuvera India" loading="lazy" onerror="this.style.display='none'" />
+        </div>
       </section>
     </div>
 
