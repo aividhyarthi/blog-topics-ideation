@@ -1750,8 +1750,16 @@ ai photo enhancer"></textarea>
           render();
           return;
         }
+      });
+      // The Sections bar (#snav) moved out of the sidebar into its own top
+      // tab strip above the app content — it's a sibling of #sidebar and
+      // #apps now, not a descendant of either, so it needs its own listener
+      // rather than relying on the sidebar's (which is how the tabs went
+      // dead after that move: the click handler was still bound to
+      // #sidebar, which no longer contains these buttons at all).
+      $('snav').addEventListener('click', (ev) => {
         const secBtn = ev.target.closest('[data-section]');
-        if (secBtn) { currentSection = secBtn.getAttribute('data-section'); render(); return; }
+        if (secBtn) { currentSection = secBtn.getAttribute('data-section'); render(); }
       });
       // "Track an app" used to be an inline card at the top of the page —
       // permanently taking space above the toolbar and pushing the app

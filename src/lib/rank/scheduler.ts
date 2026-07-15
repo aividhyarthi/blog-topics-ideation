@@ -6,9 +6,9 @@
 // it needs to be anyway), the check runs on its own, once a day, no extra
 // setup, nothing to verify in a separate dashboard.
 //
-// Default check time is 06:30 UTC = 12:00 IST (noon), matching the owner's
-// expectation; override with NIGHTLY_CHECK_UTC="HH:MM" if it ever needs to
-// move. Started once, lazily, from the first real incoming request (see
+// Default check time is 18:30 UTC = 00:00 IST (midnight), matching the
+// owner's expectation; override with NIGHTLY_CHECK_UTC="HH:MM" if it ever
+// needs to move. Started once, lazily, from the first real incoming request (see
 // src/middleware.ts) — NOT at module import time, because `astro build`
 // also loads this module, and a pending setTimeout would keep a build
 // process alive until it fires.
@@ -24,7 +24,7 @@ function checkTimeUtc(): { hour: number; minute: number } {
     const minute = Math.min(59, parseInt(m[2], 10));
     return { hour, minute };
   }
-  return { hour: 6, minute: 30 }; // 06:30 UTC = 12:00 IST
+  return { hour: 18, minute: 30 }; // 18:30 UTC = 00:00 IST
 }
 
 export function nextRunAt(now = new Date()): Date {
