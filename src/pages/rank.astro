@@ -107,6 +107,14 @@ const limitsText = product && plan
       .tile .val .d.up { color: var(--ok); }
       .tile .val .d.down { color: var(--bad); }
       .tile .val .d.flat { color: var(--muted); }
+      .wn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+      @media (max-width: 880px) { .wn-grid { grid-template-columns: 1fr; } }
+      .wn-card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 13px; }
+      .wn-card h4 { margin: 0 0 8px; font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+      .wn-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; }
+      .wn-row .wn-kw { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .wn-empty { color: var(--muted); font-size: 12.5px; }
+      .wn-line { font-size: 13px; padding: 2px 0; }
       .charts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-top: 12px; }
       @media (max-width: 880px) { .charts { grid-template-columns: 1fr; } }
       .chartbox { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 12px 8px; }
@@ -391,8 +399,8 @@ ai photo enhancer"></textarea>
       // the international ASO tools — switched from the left sidebar.
       const SECTIONS = [
         { id: 'overview', label: 'Overview' },
-        { id: 'keywords', label: 'Keywords' },
-        { id: 'coverage', label: 'Coverage' },
+        { id: 'keywords', label: 'Daily Keyword Snapshot' },
+        { id: 'coverage', label: 'All Keywords Snapshot' },
         { id: 'compare', label: 'Compare' },
         { id: 'trends', label: 'Trends' },
         { id: 'settings', label: 'Settings' },
@@ -482,7 +490,7 @@ ai photo enhancer"></textarea>
       // A paste bigger than the daily-tracked cap used to just silently lose
       // everything past the cap with no indication anything was dropped.
       function truncationMsg(t) {
-        return `Saved ${t.saved} of ${t.total} keywords here — this list is checked daily and capped at ${t.saved} for your plan. Paste the rest into the "Coverage list" below instead (up to ${MAX_COVERAGE}, checked automatically by the nightly check) to still monitor them.`;
+        return `Saved ${t.saved} of ${t.total} keywords here — this list is checked daily and capped at ${t.saved} for your plan. Paste the rest into the "All keywords" list below instead (up to ${MAX_COVERAGE}, checked automatically by the nightly check) to still monitor them.`;
       }
 
       // Sparkline of positions (lower = better, so the y-axis is inverted).
@@ -829,6 +837,80 @@ ai photo enhancer"></textarea>
         </div>`;
       }
 
+      // "What changed since your last check" — the questions an app owner
+      // actually asks first, ahead of the aggregate tiles/charts below:
+      // which keywords moved, which competitor is gaining, is the rating
+      // trend healthy. Everything here reuses data already collected by the
+      // regular daily check — no extra fetches, no extra cost.
+      function moversHtml(app) {
+        const trends = app.trends || [];
+        const withDelta = trends.filter((t) => t.delta != null && t.delta !== 0);
+        const gainers = withDelta.filter((t) => t.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 3);
+        const losers = withDelta.filter((t) => t.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 3);
+        const newlyRanked = trends.filter((t) => t.position != null && t.prevPosition == null).slice(0, 3);
+        const droppedOut = trends.filter((t) => t.position == null && t.prevPosition != null).slice(0, 3);
+        const moves = [...gainers, ...losers, ...newlyRanked.map((t) => ({ ...t, _new: true })), ...droppedOut.map((t) => ({ ...t, _out: true }))];
+        if (!moves.length) return `<div class="wn-card"><h4>Rank movers since last check</h4><p class="wn-empty">No keyword moved position since the last check — check back after the next one.</p></div>`;
+        const rows = [...gainers, ...newlyRanked, ...losers, ...droppedOut].slice(0, 5).map((t) =>
+          `<div class="wn-row"><button class="kwlink wn-kw" data-kwhistory="${escAttr(t.keyword)}" data-list="daily">${esc(t.keyword)}</button>${deltaCell(t)}</div>`).join('');
+        return `<div class="wn-card"><h4>Rank movers since last check</h4>${rows}</div>`;
+      }
+
+      function competitorPulseHtml(app) {
+        const comps = state.apps.filter((a) => a.competitorOf === app.key);
+        if (!comps.length) return '';
+        const kws = (app.keywords || []).length ? app.keywords : (app.coverageKeywords || []).slice(0, 60);
+        if (!kws.length) return '';
+        const mine = trendMap(app);
+        const lines = comps.map((c) => {
+          const theirs = trendMap(c);
+          let curWin = 0, curTotal = 0, prevWin = 0, prevTotal = 0;
+          for (const kw of kws) {
+            const m = mine[kw], t = theirs[kw];
+            const myPos = m && !m.error ? m.position : null;
+            const theirPos = t && !t.error ? t.position : null;
+            if (myPos != null || theirPos != null) {
+              curTotal++;
+              if (theirPos != null && (myPos == null || theirPos < myPos)) curWin++;
+            }
+            const myPrev = m ? m.prevPosition : null;
+            const theirPrev = t ? t.prevPosition : null;
+            if (myPrev != null || theirPrev != null) {
+              prevTotal++;
+              if (theirPrev != null && (myPrev == null || theirPrev < myPrev)) prevWin++;
+            }
+          }
+          if (!curTotal) return `<div class="wn-line">${esc(c.title)} — no shared keyword data checked yet.</div>`;
+          const diff = prevTotal ? curWin - prevWin : null;
+          const trend = diff == null || diff === 0 ? '' : diff > 0
+            ? ` <span class="delta down">▲ ${diff} since last check</span>`
+            : ` <span class="delta up">▼ ${-diff} since last check</span>`;
+          return `<div class="wn-line"><b>${esc(c.title)}</b> beats you on <b>${curWin}/${curTotal}</b> shared keywords${trend}</div>`;
+        }).join('');
+        return `<div class="wn-card"><h4>Competitor pulse</h4>${lines}</div>`;
+      }
+
+      function ratingPulseHtml(app) {
+        const rh = app.ratingHistory || [];
+        if (!rh.length) return `<div class="wn-card"><h4>Rating health</h4><p class="wn-empty">${app.store === 'play' ? 'No rating data checked yet.' : 'Rating breakdown tracking is Google Play only.'}</p></div>`;
+        const latest = rh[rh.length - 1];
+        const prev = rh.length > 1 ? rh[rh.length - 2] : null;
+        const toneColor = { good: 'up', mid: 'flat', bad: 'down', na: 'flat' }[latest.tone] || 'flat';
+        const diff = prev ? Math.round((latest.negativeShare - prev.negativeShare) * 10) / 10 : null;
+        const diffHtml = diff == null || diff === 0 ? '' : diff > 0
+          ? ` <span class="delta down">▲ ${diff}pt</span>` : ` <span class="delta up">▼ ${-diff}pt</span>`;
+        return `<div class="wn-card"><h4>Rating health</h4>
+          <div class="wn-line"><span class="delta ${toneColor}">${latest.negativeShare}%</span> of the last ${latest.total} reviews are 1-2★${diffHtml}</div>
+          <p class="wn-empty" style="margin-top:4px;">Lower is healthier — a rising 1-2★ share ahead of a rank drop is often the early warning, not the other way round.</p>
+        </div>`;
+      }
+
+      function whatsNewHtml(app) {
+        const cards = [moversHtml(app), competitorPulseHtml(app), ratingPulseHtml(app)].filter(Boolean);
+        if (!cards.length) return '';
+        return `<div class="wn-grid">${cards.join('')}</div>`;
+      }
+
       function overviewHtml(app) {
         const ov = app.overview;
         if (!ov || !ov.days || !ov.days.length) return '<p class="hint">No check data yet — hit <b>Check now</b> to record the first data point.</p>';
@@ -929,7 +1011,19 @@ ai photo enhancer"></textarea>
       // renders a sub-tab per category actually present, so "Brand + Comp",
       // "SIP", "MF" etc. can each be checked without scanning one long list.
       function categorizedCoverageHtml(app) {
-        const trends = app.coverageTrends || [];
+        // A keyword can legitimately sit in BOTH the daily-tracked list and
+        // the full coverage list — they're checked by two separate passes
+        // (the daily automatic check vs the coverage batch, which can take
+        // more than one run to get through a big list), so the same keyword
+        // can show a different position in each tab simply because it was
+        // last actually searched on a different day in each pipeline. That
+        // reads as a bug even though both numbers were real at the time they
+        // were captured. Fix: for any keyword also daily-tracked, show the
+        // daily result here too — it's checked every day, so it's always the
+        // freshest number regardless of where the coverage batch has reached.
+        const dailyMap = {};
+        for (const t of (app.trends || [])) dailyMap[t.keyword] = t;
+        const trends = (app.coverageTrends || []).map((t) => dailyMap[t.keyword] || t);
         if (!trends.length) return '';
         const byCat = {};
         for (const t of trends) {
@@ -954,7 +1048,7 @@ ai photo enhancer"></textarea>
         const c = cov.counts || {}, p = cov.prevCounts || null;
         if (!cov.days.length) {
           return `<div class="ov covov"><h4 class="covhead">Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords saved, not checked yet</span></h4>
-            <p class="hint">Click <b>Check coverage now</b> above to run the first check. Each check adds one point to this trend — run it every few days to see coverage of your full list growing or dropping over time.</p></div>`;
+            <p class="hint">Click <b>Check all keyword rankings</b> above to run the first check. Each check adds one point to this trend — run it every few days to see coverage of your full list growing or dropping over time.</p></div>`;
         }
         const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
         return `<div class="ov covov">
@@ -970,7 +1064,7 @@ ai photo enhancer"></textarea>
             ${tileHtml('Top 100', c.top100, p && p.top100)}
           </div>
           <h4 class="covhead" style="margin-top:16px;">Every keyword you're monitoring here, ranking or not, sorted by volume</h4>
-          <p class="hint" style="margin:0 0 6px;">This list can overlap with the "Daily tracked" tab, that's normal. It's checked by the nightly check, not the "Check now" button up top — click <b>Check coverage now</b> below for a smaller list you want checked right away.</p>
+          <p class="hint" style="margin:0 0 6px;">This list can overlap with the "Daily Keyword Snapshot" tab, that's normal — a keyword on both is now always shown with its daily-checked position here too, so the two tabs never disagree. This list is checked by the nightly check, not the "Check now" button up top — click <b>Check all keyword rankings</b> below for a smaller list you want checked right away.</p>
           ${RANK_LEGEND}
           ${categorizedCoverageHtml(app)}
         </div>`;
@@ -1295,19 +1389,20 @@ ai photo enhancer"></textarea>
 
         const sectionOverview = `
           <div class="section-head"><h2>Overview</h2><p class="hint">Today's headline numbers for the ${(app.keywords || []).length} daily-tracked keywords.</p></div>
+          ${whatsNewHtml(app)}
           ${overviewHtml(app)}
           <div class="no-print" style="margin-top:14px;">${asoSummaryHtml(app)}</div>`;
 
         const sectionKeywords = `
-          <div class="section-head"><h2>Keywords</h2>
+          <div class="section-head"><h2>Daily Keyword Snapshot</h2>
             <div class="row no-print"><button class="ghost" data-act="discover">Discover keywords</button></div>
           </div>
           <div class="no-print">${discoverHtml(app)}</div>
           ${table}`;
 
         const sectionCoverage = `
-          <div class="section-head"><h2>Coverage</h2>
-            <div class="row no-print"><button class="ghost" data-act="check-coverage">Check coverage now</button></div>
+          <div class="section-head"><h2>All Keywords Snapshot</h2>
+            <div class="row no-print"><button class="ghost" data-act="check-coverage">Check all keyword rankings</button></div>
           </div>
           ${(app.coverageKeywords || []).length
             ? coverageHtml(app)
@@ -1339,15 +1434,15 @@ ai photo enhancer"></textarea>
           <div class="section-head"><h2>Settings</h2><p class="hint">Everything you can edit for this app lives here.</p></div>
           <div class="settings-block no-print">
             <h4>Daily-tracked keywords</h4>
-            <p class="hint" style="margin:0 0 8px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line. Saving re-checks this app's rankings right away. <b>This list is checked daily and capped by your plan</b> — bigger lists go in the Coverage list below.</p>
+            <p class="hint" style="margin:0 0 8px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line. Saving re-checks this app's rankings right away. <b>This list is checked daily and capped by your plan</b> — bigger lists go in the All keywords list below.</p>
             <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
             </div>
           </div>
           <div class="settings-block no-print">
-            <h4>Coverage list <span class="hint" style="display:inline;">— your full keyword universe, up to ${MAX_COVERAGE}</span></h4>
-            <p class="hint" style="margin:0 0 8px;">Separate from the daily list above and not capped by your plan. Checked automatically by the nightly check; "Check coverage now" on the Coverage section runs it on demand.</p>
+            <h4>All keywords list <span class="hint" style="display:inline;">— your full keyword universe, up to ${MAX_COVERAGE}</span></h4>
+            <p class="hint" style="margin:0 0 8px;">Separate from the daily list above and not capped by your plan. Checked automatically by the nightly check; "Check all keyword rankings" on the All Keywords Snapshot section runs it on demand.</p>
             <textarea data-role="covtext" placeholder="One keyword per line or comma-separated — up to ${MAX_COVERAGE}">${esc((app.coverageKeywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-coverage">Save coverage list</button>
@@ -1529,7 +1624,7 @@ ai photo enhancer"></textarea>
           if (data.metaError) notes.push('App added, but its listing could not be read right now: ' + data.metaError);
           if (data.keywordsTruncated) notes.push(truncationMsg(data.keywordsTruncated));
           if (!data.metaError && data.checkError) notes.push(data.checkError);
-          if (data.discoveryQueued) notes.push('Also looking for more of this rival’s own keywords in the background — check the Coverage tab in a minute.');
+          if (data.discoveryQueued) notes.push('Also looking for more of this rival’s own keywords in the background — check the All Keywords Snapshot tab in a minute.');
           if (notes.length) showInfo(notes.join(' '));
           $('add-app').value = ''; $('add-keywords').value = ''; $('add-likeapp').value = '';
           $('add-likeapp-hint').style.display = 'none';
@@ -1634,7 +1729,7 @@ ai photo enhancer"></textarea>
         if (act === 'save-coverage') {
           withBusy(btn, 'Saving…', async () => {
             const data = await api({ action: 'set-coverage-keywords', key, keywords: card.querySelector('[data-role="covtext"]').value });
-            showToast('Coverage list saved — click "Check coverage now" to run the first check, or wait for the nightly automatic check');
+            showToast('Coverage list saved — click "Check all keyword rankings" to run the first check, or wait for the nightly automatic check');
             return data;
           });
           return;
@@ -1654,7 +1749,7 @@ ai photo enhancer"></textarea>
               p = data.coverageProgress;
               rounds++;
             }
-            if (p) showToast(p.done ? `Coverage check complete — ${p.total} keywords` : `Checked ${p.totalDone}/${p.total} so far — click "Check coverage now" again to continue`);
+            if (p) showToast(p.done ? `Coverage check complete — ${p.total} keywords` : `Checked ${p.totalDone}/${p.total} so far — click "Check all keyword rankings" again to continue`);
             else if (data.note) showInfo(data.note);
             return data;
           });
@@ -1696,7 +1791,7 @@ ai photo enhancer"></textarea>
           const merged = [...new Set([...(comp.coverageKeywords || []), ...kws])];
           withBusy(btn, 'Adding…', async () => {
             const data = await api({ action: 'set-coverage-keywords', key: compKey, keywords: merged.join('\n') });
-            showToast(`Keywords added to ${comp.title}'s coverage list — ranks appear after its next check (nightly, or "Check coverage now" on that app).`);
+            showToast(`Keywords added to ${comp.title}'s coverage list — ranks appear after its next check (nightly, or "Check all keyword rankings" on that app).`);
             return data;
           });
           return;
