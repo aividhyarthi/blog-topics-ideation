@@ -260,7 +260,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     };
     cfg.apps.push(app);
     saveConfig(cfg, userId);
-    const checkError = metaError ? undefined : await checkAfterEdit(app, userId);
+    // A metadata-fetch failure (title/icon/developer — a transient store
+    // hiccup) does NOT mean the app can't be searched for; store.appId,
+    // country and lang all came from the parsed input, independent of
+    // meta. Skipping the check here too used to leave a newly-added app
+    // silently stuck at "not checked yet" until the next nightly cron (up
+    // to 24h later) — with no error visible beyond a one-time toast about
+    // the listing, which said nothing about ranks never having run.
+    const checkError = await checkAfterEdit(app, userId);
     // Competitor add with no manual keyword paste: go find this rival's own
     // keyword universe in the background too, so nothing further needs
     // clicking — see queueCompetitorDiscovery's own comment.
