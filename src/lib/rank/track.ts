@@ -178,6 +178,62 @@ export function universeSizeSeries(app: TrackedApp, snapshots: RankSnapshot[], d
   }).filter((d): d is UniverseSizePoint => d !== null);
 }
 
+export interface KeywordDifficulty {
+  /** 0–100; higher = harder to break into. */
+  score: number;
+  label: 'Easy' | 'Medium' | 'Hard';
+  /** Days of top-3 observations the score is based on. */
+  days: number;
+}
+
+/**
+ * Keyword difficulty from top-3 churn — an honest score computed entirely
+ * from data this tool already collects, not a black-box estimate. Every
+ * daily check stores the top-3 apps for each keyword; over a window:
+ *  - few distinct apps ever holding a top-3 spot  = entrenched incumbents
+ *  - the same app holding #1 nearly every day     = a dominant leader
+ * Both make a keyword hard to break into; lots of churn means the store is
+ * still shuffling results and there's room to climb. The tracked app's own
+ * appearances are excluded — holding a spot yourself doesn't make the
+ * keyword harder FOR you. Needs `minDays` observed days, else null (a
+ * 2-day-old keyword has no churn signal worth showing).
+ */
+export function keywordDifficulties(
+  app: TrackedApp,
+  snapshots: RankSnapshot[],
+  keywordList: string[],
+  windowDays = 30,
+  minDays = 5,
+): Record<string, KeywordDifficulty | null> {
+  const perSnap = snapshots.slice(-windowDays).map((s) => s.apps.find((a) => a.key === app.key) || null);
+  const out: Record<string, KeywordDifficulty | null> = {};
+  for (const kw of keywordList) {
+    const dailyTop: string[][] = [];
+    for (const r of perSnap) {
+      const k = r?.keywords.find((x) => x.keyword === kw);
+      if (!k || k.error || !(k.top || []).length) continue;
+      dailyTop.push(k.top.filter((t) => t.appId !== app.appId).map((t) => t.appId));
+    }
+    if (dailyTop.length < minDays) { out[kw] = null; continue; }
+    const unique = new Set(dailyTop.flat());
+    // Stability: 3 slots filled by only 3 distinct apps all window = 1.0.
+    const slots = Math.max(3, Math.max(...dailyTop.map((d) => d.length)));
+    const stability = Math.min(1, slots / Math.max(1, unique.size));
+    // Dominance: how often the most frequent #1 actually holds #1.
+    const firstCounts = new Map<string, number>();
+    let firstDays = 0;
+    for (const d of dailyTop) {
+      if (!d.length) continue;
+      firstDays++;
+      firstCounts.set(d[0], (firstCounts.get(d[0]) || 0) + 1);
+    }
+    const dominance = firstDays ? Math.max(...firstCounts.values()) / firstDays : 0;
+    const score = Math.round(100 * (0.6 * stability + 0.4 * dominance));
+    out[kw] = { score, label: score >= 70 ? 'Hard' : score >= 40 ? 'Medium' : 'Easy', days: dailyTop.length };
+  }
+  return out;
+}
+
 export interface AnnotationImpact {
   before: { avgVisibility: number | null; days: number };
   after: { avgVisibility: number | null; days: number };

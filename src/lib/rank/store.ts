@@ -10,7 +10,7 @@
 // recoverable. See restoreConfigBackups()/listConfigBackups() below.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AsoCache, RankSnapshot, RatingHistory, TrackerConfig } from './types';
+import type { AsoCache, RankSnapshot, RatingHistory, ReviewThemesCache, TrackerConfig } from './types';
 
 /**
  * Data directory. With no `userId` (the internal single-tenant deployment)
@@ -175,4 +175,22 @@ export function appendRatingHistory(key: string, point: RatingHistory[string][nu
   const existing = (history[key] || []).filter((p) => p.dateKey !== point.dateKey);
   history[key] = [...existing, point].sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-keep);
   writeFileSync(ratingHistoryFile(userId), JSON.stringify(history));
+}
+
+// --- review themes — AI-extracted complaint themes from recent negative
+// reviews, cached like the ASO audit (regenerated only on an explicit
+// click, never from a page load — it costs an Anthropic call each run).
+
+const reviewThemesFile = (userId?: string) => join(dataDir(userId), 'review-themes.json');
+
+export function loadReviewThemes(userId?: string): ReviewThemesCache {
+  const p = reviewThemesFile(userId);
+  if (!existsSync(p)) return {};
+  try { return JSON.parse(readFileSync(p, 'utf8')) as ReviewThemesCache; } catch { return {}; }
+}
+
+export function saveReviewThemesEntry(key: string, entry: ReviewThemesCache[string], userId?: string): void {
+  const cache = loadReviewThemes(userId);
+  cache[key] = entry;
+  writeFileSync(reviewThemesFile(userId), JSON.stringify(cache));
 }

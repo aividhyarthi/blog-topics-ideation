@@ -104,7 +104,7 @@ export async function fetchApp(appId: string, lang = 'en', country = 'us'): Prom
   return normalize(app as Record<string, any>, appId);
 }
 
-export interface RecentReview { date: string; score: number; }
+export interface RecentReview { date: string; score: number; text?: string; }
 export interface RecentReviewsResult { reviews: RecentReview[]; windowDays: number; }
 
 /**
@@ -151,7 +151,12 @@ export async function fetchRecentReviews(
     for (const it of items) {
       const t = Date.parse(String(it.date));
       if (!Number.isNaN(t) && t < maxCutoff) { hitMaxCutoff = true; break; }
-      if (typeof it.score === 'number') collected.push({ date: String(it.date), score: it.score });
+      // Text kept (truncated) so review-theme analysis can work from the
+      // same fetch — an empty string is dropped to keep the cache small.
+      if (typeof it.score === 'number') {
+        const text = typeof it.text === 'string' ? it.text.trim().slice(0, 300) : '';
+        collected.push({ date: String(it.date), score: it.score, ...(text ? { text } : {}) });
+      }
     }
     if (hitMaxCutoff || collected.length >= minReviews || collected.length >= cap || !result.nextPaginationToken) break;
     token = result.nextPaginationToken;

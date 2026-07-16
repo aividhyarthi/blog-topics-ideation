@@ -1,6 +1,6 @@
 // Fixture tests for the Rank Tracker's pure engine (src/lib/rank/track.ts) —
 // no network needed, so this runs anywhere: npx tsx scripts/validate-rank.ts
-import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, RANK_BUCKETS } from '../src/lib/rank/track';
+import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordDifficulties, RANK_BUCKETS } from '../src/lib/rank/track';
 import { parseAppInput } from '../src/lib/rank/fetch';
 import { parseKeywordsWithVolumes } from '../src/lib/rank/keywords';
 import type { RankSnapshot, TrackedApp } from '../src/lib/rank/types';
@@ -151,6 +151,40 @@ eq('annotation impact: no data after -> after days 0', impNoAfter.after.days, 0)
 eq('annotation impact: empty days -> all null/zero', annotationImpact([], '2024-01-15'), {
   before: { avgVisibility: null, days: 0 }, after: { avgVisibility: null, days: 0 }, delta: null,
 });
+
+// --- keywordDifficulties: top-3 churn score ----------------------------------
+const diffApp: TrackedApp = {
+  key: 'play:com.me:us', store: 'play', appId: 'com.me', country: 'us', lang: 'en',
+  title: 'Me', developer: null, icon: null, url: null, genreId: null,
+  keywords: ['stable', 'churny', 'young'], addedAt: '2026-07-01T00:00:00Z',
+};
+const topSet = (ids: string[]) => ids.map((id) => ({ appId: id, title: id.toUpperCase() }));
+const diffSnaps: RankSnapshot[] = ['01', '02', '03', '04', '05', '06'].map((d, i) => ({
+  dateKey: `2026-07-${d}`, checkedAt: `2026-07-${d}T00:00:00Z`,
+  apps: [{
+    key: diffApp.key, store: 'play', appId: 'com.me', country: 'us',
+    keywords: [
+      // Same 3 incumbents, same #1, every day → entrenched → Hard.
+      { keyword: 'stable', position: 50, depth: 200, top: topSet(['a', 'b', 'c']) },
+      // A different top-3 every day (9 unique apps by day 3) → churny → Easy.
+      { keyword: 'churny', position: 50, depth: 200, top: topSet([`x${i}`, `y${i}`, `z${i}`]) },
+      // Only 2 days of observations → below minDays → null.
+      ...(i < 2 ? [{ keyword: 'young', position: 50, depth: 200, top: topSet(['a', 'b', 'c']) }] : []),
+    ],
+    topChart: null, score: null, ratings: null,
+  }],
+}));
+const diffs = keywordDifficulties(diffApp, diffSnaps, ['stable', 'churny', 'young', 'never-checked']);
+eq('difficulty: entrenched top-3 scores Hard', diffs['stable']!.label, 'Hard');
+eq('difficulty: entrenched score is 100', diffs['stable']!.score, 100);
+eq('difficulty: full-churn top-3 scores Easy', diffs['churny']!.label, 'Easy');
+eq('difficulty: too few observed days -> null', diffs['young'], null);
+eq('difficulty: never-checked keyword -> null', diffs['never-checked'], null);
+eq('difficulty: own app excluded from incumbents',
+  keywordDifficulties(diffApp, diffSnaps.map((s) => ({
+    ...s,
+    apps: [{ ...s.apps[0], keywords: s.apps[0].keywords.map((k) => k.keyword === 'stable' ? { ...k, top: topSet(['com.me', 'b', 'c']) } : k) }],
+  })), ['stable'])['stable']!.label, 'Hard');
 
 // --- trends: pure parsing/averaging (no network) -----------------------------
 const { stripXssiPrefix, averageRecentValue } = await import('../src/lib/rank/trends');

@@ -97,6 +97,10 @@ const limitsText = product && plan
       .pill.chart { background: #eceef1; color: var(--pink); }
       .pill.cc { background: var(--bg); color: var(--muted); }
       .pill.vol { background: #eaeeff; color: #364fc7; cursor: help; }
+      .diffpill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: help; }
+      .diffpill.easy { background: #e6f5ef; color: #0a8a5f; }
+      .diffpill.med { background: #fdf3e0; color: #b8790a; }
+      .diffpill.hard { background: #fdecec; color: #c0392b; }
       /* --- overview (tiles + charts) --- */
       .ov { margin-top: 14px; }
       /* One unified strip, not N separate boxed cards — a border/shadow
@@ -509,7 +513,17 @@ ai photo enhancer"></textarea>
         if (col === 'best') return t.best;
         if (col === 'delta') return t.delta;
         if (col === 'volume') return t.volume;
+        if (col === 'difficulty') return t.difficulty ? t.difficulty.score : null;
         return null;
+      }
+
+      // Difficulty pill (Easy/Medium/Hard from top-3 churn — computed
+      // server-side, see keywordDifficulties in track.ts). null = not
+      // enough history yet for an honest score.
+      function diffCell(d) {
+        if (!d) return '<span class="un" title="Needs ~5 days of check history for this keyword before a churn-based score is honest.">–</span>';
+        const cls = d.label === 'Hard' ? 'hard' : d.label === 'Medium' ? 'med' : 'easy';
+        return `<span class="diffpill ${cls}" title="${d.score}/100 — based on how much the top-3 apps for this keyword changed over the last ${d.days} checked day(s). Stable incumbents = hard to break in; churn = winnable.">${d.label}</span>`;
       }
       // key -> { status: 'loading'|'done'|'error', data?, error? } — best-effort
       // ASO Inspector summary fetched automatically once an app has keywords.
@@ -997,6 +1011,34 @@ ai photo enhancer"></textarea>
         </div>`;
       }
 
+      // AI-extracted complaint themes from recent 1-3★ reviews — pairs with
+      // the rating-share trend above: that chart says the score is sliding,
+      // this says WHY. Only refreshed on an explicit click (each run is an
+      // AI call), cached server-side like the ASO audit.
+      function reviewThemesHtml(app) {
+        if (app.store !== 'play') return '';
+        const rt = app.reviewThemes;
+        const btn = `<button class="ghost" data-act="review-themes">${rt ? 'Re-analyze reviews' : 'Analyze negative reviews'}</button>`;
+        if (!rt) {
+          return `<div class="chartbox no-print" style="margin-top:14px;"><h4>What negative reviews complain about</h4>
+            <p class="hint" style="margin:0 0 10px;">Reads the recent 1-3★ reviews and groups them into the most common complaints — the "why" behind a sliding rating, and usually the fastest thing to fix before it drags rank down.</p>
+            ${btn}</div>`;
+        }
+        const themeRows = rt.themes.map((t) => `
+          <div style="padding:9px 0;border-top:1px solid var(--bg);">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;">
+              <b style="font-size:13.5px;">${esc(t.theme)}</b>
+              <span class="hint" style="margin:0;white-space:nowrap;">${t.count} of ${rt.negativeAnalysed} reviews</span>
+            </div>
+            ${t.example ? `<div class="hint" style="margin:3px 0 0;font-style:italic;">“${esc(t.example)}”</div>` : ''}
+          </div>`).join('');
+        return `<div class="chartbox" style="margin-top:14px;"><h4>What negative reviews complain about</h4>
+          <p class="hint" style="margin:0 0 4px;">From ${rt.negativeAnalysed} written 1-3★ reviews over the last ${rt.windowDays} days · analyzed ${new Date(rt.checkedAt).toLocaleDateString()}</p>
+          ${themeRows}
+          <div class="row no-print" style="margin-top:10px;">${btn}</div>
+        </div>`;
+      }
+
       const ANN_TYPE_LABEL = { experiment: '🧪 Experiment', paid: '📢 Paid push' };
 
       function annotationsHtml(app) {
@@ -1027,7 +1069,8 @@ ai photo enhancer"></textarea>
       function coverageTableHtml(app, trends) {
         if (!trends.length) return '<p class="hint" style="margin-top:10px;">No keywords in this category.</p>';
         const volumes = app.keywordVolumes || {};
-        const rows = trends.map((t) => ({ ...t, volume: volumes[t.keyword] ?? null }));
+        const covDiff = app.difficulty || {};
+        const rows = trends.map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, difficulty: covDiff[t.keyword] || null }));
         // Default to highest-volume-first — the whole point of this table is
         // seeing where you rank on the keywords that matter most, not just
         // the plan-limited 60 that happen to be in the daily-tracked list.
@@ -1050,11 +1093,12 @@ ai photo enhancer"></textarea>
             <td class="pos">${posCell(t)}</td>
             <td>${deltaCell(t)}</td>
             <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
+            <td>${diffCell(t.difficulty)}</td>
             <td>${spark(t.history || [])}</td>
             <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
         return `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap covtable"><table>
-            <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
+            <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
             <tbody>${body}</tbody>
           </table></div>`;
       }
@@ -1463,7 +1507,8 @@ ai photo enhancer"></textarea>
           : `<div class="fallback-icon">${app.store === 'play' ? '🤖' : ''}</div>`;
         const sort = sortState[app.key] || {};
         const volumes = app.keywordVolumes || {};
-        const trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null }));
+        const diffMap = app.difficulty || {};
+        const trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
         if (sort.col) {
           trends.sort((a, b) => {
             const av = sortVal(a, sort.col), bv = sortVal(b, sort.col);
@@ -1482,13 +1527,14 @@ ai photo enhancer"></textarea>
             <td class="pos">${posCell(t)}</td>
             <td>${deltaCell(t)}</td>
             <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
+            <td>${diffCell(t.difficulty)}</td>
             <td>${spark(t.history || [])}</td>
             <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
         const table = (app.keywords || []).length
           ? `<div class="chartbox" style="margin-bottom:14px;"><h4>Search visibility score (0–100)</h4>${visChart(app.overview.days, app.annotations)}</div>
             <p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
-              <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
+              <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
               <tbody>${rows}</tbody>
             </table></div>
             <h4 class="covhead" style="margin-top:14px;">Daily-tracked keywords <span class="hint" style="display:inline;margin:0;">— ${app.keywords.length} keyword${app.keywords.length === 1 ? '' : 's'}, checked automatically every day</span></h4>
@@ -1535,6 +1581,7 @@ ai photo enhancer"></textarea>
         const sectionTrends = `
           <div class="section-head"><h2>Trends</h2><p class="hint">Longer-horizon signals: category chart position, rating health, and your logged experiments.</p></div>
           ${trendChartsHtml(app)}
+          ${reviewThemesHtml(app)}
           <div class="annedit open no-print" data-role="annedit" style="margin-top:16px;">
             <h4 style="margin:0 0 6px;font-size:13.5px;">Log an annotation</h4>
             <p class="hint" style="margin:0 0 8px;">An ASO experiment (title/screenshot/keyword change) or a paid marketing push — we'll compare average visibility in the 14 days before vs after.</p>
@@ -1574,6 +1621,19 @@ ai photo enhancer"></textarea>
             <input type="text" data-role="report-emails" placeholder="you@company.com, teammate@company.com" value="${escAttr(app.reportEmails || '')}" style="width:100%;" />
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-report-emails">Save recipients</button>
+            </div>
+          </div>
+          <div class="settings-block no-print">
+            <h4>Rank-drop alerts</h4>
+            <p class="hint" style="margin:0 0 8px;">Get an email the moment a daily-tracked keyword falls out of your chosen range — checked as part of every nightly run. Goes to the same recipients as the daily report above, so set that list first.</p>
+            <select data-role="alert-select">
+              <option value="" ${!app.alertTopN ? 'selected' : ''}>Off</option>
+              <option value="10" ${app.alertTopN === 10 ? 'selected' : ''}>Alert when a keyword drops out of the top 10</option>
+              <option value="30" ${app.alertTopN === 30 ? 'selected' : ''}>Alert when a keyword drops out of the top 30</option>
+              <option value="100" ${app.alertTopN === 100 ? 'selected' : ''}>Alert when a keyword drops out of the top 100</option>
+            </select>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-alert">Save alert setting</button>
             </div>
           </div>
           <div class="settings-block no-print">
@@ -1930,6 +1990,23 @@ ai photo enhancer"></textarea>
             const reportEmails = card.querySelector('[data-role="report-emails"]').value.trim();
             const data = await api({ action: 'set-report-emails', key, reportEmails });
             showToast(reportEmails ? 'Report recipients saved' : 'Report emails turned off for this app');
+            return data;
+          });
+          return;
+        }
+        if (act === 'save-alert') {
+          withBusy(btn, 'Saving…', async () => {
+            const alertTopN = card.querySelector('[data-role="alert-select"]').value;
+            const data = await api({ action: 'set-alert', key, alertTopN });
+            showToast(alertTopN ? `Alerts on — you'll be emailed if a keyword drops out of the top ${alertTopN}` : 'Rank-drop alerts turned off');
+            return data;
+          });
+          return;
+        }
+        if (act === 'review-themes') {
+          withBusy(btn, 'Reading recent reviews… ~30s', async () => {
+            const data = await api({ action: 'review-themes', key });
+            showToast('Review analysis done');
             return data;
           });
           return;

@@ -62,6 +62,17 @@ export interface TrackedApp {
    * a competitor app is still checked and stored exactly like any other
    * tracked app. Unset for apps added directly (your own apps). */
   competitorOf?: string;
+  /** Rank-drop alert threshold: 10 / 30 / 100. When set, the nightly check
+   * emails the reportEmails list whenever a daily-tracked keyword that was
+   * inside the top N falls out of it (or out of the results entirely).
+   * Unset = alerts off. Uses the same recipient list as the daily report
+   * so there's exactly one place to manage who gets notified. */
+  alertTopN?: number;
+  /** dateKey (YYYY-MM-DD) of the last weekly digest email sent for this
+   * app — guards against double-sending if the nightly check runs more
+   * than once on a Monday (e.g. an admin "Run now" after the scheduled
+   * run already fired). */
+  lastWeeklyDigest?: string;
 }
 
 export interface TrackerConfig {
@@ -93,6 +104,23 @@ export interface RatingHistoryPoint {
   windowDays: number; // the actual adaptive window this point was computed over (see fetchRecentReviews)
 }
 export type RatingHistory = Record<string, RatingHistoryPoint[]>; // keyed by TrackedApp.key
+
+/** One AI-extracted complaint theme from recent negative (1-3★) reviews. */
+export interface ReviewTheme {
+  theme: string;   // short label, e.g. "Login / OTP failures"
+  count: number;   // how many of the analysed reviews mention it
+  example: string; // one representative quote, verbatim (truncated)
+}
+/** Cached result of a review-theme analysis — refreshed only on an explicit
+ * click (it costs an AI call), never automatically. Keyed by TrackedApp.key. */
+export interface ReviewThemesEntry {
+  checkedAt: string;      // ISO timestamp
+  windowDays: number;     // actual span the analysed reviews cover
+  totalReviews: number;   // reviews fetched in the window
+  negativeAnalysed: number; // 1-3★ reviews with text that were sent for analysis
+  themes: ReviewTheme[];
+}
+export type ReviewThemesCache = Record<string, ReviewThemesEntry>;
 
 /** One keyword's result inside a snapshot. */
 export interface KeywordRank {

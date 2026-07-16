@@ -7,8 +7,9 @@
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey, universeSizeSeries } from '../../lib/rank/track';
-import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, ConfigReadError } from '../../lib/rank/store';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey, universeSizeSeries, keywordDifficulties } from '../../lib/rank/track';
+import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, ConfigReadError } from '../../lib/rank/store';
+import { analyzeReviewThemes } from '../../lib/rank/themes';
 import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/rank/check';
 import { withTenantLock } from '../../lib/rank/lock';
 import { discoverKeywords } from '../../lib/rank/discover';
@@ -128,6 +129,7 @@ function statePayload(userId?: string) {
   const covLatest = covSnapshots.length ? covSnapshots[covSnapshots.length - 1] : null;
   const asoCache = loadAsoCache(userId);
   const ratingHistory = loadRatingHistory(userId);
+  const reviewThemes = loadReviewThemes(userId);
   return {
     apps: cfg.apps.map((app) => {
       const overview = overviewSeries(app, snapshots);
@@ -164,12 +166,21 @@ function statePayload(userId?: string) {
           universeTrend: universeSizeSeries(app, covSnapshots, 90),
         },
         dailyUniverseTrend: universeSizeSeries(app, snapshots, 90),
+        // Difficulty from top-3 churn (see keywordDifficulties) — coverage
+        // keywords scored from coverage snapshots, daily-tracked keywords
+        // from daily snapshots (checked every day, so the fresher signal
+        // wins for keywords in both lists).
+        difficulty: {
+          ...(covKeywords.length ? keywordDifficulties(app, covSnapshots, covKeywords) : {}),
+          ...keywordDifficulties(app, snapshots, app.keywords),
+        },
         // Per-keyword rows for the FULL coverage universe (not just the
         // plan-limited daily-tracked subset) — lets the owner see where every
         // keyword they care about ranks, sorted by volume, regardless of
         // whether it made the cut into the daily-tracked list.
         coverageTrends: covKeywords.length ? keywordTrends(app, covSnapshots, 60, covKeywords) : [],
         asoCache: asoCache[app.key] || null,
+        reviewThemes: reviewThemes[app.key] || null,
         ratingHistory: ratingHistory[app.key] || [],
         latestResult: latest?.apps.find((a) => a.key === app.key) || null,
       };
@@ -388,6 +399,29 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const valid = parseReportEmails(raw);
     if (raw && !valid.length) return json({ error: 'That doesn\'t look like a valid email address.' }, 400);
     app.reportEmails = valid.join(', ');
+    saveConfig(cfg, userId);
+    return json({ ok: true, ...statePayload(userId) });
+  }
+
+  if (action === 'review-themes') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    try {
+      await analyzeReviewThemes(app, userId);
+      return json({ ok: true, ...statePayload(userId) });
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : String(e) }, 502);
+    }
+  }
+
+  if (action === 'set-alert') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    const n = Number(body.alertTopN);
+    // Only the thresholds the UI offers — a free-form number here would just
+    // be one more thing to explain in the email.
+    if ([10, 30, 100].includes(n)) app.alertTopN = n;
+    else delete app.alertTopN;
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });
   }
