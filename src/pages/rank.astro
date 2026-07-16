@@ -1646,7 +1646,16 @@ ai photo enhancer"></textarea>
             <p class="hint" style="margin:0 0 8px;">If this app is a rival you're tracking rather than your own, pick which of your apps it's a competitor for — that's what scopes it into that app's Compare tab instead of showing up everywhere.</p>
             <select data-role="competitor-of-select">
               <option value="">— none, this is my own app —</option>
-              ${state.apps.filter((a) => a.key !== app.key).map((a) =>
+              ${state.apps.filter((a) =>
+                // Only YOUR OWN top-level apps are valid targets — offering
+                // other competitors here is how chains (A→B→C) and loops
+                // (A→B→A) got created, which used to make apps vanish from
+                // the sidebar. Excluded: this app itself and anything that
+                // is already someone's competitor. The current saved target
+                // always stays listed (even if the data is in a broken
+                // state), so the select shows what's saved, never a blank.
+                a.key !== app.key && (a.key === app.competitorOf || !a.competitorOf)
+              ).map((a) =>
                 `<option value="${escAttr(a.key)}" ${app.competitorOf === a.key ? 'selected' : ''}>${esc(a.title)} (${a.store === 'play' ? 'Google Play' : 'App Store'} · ${esc(a.country.toUpperCase())})</option>`).join('')}
             </select>
             <div class="row" style="margin-top:8px;">
@@ -1701,7 +1710,12 @@ ai photo enhancer"></textarea>
       // — while its own Keywords/Coverage/Settings tabs stay one click away
       // under it if it needs managing directly.
       function sideAppBtn(app, isSub) {
-        return `<button class="side-app ${isSub ? 'sub' : ''} ${app.key === selectedAppKey ? 'selected' : ''}" data-key="${escAttr(app.key)}" ${app.competitorOf ? `data-competitor-of="${escAttr(app.competitorOf)}"` : ''}>
+        // The jump-to-Compare shortcut only applies to properly NESTED
+        // entries (isSub). An app with a broken link (loop/chain) renders
+        // top-level, and its click must open the app itself — otherwise
+        // there's no way to reach its own Settings and fix the bad link:
+        // the shortcut would bounce you to the other app every time.
+        return `<button class="side-app ${isSub ? 'sub' : ''} ${app.key === selectedAppKey ? 'selected' : ''}" data-key="${escAttr(app.key)}" ${isSub && app.competitorOf ? `data-competitor-of="${escAttr(app.competitorOf)}"` : ''}>
             ${tabIcon(app)}
             <span class="tt">${esc(app.title)}</span>
             <span class="tick">${app.store === 'play' ? 'GP' : 'AS'}</span>
@@ -1712,13 +1726,26 @@ ai photo enhancer"></textarea>
         const sb = $('sidebar');
         if (!state.apps.length) { sb.style.display = 'none'; return; }
         sb.style.display = 'block';
-        const validKeys = new Set(state.apps.map((a) => a.key));
-        // A competitorOf pointing at a deleted app is orphaned — treat it
-        // as a top-level entry rather than silently dropping it.
-        const primaries = state.apps.filter((a) => !a.competitorOf || !validKeys.has(a.competitorOf));
+        const byKey = new Map(state.apps.map((a) => [a.key, a]));
+        // The sidebar draws exactly one level of nesting, so an app is only
+        // ever indented under a target that is itself top-level. Every other
+        // shape renders at the top level rather than being skipped:
+        //  - competitorOf pointing at a deleted app (orphan)
+        //  - competitorOf pointing at an app that is itself a competitor
+        //    (chain: A→B→C), and two apps pointing at each other (loop:
+        //    A→B→A — trivially creatable from the Settings dropdown).
+        // An earlier version filtered "primaries = apps with no valid link"
+        // and only drew children of primaries — a chain or loop made BOTH
+        // sides fail that filter and entire apps silently vanished from the
+        // sidebar (nothing deleted, just never drawn). Never drop an app.
+        const isNested = (a) => {
+          const target = a.competitorOf ? byKey.get(a.competitorOf) : null;
+          return !!(target && !(target.competitorOf && byKey.has(target.competitorOf)));
+        };
+        const primaries = state.apps.filter((a) => !isNested(a));
         const byPrimary = {};
         for (const a of state.apps) {
-          if (a.competitorOf && validKeys.has(a.competitorOf)) (byPrimary[a.competitorOf] = byPrimary[a.competitorOf] || []).push(a);
+          if (isNested(a)) (byPrimary[a.competitorOf] = byPrimary[a.competitorOf] || []).push(a);
         }
         $('side-apps').innerHTML = primaries.map((app) =>
           sideAppBtn(app, false) + (byPrimary[app.key] || []).map((c) => sideAppBtn(c, true)).join('')).join('');
@@ -1732,9 +1759,13 @@ ai photo enhancer"></textarea>
       function renderLikeAppOptions() {
         const sel = $('add-likeapp');
         const prev = sel.value;
-        sel.innerHTML = '<option value="">— none, this is my own app —</option>' + state.apps.map((a) =>
+        // Same rule as the Settings picker: a new competitor can only be
+        // linked to one of YOUR top-level apps, never to another competitor
+        // — that's what creates the chains/loops that broke the sidebar.
+        const primaries = state.apps.filter((a) => !a.competitorOf);
+        sel.innerHTML = '<option value="">— none, this is my own app —</option>' + primaries.map((a) =>
           `<option value="${escAttr(a.key)}">${esc(a.title)} (${a.store === 'play' ? 'Google Play' : 'App Store'} · ${esc(a.country.toUpperCase())})</option>`).join('');
-        if (state.apps.some((a) => a.key === prev)) sel.value = prev;
+        if (primaries.some((a) => a.key === prev)) sel.value = prev;
       }
 
       function render() {
@@ -1848,17 +1879,22 @@ ai photo enhancer"></textarea>
         if (appBtn) {
           const compOf = appBtn.getAttribute('data-competitor-of');
           const key = appBtn.getAttribute('data-key');
-          if (compOf && state.apps.some((a) => a.key === compOf)) {
-            // A competitor entry's whole reason for existing is the Compare
-            // view — jump straight there, pre-ticked, instead of landing on
-            // its own (mostly empty-feeling) Overview. Its own tabs are still
-            // reachable by selecting it normally from under "Competitors".
+          // First click on a nested competitor jumps to its primary's
+          // Compare tab, pre-ticked — that's the view competitor tracking
+          // exists for. Clicking it AGAIN (already on that Compare view)
+          // opens the competitor's own dashboard, so its Keywords/Settings
+          // are reachable too — without this second-click path there was
+          // literally no way to open a nested app's Settings and manage
+          // (or unlink) it.
+          const alreadyThere = compOf && selectedAppKey === compOf && currentSection === 'compare';
+          if (compOf && !alreadyThere && state.apps.some((a) => a.key === compOf)) {
             selectedAppKey = compOf;
             currentSection = 'compare';
             const sel = compareState[compOf] || [];
             if (!sel.includes(key)) compareState[compOf] = [...sel, key].slice(-3);
           } else {
             selectedAppKey = key;
+            if (currentSection === 'compare') currentSection = 'overview';
           }
           render();
           return;

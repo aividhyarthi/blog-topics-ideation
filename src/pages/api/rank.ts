@@ -14,7 +14,7 @@ import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/r
 import { withTenantLock } from '../../lib/rank/lock';
 import { discoverKeywords } from '../../lib/rank/discover';
 import { fetchTrendsScores } from '../../lib/rank/trends';
-import type { Annotation, TrackedApp } from '../../lib/rank/types';
+import type { Annotation, TrackedApp, TrackerConfig } from '../../lib/rank/types';
 import { parseKeywordsWithVolumes } from '../../lib/rank/keywords';
 import { parseReportEmails } from '../../lib/rank/email';
 import { randomUUID } from 'node:crypto';
@@ -100,6 +100,26 @@ function queueCompetitorDiscovery(app: TrackedApp, userId: string | undefined, l
  * (see checkAfterEdit) — that's a genuinely new thing to check, not a
  * repeat of today's check.
  */
+/**
+ * Follows competitorOf links up to the top-level app they ultimately point
+ * at, so a saved link always targets a primary — never another competitor.
+ * Chains (A→B→C) and loops (A→B→A) were both creatable through the API and
+ * both made apps silently vanish from the sidebar, which renders exactly
+ * one level of nesting. The visited-set makes a loop terminate at the last
+ * app before it repeats.
+ */
+function resolvePrimary(cfg: TrackerConfig, startKey: string): TrackedApp | null {
+  let cur = cfg.apps.find((a) => a.key === startKey) || null;
+  const seen = new Set<string>();
+  while (cur && cur.competitorOf && !seen.has(cur.key)) {
+    seen.add(cur.key);
+    const next = cfg.apps.find((a) => a.key === cur!.competitorOf);
+    if (!next) break;
+    cur = next;
+  }
+  return cur;
+}
+
 function alreadyCheckedToday(appKey: string, userId?: string): string | null {
   const snap = loadSnapshot(todayKey(), userId);
   const row = snap?.apps.find((a) => a.key === appKey);
@@ -224,7 +244,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // not "add the app, then re-type every keyword we already have".
     // Country/lang also default from the reference app so the pair lines up
     // for Compare (which requires matching store + country).
-    const likeApp = body.likeApp ? cfg.apps.find((a) => a.key === String(body.likeApp)) : null;
+    // Resolved to the chain's top-level app — a new competitor must never
+    // be linked to another competitor (see resolvePrimary).
+    const likeApp = body.likeApp ? resolvePrimary(cfg, String(body.likeApp)) : null;
     const country = (String(body.country || parsed.country || likeApp?.country || 'us').trim() || 'us').toLowerCase();
     const lang = (String(body.lang || likeApp?.lang || 'en').trim() || 'en').toLowerCase();
     const key = `${parsed.store}:${parsed.appId}:${country}`;
@@ -317,7 +339,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
     } else {
       if (target === app.key) return json({ error: 'An app cannot be a competitor for itself.' }, 400);
       if (!cfg.apps.some((a) => a.key === target)) return json({ error: 'Target app not found.' }, 404);
-      app.competitorOf = target;
+      // Always link to the chain's top-level app. The UI only offers
+      // top-level targets, but the API must hold the same invariant —
+      // links that formed chains (A→B→C) or loops (A→B→A) are what made
+      // apps disappear from the sidebar. The app's own current link is
+      // cleared BEFORE resolving so the walk reflects the state the new
+      // link would create — with an already-saved loop in the data, a walk
+      // through the old link circles back to the target and the loop
+      // check never fires (restored on rejection; overwritten on success).
+      const oldLink = app.competitorOf;
+      delete app.competitorOf;
+      const primary = resolvePrimary(cfg, target);
+      if (!primary || primary.key === app.key) {
+        if (oldLink !== undefined) app.competitorOf = oldLink;
+        return json({ error: `That app is already a competitor of this one — a competitor link can't go both ways. Unlink it first if you meant it the other way round.` }, 400);
+      }
+      app.competitorOf = primary.key;
     }
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });
