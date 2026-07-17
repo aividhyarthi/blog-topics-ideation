@@ -1,7 +1,6 @@
 ---
 import { BRAND, TRIAL_DAYS } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
-import AdSenseMeta from '../components/AdSenseMeta.astro';
 if (Astro.locals.user) return Astro.redirect('/rank');
 ---
 
@@ -12,7 +11,6 @@ if (Astro.locals.user) return Astro.redirect('/rank');
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <AdSenseMeta />
     <title>{BRAND} — Create your account</title>
     <style>
       :root { --pink: #16181d; --pink-dark: #000000; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }

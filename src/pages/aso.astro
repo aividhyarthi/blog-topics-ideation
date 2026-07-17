@@ -4,11 +4,8 @@
 // compares competitors, and proposes AI-rewritten title/short/long copy.
 // Serves two audiences from one page: the internal (Nykaa) toolset, and the
 // AppRankr product (product mode: branded header, trial banner).
-import { BRAND, planOf, checkAccess, ADSENSE_SLOTS } from '../lib/saas/plans';
+import { BRAND, planOf, checkAccess } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
-import AdSenseMeta from '../components/AdSenseMeta.astro';
-import AdSenseScript from '../components/AdSenseScript.astro';
-import AdSlot from '../components/AdSlot.astro';
 const product = Boolean(Astro.locals.productMode);
 const user = Astro.locals.user || null;
 const plan = user ? planOf(user.plan) : null;
@@ -22,8 +19,6 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    {product && <AdSenseMeta />}
-    {product && <AdSenseScript />}
     <title>{product ? `${BRAND} — ASO Inspector` : 'CiteRank — ASO Inspector for Google Play'}</title>
     <meta name="description" content="Audit any Google Play (Android) app's store listing: ASO score, keyword analysis, competitor comparison and AI-rewritten title, short and long descriptions." />
     <!-- is:global so styles also apply to the results DOM injected at runtime. -->
@@ -355,7 +350,6 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         </div>
 
         <section id="results"></section>
-        {product && <AdSlot slot={ADSENSE_SLOTS.aso} />}
       </div>
     </main>
 
