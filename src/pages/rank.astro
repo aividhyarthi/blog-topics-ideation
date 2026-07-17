@@ -139,7 +139,12 @@ const limitsText = product && plan
       .statblock .tiles { margin-bottom: 4px; }
       .statblock .kwtabs.cattabs { margin: 12px 0 0; padding: 0; }
       .statblock .table-wrap { border: none; border-radius: 0; border-top: 1px solid var(--line); margin-top: 10px; background: transparent; }
-      .wn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+      /* align-items: start — without it, grid's default "stretch" forces
+         every card to the height of the tallest sibling (e.g. a 3-entry
+         Competitor pulse card next to a 1-line Rank movers card), leaving
+         the shorter cards as mostly-empty boxes. Each card should only be
+         as tall as its own content. */
+      .wn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; align-items: start; }
       @media (max-width: 880px) { .wn-grid { grid-template-columns: 1fr; } }
       .wn-card { background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px; }
       .wn-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
