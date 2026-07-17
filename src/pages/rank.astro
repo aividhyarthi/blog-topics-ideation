@@ -993,12 +993,30 @@ ai photo enhancer"></textarea>
               if (theirPrev != null && (myPrev == null || theirPrev < myPrev)) prevWin++;
             }
           }
-          if (!curTotal) return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main"><span class="wn-line-title">${esc(c.title)}</span><span class="wn-empty">No shared keyword data checked yet</span></span><span class="wn-viewcta">Compare →</span></button>`;
+          // Icon + a short name instead of the full store title — same fix
+          // as the Compare table's compLabel, since a long title ("Buddy
+          // Loan - Personal Loan App") otherwise wraps across 2-3 lines and
+          // makes this card read as a wall of text next to its terser
+          // siblings (Rank movers, Rating health).
+          const icon = c.icon ? `<img src="${escAttr(c.icon)}" alt="" class="cticon" />` : '';
+          const shortTitle = c.title.length > 24 ? c.title.slice(0, 23) + '…' : c.title;
+          const nameHtml = `<span class="wn-line-title cthead" title="${escAttr(c.title)}">${icon}<b>${esc(shortTitle)}</b></span>`;
+          if (!curTotal) return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main">${nameHtml}<span class="wn-empty">No shared keyword data checked yet</span></span><span class="wn-viewcta">Compare →</span></button>`;
+          // "Beats you on N/M" every time, regardless of the actual number,
+          // read as a wall of bad news even on keywords the app is winning —
+          // three competitor rows saying the same downbeat sentence back to
+          // back is exactly what looked broken. Frame it by who's actually
+          // ahead instead of always centering the competitor's win count.
+          const yourWin = curTotal - curWin;
           const diff = prevTotal ? curWin - prevWin : null;
-          const trend = diff == null || diff === 0 ? '' : diff > 0
-            ? ` <span class="delta down">▲ ${diff} since last check</span>`
-            : ` <span class="delta up">▼ ${-diff} since last check</span>`;
-          return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main"><span class="wn-line-title"><b>${esc(c.title)}</b> beats you on <b>${curWin}/${curTotal}</b> shared keywords</span><span class="wn-empty">${trend || 'No change since last check'}</span></span><span class="wn-viewcta">Compare →</span></button>`;
+          const trendTxt = diff == null || diff === 0 ? 'no change vs last check'
+            : diff > 0 ? `<span class="delta down">▲${diff}</span> vs last check` : `<span class="delta up">▼${-diff}</span> vs last check`;
+          const shareTxt = curWin > yourWin
+            ? `<span class="delta down">${curWin}/${curTotal}</span> ahead of you`
+            : curWin === yourWin
+              ? `<span class="delta flat">${curWin}/${curTotal}</span> — dead even`
+              : `<span class="delta up">${yourWin}/${curTotal}</span> ahead of them`;
+          return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main">${nameHtml}<span class="wn-empty">${shareTxt} · ${trendTxt}</span></span><span class="wn-viewcta">Compare →</span></button>`;
         }).join('');
         return `<div class="wn-card">${head}${lines}</div>`;
       }
