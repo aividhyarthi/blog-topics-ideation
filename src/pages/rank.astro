@@ -29,20 +29,19 @@ const limitsText = product && plan
     <title>{product ? `${BRAND} — Rank Tracker` : 'CiteRank — Rank Tracker'}</title>
     <meta name="description" content="Track where your apps rank in Google Play and App Store search for your keywords, with daily history and trends." />
     <style is:global>
-      /* Console — dark, card-based dashboard. Every surface/border/text
-         color is a token so `@media print` (below) can flip the whole
-         thing back to a light, ink-cheap palette for "Export PDF" just by
-         redefining the tokens, without touching a single component rule. */
+      /* Console layout (card-based, KPI chips, dense tables) on a light
+         ground — every surface/border/text color is a token, so this is
+         the only place a future theme change needs to touch. */
       :root {
-        --bg: #0b0d12; --card: #12151c; --card2: #171b24;
-        --line: #262b36; --line2: #39414f;
-        --ink: #e6e8ec; --muted: #8a93a6;
-        --accent: #f2a93b; --accent-dark: #d9931f; --accent-ink: #1a1204;
-        --tint: rgba(242,169,59,0.14);
-        --ok: #3ecf8e; --ok-tint: rgba(62,207,142,0.14);
-        --bad: #f2545b; --bad-tint: rgba(242,84,91,0.14);
-        --blue: #6ea8fe; --blue-tint: rgba(110,168,254,0.16);
-        --warn: #f2a93b; --warn-tint: rgba(242,169,59,0.14);
+        --bg: #f7f8fa; --card: #ffffff; --card2: #f3f4f6;
+        --line: #e5e7eb; --line2: #cbd0da;
+        --ink: #16181d; --muted: #6b7280;
+        --accent: #16181d; --accent-dark: #000000; --accent-ink: #ffffff;
+        --tint: #eceef1;
+        --ok: #0a8a5f; --ok-tint: #e6f5ef;
+        --bad: #c0392b; --bad-tint: #fdecec;
+        --blue: #364fc7; --blue-tint: #eaeeff;
+        --warn: #b8790a; --warn-tint: #fdf3e0;
       }
       * { box-sizing: border-box; }
       body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; font-size: 14px; }
@@ -88,12 +87,12 @@ const limitsText = product && plan
       button.ghost { background: var(--card2); color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
       button.ghost:hover { border-color: var(--line2); background: var(--card); }
       button.ghost.danger:hover { border-color: var(--bad); color: var(--bad); background: var(--card2); }
-      .spinner { width: 14px; height: 14px; border: 2px solid rgba(230,232,236,0.2); border-top-color: currentColor; border-radius: 50%; display: inline-block; vertical-align: -3px; margin-right: 7px; animation: spin 0.7s linear infinite; }
-      button.primary .spinner { border-color: rgba(26,18,4,0.3); }
+      .spinner { width: 14px; height: 14px; border: 2px solid rgba(0,0,0,0.15); border-top-color: currentColor; border-radius: 50%; display: inline-block; vertical-align: -3px; margin-right: 7px; animation: spin 0.7s linear infinite; }
+      button.primary .spinner { border-color: rgba(255,255,255,0.35); }
       @keyframes spin { to { transform: rotate(360deg); } }
       .alert { margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; display: none; }
-      .alert.err { background: var(--bad-tint); color: #ff9096; border: 1px solid rgba(242,84,91,0.35); }
-      .alert.info { background: var(--blue-tint); color: #a9c6ff; border: 1px solid rgba(110,168,254,0.32); }
+      .alert.err { background: var(--bad-tint); color: var(--bad); border: 1px solid rgba(242,84,91,0.35); }
+      .alert.info { background: var(--blue-tint); color: var(--blue); border: 1px solid rgba(110,168,254,0.32); }
       .appcard { margin-bottom: 16px; }
       .apphead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .apphead img.icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
@@ -212,8 +211,7 @@ const limitsText = product && plan
       .annedit .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px; }
       .annedit label { font-size: 11.5px; font-weight: 700; color: var(--muted); display: block; margin-bottom: 3px; }
       .annedit input[type="date"], .annedit select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; background: var(--card2); color: var(--ink); }
-      .annedit input[type="date"] { color-scheme: dark; }
-      @media print { .annedit input[type="date"] { color-scheme: light; } }
+      .annedit input[type="date"] { color-scheme: light; }
       .annlist { margin-top: 16px; }
       .annlist h4 { margin: 0 0 4px; font-size: 13px; }
       .annrow { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -238,7 +236,7 @@ const limitsText = product && plan
       .disc-row .kw { flex: 1; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--accent); }
       .disc-row b { font-variant-numeric: tabular-nums; }
       .asobox { margin-top: 12px; border: 1px solid var(--line); background: var(--card2); border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--ink); }
-      .asobox.err { background: var(--bad-tint); border-color: rgba(242,84,91,0.35); color: #ff9096; }
+      .asobox.err { background: var(--bad-tint); border-color: rgba(242,84,91,0.35); color: var(--bad); }
       .asobox.na { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 13px; }
       .asometa { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--muted); }
       .asorow { display: flex; gap: 12px; align-items: center; }
@@ -246,8 +244,8 @@ const limitsText = product && plan
       .asoscore small { font-size: 12px; font-weight: 600; color: var(--muted); }
       .asotext p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
       .asorating { margin-top: 10px; padding: 8px 11px; border-radius: 7px; font-size: 12.5px; font-weight: 600; }
-      .asorating.bad { background: var(--bad-tint); color: #ff9096; }
-      .asorating.mid { background: var(--warn-tint); color: #f5c377; }
+      .asorating.bad { background: var(--bad-tint); color: var(--bad); }
+      .asorating.mid { background: var(--warn-tint); color: var(--warn); }
       .ghost-link { display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none; }
       .ghost-link:hover { text-decoration: underline; }
       .lastcheck { font-size: 12.5px; color: var(--muted); }
@@ -309,22 +307,6 @@ const limitsText = product && plan
       .toast.show { opacity: 1; }
       .print-only { display: none; }
       @media print {
-        /* Flip the whole dark theme back to a light, ink-cheap palette —
-           every component rule above is built on these tokens, so this is
-           the only override "Export PDF" needs. Chart strokes/fills in the
-           JS below also reference these tokens directly (not hardcoded
-           hex), so charts repaint correctly for print too. */
-        :root {
-          --bg: #ffffff; --card: #ffffff; --card2: #ffffff;
-          --line: #dddddd; --line2: #cccccc;
-          --ink: #16181d; --muted: #6b7280;
-          --accent: #16181d; --accent-dark: #000000; --accent-ink: #ffffff;
-          --tint: #eceef1;
-          --ok: #0a8a5f; --ok-tint: #e6f5ef;
-          --bad: #c0392b; --bad-tint: #fdecec;
-          --blue: #364fc7; --blue-tint: #eaeeff;
-          --warn: #b8790a; --warn-tint: #fdf3e0;
-        }
         .no-print, header nav.top, footer, .toast, .sidebar { display: none !important; }
         .shell { display: block; }
         header { background: none !important; padding: 0 0 14px; }
@@ -386,9 +368,9 @@ const limitsText = product && plan
     </header>
 
     {product && access?.trialDaysLeft && (
-      <div class="no-print" style="background:var(--warn-tint);border-bottom:1px solid rgba(242,169,59,0.3);color:#f5c377;font-size:13.5px;padding:9px 20px;text-align:center;">
+      <div class="no-print" style="background:var(--warn-tint);border-bottom:1px solid rgba(242,169,59,0.3);color:var(--warn);font-size:13.5px;padding:9px 20px;text-align:center;">
         ⏳ <b>{access.trialDaysLeft} day{access.trialDaysLeft === 1 ? '' : 's'}</b> left in your free trial —
-        <a href="/account" style="color:#f5c377;font-weight:700;">choose a plan</a> to keep your rank history running.
+        <a href="/account" style="color:var(--warn);font-weight:700;">choose a plan</a> to keep your rank history running.
       </div>
     )}
 
@@ -594,12 +576,10 @@ ai photo enhancer"></textarea>
       }
 
       // --- overview charts (App Radar-style) ---------------------------------
-      // Ordered rank buckets share one cool teal-to-slate ramp (most vivid =
-      // best) that reads clearly against the dark card background; "Unranked"
-      // fades to near-invisible dark neutral because it means absence, not a
-      // rank. Distinct hue family from the amber accent on purpose — this is
-      // semantic (rank quality), not the interactive/brand color.
-      const BUCKET_COLORS = ['#2dd4bf', '#38bdf8', '#60a5fa', '#818cf8', '#a78bfa', '#6b7280', '#262b36'];
+      // Ordered rank buckets share one indigo ramp (darkest = best); "Unranked"
+      // is neutral gray because it means absence, not a rank. Ramp validated
+      // for lightness monotony + surface contrast.
+      const BUCKET_COLORS = ['#2c2a75', '#4038c4', '#5655e6', '#7472f0', '#9091f5', '#a9aaf8', '#cbccd6'];
       const BUCKET_LABELS = () => [...(state.buckets || ['Top 1', 'Top 2–3', 'Top 4–10', 'Top 11–30', 'Top 31–100', 'Top 101–200']), 'Unranked'];
       const TIPS = {}; let tipSeq = 0;
       const fmtDay = (dk) => { const d = new Date(dk + 'T00:00:00Z'); return d.getUTCDate() + ' ' + d.toLocaleString('en', { month: 'short', timeZone: 'UTC' }); };
@@ -903,7 +883,7 @@ ai photo enhancer"></textarea>
           return `<div class="asobox na">No ASO check yet for this app. <button class="ghost small" data-act="recheck-aso">Run ASO check</button></div>`;
         }
         if (cached.status === 'loading') {
-          return `<div class="asobox"><span class="spinner" style="border-color:rgba(230,232,236,0.2);border-top-color:var(--accent);"></span>Getting ASO recommendations for your tracked keywords…</div>`;
+          return `<div class="asobox"><span class="spinner" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--accent);"></span>Getting ASO recommendations for your tracked keywords…</div>`;
         }
         if (cached.status === 'error') {
           return `<div class="asobox err">⚠︎ Couldn't fetch ASO recommendations: ${esc(cached.error)}</div>`;
