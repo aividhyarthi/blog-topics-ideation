@@ -133,12 +133,26 @@ export async function backfillDeveloperId(app: TrackedApp): Promise<boolean> {
 export async function searchStore(store: Store, keyword: string, country: string, lang: string): Promise<SearchHit[]> {
   if (store === 'play') {
     const res = (await gplay.search({ term: keyword, num: SEARCH_DEPTH_PLAY, country, lang })) as Record<string, any>[];
+    // google-play-scraper parses Google's obfuscated page structure by
+    // hard-coded array indices, and silently returns [] (no throw) whenever
+    // that structure doesn't match what it expects — a Play-side rate-limit
+    // or block page included. A REAL zero-result Play search essentially
+    // never happens (even gibberish queries return something), so treat an
+    // empty response as a failed check, not "confirmed no apps for this
+    // keyword" — otherwise a scraper hiccup silently reports every app as
+    // not ranking for every keyword, which is worse than a visible error.
+    if (!res.length) {
+      throw new Error('Play Store search returned zero results — almost always a scraper/rate-limit failure, not a genuine "no apps found." Will retry on the next check.');
+    }
     return res.map((r) => ({ appId: String(r.appId), title: String(r.title || '') }));
   }
   const data = await fetchJson(
     `https://itunes.apple.com/search?term=${encodeURIComponent(keyword)}&entity=software&country=${encodeURIComponent(country)}&limit=${SEARCH_DEPTH_IOS}`,
   );
   const results: Record<string, any>[] = Array.isArray(data?.results) ? data.results : [];
+  if (!results.length) {
+    throw new Error('App Store search returned zero results — likely a transient lookup failure, not a genuine "no apps found." Will retry on the next check.');
+  }
   return results.map((r) => ({ appId: String(r.trackId), title: String(r.trackName || '') }));
 }
 
@@ -158,11 +172,15 @@ export async function fetchTopChart(
     const opts: Record<string, any> = { collection: 'TOP_FREE', num: CHART_DEPTH, country, lang };
     if (genreId) opts.category = genreId;
     const res = (await gplay.list(opts)) as Record<string, any>[];
+    // Same silent-empty-on-parse-failure risk as searchStore above — a real
+    // Top Free chart is never empty, so treat 0 results as a failed fetch.
+    if (!res.length) throw new Error('Play Store chart returned zero results — likely a scraper/rate-limit failure.');
     return { chart: genreId ? `Top Free · ${genreId}` : 'Top Free', ids: res.map((r) => String(r.appId)) };
   }
   const data = await fetchJson(
     `https://rss.marketingtools.apple.com/api/v2/${encodeURIComponent(country)}/apps/top-free/${CHART_DEPTH}/apps.json`,
   );
   const results: Record<string, any>[] = data?.feed?.results || [];
+  if (!results.length) throw new Error('App Store chart returned zero results — likely a transient fetch failure.');
   return { chart: 'Top Free (overall)', ids: results.map((r) => String(r.id)) };
 }

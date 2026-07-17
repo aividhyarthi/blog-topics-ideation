@@ -1147,8 +1147,13 @@ ai photo enhancer"></textarea>
             <p class="hint">Click <b>Check all keyword rankings</b> above to run the first check. Each check adds one point to this trend — run it every few days to see coverage of your full list growing or dropping over time.</p></div>`;
         }
         const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
+        const covErrCount = (app.coverageTrends || []).filter((t) => t.error).length;
+        const covErrBanner = covErrCount
+          ? `<div class="alert info" style="display:block;">⚠︎ ${covErrCount} of ${app.coverageTrends.length} keyword${app.coverageTrends.length === 1 ? '' : 's'} failed their last check (store rate-limit or a temporary block, not a real result) — not confirmed "not ranking"; retried automatically on the next check.</div>`
+          : '';
         return `<div class="ov covov">
           <h4 class="covhead">Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords, last checked ${cov.lastCheckedAt ? new Date(cov.lastCheckedAt).toLocaleString() : 'never'}</span></h4>
+          ${covErrBanner}
           <div class="charts">
             <div class="chartbox"><h4>Keyword universe size over time</h4>${universeSizeChart(cov.universeTrend)}</div>
             <div class="chartbox"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>
@@ -1181,6 +1186,10 @@ ai photo enhancer"></textarea>
       });
 
       function deltaCell(t) {
+        // A failed check (see posCell's "err" case) has no real position to
+        // compare — showing "out" here would read as a confirmed rank drop
+        // when all that actually happened is the store search errored out.
+        if (t.error) return '<span class="delta na">–</span>';
         if (t.position != null && t.prevPosition == null) return '<span class="delta up">new</span>';
         if (t.position == null && t.prevPosition != null) return '<span class="delta down">out</span>';
         if (t.delta == null) return '<span class="delta na">–</span>';
@@ -1531,8 +1540,16 @@ ai photo enhancer"></textarea>
             <td>${spark(t.history || [])}</td>
             <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
+        const errCount = trends.filter((t) => t.error).length;
+        // A checked-but-failed row (store rate-limit/block) still reads as
+        // "not ranking" in the table (no numeric position either way) — call
+        // that out explicitly so it's never mistaken for a confirmed result.
+        const errBanner = errCount
+          ? `<div class="alert info" style="display:block;">⚠︎ ${errCount} of ${trends.length} keyword${trends.length === 1 ? '' : 's'} failed to check today (store rate-limit or a temporary block, not a real result) — hover the <b>⚠︎ err</b> tag in the table for details. These are <b>not</b> confirmed as "not ranking"; they're retried automatically on the next check.</div>`
+          : '';
         const table = (app.keywords || []).length
           ? `<div class="chartbox" style="margin-bottom:14px;"><h4>Search visibility score (0–100)</h4>${visChart(app.overview.days, app.annotations)}</div>
+            ${errBanner}
             <p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
               <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
               <tbody>${rows}</tbody>
