@@ -139,13 +139,6 @@ const limitsText = product && plan
       .statblock .tiles { margin-bottom: 4px; }
       .statblock .kwtabs.cattabs { margin: 12px 0 0; padding: 0; }
       .statblock .table-wrap { border: none; border-radius: 0; border-top: 1px solid var(--line); margin-top: 10px; background: transparent; }
-      /* align-items: start — without it, grid's default "stretch" forces
-         every card to the height of the tallest sibling (e.g. a 3-entry
-         Competitor pulse card next to a 1-line Rank movers card), leaving
-         the shorter cards as mostly-empty boxes. Each card should only be
-         as tall as its own content. */
-      .wn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; align-items: start; }
-      @media (max-width: 880px) { .wn-grid { grid-template-columns: 1fr; } }
       .wn-card { background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px; }
       .wn-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
       .wn-card-ico { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; background: var(--tint); color: var(--accent); }
@@ -192,7 +185,8 @@ const limitsText = product && plan
          touch devices, making the page feel stuck while a finger is over
          a table (only the table's own content ever appears to move). */
       .table-wrap { overflow-x: auto; overflow-y: hidden; touch-action: pan-x; border: 1px solid var(--line); border-radius: 10px; background: var(--card); margin-top: 12px; -webkit-overflow-scrolling: touch; }
-      .cthead { display: inline-flex; align-items: center; gap: 5px; }
+      .cthead { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+      .cthead b { overflow: hidden; text-overflow: ellipsis; }
       .cticon { width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0; }
       table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 13px; }
       th, td { text-align: left; padding: 8px 12px; vertical-align: middle; border-bottom: 1px solid var(--line); }
@@ -217,7 +211,9 @@ const limitsText = product && plan
       .annedit.open { display: block; }
       .annedit .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px; }
       .annedit label { font-size: 11.5px; font-weight: 700; color: var(--muted); display: block; margin-bottom: 3px; }
-      .annedit input[type="date"], .annedit select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+      .annedit input[type="date"], .annedit select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; background: var(--card2); color: var(--ink); }
+      .annedit input[type="date"] { color-scheme: dark; }
+      @media print { .annedit input[type="date"] { color-scheme: light; } }
       .annlist { margin-top: 16px; }
       .annlist h4 { margin: 0 0 4px; font-size: 13px; }
       .annrow { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -1036,12 +1032,6 @@ ai photo enhancer"></textarea>
         </div>`;
       }
 
-      function whatsNewHtml(app) {
-        const cards = [moversHtml(app), competitorPulseHtml(app), ratingPulseHtml(app)].filter(Boolean);
-        if (!cards.length) return '';
-        return `<div class="wn-grid">${cards.join('')}</div>`;
-      }
-
       // One plain-language sentence explaining WHY the visibility score
       // moved — reuses the same gainers/losers/newlyRanked/droppedOut data
       // moversHtml already computes, just collapsed into prose instead of a
@@ -1667,18 +1657,25 @@ ai photo enhancer"></textarea>
             </div>
           </div>`;
 
+        // Overview is the ONE screen a client should never need explaining —
+        // just what's ranking, the trend, and what moved. Everything else
+        // (the full movers list, competitor standing, rating health, the
+        // ASO cross-sell) has its own home in a tab that's actually about
+        // that thing, instead of all of it landing on the home screen at
+        // once.
         const sectionOverview = `
-          <div class="section-head"><h2>Overview</h2><p class="hint">Today's headline numbers for the ${(app.keywords || []).length} daily-tracked keywords.</p></div>
-          ${whatsNewHtml(app)}
-          ${overviewHtml(app)}
-          <div class="no-print" style="margin-top:14px;">${asoSummaryHtml(app)}</div>`;
+          <div class="section-head"><h2>Overview</h2><p class="hint">Where you rank today, your trend, and what changed since your last check.</p></div>
+          ${overviewHtml(app)}`;
 
+        const moversCard = moversHtml(app);
         const sectionKeywords = `
           <div class="section-head"><h2>Daily Keyword Snapshot</h2>
             <div class="row no-print"><button class="ghost" data-act="discover">Discover keywords</button></div>
           </div>
+          ${moversCard ? `<div style="max-width:520px;margin-bottom:14px;">${moversCard}</div>` : ''}
           <div class="no-print">${discoverHtml(app)}</div>
-          ${table}`;
+          ${table}
+          <div class="no-print" style="margin-top:14px;">${asoSummaryHtml(app)}</div>`;
 
         const sectionCoverage = `
           <div class="section-head"><h2>All Keywords Snapshot</h2>
@@ -1688,12 +1685,16 @@ ai photo enhancer"></textarea>
             ? coverageHtml(app)
             : '<p class="hint">No coverage list yet — paste your full keyword universe (up to ' + MAX_COVERAGE + ') under <b>Settings</b> to monitor every keyword you care about beyond the plan-capped daily list.</p>'}`;
 
+        const compPulseCard = competitorPulseHtml(app);
         const sectionCompare = `
           <div class="section-head"><h2>Compare</h2><p class="hint">Your keywords, your rank vs your competitors' — side by side.</p></div>
+          ${compPulseCard ? `<div style="max-width:520px;margin-bottom:14px;">${compPulseCard}</div>` : ''}
           ${compareHtml(app)}`;
 
+        const ratingCard = ratingPulseHtml(app);
         const sectionTrends = `
           <div class="section-head"><h2>Trends</h2><p class="hint">Longer-horizon signals: category chart position, rating health, and your logged experiments.</p></div>
+          ${ratingCard ? `<div style="max-width:520px;margin-bottom:14px;">${ratingCard}</div>` : ''}
           ${trendChartsHtml(app)}
           ${reviewThemesHtml(app)}
           <div class="annedit open no-print" data-role="annedit" style="margin-top:16px;">
