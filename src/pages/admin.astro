@@ -128,7 +128,7 @@ if (!Astro.locals.productMode || !user || !isAdminEmail(user.email)) {
           const cls = run.error ? 'bad' : 'ok';
           html += `<div class="runline"><b class="${cls}">Last check:</b> ${fmtDate(run.startedAt)} → ${fmtDate(run.finishedAt)} · ${run.checkedApps} app(s), ${run.checkedCoverage} coverage list(s) · trigger: ${esc(run.trigger)}${run.error ? ` · <span class="bad">${esc(run.error)}</span>` : ''}</div>`;
         }
-        html += `<div class="runline muted">Next automatic check: ${fmtDate(sched.nextRunAt)} (daily at ${esc(sched.checkTimeUtc)} UTC${sched.checkTimeUtc === '06:30' ? ' = 12:00 noon IST' : ''})</div>`;
+        html += `<div class="runline muted">Next automatic check: ${fmtDate(sched.nextRunAt)} (hourly retries from ${esc(sched.windowStartUtc)} UTC for ${sched.windowHours}h — 00:00–12:00 IST if unchanged)</div>`;
         $('runstatus').innerHTML = html;
 
         if (run && run.lines && run.lines.length) {

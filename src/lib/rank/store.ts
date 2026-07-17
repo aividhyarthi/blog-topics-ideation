@@ -194,3 +194,23 @@ export function saveReviewThemesEntry(key: string, entry: ReviewThemesCache[stri
   cache[key] = entry;
   writeFileSync(reviewThemesFile(userId), JSON.stringify(cache));
 }
+
+// --- nightly-check marker — the nightly scheduler now retries hourly across
+// a window (see scheduler.ts) instead of running once, so a crash/restart
+// mid-run only costs an hour instead of silently skipping a whole tenant
+// until the next day. This marker is what lets an hourly retry tell "already
+// fully checked today, nothing to do" apart from "never got reached yet" —
+// only written after every step for a tenant succeeds, so a run that dies
+// partway through leaves no marker and gets retried in full next tick.
+
+const nightlyMarkerFile = (userId?: string) => join(dataDir(userId), 'nightly-marker.json');
+
+export function loadNightlyMarker(userId?: string): { dateKey: string } | null {
+  const p = nightlyMarkerFile(userId);
+  if (!existsSync(p)) return null;
+  try { return JSON.parse(readFileSync(p, 'utf8')) as { dateKey: string }; } catch { return null; }
+}
+
+export function saveNightlyMarker(dateKey: string, userId?: string): void {
+  writeFileSync(nightlyMarkerFile(userId), JSON.stringify({ dateKey }));
+}

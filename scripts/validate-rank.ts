@@ -276,5 +276,25 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
   if (before) process.env.RANK_DATA_DIR = before; else delete process.env.RANK_DATA_DIR;
 }
 
+// --- nightly scheduler: hourly retries across the 12am-12pm IST window ------
+{
+  delete process.env.NIGHTLY_CHECK_UTC; // use the 18:30 UTC default for these
+  const { nextRunAt } = await import('../src/lib/rank/scheduler');
+  const iso = (d: Date) => d.toISOString();
+
+  eq('before the window: next run is today\'s window start',
+    iso(nextRunAt(new Date('2026-07-17T10:00:00.000Z'))), '2026-07-17T18:30:00.000Z');
+  eq('just after window start: next run is +1h',
+    iso(nextRunAt(new Date('2026-07-17T18:45:00.000Z'))), '2026-07-17T19:30:00.000Z');
+  eq('mid-window (spans UTC midnight): next run is the next hourly tick',
+    iso(nextRunAt(new Date('2026-07-18T02:00:00.000Z'))), '2026-07-18T02:30:00.000Z');
+  eq('a restart mid-window resumes within the hour, not tomorrow',
+    iso(nextRunAt(new Date('2026-07-18T02:31:00.000Z'))), '2026-07-18T03:30:00.000Z');
+  eq('at the window\'s last tick: next run is tomorrow\'s window start',
+    iso(nextRunAt(new Date('2026-07-18T06:30:00.000Z'))), '2026-07-18T18:30:00.000Z');
+  eq('just after the window ends: next run is tonight\'s window start',
+    iso(nextRunAt(new Date('2026-07-18T07:00:00.000Z'))), '2026-07-18T18:30:00.000Z');
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');
