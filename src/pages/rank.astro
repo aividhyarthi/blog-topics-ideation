@@ -1328,6 +1328,18 @@ ai photo enhancer"></textarea>
         return state.apps.filter((a) => a.key !== app.key && (a.competitorOf === app.key || app.competitorOf === a.key));
       }
 
+      // An app counts as a valid "your own app" target for linking a NEW
+      // competitor to it if it either has no competitorOf at all, OR its
+      // competitorOf points at a key that no longer exists (the app it was
+      // linked to got removed later) — a stale link like that shouldn't
+      // make the app permanently un-selectable everywhere else. The sidebar
+      // already treats an unresolved target the same way (renders the app
+      // top-level, see renderSidebar's isNested) — this keeps every picker
+      // agreeing with what the sidebar already shows.
+      function isPrimaryLike(a) {
+        return !a.competitorOf || !state.apps.some((x) => x.key === a.competitorOf);
+      }
+
       function trendMap(a) {
         const m = {};
         for (const t of (a.coverageTrends || [])) m[t.keyword] = t;
@@ -1746,10 +1758,16 @@ ai photo enhancer"></textarea>
                 // other competitors here is how chains (A→B→C) and loops
                 // (A→B→A) got created, which used to make apps vanish from
                 // the sidebar. Excluded: this app itself and anything that
-                // is already someone's competitor. The current saved target
-                // always stays listed (even if the data is in a broken
-                // state), so the select shows what's saved, never a blank.
-                a.key !== app.key && (a.key === app.competitorOf || !a.competitorOf)
+                // is already someone's competitor. isPrimaryLike (not a bare
+                // !a.competitorOf check) also accepts an app whose
+                // competitorOf points at a since-removed app — otherwise a
+                // stale link like that makes an app permanently impossible
+                // to pick as a target anywhere, even though the sidebar
+                // already renders it as a normal top-level app. The current
+                // saved target always stays listed too (even if the data is
+                // in a broken state), so the select shows what's saved,
+                // never a blank.
+                a.key !== app.key && (a.key === app.competitorOf || isPrimaryLike(a))
               ).map((a) =>
                 `<option value="${escAttr(a.key)}" ${app.competitorOf === a.key ? 'selected' : ''}>${esc(a.title)} (${a.store === 'play' ? 'Google Play' : 'App Store'} · ${esc(a.country.toUpperCase())})</option>`).join('')}
             </select>
@@ -1857,7 +1875,7 @@ ai photo enhancer"></textarea>
         // Same rule as the Settings picker: a new competitor can only be
         // linked to one of YOUR top-level apps, never to another competitor
         // — that's what creates the chains/loops that broke the sidebar.
-        const primaries = state.apps.filter((a) => !a.competitorOf);
+        const primaries = state.apps.filter(isPrimaryLike);
         sel.innerHTML = '<option value="">— none, this is my own app —</option>' + primaries.map((a) =>
           `<option value="${escAttr(a.key)}">${esc(a.title)} (${a.store === 'play' ? 'Google Play' : 'App Store'} · ${esc(a.country.toUpperCase())})</option>`).join('');
         if (primaries.some((a) => a.key === prev)) sel.value = prev;
