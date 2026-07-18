@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { analyzeHtml, crawlabilitySignals, buildVisibility, PAGE_TYPE_LABEL } from '../../lib/aeo';
 import { accessGroups, renderInfo } from '../../lib/access';
 import { extractContent } from '../../lib/extract';
+import { getUser } from '../../lib/auth';
+import { usageStatus, recordUsage } from '../../lib/billing';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
 
@@ -41,9 +43,22 @@ const wc = (html: string): number => {
 const rowNote = (f: Fetched, words: number): string =>
   f.ok ? `HTTP ${f.status} · ${words} words served` : `HTTP ${f.status || 'no response'} — blocked or unreachable`;
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async (ctx) => {
+  const { request } = ctx;
   let body: { url?: string; html?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
+
+  // Enforce the monthly plan limit for signed-in users (anonymous/no-DB stays
+  // unlimited — see /lib/billing.ts for the free/pro caps).
+  const gateUser = await getUser(ctx);
+  if (gateUser) {
+    try {
+      const status = await usageStatus(gateUser.id);
+      if (!status.allowed) {
+        return json({ error: `You've used all ${status.limit} ${status.plan === 'pro' ? 'Pro' : 'free'} checks this month.${status.plan === 'pro' ? '' : ' Upgrade to CiteRank Pro ($99/mo, 500 checks) to continue.'}`, upgrade: status.plan !== 'pro' }, 402);
+      }
+    } catch { /* if usage lookup fails, don't block the request */ }
+  }
 
   const inputUrl = (body.url || '').trim();
   const pasted = (body.html || '').trim();
@@ -161,6 +176,10 @@ export const POST: APIRoute = async ({ request }) => {
 
   let fetchNote: string | undefined;
   if (factsM.wordCount < 120 && factsD.wordCount < 120) fetchNote = 'Both fetches returned very little text — the page is likely JavaScript-rendered (content loads client-side).';
+
+  // Only a real, live URL fetch counts against the monthly limit — pasted HTML
+  // (no live fetch) is free to re-check as many times as needed.
+  if (gateUser) recordUsage(gateUser.id, 'access').catch(() => {});
 
   return json({
     mode: 'url', url: inputUrl, host,

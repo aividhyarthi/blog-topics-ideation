@@ -55,6 +55,9 @@
       .acct-btn.solid:hover { background: var(--pink-dark); border-color: var(--pink-dark); color: #fff; }
       .acct-email { font-size: 12px; color: var(--muted); font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       @media (max-width: 560px) { .acct-email { display: none; } }
+      .usage-pill { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--pink-dark); text-decoration: none; border: 1px solid #c7ddff; }
+      .usage-pill.pro { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
+      .usage-pill.low { background: var(--warn-bg); color: var(--warn); border-color: #f0e2b8; }
 
       .modal { position: fixed; inset: 0; z-index: 100; background: rgba(20,20,40,.42); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 20px; }
       .modal-card { background: #fff; border-radius: 18px; width: 100%; max-width: 420px; padding: 26px; box-shadow: 0 24px 64px -24px rgba(20,20,50,.5); position: relative; max-height: 88vh; overflow-y: auto; }
@@ -945,8 +948,15 @@
         const el = $('acct'); if (!el) return;
         if (!ACCOUNTS) { el.innerHTML = ''; return; }
         if (USER) {
-          el.innerHTML = `<span class="acct-email">${esc(USER.email)}</span><button class="acct-btn" id="myaudits">My audits</button><button class="acct-btn" id="signout">Sign out</button>`;
+          el.innerHTML = `<span class="acct-usage" id="acctusage"></span><span class="acct-email">${esc(USER.email)}</span><button class="acct-btn" id="myaudits">My audits</button><button class="acct-btn" id="signout">Sign out</button>`;
           $('myaudits').onclick = showAudits; $('signout').onclick = signOut;
+          fetch('/api/payments/status').then((r) => r.json()).then((d) => {
+            const u = $('acctusage');
+            if (u && typeof d.used === 'number') {
+              const low = d.remaining <= Math.ceil(d.limit * 0.1);
+              u.innerHTML = `<a href="/pricing" class="usage-pill ${d.plan === 'pro' ? 'pro' : ''}${low ? ' low' : ''}">${d.plan === 'pro' ? 'Pro' : 'Free'} · ${d.used}/${d.limit}</a>`;
+            }
+          }).catch(() => {});
         } else {
           el.innerHTML = `<button class="acct-btn solid" id="signin">Sign in</button>`;
           $('signin').onclick = () => openAuth('login');

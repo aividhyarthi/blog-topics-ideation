@@ -1,5 +1,21 @@
 ---
 import Site from '../layouts/Site.astro';
+import QRCode from 'qrcode';
+
+// UPI is a stopgap for recurring billing: Stripe cannot process subscription
+// billing for Indian businesses, and Razorpay Subscriptions is the eventual
+// real fix. Until then, customers pay via UPI and an admin approves the claim
+// (see /api/payments/claim + /admin/payments). Configure via env vars — never
+// fabricate a payee ID.
+const UPI_ID = (import.meta.env.UPI_ID || process.env.UPI_ID || '').trim();
+const UPI_NAME = (import.meta.env.UPI_PAYEE_NAME || process.env.UPI_PAYEE_NAME || 'CiteRank').trim();
+const UPI_AMOUNT = (import.meta.env.UPI_AMOUNT_INR || process.env.UPI_AMOUNT_INR || '8299').trim();
+const upiConfigured = Boolean(UPI_ID);
+let upiUri = '', qrSvg = '';
+if (upiConfigured) {
+  upiUri = `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${encodeURIComponent(UPI_AMOUNT)}&cu=INR&tn=${encodeURIComponent('CiteRank Pro')}`;
+  qrSvg = await QRCode.toString(upiUri, { type: 'svg', width: 200, margin: 1, color: { dark: '#0f172a', light: '#00000000' } });
+}
 ---
 <Site title="Pricing — CiteRank" description="CiteRank Pro — the complete AEO/GEO platform for $99/month.">
   <section class="pagehead">
@@ -39,6 +55,35 @@ import Site from '../layouts/Site.astro';
       </div>
     </div>
 
+    <div class="wrap upi-wrap">
+      <h2 class="faq-h">Pay via UPI</h2>
+      <p class="upi-intro">Card billing for India isn’t live yet — for now, activate Pro by paying via UPI. It’s manually verified, usually within a few hours.</p>
+      {upiConfigured ? (
+        <div class="upicard">
+          <div class="upi-qr" set:html={qrSvg} />
+          <div class="upi-info">
+            <div class="upi-amt">₹{UPI_AMOUNT}<span> ≈ $99/month</span></div>
+            <div class="upi-idrow"><span class="upi-id">{UPI_ID}</span><button class="btn-ghost sm" id="upicopy" data-upi={UPI_ID}>Copy UPI ID</button></div>
+            <a href={upiUri} class="btn-primary upi-pay">Pay with UPI app</a>
+            <ol class="upi-steps">
+              <li>Scan the QR (or tap “Pay with UPI app” on mobile) and pay ₹{UPI_AMOUNT}.</li>
+              <li>Copy the UTR / transaction reference number from your UPI app.</li>
+              <li>Submit it below with the email your CiteRank account uses.</li>
+            </ol>
+            <form id="upiform" class="upiform" data-amount={`₹${UPI_AMOUNT}`}>
+              <input type="email" id="uf-email" placeholder="Your CiteRank account email" required />
+              <input type="text" id="uf-utr" placeholder="UPI transaction reference (UTR)" required />
+              <input type="text" id="uf-note" placeholder="Note (optional)" />
+              <button type="submit" class="btn-primary" id="uf-go">Submit for verification</button>
+              <div class="upi-msg" id="uf-msg"></div>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <div class="upicard upi-off"><p>UPI payment isn’t configured on this deployment yet — email us to activate Pro manually.</p></div>
+      )}
+    </div>
+
     <div class="wrap faq-wrap">
       <h2 class="faq-h">Frequently asked</h2>
       <div class="faq"><b>What counts as a URL check?</b><p>Any single page you run through the LLM Access Check or the Full AEO Audit. Running the same URL again counts again. Individual on-demand crawler runs within one report don’t each cost a check.</p></div>
@@ -47,6 +92,32 @@ import Site from '../layouts/Site.astro';
       <div class="faq"><b>Can I cancel?</b><p>Yes — anytime, from your account. You keep access until the end of the billing period.</p></div>
     </div>
   </main>
+
+  <script>
+    const copyBtn = document.getElementById('upicopy');
+    if (copyBtn) copyBtn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(copyBtn.dataset.upi || ''); copyBtn.textContent = 'Copied!'; setTimeout(() => (copyBtn.textContent = 'Copy UPI ID'), 1500); }
+      catch { /* clipboard may be unavailable */ }
+    });
+    const form = document.getElementById('upiform');
+    if (form) form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = (document.getElementById('uf-email')).value.trim();
+      const utr = (document.getElementById('uf-utr')).value.trim();
+      const note = (document.getElementById('uf-note')).value.trim();
+      const msg = document.getElementById('uf-msg');
+      const btn = document.getElementById('uf-go');
+      btn.disabled = true; btn.textContent = 'Submitting…';
+      msg.className = 'upi-msg'; msg.textContent = '';
+      try {
+        const res = await fetch('/api/payments/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, utr, note, amount: form.dataset.amount || '' }) });
+        const d = await res.json();
+        if (!res.ok) { msg.classList.add('err'); msg.textContent = d.error || 'Something went wrong.'; }
+        else { msg.classList.add('ok'); msg.textContent = 'Thanks! We’ll verify and activate Pro within a few hours.'; form.reset(); }
+      } catch { msg.classList.add('err'); msg.textContent = 'Network error — try again.'; }
+      finally { btn.disabled = false; btn.textContent = 'Submit for verification'; }
+    });
+  </script>
 
   <style>
     .price-wrap { display: grid; grid-template-columns: 380px 1fr; gap: 28px; align-items: start; }
@@ -67,6 +138,27 @@ import Site from '../layouts/Site.astro';
     .ps-n { font-size: 34px; font-weight: 800; color: var(--pink); letter-spacing: -.03em; min-width: 60px; }
     .ps-l { font-size: 14px; font-weight: 700; }
     .ps-l span { display: block; font-size: 12.5px; font-weight: 500; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+    .upi-wrap { margin-top: 56px; }
+    .upi-intro { font-size: 14.5px; color: var(--muted); margin: 0 0 20px; max-width: 60ch; }
+    .upicard { display: flex; gap: 30px; border: 1px solid var(--line); border-radius: 20px; background: #fff; padding: 28px; box-shadow: var(--shadow); flex-wrap: wrap; }
+    .upicard.upi-off { display: block; color: var(--muted); font-size: 14px; }
+    .upi-qr { flex-shrink: 0; width: 200px; height: 200px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
+    .upi-qr :global(svg) { width: 100%; height: 100%; }
+    .upi-info { flex: 1; min-width: 260px; }
+    .upi-amt { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+    .upi-amt span { font-size: 14px; font-weight: 600; color: var(--muted); }
+    .upi-idrow { display: flex; align-items: center; gap: 10px; margin: 10px 0 16px; flex-wrap: wrap; }
+    .upi-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; background: var(--accent-soft); border: 1px solid #c7ddff; color: var(--pink-dark); padding: 6px 12px; border-radius: 9px; font-weight: 600; }
+    .btn-ghost.sm { padding: 7px 13px; font-size: 12.5px; }
+    .upi-pay { display: inline-flex; margin-bottom: 20px; }
+    .upi-steps { font-size: 13px; color: var(--ink-2); line-height: 1.7; padding-left: 20px; margin: 0 0 20px; }
+    .upiform { display: grid; gap: 10px; max-width: 420px; }
+    .upiform input { border: 1px solid var(--line-2); border-radius: 10px; padding: 11px 13px; font-size: 14px; font-family: inherit; }
+    .upiform input:focus { outline: none; border-color: var(--pink); box-shadow: 0 0 0 3px rgba(37,99,235,.14); }
+    .upiform button { justify-self: start; }
+    .upi-msg { font-size: 13px; margin-top: 2px; }
+    .upi-msg.ok { color: var(--ok); font-weight: 600; }
+    .upi-msg.err { color: var(--bad); font-weight: 600; }
     .faq-wrap { margin-top: 56px; }
     .faq-h { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 20px; }
     .faq { border-top: 1px solid var(--line); padding: 18px 0; }

@@ -1,0 +1,77 @@
+---
+import Site from '../../layouts/Site.astro';
+---
+<Site title="Payments — Admin — CiteRank" description="Review and approve UPI payment claims.">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Admin</span>
+      <h1>UPI payment claims</h1>
+      <p>Approve a claim to activate 30 days of Pro on the matching CiteRank account (extends if already active).</p>
+    </div>
+  </section>
+  <main>
+    <div class="wrap">
+      <div id="gate" class="gate-msg">Checking access…</div>
+      <div id="claims" style="display:none"></div>
+    </div>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    const STCLS = { pending: 'st-pend', approved: 'st-ok', rejected: 'st-bad' };
+
+    function renderClaims(list) {
+      if (!list.length) { $('claims').innerHTML = '<p class="empty">No payment claims yet.</p>'; return; }
+      $('claims').innerHTML = `<div class="ctable">${list.map((c) => `
+        <div class="crow" data-id="${c.id}">
+          <div class="crow-main">
+            <div class="crow-top"><b>${esc(c.email)}</b><span class="st ${STCLS[c.status] || ''}">${esc(c.status)}</span></div>
+            <div class="crow-sub">UTR: <code>${esc(c.utr)}</code>${c.amount ? ` · ${esc(c.amount)}` : ''} · ${new Date(c.createdAt).toLocaleString()}</div>
+            ${c.note ? `<div class="crow-note">${esc(c.note)}</div>` : ''}
+          </div>
+          ${c.status === 'pending' ? `<div class="crow-actions"><button class="btn-primary sm" data-act="approve">Approve</button><button class="btn-ghost sm" data-act="reject">Reject</button></div>` : ''}
+        </div>`).join('')}</div>`;
+      document.querySelectorAll('.crow button').forEach((btn) => btn.addEventListener('click', () => act(btn)));
+    }
+    async function act(btn) {
+      const row = btn.closest('.crow');
+      const id = row.dataset.id, action = btn.dataset.act;
+      row.querySelectorAll('button').forEach((b) => (b.disabled = true));
+      try {
+        const res = await fetch('/api/admin/payments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }) });
+        const d = await res.json();
+        if (!res.ok) { alert(d.error || 'Failed.'); row.querySelectorAll('button').forEach((b) => (b.disabled = false)); return; }
+        load();
+      } catch { alert('Network error.'); row.querySelectorAll('button').forEach((b) => (b.disabled = false)); }
+    }
+    async function load() {
+      try {
+        const res = await fetch('/api/admin/payments');
+        const d = await res.json();
+        if (!res.ok) { $('gate').textContent = d.error || 'Not authorized.'; return; }
+        $('gate').style.display = 'none'; $('claims').style.display = 'block';
+        renderClaims(d.claims || []);
+      } catch { $('gate').textContent = 'Could not load claims.'; }
+    }
+    load();
+  </script>
+
+  <style>
+    .gate-msg { font-size: 14px; color: var(--muted); padding: 24px 0; }
+    .empty { color: var(--muted); font-size: 14px; }
+    .ctable { display: grid; gap: 10px; }
+    .crow { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 16px 18px; box-shadow: var(--shadow); flex-wrap: wrap; }
+    .crow-top { display: flex; align-items: center; gap: 10px; }
+    .crow-top b { font-size: 14.5px; }
+    .st { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; }
+    .st-pend { background: var(--warn-bg); color: var(--warn); }
+    .st-ok { background: var(--ok-bg); color: var(--ok); }
+    .st-bad { background: var(--bad-bg); color: var(--bad); }
+    .crow-sub { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
+    .crow-sub code { background: #f1f5f9; padding: 1px 6px; border-radius: 5px; }
+    .crow-note { font-size: 12.5px; color: var(--ink-2); margin-top: 6px; font-style: italic; }
+    .crow-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .btn-primary.sm, .btn-ghost.sm { padding: 7px 13px; font-size: 12.5px; }
+  </style>
+</Site>

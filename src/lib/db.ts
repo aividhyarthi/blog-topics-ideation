@@ -59,6 +59,33 @@ function ensureSchema(): Promise<void> {
         );
         CREATE INDEX IF NOT EXISTS audits_user_idx ON audits(user_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
+
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free';
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMPTZ;
+
+        -- Every URL check (LLM Access Check or full audit), used to enforce the
+        -- monthly plan limit — independent of whether a full report gets saved.
+        CREATE TABLE IF NOT EXISTS usage_events (
+          id           BIGSERIAL PRIMARY KEY,
+          user_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          tool         TEXT NOT NULL,
+          created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS usage_events_user_idx ON usage_events(user_id, created_at DESC);
+
+        -- Manual UPI payment claims (stopgap until Razorpay subscriptions land).
+        -- A user pays via UPI, submits the transaction ref, and an admin approves it.
+        CREATE TABLE IF NOT EXISTS payment_claims (
+          id           BIGSERIAL PRIMARY KEY,
+          email        TEXT NOT NULL,
+          utr          TEXT NOT NULL,
+          amount       TEXT,
+          note         TEXT,
+          status       TEXT NOT NULL DEFAULT 'pending',
+          created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+          reviewed_at  TIMESTAMPTZ
+        );
+        CREATE INDEX IF NOT EXISTS payment_claims_status_idx ON payment_claims(status, created_at DESC);
       `);
     })().catch((e) => { schemaReady = null; throw e; });
   }

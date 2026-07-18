@@ -7,6 +7,7 @@ import {
 } from '../../lib/aeo';
 import { getUser } from '../../lib/auth';
 import { saveAudit } from '../../lib/audits';
+import { usageStatus, recordUsage } from '../../lib/billing';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -190,6 +191,18 @@ export const POST: APIRoute = async (ctx) => {
   let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string; pageType?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
+  // Enforce the monthly plan limit for signed-in users (anonymous/no-DB stays
+  // unlimited — see /lib/billing.ts for the free/pro caps).
+  const gateUser = await getUser(ctx);
+  if (gateUser) {
+    try {
+      const status = await usageStatus(gateUser.id);
+      if (!status.allowed) {
+        return json({ error: `You've used all ${status.limit} ${status.plan === 'pro' ? 'Pro' : 'free'} checks this month.${status.plan === 'pro' ? '' : ' Upgrade to CiteRank Pro ($99/mo, 500 checks) to continue.'}`, upgrade: status.plan !== 'pro' }, 402);
+      }
+    } catch { /* if usage lookup fails, don't block the request */ }
+  }
+
   // AI-judged signals use OpenAI or Anthropic (whichever has a key + credits).
   // Without either, the auditor still runs on rule-based signals (AI defaults to 50).
   const openaiKey = process.env.OPENAI_API_KEY || import.meta.env.OPENAI_API_KEY;
@@ -289,12 +302,13 @@ export const POST: APIRoute = async (ctx) => {
     fetchNote, aiError,
   };
 
-  // Save to the user's history if signed in (best-effort — never blocks the response).
+  // Save to the user's history + count against their monthly limit (best-effort
+  // — a logging/save failure never blocks the response).
   let savedId: string | null = null;
-  try {
-    const user = await getUser(ctx);
-    if (user) savedId = await saveAudit(user.id, report, meta);
-  } catch { /* ignore persistence errors */ }
+  if (gateUser) {
+    try { savedId = await saveAudit(gateUser.id, report, meta); } catch { /* ignore */ }
+    recordUsage(gateUser.id, 'audit').catch(() => {});
+  }
 
   return json({ report, meta: { ...meta, savedId } });
 };
