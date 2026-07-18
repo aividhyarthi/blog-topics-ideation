@@ -8,6 +8,7 @@ import {
 import { getUser } from '../../lib/auth';
 import { saveAudit } from '../../lib/audits';
 import { usageStatus, recordUsage } from '../../lib/billing';
+import { dbEnabled } from '../../lib/db';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -191,9 +192,13 @@ export const POST: APIRoute = async (ctx) => {
   let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string; pageType?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
-  // Enforce the monthly plan limit for signed-in users (anonymous/no-DB stays
-  // unlimited — see /lib/billing.ts for the free/pro caps).
+  // An account is REQUIRED to run an audit once accounts are live (dbEnabled).
+  // Only when the DB isn't configured at all does the tool fall back to
+  // anonymous — there's no account system to enforce in that case.
   const gateUser = await getUser(ctx);
+  if (dbEnabled && !gateUser) {
+    return json({ error: 'Create a free account to run an audit — it takes 10 seconds.', requireAuth: true }, 401);
+  }
   if (gateUser) {
     try {
       const status = await usageStatus(gateUser.id);

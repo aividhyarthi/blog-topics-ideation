@@ -295,12 +295,10 @@
           <a href="/blog">Blog</a>
           <a href="/news">News</a>
         </nav>
-        <div class="navcta">
-          <a href="/audit?signin=1" class="nav-login">Log in</a>
-          <a href="/pricing" class="btn-primary sm">Get started</a>
-        </div>
+        <div class="navcta" id="cr-navauth"></div>
       </div>
     </div>
+    <script src="/js/citerank-auth.js" defer></script>
 
     <section class="hero">
       <div class="wrap">
@@ -593,13 +591,18 @@
         try {
           const res = await fetch('/api/access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           const d = await res.json();
-          if (!res.ok) showErr(d.error || 'Something went wrong.');
-          else renderResult(d);
+          if (!res.ok) {
+            // Session expired / never signed in — prompt to sign in and retry.
+            if (d.requireAuth && window.CRAuth) { $('info').style.display = 'none'; window.CRAuth.requireAuth(run); return; }
+            showErr(d.error || 'Something went wrong.');
+          } else renderResult(d);
         } catch (e) { showErr('Network error: ' + (e && e.message ? e.message : e)); }
         finally { $('info').style.display = 'none'; btn.disabled = false; btn.innerHTML = IC.eye + 'Check access'; }
       }
-      $('go').addEventListener('click', run);
-      $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+      // An account is required to run a check — gate the button through CRAuth.
+      function goClicked() { if (window.CRAuth) window.CRAuth.requireAuth(run); else run(); }
+      $('go').addEventListener('click', goClicked);
+      $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') goClicked(); });
     </script>
   </body>
 </html>

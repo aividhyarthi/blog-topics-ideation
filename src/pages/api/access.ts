@@ -4,6 +4,7 @@ import { accessGroups, renderInfo } from '../../lib/access';
 import { extractContent } from '../../lib/extract';
 import { getUser } from '../../lib/auth';
 import { usageStatus, recordUsage } from '../../lib/billing';
+import { dbEnabled } from '../../lib/db';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
 
@@ -48,9 +49,13 @@ export const POST: APIRoute = async (ctx) => {
   let body: { url?: string; html?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
-  // Enforce the monthly plan limit for signed-in users (anonymous/no-DB stays
-  // unlimited — see /lib/billing.ts for the free/pro caps).
+  // An account is REQUIRED to run a check once accounts are live (dbEnabled).
+  // Only when the DB isn't configured at all does the tool fall back to
+  // anonymous — there's no account system to enforce in that case.
   const gateUser = await getUser(ctx);
+  if (dbEnabled && !gateUser) {
+    return json({ error: 'Create a free account to run a check — it takes 10 seconds.', requireAuth: true }, 401);
+  }
   if (gateUser) {
     try {
       const status = await usageStatus(gateUser.id);

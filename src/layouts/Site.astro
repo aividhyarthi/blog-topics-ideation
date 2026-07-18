@@ -76,14 +76,12 @@ const { title = 'CiteRank', description = 'AEO / GEO intelligence platform.' } =
           <a href="/blog">Blog</a>
           <a href="/news">News</a>
         </nav>
-        <div class="navcta">
-          <a href="/audit?signin=1" class="nav-login">Log in</a>
-          <a href="/pricing" class="btn-primary sm">Get started</a>
-        </div>
+        <div class="navcta" id="cr-navauth"></div>
       </div>
     </div>
 
     <slot />
+    <script src="/js/citerank-auth.js" defer></script>
 
     <footer class="site-footer">
       <div class="wrap footcols">
