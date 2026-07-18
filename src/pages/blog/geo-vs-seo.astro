@@ -1,0 +1,56 @@
+---
+import Site from '../../layouts/Site.astro';
+---
+<Site title="GEO vs SEO — CiteRank Blog" description="Generative Engine Optimization vs SEO: what actually changes for your content strategy.">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Strategy · 7 min read</span>
+      <h1>GEO vs SEO: what actually changes for your content</h1>
+      <p>Generative Engine Optimization isn’t a rebrand of SEO. It rewards different signals — here’s the honest diff.</p>
+    </div>
+  </section>
+  <main>
+    <article class="post wrap">
+      <p><strong>GEO (Generative Engine Optimization)</strong> and <strong>AEO (Answer Engine Optimization)</strong> are two names for the same shift: optimizing for AI systems that generate an answer rather than return a list. The question everyone asks is whether their existing SEO work carries over. The honest answer: <em>some of it does, and some new things matter a lot more.</em></p>
+
+      <h2>What carries over from SEO</h2>
+      <ul>
+        <li><b>Crawlability</b> — if a bot can’t fetch your page, nothing else matters. Still true, but now there are more bots (GPTBot, PerplexityBot, ClaudeBot) and more ways to block them (WAFs, not just robots.txt).</li>
+        <li><b>Authority</b> — brands the model already trusts get cited more. Off-page reputation still compounds.</li>
+        <li><b>Structured data</b> — schema was useful for rich results; it’s even more useful as a clean, machine-readable summary for LLMs.</li>
+      </ul>
+
+      <h2>What’s genuinely new</h2>
+      <ul>
+        <li><b>Extractability over ranking</b> — you’re not competing for position #1; you’re competing to be a quotable sentence inside one answer. Lead with the answer, in plain language.</li>
+        <li><b>Rendering matters more</b> — Google renders JavaScript; most AI crawlers don’t. A React SPA can rank on Google and be invisible to ChatGPT at the same time.</li>
+        <li><b>Share of voice, not rank tracking</b> — the new metric is “in what % of AI answers for my topics do I appear, vs competitors?”</li>
+        <li><b>Citations as currency</b> — statistics, named sources and clear entities measurably increase the odds a model cites you (Princeton’s GEO research).</li>
+      </ul>
+
+      <h2>The practical playbook</h2>
+      <ol>
+        <li>Confirm every AI crawler can reach and read your key pages (JS-render check).</li>
+        <li>Lead each section with a concise, quotable answer; phrase headings as real questions.</li>
+        <li>Add FAQ blocks, comparison tables and schema so content is easy to lift.</li>
+        <li>Name your entities and cite your sources with numbers.</li>
+        <li>Measure your citation rate in real engines and close the gaps.</li>
+      </ol>
+
+      <p>CiteRank is built for exactly this loop — <a href="/">check access</a>, <a href="/audit">audit and fix</a>, then verify in real engines.</p>
+
+      <div class="post-cta">
+        <a href="/" class="btn-primary">Check a page free</a>
+        <a href="/pricing" class="btn-ghost">See pricing</a>
+      </div>
+    </article>
+  </main>
+  <style>
+    .post { max-width: 760px; }
+    .post p, .post li { font-size: 16px; color: var(--ink-2); line-height: 1.75; }
+    .post h2 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 34px 0 12px; }
+    .post ul, .post ol { padding-left: 22px; display: grid; gap: 8px; }
+    .post b { color: var(--ink); }
+    .post-cta { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
+  </style>
+</Site>

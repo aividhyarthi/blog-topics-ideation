@@ -47,8 +47,20 @@ export async function findUserByEmail(email: string): Promise<(User & { password
 export async function createSession(userId: string): Promise<{ token: string; expires: Date }> {
   const token = randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + SESSION_DAYS * 864e5);
+  // Single-login: one active session per user — signing in ends prior sessions.
+  await query('DELETE FROM sessions WHERE user_id = $1', [userId]);
   await query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, userId, expires]);
   return { token, expires };
+}
+
+// ---- monthly usage limit (Pro plan: 500 URL checks / calendar month) ----
+export const MONTHLY_LIMIT = 500;
+export async function monthlyUsage(userId: string): Promise<number> {
+  const { rows } = await query<{ n: string }>(
+    `SELECT COUNT(*)::int AS n FROM audits WHERE user_id = $1 AND created_at >= date_trunc('month', now())`,
+    [userId],
+  );
+  return Number(rows[0]?.n ?? 0);
 }
 
 export async function destroySession(token: string): Promise<void> {

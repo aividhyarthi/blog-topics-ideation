@@ -1,0 +1,76 @@
+---
+import Site from '../layouts/Site.astro';
+---
+<Site title="Pricing — CiteRank" description="CiteRank Pro — the complete AEO/GEO platform for $99/month.">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Pricing</span>
+      <h1>One simple plan. Everything included.</h1>
+      <p>Full access to the AEO/GEO platform — the LLM Access Check, the full AEO audit, content extraction, per-crawler tabs, reports and history. No feature gates, no add-ons.</p>
+    </div>
+  </section>
+
+  <main>
+    <div class="wrap price-wrap">
+      <div class="pricecard">
+        <div class="pc-badge">Most popular</div>
+        <div class="pc-name">CiteRank Pro</div>
+        <div class="pc-price">$99<span>/month</span></div>
+        <div class="pc-sub">Billed monthly. Cancel anytime.</div>
+        <a href="/audit" class="btn-primary pc-cta">Start now</a>
+        <ul class="pc-list">
+          <li><b>500 URL checks / month</b> across all tools</li>
+          <li><b>1 login</b> (single active session)</li>
+          <li>LLM Access Check — all AI crawler tabs</li>
+          <li>Full AEO audit with ranked fixes</li>
+          <li>Content extraction, gaps &amp; keywords</li>
+          <li>Page-type &amp; category-aware checks</li>
+          <li>Saved reports, history &amp; PDF export</li>
+          <li>Verify in real engines (share of voice)</li>
+          <li>Blog &amp; AEO/GEO playbooks</li>
+          <li>Email support</li>
+        </ul>
+      </div>
+
+      <div class="price-side">
+        <div class="ps-item"><div class="ps-n">500</div><div class="ps-l">URL checks per month<span>Every access check or audit counts as one. Your usage resets on the 1st.</span></div></div>
+        <div class="ps-item"><div class="ps-n">1</div><div class="ps-l">Login per subscription<span>One active session at a time — signing in elsewhere ends the previous session.</span></div></div>
+        <div class="ps-item"><div class="ps-n">6+</div><div class="ps-l">AI crawlers checked<span>ChatGPT, ChatGPT Search, Perplexity, Claude, Copilot and Google AI.</span></div></div>
+      </div>
+    </div>
+
+    <div class="wrap faq-wrap">
+      <h2 class="faq-h">Frequently asked</h2>
+      <div class="faq"><b>What counts as a URL check?</b><p>Any single page you run through the LLM Access Check or the Full AEO Audit. Running the same URL again counts again. Individual on-demand crawler runs within one report don’t each cost a check.</p></div>
+      <div class="faq"><b>Why only one login?</b><p>The Pro plan is per-seat. Only one active session is allowed at a time — if you sign in on another device, the earlier session is signed out. Need multiple seats? Contact us.</p></div>
+      <div class="faq"><b>What happens when I hit 500?</b><p>You’ll be prompted to wait for the monthly reset or upgrade. Your saved reports and history stay available.</p></div>
+      <div class="faq"><b>Can I cancel?</b><p>Yes — anytime, from your account. You keep access until the end of the billing period.</p></div>
+    </div>
+  </main>
+
+  <style>
+    .price-wrap { display: grid; grid-template-columns: 380px 1fr; gap: 28px; align-items: start; }
+    @media (max-width: 820px) { .price-wrap { grid-template-columns: 1fr; } }
+    .pricecard { position: relative; border: 2px solid var(--pink); border-radius: 20px; background: #fff; padding: 30px 28px; box-shadow: 0 20px 50px -24px rgba(37,99,235,.35); }
+    .pc-badge { position: absolute; top: -13px; left: 28px; background: var(--pink); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; }
+    .pc-name { font-size: 15px; font-weight: 700; color: var(--muted); }
+    .pc-price { font-size: 48px; font-weight: 800; letter-spacing: -.03em; margin: 6px 0 2px; }
+    .pc-price span { font-size: 18px; font-weight: 600; color: var(--muted); }
+    .pc-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .pc-cta { width: 100%; padding: 13px; font-size: 15px; }
+    .pc-list { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 11px; }
+    .pc-list li { position: relative; padding-left: 26px; font-size: 13.5px; color: var(--ink-2); }
+    .pc-list li:before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--ok); font-weight: 800; }
+    .pc-list li b { color: var(--ink); }
+    .price-side { display: grid; gap: 14px; }
+    .ps-item { display: flex; gap: 16px; align-items: center; border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 20px 22px; box-shadow: var(--shadow); }
+    .ps-n { font-size: 34px; font-weight: 800; color: var(--pink); letter-spacing: -.03em; min-width: 60px; }
+    .ps-l { font-size: 14px; font-weight: 700; }
+    .ps-l span { display: block; font-size: 12.5px; font-weight: 500; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+    .faq-wrap { margin-top: 56px; }
+    .faq-h { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 20px; }
+    .faq { border-top: 1px solid var(--line); padding: 18px 0; }
+    .faq b { font-size: 15px; }
+    .faq p { margin: 6px 0 0; font-size: 14px; color: var(--muted); line-height: 1.6; }
+  </style>
+</Site>

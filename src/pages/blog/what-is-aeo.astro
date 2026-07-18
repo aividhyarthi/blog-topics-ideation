@@ -1,0 +1,51 @@
+---
+import Site from '../../layouts/Site.astro';
+---
+<Site title="What is AEO? — CiteRank Blog" description="Answer Engine Optimization explained: how to get your content cited by ChatGPT, Perplexity and Google AI Overviews.">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Fundamentals · 6 min read</span>
+      <h1>What is AEO? Answer Engine Optimization explained</h1>
+      <p>Search is moving from ten blue links to a single AI answer. AEO is how you make sure that answer cites you.</p>
+    </div>
+  </section>
+  <main>
+    <article class="post wrap">
+      <p>For 25 years, SEO meant one thing: rank in Google’s ten blue links. That world is ending. When someone asks ChatGPT, Perplexity or Google’s AI Overviews a question, they don’t get ten links — they get <strong>one synthesized answer</strong>, sometimes with a handful of citations. <strong>Answer Engine Optimization (AEO)</strong> is the practice of making your content the source that answer is built from and cites.</p>
+
+      <h2>Why AEO is different from SEO</h2>
+      <p>Classic SEO optimizes for a ranking algorithm that returns a list. AEO optimizes for a language model that <em>extracts and synthesizes</em>. That changes what matters:</p>
+      <ul>
+        <li><b>Extractability</b> — the answer must be in the raw HTML, in clean, quotable sentences. AI crawlers don’t run JavaScript, so JS-injected content is invisible to them.</li>
+        <li><b>Entities</b> — concrete, consistently-named people, products and places beat vague pronouns.</li>
+        <li><b>Structure</b> — headings phrased as questions, FAQ blocks, tables and schema make content easy to lift.</li>
+        <li><b>Citations &amp; trust</b> — named sources, statistics and author credentials make a model comfortable citing you.</li>
+      </ul>
+
+      <h2>The three gates every page must pass</h2>
+      <p>Before AEO tactics even matter, a page has to clear three gates:</p>
+      <ol>
+        <li><b>Can the crawler reach it?</b> robots.txt and your CDN/WAF must allow GPTBot, PerplexityBot, ClaudeBot and Googlebot.</li>
+        <li><b>Can it read it?</b> The content must be in the server HTML — not rendered by JavaScript after load.</li>
+        <li><b>Can it trust it?</b> Clear entities, sources and structure so the model is confident quoting you.</li>
+      </ol>
+      <p>CiteRank’s <a href="/">LLM Access Check</a> tests the first two in seconds — fetching your page as each AI crawler and showing exactly what they can and can’t read.</p>
+
+      <h2>Where to start</h2>
+      <p>Run any important page through the access check, fix anything that’s JavaScript-hidden or crawler-blocked, then run the <a href="/audit">full AEO audit</a> for a weighted score and ranked fixes. Do that across your top pages and you’ll be ahead of ~95% of sites, most of which haven’t thought about AI search at all.</p>
+
+      <div class="post-cta">
+        <a href="/" class="btn-primary">Check a page free</a>
+        <a href="/pricing" class="btn-ghost">See pricing</a>
+      </div>
+    </article>
+  </main>
+  <style>
+    .post { max-width: 760px; }
+    .post p, .post li { font-size: 16px; color: var(--ink-2); line-height: 1.75; }
+    .post h2 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 34px 0 12px; }
+    .post ul, .post ol { padding-left: 22px; display: grid; gap: 8px; }
+    .post b { color: var(--ink); }
+    .post-cta { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
+  </style>
+</Site>
