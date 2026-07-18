@@ -1,5 +1,5 @@
 ---
-title: "How to Run Google Play Store Listing Experiments: Icon, Screenshots & Description Tests"
+title: "How to Run Google Play Store Listing Experiments"
 description: "A practical walkthrough of Play Console's Store Listing Experiments — what you can test, how to structure a test that actually tells you something, and how long to let it run."
 theme: "Store Listing Experiments"
 publishDate: 2026-07-08

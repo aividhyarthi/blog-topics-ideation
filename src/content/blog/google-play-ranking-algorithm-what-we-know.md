@@ -1,5 +1,5 @@
 ---
-title: "Google Play's Ranking Algorithm — What We Know For Certain"
+title: "Google Play Ranking Algorithm: What We Actually Know"
 description: "Google has never published its Play Store ranking formula. Here's what's actually confirmed, what's strongly inferred from testing, and what's just ASO folklore."
 theme: "Google Play"
 publishDate: 2026-06-27

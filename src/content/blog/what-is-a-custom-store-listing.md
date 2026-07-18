@@ -1,5 +1,5 @@
 ---
-title: "What Is a Custom Store Listing on Google Play (And When to Use One)"
+title: "What Is a Custom Store Listing on Google Play?"
 description: "How Custom Store Listings work on Google Play, what you can and can't target with them, and when a custom listing actually earns you a better conversion rate."
 theme: "Store Listing Experiments"
 publishDate: 2026-07-07

@@ -1,5 +1,5 @@
 ---
-title: "Title, Subtitle, Description: What Google and Apple Actually Index"
+title: "Title, Subtitle, Description: What Actually Gets Indexed"
 description: "A field-by-field breakdown of which parts of your app listing are searchable, how much each one is weighted, and the specific mistakes that waste the space."
 theme: "Keywords"
 publishDate: 2026-07-05

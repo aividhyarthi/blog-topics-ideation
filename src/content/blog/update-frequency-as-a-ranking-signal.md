@@ -1,5 +1,5 @@
 ---
-title: "Update Frequency as a Ranking Signal: How Often Is Too Rarely?"
+title: "Does Updating Your App More Often Improve Its Ranking?"
 description: "Both stores' own developer guidance nudges toward regular updates, but 'update often' isn't a rank hack on its own — what changes in the update is what seems to matter."
 theme: "App Quality & Vitals"
 publishDate: 2026-08-06

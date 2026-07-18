@@ -1,5 +1,5 @@
 ---
-title: "Vanity Metrics vs Ranking Metrics: Downloads, Ratings, and What Actually Moves Your Position"
+title: "Do App Downloads Affect Your Store Search Ranking?"
 description: "Total downloads and average star rating are the numbers everyone screenshots — neither is what either store has confirmed actually moves search rank."
 theme: "Fundamentals"
 publishDate: 2026-08-08

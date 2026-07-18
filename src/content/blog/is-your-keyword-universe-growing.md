@@ -1,5 +1,5 @@
 ---
-title: "Your Keyword Universe Is Growing (Or Shrinking) — Are You Watching It?"
+title: "Tracking Your App's Keyword Universe Over Time"
 description: "Individual keyword rank gets all the attention, but the size of your tracked keyword list over time is a ranking-health metric almost nobody actually watches."
 theme: "Keywords"
 publishDate: 2026-07-14

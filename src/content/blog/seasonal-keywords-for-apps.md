@@ -1,5 +1,5 @@
 ---
-title: "Seasonal Keywords for Apps: When 'Tax Saving' and 'Diwali Gift' Actually Spike"
+title: "How to Find and Use Seasonal Keywords for Your App"
 description: "Search terms for the same app category swing hard by calendar date — tax-saving searches in February, gifting searches before a festival. Most keyword lists never account for it."
 theme: "Keywords"
 publishDate: 2026-08-04

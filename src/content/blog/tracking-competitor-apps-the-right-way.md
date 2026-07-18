@@ -1,5 +1,5 @@
 ---
-title: "Tracking Competitor Apps the Right Way: What Actually Counts as a 'Competitor'"
+title: "How to Track Competitor Apps the Right Way"
 description: "The most common mistake in competitive ASO tracking isn't picking the wrong rivals — it's accidentally tracking your own sister apps as if they were competitors."
 theme: "Fundamentals"
 publishDate: 2026-07-14
