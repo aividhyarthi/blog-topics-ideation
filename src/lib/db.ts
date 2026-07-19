@@ -62,6 +62,10 @@ function ensureSchema(): Promise<void> {
 
         ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free';
         ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMPTZ;
+        -- Every signup is auto-subscribed to the newsletter (DEFAULT true applies
+        -- to existing rows too). No unsubscribe UI yet — add one before sending
+        -- real newsletters so this stays compliant.
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS newsletter_opt_in BOOLEAN NOT NULL DEFAULT true;
 
         -- Every URL check (LLM Access Check or full audit), used to enforce the
         -- monthly plan limit — independent of whether a full report gets saved.

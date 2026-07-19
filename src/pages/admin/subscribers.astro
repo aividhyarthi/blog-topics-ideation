@@ -1,0 +1,47 @@
+---
+import Site from '../../layouts/Site.astro';
+---
+<Site title="Subscribers — Admin — CiteRank" description="Newsletter subscriber list (export until an email provider is connected).">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Admin</span>
+      <h1>Newsletter subscribers</h1>
+      <p>Every signup is auto-subscribed. No email provider is connected yet — export this list to import into Mailchimp/Resend/SendGrid, or send us the API key and we’ll wire it up to send automatically.</p>
+    </div>
+  </section>
+  <main>
+    <div class="wrap">
+      <div id="gate" class="gate-msg">Loading…</div>
+      <div id="list" style="display:none">
+        <button class="btn-primary" id="copyall" style="margin-bottom:16px">Copy all emails</button>
+        <div id="rows"></div>
+      </div>
+    </div>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    let emails = [];
+    async function load() {
+      try {
+        const res = await fetch('/api/admin/subscribers');
+        const d = await res.json();
+        if (!res.ok) { $('gate').textContent = d.error || 'Not authorized.'; return; }
+        $('gate').style.display = 'none'; $('list').style.display = 'block';
+        emails = (d.subscribers || []).map((s) => s.email);
+        $('rows').innerHTML = `<p class="count">${d.subscribers.length} subscriber(s)</p>` + (d.subscribers || []).map((s) => `<div class="srow"><span>${esc(s.email)}</span><span class="sdate">${new Date(s.createdAt).toLocaleDateString()}</span></div>`).join('');
+      } catch { $('gate').textContent = 'Could not load subscribers.'; }
+    }
+    $('copyall').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(emails.join('\n')); $('copyall').textContent = 'Copied!'; setTimeout(() => ($('copyall').textContent = 'Copy all emails'), 1500); }
+      catch {}
+    });
+    load();
+  </script>
+  <style>
+    .gate-msg { font-size: 14px; color: var(--muted); padding: 24px 0; }
+    .count { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+    .srow { display: flex; justify-content: space-between; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; margin-bottom: 8px; font-size: 13.5px; }
+    .sdate { color: var(--faint); font-size: 12px; }
+  </style>
+</Site>

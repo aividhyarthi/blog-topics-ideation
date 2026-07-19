@@ -450,7 +450,6 @@
     <main>
       <div class="wrap">
         <div class="card">
-          <div id="svcstatus" class="svcstatus" style="display:none"></div>
           <div class="tabs">
             <button class="tab active" id="tab-url" data-mode="url"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>Audit a URL</button>
             <button class="tab" id="tab-paste" data-mode="paste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Paste article</button>
@@ -662,7 +661,7 @@
         } else if (!verifyPrompts.length) {
           verifyBody = `<div class="note-warn">${IC.alert}<span>No prompts to verify. Add a <b>Topic</b> or a <b>Target question</b> in the form and re-run — CiteRank will use those to query the engines.</span></div>`;
         } else if (!verifyConfigured) {
-          verifyBody = `<div class="note-warn">${IC.alert}<span><b>Live verification is off.</b> This needs web search — add a <code>PERPLEXITY_API_KEY</code>, or enable web search on your <code>OPENAI_API_KEY</code> in Railway, then re-run.</span></div>`;
+          verifyBody = `<div class="note-warn">${IC.alert}<span><b>Live verification isn’t available right now.</b> We’re working on turning this back on — check back soon.</span></div>`;
         } else {
           verifyBody = `<button class="primary vfy-btn" id="verifybtn">${IC.bot} Verify against live engines</button><span class="hint">Queries ${verifyPrompts.length} prompt${verifyPrompts.length > 1 ? 's' : ''} · up to ~60s.</span>`;
         }
@@ -901,8 +900,10 @@
         try {
           const res = await fetch('/api/aeo-audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           const data = await res.json();
-          if (!res.ok) showErr(data.error || 'Something went wrong. Please try again.');
-          else render(data);
+          if (!res.ok) {
+            if (data.requireAuth) { $('info').style.display = 'none'; pendingAction = run; openAuth('signup'); return; }
+            showErr(data.error || 'Something went wrong. Please try again.');
+          } else render(data);
         } catch (e) {
           showErr('Network error: ' + (e && e.message ? e.message : e));
         } finally {
@@ -911,34 +912,20 @@
           btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit';
         }
       }
-      $('go').addEventListener('click', run);
+      // An account is required to run an audit — gate the button up front.
+      function goClicked() { if (!ACCOUNTS || USER) run(); else { pendingAction = run; openAuth('signup'); } }
+      $('go').addEventListener('click', goClicked);
 
-      // ---- service status: show the user, up front, what the server can do ----
+      // ---- service capability probe (silent) — feeds SVC for internal gating
+      // (e.g. whether to show the "Verify in real engines" button). No banner is
+      // shown to customers here; that's an ops concern, not theirs to fix.
       async function checkHealth() {
-        const el = $('svcstatus');
-        try {
-          const h = await (await fetch('/api/aeo-health')).json();
-          SVC = h;
-          let cls, ico, msg;
-          if (h.judge && h.verify) {
-            cls = 'ok'; ico = IC.check;
-            msg = `<b>Fully configured.</b> AI scoring is on (${h.openai ? 'OpenAI' : 'Claude'}) and live verification is ready${h.openai ? ' — note OpenAI web search must be enabled on the key for Verify to return citations' : ' (Perplexity)'}.`;
-          } else if (h.judge && !h.verify) {
-            cls = 'warn'; ico = IC.alert;
-            msg = `<b>AI scoring on, live verification off.</b> Audits & fixes work, but “Verify in real engines”, competitors and source-gaps need web search — add <code>PERPLEXITY_API_KEY</code>, or enable web search on your <code>OPENAI_API_KEY</code>.`;
-          } else {
-            cls = 'bad'; ico = IC.alert;
-            msg = `<b>No AI key on the server.</b> Scores fall back to rule-based signals only; the AI verdict, target-query check, competitors and verification stay blank. Add <code>OPENAI_API_KEY</code> (with web search) in Railway → Variables, then redeploy.`;
-          }
-          el.className = 'svcstatus ' + cls;
-          el.innerHTML = ico + '<span>' + msg + '</span>';
-          el.style.display = 'flex';
-        } catch { /* stay hidden if the probe fails */ }
+        try { SVC = await (await fetch('/api/aeo-health')).json(); } catch { SVC = null; }
       }
       checkHealth();
 
       // ---- accounts + saved-audit history ----
-      let USER = null, ACCOUNTS = false;
+      let USER = null, ACCOUNTS = false, pendingAction = null;
       async function refreshAuth() {
         try { const d = await (await fetch('/api/auth/me')).json(); ACCOUNTS = !!d.accountsEnabled; USER = d.user; }
         catch { ACCOUNTS = false; USER = null; }
@@ -970,8 +957,8 @@
       function openAuth(mode) {
         const isLogin = mode === 'login';
         openModal(`
-          <h3>${isLogin ? 'Welcome back' : 'Create your account'}</h3>
-          <p class="msub">${isLogin ? 'Sign in to see your saved audits and history.' : 'Save every audit and build a history you can track over time.'}</p>
+          <h3>${isLogin ? 'Welcome back' : 'Create your free account'}</h3>
+          <p class="msub">${pendingAction ? 'An account is required to run a check — it takes 10 seconds.' : (isLogin ? 'Sign in to see your saved audits and history.' : 'Save every audit and build a history you can track over time.')}</p>
           <label class="fld" for="au-email">Email</label>
           <input id="au-email" type="email" placeholder="you@company.com" autocomplete="email" />
           <label class="fld" for="au-pw">Password</label>
@@ -995,6 +982,7 @@
           const d = await res.json();
           if (!res.ok) { err.textContent = d.error || 'Something went wrong.'; err.style.display = 'block'; reset(); return; }
           closeModal(); await refreshAuth(); showToast(mode === 'login' ? 'Signed in' : 'Account created — welcome!');
+          if (pendingAction) { const fn = pendingAction; pendingAction = null; fn(); }
         } catch { err.textContent = 'Network error. Try again.'; err.style.display = 'block'; reset(); }
       }
       async function signOut() { try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {} await refreshAuth(); showToast('Signed out'); }
