@@ -2,7 +2,7 @@
 title: "How to Find and Use Seasonal Keywords for Your App"
 description: "Search terms for the same app category swing hard by calendar date — tax-saving searches in February, gifting searches before a festival. Most keyword lists never account for it."
 theme: "Keywords"
-publishDate: 2026-08-04
+publishDate: 2026-07-15
 faqs:
   - question: "Should I add seasonal keywords year-round or only during the season?"
     answer: "Track them year-round so you have a rank history to compare against, but expect (and don't panic about) a low or unranked position outside the season — that's the normal, honest state of a term nobody is searching for yet. What matters is whether your rank on that term is climbing INTO the season, not what it reads in the off months."

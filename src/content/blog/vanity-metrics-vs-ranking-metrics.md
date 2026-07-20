@@ -2,7 +2,7 @@
 title: "Do App Downloads Affect Your Store Search Ranking?"
 description: "Total downloads and average star rating are the numbers everyone screenshots — neither is what either store has confirmed actually moves search rank."
 theme: "Fundamentals"
-publishDate: 2026-08-08
+publishDate: 2026-07-17
 faqs:
   - question: "Does total lifetime downloads affect current search ranking?"
     answer: "Not directly, as far as either store has confirmed. Recent install velocity and recent engagement carry more documented weight than a large historical total — an app with a big lifetime download count but flat recent activity doesn't get an ongoing ranking benefit from downloads it accumulated years ago."
