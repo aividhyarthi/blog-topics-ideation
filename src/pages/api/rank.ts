@@ -6,7 +6,7 @@
 // Product mode (AppRankr): middleware guarantees a logged-in user with a live
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
-import { parseAppInput, fetchAppMeta, backfillDeveloperId } from '../../lib/rank/fetch';
+import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey, universeSizeSeries, keywordDifficulties } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, ConfigReadError } from '../../lib/rank/store';
 import { analyzeReviewThemes } from '../../lib/rank/themes';
@@ -513,12 +513,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const targets = key ? cfg.apps.filter((a) => a.key === key) : cfg.apps;
     if (!targets.length) return json({ error: key ? 'App not found.' : 'No apps tracked yet — add one first.' }, 400);
 
-    // Best-effort backfill for apps tracked before developerId existed — the
-    // "is this actually a competitor, or my own other app" filter (Compare,
-    // keyword-mining) needs it. Never blocks the check itself on failure.
+    // Best-effort backfill for apps tracked before developerId existed, or
+    // missing genreId (see backfillGenreId's own comment — without it, the
+    // category chart silently compares against the store's overall chart
+    // instead of this app's own category). Never blocks the check itself
+    // on failure, and runs here too so a manual "Check now" self-heals
+    // immediately instead of only on the next scheduled nightly run.
     let backfilled = false;
     for (const a of targets) {
       try { if (await backfillDeveloperId(a)) backfilled = true; } catch { /* best-effort */ }
+      try { if (await backfillGenreId(a)) backfilled = true; } catch { /* best-effort */ }
     }
     if (backfilled) saveConfig(cfg, userId);
 
