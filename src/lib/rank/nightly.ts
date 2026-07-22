@@ -14,7 +14,7 @@
 // A shared search cache dedupes identical keyword searches across users.
 import { loadConfig, saveConfig, loadSnapshots, loadCoverageSnapshots, loadNightlyMarker, saveNightlyMarker } from './store';
 import { runCheck, checkCoverageBatch, checkRating } from './check';
-import { backfillDeveloperId } from './fetch';
+import { backfillDeveloperId, backfillGenreId } from './fetch';
 import { withTenantLock } from './lock';
 import { keywordTrends, overviewSeries, countsFromBuckets, universeSizeSeries, todayKey } from './track';
 import { parseReportEmails, buildDailyReportEmail, buildRankAlertEmail, buildWeeklyDigestEmail, sendReportEmail } from './email';
@@ -75,12 +75,19 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
     const alreadyDoneToday = loadNightlyMarker(userId)?.dateKey === today;
 
     if (!alreadyDoneToday) {
-      // Best-effort backfill for apps tracked before developerId existed — see
-      // backfillDeveloperId's own comment. Self-heals overnight without
-      // needing a manual "Check now" click.
+      // Best-effort backfill for apps tracked before developerId existed, or
+      // whose genreId never got captured (e.g. a metadata fetch that failed
+      // on the day the app was added, which the add-app flow deliberately
+      // tolerates rather than blocking — see resolvePrimary's caller in
+      // api/rank.ts). A missing genreId isn't just a blank field: it makes
+      // fetchTopChart silently compare the app against the store's OVERALL
+      // Top Free chart instead of its own category — a far harder bar to
+      // clear — so this self-heals overnight without needing a manual
+      // remove-and-re-add.
       let backfilled = false;
       for (const a of cfg.apps) {
         try { if (await backfillDeveloperId(a)) backfilled = true; } catch { /* best-effort */ }
+        try { if (await backfillGenreId(a)) backfilled = true; } catch { /* best-effort */ }
       }
       if (backfilled) saveConfig(cfg, userId);
 

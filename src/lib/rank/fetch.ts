@@ -127,6 +127,28 @@ export async function backfillDeveloperId(app: TrackedApp): Promise<boolean> {
   }
 }
 
+/**
+ * Fills in `genreId` when it's missing, so the category top-chart check
+ * (fetchTopChart below) compares against the app's actual category instead
+ * of silently falling back to the overall Top Free chart — a MUCH harder
+ * bar to clear, since it's every app on the store, not just the app's own
+ * category. Unlike developerId, every real app on either store has a genre,
+ * so a null here is always "not fetched successfully yet", never a
+ * legitimate "this store doesn't expose one" — safe to keep retrying every
+ * time it's missing, no separate "give up" state needed.
+ */
+export async function backfillGenreId(app: TrackedApp): Promise<boolean> {
+  if (app.genreId) return false;
+  try {
+    const meta = await fetchAppMeta(app.store, app.appId, app.country, app.lang);
+    if (!meta.genreId) return false;
+    app.genreId = meta.genreId;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /* ----------------------------- keyword search ----------------------------- */
 
 /** Ordered search results for a keyword on the given store front. */

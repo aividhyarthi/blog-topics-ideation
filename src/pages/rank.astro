@@ -1058,9 +1058,21 @@ ai photo enhancer"></textarea>
         // ranked in a top chart at least once — otherwise it's an empty line.
         const chartHist = (app.chart && app.chart.history) || [];
         const isChartRanking = chartHist.some((v) => v != null);
+        const chartName = app.chart && app.chart.chart;
+        // A Play app checked with no genreId falls back to the store's
+        // OVERALL Top Free chart — every app on the store, not just this
+        // app's own category — a far harder bar to clear, and easy to
+        // mistake for "genuinely not ranked anywhere" if the chart name
+        // isn't shown. Only flag it for Play — iOS's public chart feed has
+        // no per-category option at all, so "overall" there isn't fixable
+        // or unusual, just how that platform's data works.
+        const isOverallFallback = app.store === 'play' && chartName === 'Top Free';
+        const overallNote = isOverallFallback
+          ? '<p class="hint" style="margin-top:4px;">Checked against the store\'s overall Top Free chart, not this app\'s own category — its category wasn\'t available yet and is retried automatically on the next check.</p>'
+          : '';
         const catChartBox = isChartRanking
-          ? `<div class="chartbox"><h4>Category chart rank trend${app.chart.chart ? ` — ${esc(app.chart.chart)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}</div>`
-          : '<div class="chartbox"><h4>Category chart rank trend</h4><p class="hint">Not ranked in a top chart yet.</p></div>';
+          ? `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}${overallNote}</div>`
+          : `<div class="chartbox"><h4>Category chart rank trend</h4><p class="hint">${chartName ? `Not in the top of ${esc(chartName)} yet.` : 'Not ranked in a top chart yet.'}</p>${overallNote}</div>`;
         return `<div class="charts">
           ${catChartBox}
           <div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}</div>
