@@ -80,11 +80,11 @@
       const res = await fetch('/api/auth/' + (mode === 'login' ? 'login' : 'signup'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pw }) });
       const d = await res.json();
       if (!res.ok) { err.textContent = d.error || 'Something went wrong.'; err.style.display = 'block'; btn.disabled = false; btn.textContent = mode === 'login' ? 'Sign in' : 'Create account'; return; }
-      state.user = d.user;
-      closeModal.__skipClearPending = true;
-      document.getElementById('cra-modal').classList.remove('open');
-      render();
-      if (pendingFn) { const fn = pendingFn; pendingFn = null; fn(); }
+      // Reload so any server-rendered login-gated content (the tool form, the
+      // dashboard) reveals itself — simpler and more robust than trying to keep
+      // client state in sync with what the server decided to render.
+      btn.textContent = 'Success — loading…';
+      location.reload();
     } catch { err.textContent = 'Network error. Try again.'; err.style.display = 'block'; btn.disabled = false; btn.textContent = mode === 'login' ? 'Sign in' : 'Create account'; }
   }
 
@@ -98,7 +98,7 @@
     document.querySelectorAll('#cr-navauth').forEach((el) => {
       if (!state.accountsEnabled) { el.innerHTML = ''; return; }
       if (state.user) {
-        el.innerHTML = `<span class="cra-email">${esc(state.user.email)}</span><a href="/audit" class="cra-btn">My audits</a><button class="cra-btn" id="cra-signout">Sign out</button>`;
+        el.innerHTML = `<span class="cra-email">${esc(state.user.email)}</span><a href="/dashboard" class="cra-btn">Dashboard</a><button class="cra-btn" id="cra-signout">Sign out</button>`;
         el.querySelector('#cra-signout').addEventListener('click', signOut);
       } else {
         el.innerHTML = `<button class="cra-btn" id="cra-signin">Log in</button><button class="cra-btn solid" id="cra-signup">Get started</button>`;

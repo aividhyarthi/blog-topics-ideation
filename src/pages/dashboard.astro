@@ -1,0 +1,119 @@
+---
+import Site from '../layouts/Site.astro';
+import { getUser } from '../lib/auth';
+import { dbEnabled } from '../lib/db';
+import { usageStatus } from '../lib/billing';
+import { listAudits } from '../lib/audits';
+
+const user = await getUser(Astro as any);
+if (!dbEnabled || !user) return Astro.redirect('/');
+
+const usage = await usageStatus(user.id).catch(() => null);
+const audits = await listAudits(user.id, 10).catch(() => []);
+const used = usage?.used ?? 0;
+const limit = usage?.limit ?? 5;
+const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+const isPro = usage?.plan === 'pro';
+const expiresAt = usage?.expiresAt ? new Date(usage.expiresAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : null;
+
+function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75) return '#12855a'; if (s >= 45) return '#b7791f'; return '#d43a3a'; }
+---
+<Site title="Dashboard — CiteRank" description="Your CiteRank account, plan and usage.">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Account</span>
+      <h1>Welcome back{user.email ? `, ${user.email.split('@')[0]}` : ''}</h1>
+      <p>Your plan, usage and saved reports in one place.</p>
+    </div>
+  </section>
+  <main>
+    <div class="wrap dash-grid">
+      <div class="dash-main">
+        <div class="dcard planrow">
+          <div>
+            <div class={`plan-badge${isPro ? ' pro' : ''}`}>{isPro ? 'Pro' : 'Free'}</div>
+            <div class="plan-sub">{isPro ? `Renews / expires ${expiresAt}` : '5 checks per month, free'}</div>
+          </div>
+          {!isPro && <a href="/pricing" class="btn-primary">Upgrade to Pro — $99/mo</a>}
+        </div>
+
+        <div class="dcard">
+          <div class="usage-top"><b>Usage this month</b><span>{used} / {limit} checks</span></div>
+          <div class="usage-bar"><i style={`width:${pct}%; background:${pct >= 90 ? '#d43a3a' : pct >= 70 ? '#b7791f' : '#2563eb'}`}></i></div>
+          {pct >= 80 && !isPro && <div class="usage-warn">You’re close to your monthly limit. <a href="/pricing">Upgrade to Pro</a> for 500 checks/month.</div>}
+        </div>
+
+        <div class="dcard">
+          <div class="dcard-head"><b>Recent audits</b><a href="/audit">Run a new audit →</a></div>
+          {audits.length === 0 ? (
+            <p class="empty">No saved audits yet. <a href="/audit">Run your first audit</a> or check a URL on the <a href="/">homepage</a>.</p>
+          ) : (
+            <div class="alist">
+              {audits.map((a) => (
+                <div class="arow">
+                  <span class="ascore" style={`color:${hexFor(a.overall)}`}>{a.overall == null ? '–' : a.overall}</span>
+                  <div class="abody">
+                    <div class="ahost">{a.host || a.url || 'Pasted content'}</div>
+                    <div class="ameta">{a.pageType || ''}{a.grade ? ` · ${a.grade}` : ''}{a.createdAt ? ` · ${new Date(a.createdAt).toLocaleDateString()}` : ''}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div class="dash-side">
+        <div class="dcard">
+          <div class="side-head">Quick actions</div>
+          <a href="/" class="side-link">LLM Access Check</a>
+          <a href="/audit" class="side-link">Full AEO Audit</a>
+          <a href="/pricing" class="side-link">Billing &amp; plan</a>
+        </div>
+        <div class="dcard side-acc">
+          <div class="side-head">Account</div>
+          <div class="side-email">{user.email}</div>
+          <button class="btn-ghost sm" id="dash-signout">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const btn = document.getElementById('dash-signout');
+    if (btn) btn.addEventListener('click', async () => {
+      try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+      location.href = '/';
+    });
+  </script>
+
+  <style>
+    .dash-grid { display: grid; grid-template-columns: 1fr 280px; gap: 22px; align-items: start; }
+    @media (max-width: 820px) { .dash-grid { grid-template-columns: 1fr; } }
+    .dash-main { display: grid; gap: 18px; }
+    .dcard { border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 20px 22px; box-shadow: var(--shadow); }
+    .planrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .plan-badge { display: inline-block; font-size: 13px; font-weight: 800; padding: 5px 14px; border-radius: 999px; background: #f1f5f9; color: var(--ink-2); }
+    .plan-badge.pro { background: var(--ok-bg); color: var(--ok); }
+    .plan-sub { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+    .usage-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; margin-bottom: 10px; }
+    .usage-top span { color: var(--muted); font-weight: 600; font-size: 13px; }
+    .usage-bar { height: 9px; border-radius: 999px; background: #edeef4; overflow: hidden; }
+    .usage-bar > i { display: block; height: 100%; border-radius: 999px; }
+    .usage-warn { margin-top: 12px; font-size: 12.5px; color: var(--warn); background: var(--warn-bg); border: 1px solid #f0e2b8; border-radius: 9px; padding: 9px 11px; }
+    .dcard-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .dcard-head a { font-size: 13px; font-weight: 700; }
+    .empty { font-size: 13.5px; color: var(--muted); margin: 0; }
+    .alist { display: grid; gap: 8px; }
+    .arow { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; }
+    .ascore { font-weight: 800; font-size: 16px; min-width: 34px; text-align: center; }
+    .ahost { font-size: 13.5px; font-weight: 600; }
+    .ameta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .dash-side { display: grid; gap: 18px; }
+    .side-head { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 12px; }
+    .side-link { display: block; font-size: 13.5px; font-weight: 600; padding: 9px 0; border-top: 1px solid var(--line); }
+    .side-link:first-of-type { border-top: none; }
+    .side-email { font-size: 13px; color: var(--ink-2); margin-bottom: 12px; word-break: break-all; }
+    .btn-ghost.sm { padding: 7px 13px; font-size: 12.5px; }
+  </style>
+</Site>

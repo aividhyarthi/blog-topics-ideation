@@ -1,6 +1,13 @@
 ---
 // CiteRank — AEO auditor. Scores how likely a page is to be cited by LLM
 // answer engines (ChatGPT, Perplexity, Gemini, Google AI Overviews).
+//
+// Hard login wall: when accounts are live (DB configured), the audit form is
+// server-rendered ONLY for signed-in visitors.
+import { getUser } from '../lib/auth';
+import { dbEnabled } from '../lib/db';
+const user = await getUser(Astro as any);
+const locked = dbEnabled && !user;
 ---
 
 <!doctype html>
@@ -49,7 +56,7 @@
       .navmenu a:hover, .navmenu a.active { color: var(--pink); }
       @media (max-width: 820px) { .navmenu { display: none; } }
       .acct { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-      .acct-btn { font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; border-radius: 9px; padding: 7px 13px; border: 1px solid var(--line-2); background: #fff; color: var(--ink-2); transition: .15s; }
+      .acct-btn { font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; border-radius: 9px; padding: 7px 13px; border: 1px solid var(--line-2); background: #fff; color: var(--ink-2); transition: .15s; text-decoration: none; display: inline-block; }
       .acct-btn:hover { border-color: var(--pink); color: var(--pink); }
       .acct-btn.solid { background: var(--ink); color: #fff; border-color: var(--ink); }
       .acct-btn.solid:hover { background: var(--pink-dark); border-color: var(--pink-dark); color: #fff; }
@@ -98,6 +105,12 @@
 
       main { padding: 30px 0 72px; }
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; box-shadow: var(--shadow); }
+      .gatecard { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 48px 32px; box-shadow: var(--shadow); text-align: center; max-width: 480px; margin: 0 auto; }
+      .gatecard .gate-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--accent-soft); color: var(--pink); display: grid; place-items: center; margin: 0 auto 18px; }
+      .gatecard .gate-icon svg { width: 26px; height: 26px; }
+      .gatecard h2 { margin: 0 0 8px; font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
+      .gatecard p { margin: 0 0 22px; font-size: 14px; color: var(--muted); line-height: 1.6; }
+      .gate-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
       .panel-lead { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
       .panel-lead .ttl { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
       .panel-lead .sub { font-size: 12.5px; color: var(--muted); margin-left: auto; }
@@ -449,64 +462,76 @@
 
     <main>
       <div class="wrap">
-        <div class="card">
-          <div class="tabs">
-            <button class="tab active" id="tab-url" data-mode="url"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>Audit a URL</button>
-            <button class="tab" id="tab-paste" data-mode="paste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Paste article</button>
-          </div>
-
-          <div id="pane-url">
-            <label class="fld" for="url">Page URL</label>
-            <input id="url" type="url" placeholder="https://example.com/blog/your-article" />
-          </div>
-          <div id="pane-paste" style="display:none">
-            <label class="fld" for="html">Page HTML or plain text</label>
-            <textarea id="html" placeholder="Paste the page's HTML (best — keeps headings, schema, prices, links) or plain text. For JavaScript-heavy or e-commerce pages, open the page → right-click → Inspect → copy the &lt;html&gt; and paste it here for an accurate read."></textarea>
-          </div>
-
-          <div class="three">
-            <div>
-              <label class="fld" for="pagetype">Page type <span class="opt">(what is this page?)</span></label>
-              <select id="pagetype">
-                <option value="auto">Auto-detect</option>
-                <option value="article">Article / Blog</option>
-                <option value="product">Product page</option>
-                <option value="listing">Category / Listing page</option>
-              </select>
-            </div>
-            <div>
-              <label class="fld" for="category">Category <span class="opt">(sets the weighting)</span></label>
-              <select id="category">
-                <option value="general">General</option>
-                <option value="entertainment">Entertainment</option>
-                <option value="health">Health</option>
-                <option value="news">Breaking News</option>
-                <option value="lifestyle">Lifestyle</option>
-                <option value="commerce">Beauty / Commerce</option>
-              </select>
-            </div>
-            <div>
-              <label class="fld" for="brand">Brand / site <span class="opt">(optional)</span></label>
-              <input id="brand" type="text" placeholder="Leave blank to use the domain" />
-            </div>
-            <div>
-              <label class="fld" for="topic">Topic <span class="opt">(optional)</span></label>
-              <input id="topic" type="text" placeholder="e.g. Virat Kohli retirement" />
+        {locked ? (
+          <div class="gatecard">
+            <div class="gate-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+            <h2>Sign in to run the full audit</h2>
+            <p>Create a free account — 5 checks a month, free. Upgrade any time for 500/month.</p>
+            <div class="gate-actions">
+              <button class="primary" id="gate-signup" onclick="openAuth('signup')">Get started free</button>
+              <button class="ghostbtn" id="gate-login" onclick="openAuth('login')">Log in</button>
             </div>
           </div>
-          <label class="fld" for="target">Target question this page should be the cited answer to <span class="opt">(optional)</span></label>
-          <input id="target" type="text" placeholder="e.g. why did Virat Kohli retire?" />
-          <label class="fld" for="competitors">Competitors to track <span class="opt">(optional — domains, comma-separated; used in “Verify in real engines”)</span></label>
-          <input id="competitors" type="text" placeholder="e.g. sephora.com, sugarcosmetics.com" />
+        ) : (
+          <div class="card">
+            <div class="tabs">
+              <button class="tab active" id="tab-url" data-mode="url"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>Audit a URL</button>
+              <button class="tab" id="tab-paste" data-mode="paste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Paste article</button>
+            </div>
 
-          <div class="row">
-            <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit</button>
-            <span class="hint">Takes 15–30 seconds.</span>
+            <div id="pane-url">
+              <label class="fld" for="url">Page URL</label>
+              <input id="url" type="url" placeholder="https://example.com/blog/your-article" />
+            </div>
+            <div id="pane-paste" style="display:none">
+              <label class="fld" for="html">Page HTML or plain text</label>
+              <textarea id="html" placeholder="Paste the page's HTML (best — keeps headings, schema, prices, links) or plain text. For JavaScript-heavy or e-commerce pages, open the page → right-click → Inspect → copy the &lt;html&gt; and paste it here for an accurate read."></textarea>
+            </div>
+
+            <div class="three">
+              <div>
+                <label class="fld" for="pagetype">Page type <span class="opt">(what is this page?)</span></label>
+                <select id="pagetype">
+                  <option value="auto">Auto-detect</option>
+                  <option value="article">Article / Blog</option>
+                  <option value="product">Product page</option>
+                  <option value="listing">Category / Listing page</option>
+                </select>
+              </div>
+              <div>
+                <label class="fld" for="category">Category <span class="opt">(sets the weighting)</span></label>
+                <select id="category">
+                  <option value="general">General</option>
+                  <option value="entertainment">Entertainment</option>
+                  <option value="health">Health</option>
+                  <option value="news">Breaking News</option>
+                  <option value="lifestyle">Lifestyle</option>
+                  <option value="commerce">Beauty / Commerce</option>
+                </select>
+              </div>
+              <div>
+                <label class="fld" for="brand">Brand / site <span class="opt">(optional)</span></label>
+                <input id="brand" type="text" placeholder="Leave blank to use the domain" />
+              </div>
+              <div>
+                <label class="fld" for="topic">Topic <span class="opt">(optional)</span></label>
+                <input id="topic" type="text" placeholder="e.g. Virat Kohli retirement" />
+              </div>
+            </div>
+            <label class="fld" for="target">Target question this page should be the cited answer to <span class="opt">(optional)</span></label>
+            <input id="target" type="text" placeholder="e.g. why did Virat Kohli retire?" />
+            <label class="fld" for="competitors">Competitors to track <span class="opt">(optional — domains, comma-separated; used in “Verify in real engines”)</span></label>
+            <input id="competitors" type="text" placeholder="e.g. sephora.com, sugarcosmetics.com" />
+
+            <div class="row">
+              <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit</button>
+              <span class="hint">Takes 15–30 seconds.</span>
+            </div>
+
+            <div class="alert err" id="err"></div>
+            <div class="alert info" id="info"></div>
           </div>
-
-          <div class="alert err" id="err"></div>
-          <div class="alert info" id="info"></div>
-        </div>
+        )}
 
         <section id="results"></section>
       </div>
@@ -935,7 +960,7 @@
         const el = $('acct'); if (!el) return;
         if (!ACCOUNTS) { el.innerHTML = ''; return; }
         if (USER) {
-          el.innerHTML = `<span class="acct-usage" id="acctusage"></span><span class="acct-email">${esc(USER.email)}</span><button class="acct-btn" id="myaudits">My audits</button><button class="acct-btn" id="signout">Sign out</button>`;
+          el.innerHTML = `<span class="acct-usage" id="acctusage"></span><span class="acct-email">${esc(USER.email)}</span><a class="acct-btn" href="/dashboard">Dashboard</a><button class="acct-btn" id="myaudits">My audits</button><button class="acct-btn" id="signout">Sign out</button>`;
           $('myaudits').onclick = showAudits; $('signout').onclick = signOut;
           fetch('/api/payments/status').then((r) => r.json()).then((d) => {
             const u = $('acctusage');
@@ -981,8 +1006,11 @@
           const res = await fetch('/api/auth/' + (mode === 'login' ? 'login' : 'signup'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pw }) });
           const d = await res.json();
           if (!res.ok) { err.textContent = d.error || 'Something went wrong.'; err.style.display = 'block'; reset(); return; }
-          closeModal(); await refreshAuth(); showToast(mode === 'login' ? 'Signed in' : 'Account created — welcome!');
-          if (pendingAction) { const fn = pendingAction; pendingAction = null; fn(); }
+          // Reload: the audit form itself is server-rendered only for signed-in
+          // visitors, so a full reload is what reveals it (simpler + more robust
+          // than trying to keep client state in sync with the SSR gate).
+          btn.innerHTML = 'Success — loading…';
+          location.reload();
         } catch { err.textContent = 'Network error. Try again.'; err.style.display = 'block'; reset(); }
       }
       async function signOut() { try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {} await refreshAuth(); showToast('Signed out'); }

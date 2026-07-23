@@ -2,6 +2,14 @@
 // LLM Access Check — deep, multi-agent "can bots read this page?" tool.
 // Fetches the URL as Googlebot desktop/mobile + real devices + GPTBot, and
 // audits the raw HTML element-by-element in separate Desktop / Mobile tabs.
+//
+// Hard login wall: when accounts are live (DB configured), the tool form
+// below is server-rendered ONLY for signed-in visitors — no flash of the
+// working tool before signup. Marketing content above stays public.
+import { getUser } from '../lib/auth';
+import { dbEnabled } from '../lib/db';
+const user = await getUser(Astro as any);
+const locked = dbEnabled && !user;
 ---
 
 <!doctype html>
@@ -92,6 +100,12 @@
 
       main { padding: 26px 0 72px; }
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: var(--shadow); }
+      .gatecard { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 48px 32px; box-shadow: var(--shadow); text-align: center; max-width: 480px; margin: 0 auto; }
+      .gatecard .gate-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--accent-soft); color: var(--pink); display: grid; place-items: center; margin: 0 auto 18px; }
+      .gatecard .gate-icon svg { width: 26px; height: 26px; }
+      .gatecard h2 { margin: 0 0 8px; font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
+      .gatecard p { margin: 0 0 22px; font-size: 14px; color: var(--muted); line-height: 1.6; }
+      .gate-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
       label.fld { display: block; font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin-bottom: 6px; }
       .inrow { display: flex; gap: 10px; }
       @media (max-width: 560px) { .inrow { flex-direction: column; } }
@@ -310,21 +324,46 @@
 
     <main>
       <div class="wrap">
-        <div class="card">
-          <label class="fld" for="url">Page URL</label>
-          <div class="inrow">
-            <input id="url" type="url" placeholder="https://example.com/your-page" />
-            <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>Check access</button>
+        {locked ? (
+          <div class="gatecard">
+            <div class="gate-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+            <h2>Sign in to run a check</h2>
+            <p>Create a free account to check any page — 5 checks a month, free. Upgrade any time for 500/month.</p>
+            <div class="gate-actions">
+              <button class="btn-primary" id="gate-signup">Get started free</button>
+              <button class="btn-ghost" id="gate-login">Log in</button>
+            </div>
           </div>
-          <div class="pastelink">Can’t fetch it (login-walled or blocked)? <a id="pastetoggle">Paste the HTML instead</a></div>
-          <div id="pastewrap"><textarea id="html" placeholder="Paste the page's HTML source here…"></textarea></div>
-          <div class="alert err" id="err"></div>
-          <div class="alert info" id="info"></div>
-        </div>
+        ) : (
+          <div class="card">
+            <label class="fld" for="url">Page URL</label>
+            <div class="inrow">
+              <input id="url" type="url" placeholder="https://example.com/your-page" />
+              <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>Check access</button>
+            </div>
+            <div class="pastelink">Can’t fetch it (login-walled or blocked)? <a id="pastetoggle">Paste the HTML instead</a></div>
+            <div id="pastewrap"><textarea id="html" placeholder="Paste the page's HTML source here…"></textarea></div>
+            <div class="alert err" id="err"></div>
+            <div class="alert info" id="info"></div>
+          </div>
+        )}
 
         <section id="out"></section>
       </div>
     </main>
+    {locked && (
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          const wait = setInterval(() => {
+            if (!window.CRAuth) return;
+            clearInterval(wait);
+            const su = document.getElementById('gate-signup'), li = document.getElementById('gate-login');
+            if (su) su.addEventListener('click', () => window.CRAuth.openAuth('signup'));
+            if (li) li.addEventListener('click', () => window.CRAuth.openAuth('login'));
+          }, 50);
+        });
+      </script>
+    )}
 
     <section class="features" id="features">
       <div class="wrap wide">
