@@ -159,7 +159,7 @@ const limitsText = product && plan
       .legend .sw { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
       /* --- Daily Snapshot: a framed, screenshot-sized card for sharing
          outside the tool (WhatsApp/Slack report groups) --- */
-      .snap-frame { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 20px 22px; max-width: 640px; }
+      .snap-frame { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 20px 22px; max-width: 760px; }
       .snap-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
       .snap-top img.icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
       .snap-top .fallback-icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 18px; background: var(--card2); }
@@ -1079,9 +1079,20 @@ ai photo enhancer"></textarea>
         const overallNote = isOverallFallback
           ? '<p class="hint" style="margin-top:4px;">Checked against the store\'s overall Top Free chart, not this app\'s own category — its category wasn\'t available yet and is retried automatically on the next check.</p>'
           : '';
+        // topChart being empty has TWO very different causes that used to
+        // look identical: genuinely checked and not in the chart, vs the
+        // chart fetch itself has been silently failing (bad/rate-limited
+        // request) every single day, in which case "not ranked" is not a
+        // real result at all — see chartTrend's `error` field (track.ts).
+        // Surfacing which one it is is exactly what turned "we are ranking
+        // but showing not ranking" from a keyword-search bug into a fixed
+        // one earlier — the same fix applies here.
+        const chartErrHtml = app.chart && app.chart.error
+          ? `<div class="alert info" style="display:block;">⚠︎ The category chart check has been failing (${esc(app.chart.error)}) — this is <b>not</b> a confirmed "not ranking", just a store fetch that keeps failing. Retried automatically on the next check.</div>`
+          : '';
         const catChartBox = isChartRanking
           ? `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}${overallNote}</div>`
-          : `<div class="chartbox"><h4>Category chart rank trend</h4><p class="hint">${chartName ? `Not in the top of ${esc(chartName)} yet.` : 'Not ranked in a top chart yet.'}</p>${overallNote}</div>`;
+          : `<div class="chartbox"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : (chartName ? `Not in the top of ${esc(chartName)} yet.` : 'Not ranked in a top chart yet.')}</p>${overallNote}</div>`;
         return `<div class="charts">
           ${catChartBox}
           <div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}</div>
@@ -1093,6 +1104,21 @@ ai photo enhancer"></textarea>
       // stakeholder asks for in one glance: visibility, category rank,
       // rating health, keyword rankings. Pure re-presentation of data the
       // other tabs already compute; no new fetch, no new stored state.
+      // Daily-tracked + coverage keywords, deduped (daily wins on overlap —
+      // it's checked every day, so it's the fresher signal for a keyword
+      // tracked in both lists; same precedence already used for `difficulty`
+      // in statePayload). This is what makes the snapshot show the FULL
+      // keyword universe (up to 2000 via coverage) instead of just the
+      // plan-capped daily list — a client with 400-600+ tracked keywords
+      // wants to see how much of that whole universe is ranking, not just
+      // whatever fits in the daily-tracked subset.
+      function mergedKeywordTrends(app) {
+        const map = new Map();
+        for (const t of (app.coverageTrends || [])) map.set(t.keyword.toLowerCase(), t);
+        for (const t of (app.trends || [])) map.set(t.keyword.toLowerCase(), t);
+        return [...map.values()];
+      }
+
       function snapshotHtml(app) {
         const ov = app.overview || {};
         const cur = ov.visibility, prev = ov.prevVisibility;
@@ -1106,9 +1132,14 @@ ai photo enhancer"></textarea>
         const chartDelta = app.chart && app.chart.delta
           ? (app.chart.delta > 0 ? ` <span class="delta up">▲${app.chart.delta}</span>` : ` <span class="delta down">▼${-app.chart.delta}</span>`)
           : '';
+        // Same distinction as the Trends tab: a missing chart position can
+        // mean "checked, genuinely not in it" OR "the chart fetch has been
+        // failing" — those used to look identical (see track.ts's chartTrend).
         const chartSub = app.chart && app.chart.position != null
           ? `in ${esc(chartName)}${chartDelta}`
-          : `not in the top of ${esc(chartName)} yet`;
+          : app.chart && app.chart.error
+            ? `chart check failing — not a confirmed miss, retrying`
+            : `not in the top of ${esc(chartName)} yet`;
 
         const rh = app.ratingHistory || [];
         const latestRating = rh.length ? rh[rh.length - 1] : null;
@@ -1118,9 +1149,14 @@ ai photo enhancer"></textarea>
           ? `of last ${latestRating.total} reviews are 1-2★${scoreTxt ? ` · ${scoreTxt}` : ''}`
           : (app.store === 'play' ? 'no rating data checked yet' : 'rating tracking is Google Play only');
 
-        const kwRows = (app.trends || []).slice()
-          .sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity))
-          .slice(0, 12)
+        const allTrends = mergedKeywordTrends(app);
+        const rankingNow = allTrends.filter((t) => t.position != null && !t.error).sort((a, b) => a.position - b.position);
+        const newlyRanked = rankingNow.filter((t) => t.prevPosition == null).length;
+        const coverageSub = allTrends.length
+          ? `of ${allTrends.length.toLocaleString()} tracked keywords${newlyRanked ? ` · <span class="delta up">+${newlyRanked}</span> new` : ''}`
+          : 'no keywords tracked yet';
+
+        const kwRows = rankingNow
           .map((t) => `<tr><td class="kw">${esc(t.keyword)}</td><td class="pos">${posCell(t)}</td><td>${deltaCell(t)}</td></tr>`)
           .join('');
 
@@ -1141,6 +1177,11 @@ ai photo enhancer"></textarea>
           <p class="headline-sub" style="margin-bottom:16px;">${visibilityNarrative(app)}</p>
           <div class="tiles">
             <div class="tile">
+              <div class="lbl">Keywords ranking</div>
+              <div class="val">${rankingNow.length.toLocaleString()}</div>
+              <div class="hint" style="margin:6px 0 0;">${coverageSub}</div>
+            </div>
+            <div class="tile">
               <div class="lbl">Visibility score</div>
               <div class="val">${cur != null ? cur.toFixed(1) : '–'}</div>
               <div class="hint" style="margin:6px 0 0;">${vDeltaHtml}</div>
@@ -1156,7 +1197,7 @@ ai photo enhancer"></textarea>
               <div class="hint" style="margin:6px 0 0;">${ratingSub}</div>
             </div>
           </div>
-          <h4 style="margin:18px 0 8px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.03em;">Keyword rankings</h4>
+          <h4 style="margin:18px 0 8px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.03em;">Keyword rankings — ${rankingNow.length.toLocaleString()} of ${allTrends.length.toLocaleString()} tracked keywords ranking</h4>
           <div class="table-wrap"><table>
             <thead><tr><th>Keyword</th><th>Rank</th><th>Δ vs last</th></tr></thead>
             <tbody>${kwRows || '<tr><td colspan="3" class="hint">No keyword data yet.</td></tr>'}</tbody>

@@ -64,7 +64,7 @@ export function keywordTrends(app: TrackedApp, snapshots: RankSnapshot[], histor
 
 /** Chart position trend (same shape logic as keywords, for the top-chart row). */
 export function chartTrend(app: TrackedApp, snapshots: RankSnapshot[], historyDays = 30): {
-  chart: string | null; position: number | null; delta: number | null; history: (number | null)[]; dateKeys: string[];
+  chart: string | null; position: number | null; delta: number | null; history: (number | null)[]; dateKeys: string[]; error?: string;
 } {
   const perSnap = snapshots.map((s) => s.apps.find((a) => a.key === app.key) || null);
   const latest = perSnap.length ? perSnap[perSnap.length - 1] : null;
@@ -77,6 +77,14 @@ export function chartTrend(app: TrackedApp, snapshots: RankSnapshot[], historyDa
     delta: cur != null && before != null ? before - cur : null,
     history: perSnap.slice(-historyDays).map((r) => r?.topChart?.position ?? null),
     dateKeys: snapshots.slice(-historyDays).map((s) => s.dateKey),
+    // checkApp records a failed top-chart fetch as AppRankResult.error rather
+    // than throwing (a chart hiccup must never block keyword checks) — but
+    // that left the failure completely silent here: `topChart: null` reads
+    // identically to "checked, confirmed not in the chart", so a PERSISTENT
+    // fetch failure (bad category id, rate limit) looked exactly like a real
+    // "not ranked" result forever. Surface it so the UI can tell the two
+    // apart instead of reporting a confident false negative.
+    error: latest?.error,
   };
 }
 
