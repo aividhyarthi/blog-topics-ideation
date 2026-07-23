@@ -318,6 +318,18 @@ const limitsText = product && plan
         .table-wrap { border: 1px solid #ddd; }
         .print-only { display: block; font-size: 12px; color: var(--muted); margin: -6px 0 14px; }
       }
+      /* A Daily Snapshot card with a long (400-600+) keyword list is always
+         taller than one printed page — break-inside: avoid on .card above
+         is exactly right for a short card, but forces a TALLER-than-a-page
+         one entirely onto the next page, leaving the previous one almost
+         completely blank under just the marketing header. Hiding that
+         header and letting the card break normally fixes both: page 1
+         starts filling immediately, and the table paginates like any other
+         long content instead of jumping as one indivisible block. */
+      @media print {
+        body.print-snapshot-only header { display: none !important; }
+        body.print-snapshot-only .card { break-inside: auto; border: none; margin: 0; }
+      }
     </style>
   </head>
   <body>
@@ -451,6 +463,7 @@ ai photo enhancer"></textarea>
       const sortState = {};
       const covSortState = {};
       const compareSortState = {};
+      const snapSortState = {};
       // Which section of the app-shell is showing: one job per screen, like
       // the international ASO tools — switched from the left sidebar.
       const SECTIONS = [
@@ -1158,7 +1171,24 @@ ai photo enhancer"></textarea>
           ? `of ${allTrends.length.toLocaleString()} tracked keywords${newlyRanked ? ` · <span class="delta up">+${newlyRanked}</span> new` : ''}`
           : 'no keywords tracked yet';
 
-        const kwRows = rankingNow
+        // Defaults to rank ascending (the sort already applied to rankingNow
+        // above) until a column header is clicked — reuses the same
+        // sortVal/sort-state pattern as the other keyword tables.
+        const snapSort = snapSortState[app.key] || {};
+        const sortedKw = rankingNow.slice();
+        if (snapSort.col) {
+          sortedKw.sort((a, b) => {
+            const av = sortVal(a, snapSort.col), bv = sortVal(b, snapSort.col);
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            return (av - bv) * snapSort.dir;
+          });
+        }
+        const snapArrow = (col) => snapSort.col === col ? (snapSort.dir === 1 ? ' ▲' : ' ▼') : '';
+        const snapTh = (col, label) => `<th class="sortable" data-sort="${col}">${label}${snapArrow(col)}</th>`;
+
+        const kwRows = sortedKw
           .map((t) => `<tr><td class="kw">${esc(t.keyword)}</td><td class="pos">${posCell(t)}</td><td>${deltaCell(t)}</td><td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td><td>${diffCell(t.difficulty)}</td></tr>`)
           .join('');
 
@@ -1201,8 +1231,8 @@ ai photo enhancer"></textarea>
             </div>
           </div>
           <h4 style="margin:18px 0 8px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.03em;">Keyword rankings — ${rankingNow.length.toLocaleString()} of ${allTrends.length.toLocaleString()} tracked keywords ranking</h4>
-          <div class="table-wrap"><table>
-            <thead><tr><th>Keyword</th><th>Rank</th><th>Δ vs last</th><th>Volume</th><th>Difficulty</th></tr></thead>
+          <div class="table-wrap snaptable"><table>
+            <thead><tr><th>Keyword</th>${snapTh('pos', 'Rank')}${snapTh('delta', 'Δ vs last')}${snapTh('volume', 'Volume')}${snapTh('difficulty', 'Difficulty')}</tr></thead>
             <tbody>${kwRows || '<tr><td colspan="5" class="hint">No keyword data yet.</td></tr>'}</tbody>
           </table></div>
           <p class="hint no-print" style="margin-top:14px;">Short list? Screenshot the card above. Long list (400+ keywords)? Use <b>Export as PDF</b> — it paginates cleanly and shares as a file in WhatsApp/Slack.</p>
@@ -2221,7 +2251,10 @@ ai photo enhancer"></textarea>
           const card = sortTh.closest('.appcard');
           const key = card.getAttribute('data-key');
           const col = sortTh.getAttribute('data-sort');
-          const store = sortTh.closest('.comparetable') ? compareSortState : sortTh.closest('.covtable') ? covSortState : sortState;
+          const store = sortTh.closest('.comparetable') ? compareSortState
+            : sortTh.closest('.covtable') ? covSortState
+            : sortTh.closest('.snaptable') ? snapSortState
+            : sortState;
           const cur = store[key] || (store === covSortState ? { col: 'volume', dir: -1 } : {});
           store[key] = { col, dir: cur.col === col ? -cur.dir : 1 };
           render();
@@ -2364,11 +2397,15 @@ ai photo enhancer"></textarea>
         }
         if (act === 'pdf-snapshot') {
           // currentSection is already 'snapshot' here (the button only exists
-          // on that tab), so plain window.print() prints just this one card
-          // — no printAll toggle needed. Solves the "list is too long to
-          // screenshot" problem: a PDF paginates instead of needing one
-          // impossibly-tall image, and shares as a file in WhatsApp/Slack.
+          // on that tab), so no printAll toggle is needed — just this card
+          // prints. The print-snapshot-only class (see @media print CSS)
+          // hides the marketing header and lets the card's break-inside
+          // rule relax, so a long keyword list starts filling page 1
+          // immediately instead of leaving it almost entirely blank while
+          // the whole (page-height-exceeding) card gets pushed to page 2.
+          document.body.classList.add('print-snapshot-only');
           window.print();
+          document.body.classList.remove('print-snapshot-only');
           return;
         }
         if (act === 'discover') {
