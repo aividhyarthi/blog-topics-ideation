@@ -157,6 +157,14 @@ const limitsText = product && plan
       .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--muted); }
       .legend .li { display: flex; align-items: center; gap: 5px; }
       .legend .sw { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+      /* --- Daily Snapshot: a framed, screenshot-sized card for sharing
+         outside the tool (WhatsApp/Slack report groups) --- */
+      .snap-frame { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 20px 22px; max-width: 640px; }
+      .snap-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+      .snap-top img.icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
+      .snap-top .fallback-icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 18px; background: var(--card2); }
+      .snap-top .t { font-weight: 700; font-size: 15px; }
+      .snap-top .d { font-size: 12px; color: var(--muted); margin-top: 1px; }
       .viztip { position: fixed; z-index: 60; pointer-events: none; background: var(--card2); border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); padding: 8px 11px; font-size: 12px; display: none; min-width: 130px; }
       .kwmodal-backdrop { display: none; position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; padding: 20px; }
       .kwmodal-backdrop.open { display: flex; }
@@ -447,6 +455,7 @@ ai photo enhancer"></textarea>
       // the international ASO tools — switched from the left sidebar.
       const SECTIONS = [
         { id: 'overview', label: 'Overview' },
+        { id: 'snapshot', label: 'Daily Snapshot' },
         { id: 'keywords', label: 'Daily Keyword Snapshot' },
         { id: 'coverage', label: 'All Keywords Snapshot' },
         { id: 'compare', label: 'Compare' },
@@ -1079,6 +1088,83 @@ ai photo enhancer"></textarea>
         </div>`;
       }
 
+      // A single, self-contained card meant to be screenshotted and shared
+      // outside the tool (a WhatsApp/Slack report group) — everything a
+      // stakeholder asks for in one glance: visibility, category rank,
+      // rating health, keyword rankings. Pure re-presentation of data the
+      // other tabs already compute; no new fetch, no new stored state.
+      function snapshotHtml(app) {
+        const ov = app.overview || {};
+        const cur = ov.visibility, prev = ov.prevVisibility;
+        const vDelta = (cur != null && prev != null) ? Math.round((cur - prev) * 10) / 10 : null;
+        const vDeltaHtml = vDelta == null ? '<span class="delta flat">–</span> vs last check'
+          : vDelta > 0 ? `<span class="delta up">▲ ${vDelta}</span> vs last check`
+          : vDelta < 0 ? `<span class="delta down">▼ ${-vDelta}</span> vs last check`
+          : '<span class="delta flat">＝ unchanged</span> vs last check';
+
+        const chartName = (app.chart && app.chart.chart) || 'category chart';
+        const chartDelta = app.chart && app.chart.delta
+          ? (app.chart.delta > 0 ? ` <span class="delta up">▲${app.chart.delta}</span>` : ` <span class="delta down">▼${-app.chart.delta}</span>`)
+          : '';
+        const chartSub = app.chart && app.chart.position != null
+          ? `in ${esc(chartName)}${chartDelta}`
+          : `not in the top of ${esc(chartName)} yet`;
+
+        const rh = app.ratingHistory || [];
+        const latestRating = rh.length ? rh[rh.length - 1] : null;
+        const lr = app.latestResult;
+        const scoreTxt = lr && lr.score != null ? `${lr.score.toFixed(1)}★ average${lr.ratings != null ? ` · ${lr.ratings.toLocaleString()} ratings` : ''}` : '';
+        const ratingSub = latestRating
+          ? `of last ${latestRating.total} reviews are 1-2★${scoreTxt ? ` · ${scoreTxt}` : ''}`
+          : (app.store === 'play' ? 'no rating data checked yet' : 'rating tracking is Google Play only');
+
+        const kwRows = (app.trends || []).slice()
+          .sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity))
+          .slice(0, 12)
+          .map((t) => `<tr><td class="kw">${esc(t.keyword)}</td><td class="pos">${posCell(t)}</td><td>${deltaCell(t)}</td></tr>`)
+          .join('');
+
+        const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        const icon = app.icon
+          ? `<img class="icon" src="${escAttr(app.icon)}" alt="" />`
+          : `<div class="fallback-icon">${app.store === 'play' ? '🤖' : ''}</div>`;
+
+        return `
+        <div class="snap-frame">
+          <div class="snap-top">
+            ${icon}
+            <div>
+              <div class="t">${esc(app.title)}</div>
+              <div class="d">Daily Snapshot · ${dateStr}</div>
+            </div>
+          </div>
+          <p class="headline-sub" style="margin-bottom:16px;">${visibilityNarrative(app)}</p>
+          <div class="tiles">
+            <div class="tile">
+              <div class="lbl">Visibility score</div>
+              <div class="val">${cur != null ? cur.toFixed(1) : '–'}</div>
+              <div class="hint" style="margin:6px 0 0;">${vDeltaHtml}</div>
+            </div>
+            <div class="tile">
+              <div class="lbl">Category chart rank</div>
+              <div class="val">${app.chart && app.chart.position != null ? '#' + app.chart.position : '–'}</div>
+              <div class="hint" style="margin:6px 0 0;">${chartSub}</div>
+            </div>
+            <div class="tile">
+              <div class="lbl">Rating health</div>
+              <div class="val">${latestRating ? latestRating.negativeShare + '%' : '–'}</div>
+              <div class="hint" style="margin:6px 0 0;">${ratingSub}</div>
+            </div>
+          </div>
+          <h4 style="margin:18px 0 8px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.03em;">Keyword rankings</h4>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Keyword</th><th>Rank</th><th>Δ vs last</th></tr></thead>
+            <tbody>${kwRows || '<tr><td colspan="3" class="hint">No keyword data yet.</td></tr>'}</tbody>
+          </table></div>
+          <p class="hint no-print" style="margin-top:14px;">Screenshot this card to share — sized to read cleanly at chat width.</p>
+        </div>`;
+      }
+
       // AI-extracted complaint themes from recent 1-3★ reviews — pairs with
       // the rating-share trend above: that chart says the score is sliding,
       // this says WHY. Only refreshed on an explicit click (each run is an
@@ -1665,6 +1751,10 @@ ai photo enhancer"></textarea>
           <div class="section-head"><h2>Overview</h2><p class="hint">Where you rank today, your trend, and what changed since your last check.</p></div>
           ${overviewHtml(app)}`;
 
+        const sectionSnapshot = `
+          <div class="section-head"><h2>Daily Snapshot</h2><p class="hint">One card to screenshot and share — visibility, category rank, rating health, and keyword rankings.</p></div>
+          ${snapshotHtml(app)}`;
+
         const moversCard = moversHtml(app);
         const sectionKeywords = `
           <div class="section-head"><h2>Daily Keyword Snapshot</h2>
@@ -1788,7 +1878,7 @@ ai photo enhancer"></textarea>
           </div>`;
 
         const bySection = {
-          overview: sectionOverview, keywords: sectionKeywords, coverage: sectionCoverage,
+          overview: sectionOverview, snapshot: sectionSnapshot, keywords: sectionKeywords, coverage: sectionCoverage,
           compare: sectionCompare, trends: sectionTrends, settings: sectionSettings,
         };
         const body = printAll
