@@ -123,7 +123,14 @@ function resolvePrimary(cfg: TrackerConfig, startKey: string): TrackedApp | null
 function alreadyCheckedToday(appKey: string, userId?: string): string | null {
   const snap = loadSnapshot(todayKey(), userId);
   const row = snap?.apps.find((a) => a.key === appKey);
-  return row ? snap!.checkedAt : null;
+  // A row whose chart fetch errored (AppRankResult.error — see checkApp)
+  // must NOT count as "done for today": that's exactly the case someone
+  // clicks "Check now" to retry, and until this returned null the guard
+  // silently swallowed that click and re-served the same stale error, with
+  // no real retry happening until tomorrow — same "errored rows don't
+  // count as done" rule checkCoverageBatch already applies per-keyword.
+  if (!row || row.error) return null;
+  return snap!.checkedAt;
 }
 /**
  * Only true once EVERY coverage keyword has a result for today — a partial

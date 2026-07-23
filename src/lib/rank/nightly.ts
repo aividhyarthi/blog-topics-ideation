@@ -13,7 +13,7 @@
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
 import { loadConfig, saveConfig, loadSnapshots, loadCoverageSnapshots, loadNightlyMarker, saveNightlyMarker } from './store';
-import { runCheck, checkCoverageBatch, checkRating } from './check';
+import { runCheck, checkCoverageBatch, checkRating, retryFailedChart } from './check';
 import { backfillDeveloperId, backfillGenreId } from './fetch';
 import { withTenantLock } from './lock';
 import { keywordTrends, overviewSeries, countsFromBuckets, universeSizeSeries, todayKey } from './track';
@@ -186,6 +186,15 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
       saveNightlyMarker(today, userId);
     } else {
       lines.push(`  [${label}] daily check already completed today — skipping to coverage.`);
+    }
+
+    // Runs every tick regardless of the marker above — see retryFailedChart's
+    // own comment for why a chart failure otherwise only got one attempt per
+    // day even across the scheduler's hourly retry window.
+    for (const app of cfg.apps) {
+      try {
+        if (await retryFailedChart(app, userId)) lines.push(`  [${label}] ${app.key}: chart retry succeeded.`);
+      } catch { /* best-effort */ }
     }
 
     // Coverage lists (up to 2000 keywords) run here rather than on-demand

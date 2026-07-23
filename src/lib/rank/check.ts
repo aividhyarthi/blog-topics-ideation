@@ -116,6 +116,35 @@ export async function checkApp(
   return result;
 }
 
+/**
+ * Retry JUST the top-chart fetch for an app whose LATEST check today failed
+ * on it (AppRankResult.error — see checkApp) — no keyword re-searches, so
+ * it's cheap enough to attempt on every hourly retry tick, not just once a
+ * day. This exists because the nightly marker (nightly.ts) marks a whole
+ * tenant "done for today" once its daily block finishes WITHOUT THROWING —
+ * but a single app's chart fetch can fail inside that block without failing
+ * the run, so once marked done, that app's chart got exactly one attempt
+ * per day and silently never retried until tomorrow, no matter how many
+ * hourly ticks or manual re-checks happened in between. Returns true if the
+ * retry actually succeeded (so the caller knows there's something to log).
+ */
+export async function retryFailedChart(app: TrackedApp, userId?: string): Promise<boolean> {
+  const dateKey = todayKey();
+  const snap = loadSnapshot(dateKey, userId);
+  const row = snap?.apps.find((a) => a.key === app.key);
+  if (!row || !row.error) return false;
+  try {
+    const { chart, ids } = await fetchTopChart(app.store, app.country, app.lang, app.genreId);
+    const idx = ids.indexOf(app.appId);
+    row.topChart = { position: idx === -1 ? null : idx + 1, chart, depth: ids.length };
+    delete row.error;
+    saveSnapshot(snap!, userId);
+    return true;
+  } catch {
+    return false; // still failing — leaves row.error in place for the next retry tick
+  }
+}
+
 /** Check a single app and merge the result into today's snapshot. */
 export async function checkOne(app: TrackedApp, userId?: string): Promise<AppRankResult> {
   const result = await checkApp(app);
