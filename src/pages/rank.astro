@@ -1149,7 +1149,9 @@ ai photo enhancer"></textarea>
           ? `of last ${latestRating.total} reviews are 1-2★${scoreTxt ? ` · ${scoreTxt}` : ''}`
           : (app.store === 'play' ? 'no rating data checked yet' : 'rating tracking is Google Play only');
 
-        const allTrends = mergedKeywordTrends(app);
+        const volumes = app.keywordVolumes || {};
+        const diffMap = app.difficulty || {};
+        const allTrends = mergedKeywordTrends(app).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
         const rankingNow = allTrends.filter((t) => t.position != null && !t.error).sort((a, b) => a.position - b.position);
         const newlyRanked = rankingNow.filter((t) => t.prevPosition == null).length;
         const coverageSub = allTrends.length
@@ -1157,7 +1159,7 @@ ai photo enhancer"></textarea>
           : 'no keywords tracked yet';
 
         const kwRows = rankingNow
-          .map((t) => `<tr><td class="kw">${esc(t.keyword)}</td><td class="pos">${posCell(t)}</td><td>${deltaCell(t)}</td></tr>`)
+          .map((t) => `<tr><td class="kw">${esc(t.keyword)}</td><td class="pos">${posCell(t)}</td><td>${deltaCell(t)}</td><td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td><td>${diffCell(t.difficulty)}</td></tr>`)
           .join('');
 
         const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -1173,6 +1175,7 @@ ai photo enhancer"></textarea>
               <div class="t">${esc(app.title)}</div>
               <div class="d">Daily Snapshot · ${dateStr}</div>
             </div>
+            <button class="ghost no-print" data-act="pdf-snapshot" style="margin-left:auto;">Export as PDF</button>
           </div>
           <p class="headline-sub" style="margin-bottom:16px;">${visibilityNarrative(app)}</p>
           <div class="tiles">
@@ -1199,10 +1202,10 @@ ai photo enhancer"></textarea>
           </div>
           <h4 style="margin:18px 0 8px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.03em;">Keyword rankings — ${rankingNow.length.toLocaleString()} of ${allTrends.length.toLocaleString()} tracked keywords ranking</h4>
           <div class="table-wrap"><table>
-            <thead><tr><th>Keyword</th><th>Rank</th><th>Δ vs last</th></tr></thead>
-            <tbody>${kwRows || '<tr><td colspan="3" class="hint">No keyword data yet.</td></tr>'}</tbody>
+            <thead><tr><th>Keyword</th><th>Rank</th><th>Δ vs last</th><th>Volume</th><th>Difficulty</th></tr></thead>
+            <tbody>${kwRows || '<tr><td colspan="5" class="hint">No keyword data yet.</td></tr>'}</tbody>
           </table></div>
-          <p class="hint no-print" style="margin-top:14px;">Screenshot this card to share — sized to read cleanly at chat width.</p>
+          <p class="hint no-print" style="margin-top:14px;">Short list? Screenshot the card above. Long list (400+ keywords)? Use <b>Export as PDF</b> — it paginates cleanly and shares as a file in WhatsApp/Slack.</p>
         </div>`;
       }
 
@@ -1793,7 +1796,7 @@ ai photo enhancer"></textarea>
           ${overviewHtml(app)}`;
 
         const sectionSnapshot = `
-          <div class="section-head"><h2>Daily Snapshot</h2><p class="hint">One card to screenshot and share — visibility, category rank, rating health, and keyword rankings.</p></div>
+          <div class="section-head no-print"><h2>Daily Snapshot</h2><p class="hint">Visibility, category rank, rating health, and keyword rankings — screenshot the card, or export it as a PDF for a long keyword list.</p></div>
           ${snapshotHtml(app)}`;
 
         const moversCard = moversHtml(app);
@@ -2357,6 +2360,15 @@ ai photo enhancer"></textarea>
           // Print every section stacked, not just the one currently open.
           printAll = true; render();
           setTimeout(() => { window.print(); printAll = false; render(); }, 60);
+          return;
+        }
+        if (act === 'pdf-snapshot') {
+          // currentSection is already 'snapshot' here (the button only exists
+          // on that tab), so plain window.print() prints just this one card
+          // — no printAll toggle needed. Solves the "list is too long to
+          // screenshot" problem: a PDF paginates instead of needing one
+          // impossibly-tall image, and shares as a file in WhatsApp/Slack.
+          window.print();
           return;
         }
         if (act === 'discover') {
