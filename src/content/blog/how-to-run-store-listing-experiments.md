@@ -2,6 +2,7 @@
 title: "How to Run Google Play Store Listing Experiments"
 description: "A practical walkthrough of Play Console's Store Listing Experiments — what you can test, how to structure a test that actually tells you something, and how long to let it run."
 theme: "Store Listing Experiments"
+image: "/blog/og/how-to-run-store-listing-experiments.png"
 publishDate: 2026-07-08
 faqs:
   - question: "What can I A/B test in a Google Play Store Listing Experiment?"

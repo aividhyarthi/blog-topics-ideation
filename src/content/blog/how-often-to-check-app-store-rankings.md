@@ -2,6 +2,7 @@
 title: "How Often Should You Check Your App Store Rankings?"
 description: "Daily checks and full keyword-coverage checks answer different questions — here's why you need both, on different clocks, and what changing either one too rarely actually costs you."
 theme: "Fundamentals"
+image: "/blog/og/how-often-to-check-app-store-rankings.png"
 publishDate: 2026-07-14
 faqs:
   - question: "How often does Google Play or the App Store update search rankings?"

@@ -2,6 +2,7 @@
 title: "What Is a Visibility Score in ASO? How It's Calculated"
 description: "One number meant to summarize where you stand across every keyword you're tracked on — not any single keyword's rank. Here's what actually goes into it and why it's weighted the way it is."
 theme: "Fundamentals"
+image: "/blog/og/what-is-a-visibility-score-in-aso.png"
 publishDate: 2026-07-27
 faqs:
   - question: "What is a visibility score in app store optimization?"

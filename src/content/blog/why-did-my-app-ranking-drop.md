@@ -2,6 +2,7 @@
 title: "Why Did My App's Ranking Drop? A Diagnosis Checklist"
 description: "A sudden rank drop has a real cause, and it's almost always one of a short list. Here's the order to check them in, before you start guessing."
 theme: "Fundamentals"
+image: "/blog/og/why-did-my-app-ranking-drop.png"
 publishDate: 2026-07-24
 faqs:
   - question: "Why did my app's Google Play or App Store ranking drop suddenly?"

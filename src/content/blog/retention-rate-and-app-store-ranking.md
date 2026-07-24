@@ -2,6 +2,7 @@
 title: "Does Retention Rate Affect App Store Ranking?"
 description: "Retention rate gets cited constantly as a ranking factor, but unlike crash rate or ANR, neither Apple nor Google actually confirms it directly. Here's what's real, what's inferred, and what to do about it anyway."
 theme: "App Quality & Vitals"
+image: "/blog/og/retention-rate-and-app-store-ranking.png"
 publishDate: 2026-07-14
 faqs:
   - question: "Does retention rate directly affect app store ranking?"

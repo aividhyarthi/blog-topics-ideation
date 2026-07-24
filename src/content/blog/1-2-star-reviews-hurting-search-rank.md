@@ -2,6 +2,7 @@
 title: "Do 1-2 Star Reviews Hurt Your App Store Ranking?"
 description: "Low ratings cost you more than install conversion — there's real, documented reason to believe they suppress search visibility too. Here's the mechanism and what to actually do about it."
 theme: "Reviews & Ratings"
+image: "/blog/og/1-2-star-reviews-hurting-search-rank.png"
 publishDate: 2026-07-01
 ---
 

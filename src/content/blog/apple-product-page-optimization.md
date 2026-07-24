@@ -2,6 +2,7 @@
 title: "Apple Product Page Optimization: What It Is and How to Use It"
 description: "Apple's version of A/B testing your app's listing works differently from Google Play's — fewer testable elements, no text fields, and a separate feature entirely for audience targeting. Here's how it actually works."
 theme: "Store Listing Experiments"
+image: "/blog/og/apple-product-page-optimization.png"
 publishDate: 2026-07-13
 faqs:
   - question: "What is Apple Product Page Optimization?"

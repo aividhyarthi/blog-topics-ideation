@@ -2,6 +2,7 @@
 title: "What Is ANR Rate? Does It Affect Google Play Ranking?"
 description: "ANR (App Not Responding) is a confirmed Android vitals ranking signal, distinct from crash rate and easy to miss if you only watch crash dashboards. Here's what it is and where to check it."
 theme: "App Quality & Vitals"
+image: "/blog/og/anr-rate-and-google-play-ranking.png"
 publishDate: 2026-07-12
 faqs:
   - question: "What does ANR mean?"

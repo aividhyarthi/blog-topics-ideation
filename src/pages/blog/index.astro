@@ -34,11 +34,13 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
     <title>{BRAND} Blog — ASO &amp; App Ranking Guides</title>
     <meta name="description" content={`Practical, no-fluff guides on App Store Optimization, keyword research, and app ranking on Google Play and the App Store — from the team behind ${BRAND}.`} />
     <link rel="canonical" href={`${SITE_URL}/blog`} />
+    <meta name="robots" content="max-image-preview:large, max-video-preview:-1" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={`${BRAND} Blog — ASO & App Ranking Guides`} />
     <meta property="og:description" content={`Practical, no-fluff guides on App Store Optimization, keyword research, and app ranking on Google Play and the App Store.`} />
     <meta property="og:url" content={`${SITE_URL}/blog`} />
-    <meta name="twitter:card" content="summary" />
+    {posts[0] && <meta property="og:image" content={`${SITE_URL}${posts[0].data.image}`} />}
+    <meta name="twitter:card" content="summary_large_image" />
     <style>
       :root { --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }
       * { box-sizing: border-box; }
@@ -65,11 +67,14 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
       .themefilter button.active { background: var(--ink); border-color: var(--ink); color: #fff; }
       .postlist { display: flex; flex-direction: column; gap: 12px; }
       .postcard {
-        display: block; text-decoration: none; color: inherit;
+        display: flex; align-items: flex-start; gap: 18px; text-decoration: none; color: inherit;
         padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; background: #fff;
         transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
       }
       .postcard:hover { border-color: #cbd0da; box-shadow: 0 6px 20px rgba(20,20,40,0.07); transform: translateY(-1px); }
+      .postcard .thumb { width: 160px; height: 90px; object-fit: cover; border-radius: 9px; border: 1px solid var(--line); flex-shrink: 0; }
+      .postcard .body { min-width: 0; }
+      @media (max-width: 560px) { .postcard { flex-direction: column; } .postcard .thumb { width: 100%; height: auto; aspect-ratio: 16 / 9; } }
       .posttheme { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #52525b; }
       .postcard h2 { font-size: 19px; margin: 7px 0 6px; letter-spacing: -0.01em; }
       .postcard p { color: var(--muted); font-size: 14.5px; margin: 0 0 10px; }
@@ -102,10 +107,13 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
           <div class="postlist" id="postlist">
             {posts.map((post) => (
               <a class="postcard" href={`/blog/${post.slug}`} data-theme={post.data.theme}>
-                <span class="posttheme">{post.data.theme}</span>
-                <h2>{post.data.title}</h2>
-                <p>{post.data.description}</p>
-                <span class="postmeta">{fmt(post.data.publishDate)} · {post.data.author}</span>
+                <img class="thumb" src={post.data.image} width="160" height="90" alt="" loading="lazy" />
+                <div class="body">
+                  <span class="posttheme">{post.data.theme}</span>
+                  <h2>{post.data.title}</h2>
+                  <p>{post.data.description}</p>
+                  <span class="postmeta">{fmt(post.data.publishDate)} · {post.data.author}</span>
+                </div>
               </a>
             ))}
           </div>

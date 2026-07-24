@@ -2,6 +2,7 @@
 title: "App Store Optimization 101: What Actually Moves Your Rank"
 description: "A plain-language breakdown of what App Store Optimization really is, which levers you control, and which ones you don't — for anyone starting from zero."
 theme: "Fundamentals"
+image: "/blog/og/aso-101-what-actually-moves-your-rank.png"
 publishDate: 2026-06-24
 ---
 

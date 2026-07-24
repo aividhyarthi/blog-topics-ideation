@@ -2,6 +2,7 @@
 title: "Does Crash Rate Affect Your Google Play Ranking?"
 description: "Google explicitly ties crash rate to store visibility through Android vitals' bad behavior thresholds. Here's what's confirmed, where to check your number, and what actually happens if you cross the line."
 theme: "App Quality & Vitals"
+image: "/blog/og/crash-rate-and-google-play-ranking.png"
 publishDate: 2026-07-11
 faqs:
   - question: "Does crash rate affect Google Play search ranking?"

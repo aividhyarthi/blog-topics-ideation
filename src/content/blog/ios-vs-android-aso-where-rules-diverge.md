@@ -2,6 +2,7 @@
 title: "iOS vs Android ASO: Where The Rules Genuinely Diverge"
 description: "The App Store and Google Play look similar on the surface but reward different tactics. Here's exactly where a copy-paste ASO strategy between platforms breaks down."
 theme: "App Store"
+image: "/blog/og/ios-vs-android-aso-where-rules-diverge.png"
 publishDate: 2026-07-03
 ---
 

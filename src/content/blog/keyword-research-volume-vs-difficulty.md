@@ -2,6 +2,7 @@
 title: "Keyword Research for Apps: Volume vs. Difficulty"
 description: "How to actually choose which keywords to chase — balancing how many people search a term against how realistic it is you'll ever rank for it."
 theme: "Keywords"
+image: "/blog/og/keyword-research-volume-vs-difficulty.png"
 publishDate: 2026-06-30
 ---
 

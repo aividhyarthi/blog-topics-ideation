@@ -2,6 +2,7 @@
 title: "Does Updating Your App More Often Improve Its Ranking?"
 description: "Both stores' own developer guidance nudges toward regular updates, but 'update often' isn't a rank hack on its own — what changes in the update is what seems to matter."
 theme: "App Quality & Vitals"
+image: "/blog/og/update-frequency-as-a-ranking-signal.png"
 publishDate: 2026-07-16
 faqs:
   - question: "Does releasing more updates directly improve app store ranking?"

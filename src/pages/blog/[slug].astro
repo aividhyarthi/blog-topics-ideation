@@ -26,6 +26,7 @@ const recentPosts = allPosts
   .map((p) => ({ slug: p.slug, title: p.data.title }));
 
 const canonicalUrl = `${SITE_URL}/blog/${post.slug}`;
+const imageUrl = `${SITE_URL}${post.data.image}`;
 const faqs = post.data.faqs || [];
 
 const articleJsonLd = {
@@ -33,6 +34,7 @@ const articleJsonLd = {
   '@type': 'BlogPosting',
   headline: post.data.title,
   description: post.data.description,
+  image: imageUrl,
   datePublished: post.data.publishDate.toISOString(),
   dateModified: post.data.publishDate.toISOString(),
   author: { '@type': 'Organization', name: post.data.author },
@@ -73,14 +75,23 @@ const breadcrumbJsonLd = {
     <title>{post.data.title} — {BRAND} Blog</title>
     <meta name="description" content={post.data.description} />
     <link rel="canonical" href={canonicalUrl} />
+    {/* max-image-preview:large is required for a page's images to be eligible for
+        Google Discover and full-size image previews in search; max-video-preview:-1
+        allows an unlimited-length video preview if one's ever embedded here. */}
+    <meta name="robots" content="max-image-preview:large, max-video-preview:-1" />
     <meta property="og:type" content="article" />
     <meta property="og:title" content={post.data.title} />
     <meta property="og:description" content={post.data.description} />
     <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="675" />
+    <meta property="og:image:alt" content={post.data.title} />
     <meta property="article:published_time" content={post.data.publishDate.toISOString()} />
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={post.data.title} />
     <meta name="twitter:description" content={post.data.description} />
+    <meta name="twitter:image" content={imageUrl} />
     <script type="application/ld+json" set:html={JSON.stringify(articleJsonLd)} />
     {faqJsonLd && <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
     <script type="application/ld+json" set:html={JSON.stringify(breadcrumbJsonLd)} />
@@ -109,6 +120,7 @@ const breadcrumbJsonLd = {
       .posttheme { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #52525b; }
       h1 { font-size: 30px; letter-spacing: -0.02em; margin: 8px 0 8px; line-height: 1.25; }
       .postmeta { font-size: 13px; color: var(--muted); margin-bottom: 30px; }
+      .hero { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 12px; margin-bottom: 30px; display: block; border: 1px solid var(--line); }
       article :global(h2) { font-size: 20px; letter-spacing: -0.01em; margin: 34px 0 12px; color: var(--ink); }
       article :global(p) { color: #2b2f38; font-size: 16px; margin: 0 0 16px; }
       article :global(strong) { color: var(--ink); }
@@ -151,6 +163,7 @@ const breadcrumbJsonLd = {
           <span class="posttheme">{post.data.theme}</span>
           <h1>{post.data.title}</h1>
           <div class="postmeta">{fmt(post.data.publishDate)} · {post.data.author}</div>
+          <img class="hero" src={post.data.image} width="1200" height="675" alt={post.data.title} />
           <article><Content /></article>
           <InlineTrialBanner />
 
