@@ -2,12 +2,13 @@
 // CiteRank — AEO auditor. Scores how likely a page is to be cited by LLM
 // answer engines (ChatGPT, Perplexity, Gemini, Google AI Overviews).
 //
-// Hard login wall: when accounts are live (DB configured), the audit form is
-// server-rendered ONLY for signed-in visitors.
+// Hard login wall: the audit form is server-rendered ONLY for signed-in
+// visitors. Locks (never unlocks) if the DB is unreachable.
 import { getUser } from '../lib/auth';
 import { dbEnabled } from '../lib/db';
 const user = await getUser(Astro as any);
-const locked = dbEnabled && !user;
+const locked = !user;
+const accountsDown = !dbEnabled;
 ---
 
 <!doctype html>
@@ -466,12 +467,21 @@ const locked = dbEnabled && !user;
         {locked ? (
           <div class="gatecard">
             <div class="gate-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
-            <h2>Sign in to run the full audit</h2>
-            <p>Create a free account — 5 checks a month, free. Upgrade any time for 500/month.</p>
-            <div class="gate-actions">
-              <button class="primary" id="gate-signup" onclick="openAuth('signup')">Get started free</button>
-              <button class="ghostbtn" id="gate-login" onclick="openAuth('login')">Log in</button>
-            </div>
+            {accountsDown ? (
+              <>
+                <h2>Accounts are temporarily unavailable</h2>
+                <p>We can't reach the account service right now, so sign-in is paused. Please try again in a few minutes.</p>
+              </>
+            ) : (
+              <>
+                <h2>Sign in to run the full audit</h2>
+                <p>Create a free account and your first check is on us. After that, buy checks as you need them or go unlimited with Pro.</p>
+                <div class="gate-actions">
+                  <button class="primary" id="gate-signup" onclick="openAuth('signup')">Get started free</button>
+                  <button class="ghostbtn" id="gate-login" onclick="openAuth('login')">Log in</button>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div class="card">

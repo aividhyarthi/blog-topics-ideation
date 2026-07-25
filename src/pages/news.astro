@@ -1,81 +1,151 @@
 ---
 import Site from '../layouts/Site.astro';
 
-// Real AEO/GEO industry news — editorial summaries of publicly reported
-// developments, not a product changelog. Kept factual and conservative
-// (no invented stats or quotes); each links the development back to what it
-// means for site owners.
+// Real AEO/GEO industry news. Every item carries a date, a named source and a
+// link — partly because that's the honest way to publish news, and partly
+// because source attribution is one of the few citation levers with actual
+// evidence behind it. This page practises what the product preaches.
+const lead = {
+  date: '1 Jul 2026',
+  tag: 'Infrastructure',
+  title: 'Cloudflare gives AI companies until 15 September to separate their search and AI crawlers',
+  standfirst:
+    'Mixed-use bots will be blocked on monetised pages, and Pay Per Crawl becomes Pay Per Use — charging when content shows up in an answer, not when a bot fetches it.',
+  body:
+    'Cloudflare, which fronts a large share of the web, set a 15 September 2026 deadline for AI companies to stop using a single crawler for both traditional search indexing and AI training or answer generation. Bots that refuse to separate the two will be blocked on pages that carry advertising. Alongside it, Cloudflare is evolving Pay Per Crawl — launched in private beta on 1 July 2025 — into Pay Per Use, which pays publishers when their content actually surfaces in an AI answer rather than per fetch. The rationale: per-fetch pricing breaks down when a large share of fetches are re-reads of unchanged pages. The Associated Press, Time, The Atlantic and Reddit are among the publishers backing the approach.',
+  soWhat:
+    'Crawler access is now something you grant, not something that happens by default. If you sit behind Cloudflare or any modern WAF, your robots.txt saying "allow" is no longer the last word — the edge can be blocking GPTBot or ClaudeBot before your server ever sees the request.',
+  source: { name: 'TechCrunch', url: 'https://techcrunch.com/2026/07/01/cloudflares-new-policy-pushes-ai-companies-to-pay-for-publishers-content/' },
+};
+
 const items = [
   {
-    date: 'Ongoing',
-    tag: 'Search',
-    title: 'Google AI Overviews keeps expanding — and keeps changing who gets cited',
-    body: 'Google has continued rolling AI Overviews out to more countries and more query types since its 2024 debut, generating an AI-written summary above traditional results for a large share of searches. Because Overviews synthesizes and cites a handful of sources rather than listing ten links, which pages get pulled in has become its own optimization problem — separate from, and sometimes at odds with, classic ranking position. Sites that are technically well-structured (clear schema, direct answers, FAQ blocks) are more often the ones AI Overviews quotes.',
+    date: 'May 2026',
+    tag: 'Google',
+    title: 'Google adds "Further Exploration" links to AI Overviews as publisher click declines trigger antitrust suits',
+    body:
+      'Google shipped five changes to AI Mode and AI Overviews aimed at sending more traffic back to websites — most notably a Further Exploration block at the end of an Overview linking to specific articles, case studies and reports, plus a site preview on link hover and clearer labelling for subscription publications. The changes landed against a backdrop of litigation and hard numbers: an Ahrefs study published in February 2026 found AI Overviews correlate with a 58% drop in click-through rate for top-ranking pages.',
+    soWhat:
+      'The Further Exploration slot is a new, separately-winnable citation surface — it favours specific, substantive, single-topic pages over broad category pages.',
+    source: { name: 'The Next Web', url: 'https://thenextweb.com/news/google-ai-overviews-publisher-links-search-traffic' },
   },
   {
-    date: 'Ongoing',
-    tag: 'Crawlers',
-    title: 'The AI crawler roster keeps growing — and so does the JavaScript blind spot',
-    body: 'OpenAI (GPTBot, OAI-SearchBot), Anthropic (ClaudeBot) and Perplexity (PerplexityBot) all now operate distinct crawlers with published robots.txt tokens, alongside Google\'s long-standing Googlebot and the newer Google-Extended opt-out token for AI training/grounding. A detail that trips up most sites: none of the answer-engine crawlers execute JavaScript the way Googlebot does. A page that ranks perfectly well on Google can be an empty shell to every one of the AI crawlers if its content loads client-side — a gap CiteRank\'s LLM Access Check is built specifically to surface.',
-  },
-  {
-    date: 'Ongoing',
-    tag: 'Research',
-    title: 'The academic case for GEO: Princeton\'s study on what gets cited by generative engines',
-    body: 'Researchers at Princeton, Georgia Tech, Allen Institute for AI and IIT Delhi published "GEO: Generative Engine Optimization," one of the first empirical studies measuring what content changes actually increase citation by AI answer engines. Their findings pointed to concrete, testable levers: adding statistics and data points, citing authoritative sources, and including direct quotations meaningfully increased how often a source was cited in generated answers — giving the AEO/GEO field its first real evidence base instead of just intuition.',
-  },
-  {
-    date: 'Ongoing',
+    date: 'Mar 2026',
     tag: 'Publishers',
-    title: 'Perplexity\'s publisher program signals a shift toward compensating cited sources',
-    body: 'Perplexity launched a publisher partner program that shares advertising revenue with outlets whose content gets cited in its answers — an early sign that answer engines are starting to formalize a relationship with the sites they depend on for source material, rather than treating citation purely as a byproduct of crawling. It reinforces a wider trend: being citable is becoming a distinct commercial asset for publishers, separate from, and now sometimes fought over alongside, search referral traffic.',
+    title: 'Search referral traffic to small publishers is down 60% in two years',
+    body:
+      'A Chartbeat study published in March 2026 found search referral traffic fell 60% for small publishers, 47% for medium publishers and 22% for large publishers over the preceding two years — the decline scaling inversely with size. Press Gazette separately reported that Google search referrals to publishers fell roughly a third globally in the year to November.',
+    soWhat:
+      'The gap between large and small sites suggests this is not purely an AI-answers story — it is also a consolidation story. Being one of the handful of sources an answer engine trusts on your topic now matters more than ranking on page one ever did.',
+    source: { name: 'Nieman Journalism Lab', url: 'https://www.niemanlab.org/2026/05/google-highlights-links-from-subscribed-publications-in-new-ai-overviews-update/' },
   },
   {
-    date: 'Ongoing',
-    tag: 'Infrastructure',
-    title: 'Cloudflare\'s AI-crawler defaults put publisher permission back in the spotlight',
-    body: 'Cloudflare, which sits in front of a large share of the web, has pushed policies that let (and in some configurations default to) blocking AI crawlers unless a site owner explicitly allows them, and has floated pay-per-crawl style marketplace ideas for AI companies to compensate sites for access. Whatever the eventual business model, the practical effect for site owners is the same: crawler access is no longer a given, and checking whether your CDN/WAF is silently blocking GPTBot, ClaudeBot or PerplexityBot — even when your robots.txt allows them — is now a routine technical audit, not an edge case.',
+    date: 'Feb 2026',
+    tag: 'Research',
+    title: 'Being cited is worth about 120% more clicks — for the sites that get cited',
+    body:
+      'Seer Interactive\'s 2026 analysis found brands cited inside an AI Overview earn roughly 120% more organic clicks per impression than uncited brands appearing on the same queries. The finding cuts against the "AI Overviews just steal traffic" narrative: the aggregate traffic loss is real, but it is distributed extremely unevenly between cited and uncited sources.',
+    soWhat:
+      'Citation is the whole ballgame. On a query where an Overview appears, the difference between being quoted and being merely present is roughly a doubling of click-through.',
+    source: { name: 'SQ Magazine', url: 'https://sqmagazine.co.uk/ai-overviews-statistics/' },
   },
   {
-    date: 'Ongoing',
+    date: '2026',
+    tag: 'Research',
+    title: 'llms.txt does not correlate with getting cited, a 300,000-domain study finds',
+    body:
+      'SE Ranking analysed 300,000 domains and put llms.txt adoption at 10.13%. It then ran an XGBoost model to test whether the file\'s presence predicts AI citation frequency. Removing the llms.txt variable actually improved the model\'s accuracy — meaning the file carried no useful signal. In practice GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot and Google-Extended overwhelmingly skip the file and crawl HTML directly. Google has publicly pointed site owners at robots.txt, sitemaps and structured data instead.',
+    soWhat:
+      'A 20-minute llms.txt is not an AEO strategy. What the crawlers actually read is your raw HTML — which is exactly why a crawler-access check beats a checklist of files you hope somebody is reading.',
+    source: { name: 'OrganiKPI', url: 'https://organikpi.com/blog/distribution/llms-txt-adoption-impact/' },
+  },
+  {
+    date: '2026',
+    tag: 'Citations',
+    title: 'Only 10% of URLs cited by ChatGPT rank in Google\'s top 10',
+    body:
+      'Citation-source analysis through 2026 shows AI answer engines drawing on a substantially different pool of sources than classic search rankings. Only about 10% of URLs cited by ChatGPT rank in Google\'s top 10 for the same query. The platform\'s alignment with Bing results fell from 26% to 8% while Google alignment rose from 12% to 33% — consistent with OpenAI running a re-ranked hybrid over its own OAI-SearchBot index plus undisclosed partners. Reddit is the single most-cited domain across generative engines at roughly 40% of aggregate citation frequency; Wikipedia is second, appearing in 26–48% of ChatGPT\'s top-10 answers; YouTube accounts for about 23.3% of AI Overview citations.',
+    soWhat:
+      'Your Google rank is a poor proxy for your AI visibility. They are different systems reading different things, and the second one has to be measured directly.',
+    source: { name: 'Search Engine Journal', url: 'https://www.searchenginejournal.com/seo-pulse-chatgpt-gets-shopping-what-drives-ai-citations/562095/' },
+  },
+  {
+    date: 'Nov 2025',
     tag: 'ChatGPT',
-    title: 'ChatGPT Search made live, cited answers a mainstream ChatGPT feature',
-    body: 'OpenAI\'s ChatGPT Search (and the OAI-SearchBot crawler that powers it) brought real-time, cited web answers directly into ChatGPT\'s main interface rather than a separate product — putting it in the same category as Perplexity and Google\'s AI-first surfaces. For site owners, it means the OpenAI crawler that matters for training (GPTBot) and the one that matters for being cited in live answers (OAI-SearchBot) are genuinely different bots with different robots.txt tokens, and a site can allow one while blocking the other without realizing it.',
+    title: 'ChatGPT shopping research puts product pages directly in the answer',
+    body:
+      'OpenAI rolled out shopping research to all logged-in ChatGPT users across Free, Go, Plus and Pro plans, generating personalised buyer\'s guides after a short clarifying conversation about budget and preferences. ChatGPT has also begun surfacing shopping-style product modules on queries that signal buying intent — comparisons, recommendations and product lookups.',
+    soWhat:
+      'For e-commerce this is the highest-stakes AEO surface there is. It reads product attributes, specs and review substance straight out of your HTML — and it never runs your JavaScript.',
+    source: { name: 'Profound', url: 'https://www.tryprofound.com/blog/chatgpt-shopping-deep-dive' },
   },
 ];
 ---
-<Site title="AEO / GEO News — CiteRank" description="What's happening in Answer Engine Optimization: AI crawlers, Google AI Overviews, research and industry moves.">
+<Site title="AEO / GEO News — CiteRank" description="Dated, sourced reporting on AI search: crawler policy, Google AI Overviews, citation research and what each change means for your site.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">News</span>
-      <h1>What's happening in AI search</h1>
-      <p>Developments in Answer Engine Optimization — crawlers, research and industry moves — explained plainly.</p>
+      <h1>What's actually happening in AI search</h1>
+      <p>Dated and sourced — crawler policy, citation research and platform changes, each with a plain answer to "so what does this mean for my site?"</p>
     </div>
   </section>
   <main>
     <div class="wrap news">
+      <article class="lead">
+        <div class="ni-meta"><span class="ni-tag">{lead.tag}</span><span class="ni-date">{lead.date}</span></div>
+        <h2>{lead.title}</h2>
+        <p class="standfirst">{lead.standfirst}</p>
+        <p>{lead.body}</p>
+        <div class="sowhat"><b>What it means for your site</b><p>{lead.soWhat}</p></div>
+        <a class="src" href={lead.source.url} target="_blank" rel="noopener nofollow">Source: {lead.source.name} ↗</a>
+      </article>
+
       {items.map((it) => (
-        <div class="newsitem">
-          <div class="ni-side"><span class={`ni-tag ${it.tag.toLowerCase()}`}>{it.tag}</span><span class="ni-date">{it.date}</span></div>
-          <div class="ni-body"><h3>{it.title}</h3><p>{it.body}</p></div>
-        </div>
+        <article class="newsitem">
+          <div class="ni-meta"><span class="ni-tag">{it.tag}</span><span class="ni-date">{it.date}</span></div>
+          <h3>{it.title}</h3>
+          <p>{it.body}</p>
+          <div class="sowhat"><b>What it means for your site</b><p>{it.soWhat}</p></div>
+          <a class="src" href={it.source.url} target="_blank" rel="noopener nofollow">Source: {it.source.name} ↗</a>
+        </article>
       ))}
     </div>
+
     <div class="wrap news-cta">
-      <p>Want to know where your own site stands on any of this? <a href="/">Run a free LLM Access Check</a> to see exactly which AI crawlers can read your pages.</p>
+      <h3>Where does your site stand on any of this?</h3>
+      <p>The thing every story above has in common: what AI engines can read of your page is not what you see in a browser. Check yours in about 20 seconds.</p>
+      <a href="/" class="btn-primary">Run an LLM Access Check</a>
     </div>
   </main>
   <style>
-    .news { max-width: 820px; }
-    .newsitem { display: grid; grid-template-columns: 130px 1fr; gap: 20px; padding: 24px 0; border-top: 1px solid var(--line); }
-    .newsitem:first-child { border-top: none; }
-    @media (max-width: 560px) { .newsitem { grid-template-columns: 1fr; gap: 8px; } }
-    .ni-side { display: flex; flex-direction: column; gap: 7px; }
-    .ni-tag { display: inline-block; width: fit-content; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--pink); }
+    .news { max-width: 780px; }
+    .ni-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .ni-tag { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--pink); }
     .ni-date { font-size: 12.5px; color: var(--faint); font-weight: 600; }
-    .ni-body h3 { margin: 0 0 8px; font-size: 18px; font-weight: 700; letter-spacing: -.01em; line-height: 1.35; }
-    .ni-body p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.7; }
-    .news-cta { max-width: 820px; margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--line); }
-    .news-cta p { font-size: 14px; color: var(--ink-2); }
+
+    .lead { padding: 30px 30px 26px; border: 1px solid var(--line-2); border-radius: 18px; background: #fff; box-shadow: var(--shadow); margin-bottom: 8px; }
+    .lead h2 { margin: 0 0 12px; font-size: 27px; font-weight: 800; letter-spacing: -.025em; line-height: 1.22; }
+    .standfirst { font-size: 16.5px !important; color: var(--ink-2) !important; font-weight: 500; line-height: 1.6 !important; margin: 0 0 16px !important; }
+
+    .newsitem { padding: 30px 0 26px; border-top: 1px solid var(--line); }
+    .newsitem h3 { margin: 0 0 10px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; line-height: 1.3; }
+    .news p { margin: 0 0 14px; font-size: 15px; color: var(--muted); line-height: 1.72; }
+
+    .sowhat { border-left: 3px solid var(--pink); background: var(--accent-soft); border-radius: 0 10px 10px 0; padding: 13px 16px; margin: 16px 0 14px; }
+    .sowhat b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--pink); margin-bottom: 5px; }
+    .sowhat p { margin: 0 !important; font-size: 14.5px !important; color: var(--ink-2) !important; line-height: 1.65 !important; }
+
+    .src { display: inline-block; font-size: 12.5px; font-weight: 700; color: var(--faint); text-decoration: none; }
+    .src:hover { color: var(--pink); }
+
+    .news-cta { max-width: 780px; margin-top: 40px; padding: 28px 30px; border: 1px solid var(--line); border-radius: 18px; background: var(--accent-soft); }
+    .news-cta h3 { margin: 0 0 8px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+    .news-cta p { margin: 0 0 18px; font-size: 14.5px; color: var(--ink-2); line-height: 1.65; }
+
+    @media (max-width: 560px) {
+      .lead { padding: 24px 20px; }
+      .lead h2 { font-size: 22px; }
+      .news-cta { padding: 24px 20px; }
+    }
   </style>
 </Site>

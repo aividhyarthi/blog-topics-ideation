@@ -41,7 +41,10 @@ const wc = (html: string): number => { const t = html.replace(/<script[\s\S]*?<\
 // page the account already ran the main check on).
 export const POST: APIRoute = async (ctx) => {
   const { request } = ctx;
-  if (dbEnabled && !(await getUser(ctx))) {
+  if (!dbEnabled) {
+    return json({ error: 'Accounts are temporarily unavailable. Please try again shortly.', serviceDown: true }, 503);
+  }
+  if (!(await getUser(ctx))) {
     return json({ error: 'Sign in to run per-crawler checks.', requireAuth: true }, 401);
   }
   let body: { url?: string; bot?: string };

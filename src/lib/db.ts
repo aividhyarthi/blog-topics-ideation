@@ -1,14 +1,68 @@
 // Thin Postgres layer for CiteRank accounts + saved audits.
 //
-// Design rule: EVERYTHING degrades gracefully. If DATABASE_URL is not set, the
-// whole app runs exactly as before — anonymous, nothing saved — so the tool
-// never breaks just because the database hasn't been provisioned yet.
+// Design rule: the tool FAILS CLOSED. If no database is configured, nobody can
+// sign up, so nobody can log in, so the tool must be locked — not open to
+// everyone. (It used to degrade to anonymous access, which meant a missing
+// DATABASE_URL silently unlocked the entire paid product.)
 
 import pg from 'pg';
 
-const DATABASE_URL = process.env.DATABASE_URL || (import.meta as any).env?.DATABASE_URL;
+// Railway/Render/Heroku/Supabase all name this differently, and Railway's
+// Postgres plugin also injects the discrete PG* vars. Accept every common
+// spelling so the app doesn't sit there "unconfigured" next to a live database.
+function resolveDatabaseUrl(): string | null {
+  const env: Record<string, string | undefined> = {
+    ...((import.meta as any).env || {}),
+    ...process.env,
+  };
+  const direct =
+    env.DATABASE_URL ||
+    env.POSTGRES_URL ||
+    env.POSTGRESQL_URL ||
+    env.PG_URL ||
+    env.DATABASE_PRIVATE_URL ||
+    env.DATABASE_PUBLIC_URL;
+  if (direct && direct.trim()) return direct.trim();
+
+  // Fall back to assembling one from the discrete parts.
+  const { PGHOST, PGUSER, PGPASSWORD, PGDATABASE, PGPORT } = env;
+  if (PGHOST && PGUSER && PGDATABASE) {
+    const auth = PGPASSWORD
+      ? `${encodeURIComponent(PGUSER)}:${encodeURIComponent(PGPASSWORD)}`
+      : encodeURIComponent(PGUSER);
+    return `postgresql://${auth}@${PGHOST}:${PGPORT || 5432}/${PGDATABASE}`;
+  }
+  return null;
+}
+
+const DATABASE_URL = resolveDatabaseUrl();
 
 export const dbEnabled = Boolean(DATABASE_URL);
+
+/** Non-secret diagnostic for /api/health — never exposes credentials. */
+export function dbDiagnostic() {
+  let host: string | null = null;
+  if (DATABASE_URL) {
+    try {
+      host = new URL(DATABASE_URL).host;
+    } catch {
+      host = 'unparseable';
+    }
+  }
+  return {
+    configured: dbEnabled,
+    host,
+    checkedVars: [
+      'DATABASE_URL',
+      'POSTGRES_URL',
+      'POSTGRESQL_URL',
+      'PG_URL',
+      'DATABASE_PRIVATE_URL',
+      'DATABASE_PUBLIC_URL',
+      'PGHOST+PGUSER+PGDATABASE',
+    ],
+  };
+}
 
 let pool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;

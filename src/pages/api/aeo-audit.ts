@@ -7,7 +7,7 @@ import {
 } from '../../lib/aeo';
 import { getUser } from '../../lib/auth';
 import { saveAudit } from '../../lib/audits';
-import { consumeAccess } from '../../lib/billing';
+import { consumeAccess, refundAccess } from '../../lib/billing';
 import { dbEnabled } from '../../lib/db';
 
 const json = (data: unknown, status = 200) =>
@@ -192,16 +192,22 @@ export const POST: APIRoute = async (ctx) => {
   let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string; pageType?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
-  // An account is REQUIRED to run an audit once accounts are live (dbEnabled).
-  // Only when the DB isn't configured at all does the tool fall back to
-  // anonymous — there's no account system to enforce in that case.
+  // An account is ALWAYS required to run an audit. If the database isn't
+  // configured the tool locks itself rather than falling open to anonymous
+  // access — a missing DATABASE_URL must never unlock the paid product.
+  if (!dbEnabled) {
+    return json({ error: 'Accounts are temporarily unavailable. Please try again shortly.', serviceDown: true }, 503);
+  }
   const gateUser = await getUser(ctx);
-  if (dbEnabled && !gateUser) {
+  if (!gateUser) {
     return json({ error: 'Create a free account to run an audit — it takes 10 seconds.', requireAuth: true }, 401);
   }
-  if (gateUser) {
+  // Charged up front, refunded below if the page turns out to be unreachable.
+  let chargedVia: 'plan' | 'free' | 'credit' | undefined;
+  {
     const access = await consumeAccess(gateUser.id, 'audit');
     if (!access.allowed) return json({ error: access.message, upgrade: true }, 402);
+    chargedVia = access.via;
   }
 
   // AI-judged signals use OpenAI or Anthropic (whichever has a key + credits).
@@ -225,7 +231,9 @@ export const POST: APIRoute = async (ctx) => {
     try { host = new URL(inputUrl).host; } catch { return json({ error: 'Could not parse that URL.' }, 400); }
     const page = await fetchText(inputUrl, 15000);
     if (!page.ok || page.body.length < 50) {
-      return json({ error: `Could not read that URL${page.status ? ` (HTTP ${page.status})` : ''}. The page may be bot-blocked or JS-rendered — paste the article HTML/text instead.` }, 502);
+      // Nothing was delivered — hand the check back.
+      await refundAccess(gateUser.id, chargedVia);
+      return json({ error: `Could not read that URL${page.status ? ` (HTTP ${page.status})` : ''}. The page may be bot-blocked or JS-rendered — paste the article HTML/text instead. This didn't use up a check.` }, 502);
     }
     html = page.body;
     const origin = (() => { try { return new URL(inputUrl).origin; } catch { return ''; } })();

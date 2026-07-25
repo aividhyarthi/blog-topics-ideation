@@ -96,6 +96,27 @@ export async function consumeAccess(userId: string, tool: string): Promise<Consu
   };
 }
 
+// Give back whatever consumeAccess just took. Called when the check could not
+// be performed at all (page unreachable, upstream refused) — charging for a
+// result we never delivered is the fastest way to lose a paying customer.
+export async function refundAccess(userId: string, via: ConsumeResult['via']): Promise<void> {
+  if (!via) return;
+  try {
+    if (via === 'free') {
+      await query('UPDATE users SET free_check_used = false WHERE id = $1', [userId]);
+    } else if (via === 'credit') {
+      await query('UPDATE users SET credits = credits + 1 WHERE id = $1', [userId]);
+    }
+    // Drop the matching usage_event so the monthly Pro counter unwinds too.
+    await query(
+      `DELETE FROM usage_events WHERE id = (
+         SELECT id FROM usage_events WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1
+       )`,
+      [userId],
+    );
+  } catch { /* best-effort — a refund failure must never mask the real error */ }
+}
+
 export async function recordUsage(userId: string, tool: string): Promise<void> {
   try { await query('INSERT INTO usage_events (user_id, tool) VALUES ($1, $2)', [userId, tool]); }
   catch { /* best-effort — never block the request over a logging failure */ }

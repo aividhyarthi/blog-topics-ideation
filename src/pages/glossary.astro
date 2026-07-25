@@ -1,50 +1,350 @@
 ---
 import Site from '../layouts/Site.astro';
 
-const terms = [
-  { term: 'AEO (Answer Engine Optimization)', def: 'The practice of structuring content so AI answer engines — ChatGPT, Perplexity, Google AI Overviews — extract it, cite it, and quote it directly in their answers, instead of just ranking it in a list of links.' },
-  { term: 'GEO (Generative Engine Optimization)', def: 'A near-synonym for AEO, more common in academic research (e.g. the Princeton GEO study). Both describe optimizing for generative AI systems rather than traditional link-based search.' },
-  { term: 'GPTBot', def: 'OpenAI\'s web crawler, used to gather training data. It does NOT execute JavaScript — it only reads raw server-rendered HTML. If your content is injected by client-side JS, GPTBot sees an empty shell.' },
-  { term: 'OAI-SearchBot', def: 'OpenAI\'s separate crawler for ChatGPT Search / live browsing citations — distinct from GPTBot (training). A page can allow one and block the other in robots.txt.' },
-  { term: 'PerplexityBot', def: 'Perplexity\'s crawler, used to fetch pages for its live, cited answers. Like GPTBot, it reads raw HTML only — no JavaScript execution.' },
-  { term: 'ClaudeBot', def: 'Anthropic\'s web crawler for Claude. Respects robots.txt; like the others, it does not render JavaScript.' },
-  { term: 'Google-Extended', def: 'A robots.txt token that lets you opt OUT of your content being used for Gemini and AI Overviews training/grounding, separately from regular Googlebot search indexing.' },
-  { term: 'AI Overviews', def: 'Google\'s AI-generated summary shown above traditional search results for many queries, synthesizing and citing multiple sources.' },
-  { term: 'AI Mode', def: 'Google\'s more conversational, multi-turn AI search experience — a deeper AI-first search surface than AI Overviews.' },
-  { term: 'Citation rate', def: 'The percentage of times an AI engine cites your domain as a source when answering questions related to your content — the core AEO success metric, measurable by actually querying the engines.' },
-  { term: 'Share of voice (AI)', def: 'Your citation frequency relative to competitors across a set of prompts — e.g. "cited in 24% of answers vs a competitor\'s 40%."' },
-  { term: 'Extractability', def: 'How easily an AI model can pull a clean, quotable answer out of your content — short, direct sentences near the top of a section score higher than buried, hedged prose.' },
-  { term: 'Entity clarity', def: 'How consistently and explicitly your content names concrete entities (people, products, places) rather than relying on pronouns and vague references, which AI models struggle to resolve.' },
-  { term: 'llms.txt', def: 'An emerging, informal standard: a plain-text file at your site root listing your most important pages in Markdown, aimed at helping AI crawlers find your key content.' },
-  { term: 'Structured data / schema.org', def: 'Machine-readable markup (JSON-LD) describing your content\'s type, attributes and relationships — Product, Article, FAQPage, etc. — which AI systems can parse directly instead of guessing from prose.' },
-  { term: 'JS-rendered content', def: 'Content that appears only after JavaScript runs in a browser. Googlebot renders JS and sees it; GPTBot, PerplexityBot and ClaudeBot do not — so JS-rendered content is often invisible to AI answer engines even though it ranks fine on Google.' },
-  { term: 'Content gap (AEO)', def: 'A missing element — no FAQ schema, no author byline, no ingredients list, thin sections — that a competitor\'s better-structured page fills instead, winning the citation.' },
-  { term: 'Prompt coverage', def: 'How many of the realistic questions a user might ask an AI about a topic are actually and directly answered by a given page.' },
+// A working reference, not a wall of definitions. Every entry answers three
+// things: what it is, why it matters to you, and (where it exists) the concrete
+// token/value you'd actually type. Filterable by category and searchable.
+type Term = {
+  term: string;
+  cat: 'Crawlers' | 'Surfaces' | 'Metrics' | 'Technical' | 'Content';
+  def: string;
+  why: string;
+  chip?: string;
+};
+
+const terms: Term[] = [
+  // ─── Crawlers ────────────────────────────────────────────────────────────
+  {
+    term: 'GPTBot',
+    cat: 'Crawlers',
+    chip: 'User-agent: GPTBot',
+    def: 'OpenAI\'s crawler for gathering model training data. It fetches raw HTML and does not execute JavaScript.',
+    why: 'Blocking it keeps your content out of future model training, but has no effect on whether ChatGPT cites you in live answers — that is a different bot entirely.',
+  },
+  {
+    term: 'OAI-SearchBot',
+    cat: 'Crawlers',
+    chip: 'User-agent: OAI-SearchBot',
+    def: 'OpenAI\'s crawler for ChatGPT Search — the live, cited web answers inside ChatGPT. Separate from GPTBot.',
+    why: 'This is the OpenAI bot that determines whether ChatGPT can cite you today. Sites routinely block it by accident while meaning to opt out of training only.',
+  },
+  {
+    term: 'ClaudeBot',
+    cat: 'Crawlers',
+    chip: 'User-agent: ClaudeBot',
+    def: 'Anthropic\'s web crawler for Claude. Respects robots.txt and reads raw HTML only.',
+    why: 'Like every answer-engine crawler, it never runs your JavaScript — so a client-rendered page is invisible to it regardless of robots.txt.',
+  },
+  {
+    term: 'PerplexityBot',
+    cat: 'Crawlers',
+    chip: 'User-agent: PerplexityBot',
+    def: 'Perplexity\'s crawler, used to fetch pages for its live cited answers.',
+    why: 'Perplexity surfaces its sources prominently, so a citation here is unusually visible — and unusually easy to lose to a WAF rule you did not know existed.',
+  },
+  {
+    term: 'Google-Extended',
+    cat: 'Crawlers',
+    chip: 'User-agent: Google-Extended',
+    def: 'A robots.txt token that opts your content out of Gemini and AI Overviews grounding, separately from ordinary Googlebot search indexing.',
+    why: 'It is the only way to stay in Google Search while opting out of Google\'s AI surfaces. Disallowing it does not hurt your blue-link rankings.',
+  },
+  {
+    term: 'Googlebot',
+    cat: 'Crawlers',
+    chip: 'User-agent: Googlebot',
+    def: 'Google\'s classic search crawler — and the one major crawler that runs a full browser engine to render JavaScript before indexing.',
+    why: 'Googlebot is the reason JS-rendering problems stay hidden. Your page indexes perfectly on Google while every AI crawler sees an empty shell.',
+  },
+  {
+    term: 'Mixed-use crawler',
+    cat: 'Crawlers',
+    def: 'A single bot used for both traditional search indexing and AI training or answer generation, making it impossible for a site to allow one and refuse the other.',
+    why: 'Cloudflare set a September 2026 deadline for AI companies to split these, blocking non-compliant bots on monetised pages. Expect crawler identities to fragment further.',
+  },
+  {
+    term: 'Applebot-Extended',
+    cat: 'Crawlers',
+    chip: 'User-agent: Applebot-Extended',
+    def: 'Apple\'s opt-out token for using crawled content in Apple Intelligence training, distinct from the Applebot that powers Siri and Spotlight.',
+    why: 'Same two-bot pattern as OpenAI and Google — the opt-out and the citation crawler are different tokens.',
+  },
+
+  // ─── Surfaces ────────────────────────────────────────────────────────────
+  {
+    term: 'AI Overviews',
+    cat: 'Surfaces',
+    def: 'Google\'s AI-generated summary above traditional results, synthesising and citing a handful of sources.',
+    why: 'Correlated with a 58% CTR drop for top-ranking pages (Ahrefs, Feb 2026) — but cited brands earn ~120% more clicks per impression than uncited ones on the same query.',
+  },
+  {
+    term: 'AI Mode',
+    cat: 'Surfaces',
+    def: 'Google\'s conversational, multi-turn AI search experience — a deeper AI-first surface than AI Overviews.',
+    why: 'Follow-up questions mean a single page can be re-queried from several angles, rewarding pages that answer a cluster of related questions rather than exactly one.',
+  },
+  {
+    term: 'Further Exploration',
+    cat: 'Surfaces',
+    def: 'A link block Google added to the end of AI Overviews in May 2026, pointing to specific articles, case studies and reports.',
+    why: 'A separately winnable citation slot that favours specific, substantive, single-topic pages over broad category or hub pages.',
+  },
+  {
+    term: 'ChatGPT Search',
+    cat: 'Surfaces',
+    def: 'Live, cited web answers inside ChatGPT, powered by OAI-SearchBot plus a re-ranked hybrid index.',
+    why: 'Only ~10% of URLs it cites rank in Google\'s top 10 — strong evidence that AI visibility and SEO rank are genuinely different problems.',
+  },
+  {
+    term: 'AI shopping module',
+    cat: 'Surfaces',
+    def: 'Product comparison and buyer\'s-guide blocks that ChatGPT and other engines generate on queries signalling buying intent.',
+    why: 'It reads product attributes, specs and review text straight from your HTML. Client-rendered price and review widgets simply do not exist to it.',
+  },
+
+  // ─── Metrics ─────────────────────────────────────────────────────────────
+  {
+    term: 'Citation rate',
+    cat: 'Metrics',
+    def: 'How often an AI engine names your domain as a source across a defined set of prompts.',
+    why: 'The core AEO metric, and the one that maps most directly to traffic. Unlike rank, it must be measured by actually querying the engines.',
+  },
+  {
+    term: 'Share of voice (AI)',
+    cat: 'Metrics',
+    def: 'Your citation frequency relative to named competitors across the same prompt set — "cited in 24% of answers vs their 40%".',
+    why: 'Citation rate alone is not actionable. Share of voice tells you whether a low number is a category problem or specifically your problem.',
+  },
+  {
+    term: 'Prompt coverage',
+    cat: 'Metrics',
+    def: 'How many of the realistic questions a user might ask about a topic are directly and completely answered on a given page.',
+    why: 'Usually the cheapest lever available. Most pages answer one question well and four adjacent ones not at all.',
+  },
+  {
+    term: 'Zero-click search',
+    cat: 'Metrics',
+    def: 'A search where the user gets their answer on the results page and never visits a site.',
+    why: 'The structural reason AEO exists. If the answer is consumed in the interface, being the cited source is the only remaining form of visibility.',
+  },
+
+  // ─── Technical ───────────────────────────────────────────────────────────
+  {
+    term: 'JS-rendered content',
+    cat: 'Technical',
+    def: 'Content that only appears after JavaScript executes in a browser.',
+    why: 'The single most common cause of AI invisibility. Googlebot renders it; GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot do not. The failure is silent and total.',
+  },
+  {
+    term: 'Server-side rendering (SSR)',
+    cat: 'Technical',
+    def: 'Generating full HTML on the server so content exists in the first response, before any client JavaScript runs.',
+    why: 'The fix for the JS blind spot. You do not have to drop your framework — the substance just has to be in the initial HTML, with JS layered on for interactivity.',
+  },
+  {
+    term: 'robots.txt',
+    cat: 'Technical',
+    chip: '/robots.txt',
+    def: 'A root-level file declaring which crawlers may fetch which paths.',
+    why: 'Necessary but no longer sufficient. A CDN or WAF rule can block GPTBot at the edge while your robots.txt cheerfully allows it — your server never sees the request.',
+  },
+  {
+    term: 'llms.txt',
+    cat: 'Technical',
+    chip: '/llms.txt',
+    def: 'A proposed root-level Markdown file listing a site\'s key pages for AI crawlers.',
+    why: 'Largely ineffective in practice. An SE Ranking study of 300,000 domains found its presence carried no predictive signal for citation frequency; the major crawlers skip it and read HTML directly.',
+  },
+  {
+    term: 'Structured data (JSON-LD)',
+    cat: 'Technical',
+    chip: 'schema.org',
+    def: 'Machine-readable markup describing a page\'s type, attributes and relationships — Product, Article, FAQPage, Review.',
+    why: 'It removes guesswork. An engine reading explicit Product markup does not have to infer your price from prose, and Q&A markup turns "readable" into "quotable".',
+  },
+  {
+    term: 'Review schema vs aggregateRating',
+    cat: 'Technical',
+    def: 'aggregateRating declares a score and a review count; Review entries carry actual individual review text.',
+    why: 'Declaring "1,200 reviews" while rendering three means the engine has three reviews of evidence. The aggregate number persuades humans; the review text persuades models.',
+  },
+  {
+    term: 'Pay Per Crawl / Pay Per Use',
+    cat: 'Technical',
+    def: 'Cloudflare mechanisms for charging AI companies for content access — per fetch originally, evolving to payment when content surfaces in an answer.',
+    why: 'Signals that crawler access is becoming a negotiated commercial arrangement rather than a default, especially for publishers.',
+  },
+
+  // ─── Content ─────────────────────────────────────────────────────────────
+  {
+    term: 'Extractability',
+    cat: 'Content',
+    def: 'How easily a model can lift a clean, self-contained, quotable answer out of your content.',
+    why: 'A direct sentence near the top of a section outperforms the same fact hedged and buried three paragraphs down. This is a formatting problem more than a writing-quality one.',
+  },
+  {
+    term: 'Entity clarity',
+    cat: 'Content',
+    def: 'Naming concrete entities — products, people, places, versions — explicitly rather than leaning on pronouns and back-references.',
+    why: 'Models retrieve passages, not whole pages. A chunk saying "it supports this natively" is unusable once separated from the paragraph that defined "it".',
+  },
+  {
+    term: 'Chunk',
+    cat: 'Content',
+    def: 'The passage-sized unit of text a retrieval system actually indexes and feeds to a model — typically a section, not a page.',
+    why: 'Explains most AEO advice at once. Each section has to stand alone, because a chunk is often all the model ever sees of you.',
+  },
+  {
+    term: 'Content gap (AEO)',
+    cat: 'Content',
+    def: 'A missing element — no FAQ block, no author byline, no specs table, no comparison — that a competitor supplies and wins the citation with.',
+    why: 'Citations are competitive, not absolute. You lose them to a page that answered one more question than you did.',
+  },
+  {
+    term: 'Inverted pyramid',
+    cat: 'Content',
+    def: 'The newsroom structure: conclusion first, then supporting detail, then background.',
+    why: 'It happens to be the ideal shape for extraction. The answer sits at the top of the chunk where a model is most likely to lift it cleanly.',
+  },
+  {
+    term: 'E-E-A-T',
+    cat: 'Content',
+    def: 'Experience, Expertise, Authoritativeness, Trust — Google\'s quality framework, expressed on-page through bylines, credentials, citations and dates.',
+    why: 'The signals overlap heavily with what makes a source citable: named authors, dated content and linked primary sources all raise the odds of being quoted.',
+  },
 ];
+
+const cats = ['All', 'Crawlers', 'Surfaces', 'Metrics', 'Technical', 'Content'] as const;
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 ---
-<Site title="AEO / GEO Glossary — CiteRank" description="Plain-English definitions of the terms that matter for Answer Engine Optimization: GPTBot, AI Overviews, citation rate, and more.">
+<Site
+  title="AEO / GEO Glossary — CiteRank"
+  description="Every term that matters in AI search — GPTBot, OAI-SearchBot, AI Overviews, citation rate, extractability — with what it is and why it matters to your site."
+>
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Glossary</span>
-      <h1>AEO / GEO terms, explained</h1>
-      <p>The vocabulary of Answer Engine Optimization — crawlers, metrics and concepts — in plain English.</p>
+      <h1>The AI search glossary</h1>
+      <p>{terms.length} terms across crawlers, surfaces, metrics and technique — each with what it is, and why it actually matters for your site.</p>
     </div>
   </section>
+
   <main>
-    <div class="wrap gloss-list">
-      {terms.map((t) => (
-        <div class="gterm" id={t.term.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}>
-          <h3>{t.term}</h3>
-          <p>{t.def}</p>
+    <div class="wrap gwrap">
+      <div class="gbar">
+        <div class="gsearch">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+          <input id="gq" type="search" placeholder="Search terms — try “bot”, “schema”, “citation”…" autocomplete="off" />
         </div>
-      ))}
+        <div class="gcats">
+          {cats.map((c) => (
+            <button class:list={['gcat', c === 'All' && 'on']} data-cat={c}>{c}</button>
+          ))}
+        </div>
+      </div>
+
+      <div class="glist" id="glist">
+        {terms.map((t) => (
+          <article class="gterm" id={slug(t.term)} data-cat={t.cat} data-hay={`${t.term} ${t.def} ${t.why} ${t.cat}`.toLowerCase()}>
+            <div class="gt-head">
+              <h2><a href={`#${slug(t.term)}`}>{t.term}</a></h2>
+              <span class:list={['gt-cat', t.cat.toLowerCase()]}>{t.cat}</span>
+            </div>
+            {t.chip && <code class="gt-chip">{t.chip}</code>}
+            <p class="gt-def">{t.def}</p>
+            <p class="gt-why"><b>Why it matters</b>{t.why}</p>
+          </article>
+        ))}
+      </div>
+
+      <p class="gnone" id="gnone" hidden>No terms match that. Try a broader word.</p>
+
+      <div class="gcta">
+        <h3>Knowing the terms is the easy half</h3>
+        <p>The useful question is which of these your own pages are currently failing. A check takes about 20 seconds and tells you exactly what each AI crawler can and can't read.</p>
+        <a href="/" class="btn-primary">Run an LLM Access Check</a>
+      </div>
     </div>
   </main>
+
+  <script>
+    const q = document.getElementById('gq');
+    const list = document.getElementById('glist');
+    const none = document.getElementById('gnone');
+    const cards = Array.from(document.querySelectorAll('.gterm'));
+    const catBtns = Array.from(document.querySelectorAll('.gcat'));
+    let cat = 'All';
+
+    function apply() {
+      const needle = (q.value || '').trim().toLowerCase();
+      let shown = 0;
+      for (const el of cards) {
+        const okCat = cat === 'All' || el.dataset.cat === cat;
+        const okQ = !needle || el.dataset.hay.includes(needle);
+        const show = okCat && okQ;
+        el.hidden = !show;
+        if (show) shown++;
+      }
+      none.hidden = shown > 0;
+    }
+
+    q.addEventListener('input', apply);
+    for (const b of catBtns) {
+      b.addEventListener('click', () => {
+        cat = b.dataset.cat;
+        catBtns.forEach((x) => x.classList.toggle('on', x === b));
+        apply();
+      });
+    }
+
+    // Deep links (/glossary#gptbot) should survive the filter UI.
+    if (location.hash) {
+      const el = document.querySelector(location.hash);
+      if (el) el.classList.add('flash');
+    }
+  </script>
+
   <style>
-    .gloss-list { max-width: 820px; display: grid; }
-    .gterm { padding: 20px 0; border-top: 1px solid var(--line); }
+    .gwrap { max-width: 820px; }
+
+    .gbar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 14px 0 16px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+    .gsearch { position: relative; display: flex; align-items: center; }
+    .gsearch svg { position: absolute; left: 14px; width: 17px; height: 17px; color: var(--faint); pointer-events: none; }
+    .gsearch input { width: 100%; padding: 12px 14px 12px 40px; font: inherit; font-size: 15px; border: 1px solid var(--line-2); border-radius: 11px; background: #fff; color: var(--ink); }
+    .gsearch input:focus { outline: none; border-color: var(--pink); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+    .gcats { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+    .gcat { font: inherit; font-size: 13px; font-weight: 650; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--line-2); background: #fff; color: var(--muted); cursor: pointer; transition: all .15s; }
+    .gcat:hover { border-color: var(--pink); color: var(--pink); }
+    .gcat.on { background: var(--pink); border-color: var(--pink); color: #fff; }
+
+    .glist { display: grid; }
+    .gterm { padding: 22px 0 20px; border-top: 1px solid var(--line); scroll-margin-top: 120px; }
     .gterm:first-child { border-top: none; }
-    .gterm h3 { margin: 0 0 6px; font-size: 16.5px; font-weight: 700; letter-spacing: -.01em; }
-    .gterm p { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.65; }
+    .gterm[hidden] { display: none; }
+    .gterm.flash { background: var(--accent-soft); border-radius: 12px; padding-inline: 16px; }
+
+    .gt-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .gt-head h2 { margin: 0; font-size: 17.5px; font-weight: 800; letter-spacing: -.015em; }
+    .gt-head h2 a { color: inherit; text-decoration: none; }
+    .gt-head h2 a:hover { color: var(--pink); }
+    .gt-cat { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--pink); }
+
+    .gt-chip { display: inline-block; margin-top: 9px; font-size: 12.5px; background: #f1f5f9; border: 1px solid var(--line); color: var(--ink-2); padding: 3px 9px; border-radius: 6px; }
+
+    .gt-def { margin: 9px 0 0; font-size: 14.5px; color: var(--ink-2); line-height: 1.68; }
+    .gt-why { margin: 9px 0 0; font-size: 14px; color: var(--muted); line-height: 1.65; padding-left: 13px; border-left: 2px solid var(--line-2); }
+    .gt-why b { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin-bottom: 3px; }
+
+    .gnone { padding: 40px 0; text-align: center; color: var(--muted); font-size: 15px; }
+
+    .gcta { margin-top: 40px; padding: 28px 30px; border: 1px solid var(--line); border-radius: 18px; background: var(--accent-soft); }
+    .gcta h3 { margin: 0 0 8px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+    .gcta p { margin: 0 0 18px; font-size: 14.5px; color: var(--ink-2); line-height: 1.65; }
+
+    @media (max-width: 560px) {
+      .gt-head h2 { font-size: 16px; }
+      .gcta { padding: 24px 20px; }
+    }
   </style>
 </Site>

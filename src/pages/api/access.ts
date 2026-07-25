@@ -3,7 +3,7 @@ import { analyzeHtml, crawlabilitySignals, buildVisibility, PAGE_TYPE_LABEL } fr
 import { accessGroups, renderInfo } from '../../lib/access';
 import { extractContent } from '../../lib/extract';
 import { getUser } from '../../lib/auth';
-import { consumeAccess } from '../../lib/billing';
+import { consumeAccess, refundAccess } from '../../lib/billing';
 import { dbEnabled } from '../../lib/db';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
@@ -49,11 +49,14 @@ export const POST: APIRoute = async (ctx) => {
   let body: { url?: string; html?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
-  // An account is REQUIRED to run a check once accounts are live (dbEnabled).
-  // Only when the DB isn't configured at all does the tool fall back to
-  // anonymous — there's no account system to enforce in that case.
+  // An account is ALWAYS required to run a check. If the database isn't
+  // configured the tool locks itself rather than falling open to anonymous
+  // access — a missing DATABASE_URL must never unlock the paid product.
+  if (!dbEnabled) {
+    return json({ error: 'Accounts are temporarily unavailable. Please try again shortly.', serviceDown: true }, 503);
+  }
   const gateUser = await getUser(ctx);
-  if (dbEnabled && !gateUser) {
+  if (!gateUser) {
     return json({ error: 'Create a free account to run a check — it takes 10 seconds.', requireAuth: true }, 401);
   }
 
@@ -62,9 +65,13 @@ export const POST: APIRoute = async (ctx) => {
 
   // Only a real, live URL fetch is a billable check — pasted HTML (no live
   // fetch, no server bandwidth) stays free to re-check as many times as needed.
+  // Charged up front, then refunded below if the page turns out to be
+  // unreachable, so a failed fetch never costs the customer a check.
+  let chargedVia: 'plan' | 'free' | 'credit' | undefined;
   if (gateUser && inputUrl) {
     const access = await consumeAccess(gateUser.id, 'access');
     if (!access.allowed) return json({ error: access.message, upgrade: true }, 402);
+    chargedVia = access.via;
   }
 
   // ---- Pasted HTML: single-view audit (no live UA/robots context) ----
@@ -103,7 +110,9 @@ export const POST: APIRoute = async (ctx) => {
   const desktopHtml = gd.ok ? gd.body : (cd.ok ? cd.body : '');
   const mobileHtml = gm.ok ? gm.body : (cm.ok ? cm.body : desktopHtml);
   if (!desktopHtml && !mobileHtml) {
-    return json({ error: `Could not read that URL${gd.status ? ` (HTTP ${gd.status})` : ''}. The site may be blocking bots — try pasting the HTML instead.` }, 502);
+    // Nothing was delivered — hand the check back.
+    if (gateUser) await refundAccess(gateUser.id, chargedVia);
+    return json({ error: `Could not read that URL${gd.status ? ` (HTTP ${gd.status})` : ''}. The site may be blocking bots — try pasting the HTML instead. This didn't use up a check.` }, 502);
   }
 
   const robotsTxt = robots.ok ? robots.body : null;
