@@ -159,6 +159,14 @@ const limitsText = product && plan
       .legend .sw { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
       /* --- Daily Snapshot: a framed, screenshot-sized card for sharing
          outside the tool (WhatsApp/Slack report groups) --- */
+      .insight { padding: 10px 0 10px 12px; border-left: 3px solid var(--line); border-top: 1px solid var(--bg); }
+      .insight:first-of-type { border-top: none; }
+      .insight.good { border-left-color: var(--ok); }
+      .insight.bad { border-left-color: var(--bad); }
+      .insight.watch { border-left-color: var(--warn); }
+      .insight.neutral { border-left-color: var(--line2); }
+      .insight-t { font-size: 13.5px; font-weight: 700; margin-bottom: 3px; }
+      .insight-d { font-size: 13px; color: var(--muted); line-height: 1.55; }
       .snap-frame { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 20px 22px; max-width: 760px; }
       .snap-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
       .snap-top img.icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
@@ -469,6 +477,7 @@ ai photo enhancer"></textarea>
       // the international ASO tools — switched from the left sidebar.
       const SECTIONS = [
         { id: 'overview', label: 'Overview' },
+        { id: 'insights', label: 'Insights' },
         { id: 'snapshot', label: 'Daily Snapshot' },
         { id: 'keywords', label: 'Daily Keyword Snapshot' },
         { id: 'coverage', label: 'All Keywords Snapshot' },
@@ -1159,6 +1168,32 @@ ai photo enhancer"></textarea>
         for (const t of (app.coverageTrends || [])) map.set(t.keyword.toLowerCase(), t);
         for (const t of (app.trends || [])) map.set(t.keyword.toLowerCase(), t);
         return [...map.values()];
+      }
+
+      const INSIGHT_KIND_LABEL = {
+        listing: 'Listing changes', reviews: 'Review health',
+        competitor: 'Competitors', coverage: 'Data quality', chart: 'Category chart',
+      };
+
+      // Renders the server-computed insights (see lib/rank/insights.ts).
+      // Grouped by kind so the "things you changed" vs "things you didn't"
+      // split — the whole point of this view — is visible at a glance.
+      function insightsHtml(app) {
+        const items = app.insights || [];
+        if (!items.length) return '<p class="hint">Not enough data yet — run a check and log a listing change to start building this.</p>';
+        const order = ['listing', 'reviews', 'competitor', 'chart', 'coverage'];
+        const groups = order
+          .map((kind) => ({ kind, rows: items.filter((i) => i.kind === kind) }))
+          .filter((g) => g.rows.length);
+        return groups.map((g) => `
+          <div class="chartbox" style="margin-bottom:12px;">
+            <h4>${esc(INSIGHT_KIND_LABEL[g.kind] || g.kind)}</h4>
+            ${g.rows.map((i) => `
+              <div class="insight ${esc(i.tone)}">
+                <div class="insight-t">${esc(i.title)}</div>
+                <div class="insight-d">${esc(i.detail)}</div>
+              </div>`).join('')}
+          </div>`).join('');
       }
 
       function snapshotHtml(app) {
@@ -1855,6 +1890,10 @@ ai photo enhancer"></textarea>
           <div class="section-head"><h2>Overview</h2><p class="hint">Where you rank today, your trend, and what changed since your last check.</p></div>
           ${overviewHtml(app)}`;
 
+        const sectionInsights = `
+          <div class="section-head"><h2>Insights</h2><p class="hint">What's actually moving your rank — separating the listing changes you made from the things you didn't change (review health, competitor standing) that no copy rewrite will fix.</p></div>
+          ${insightsHtml(app)}`;
+
         const sectionSnapshot = `
           <div class="section-head no-print"><h2>Daily Snapshot</h2><p class="hint">Visibility, category rank, rating health, and keyword rankings — screenshot the card, or export it as a PDF for a long keyword list.</p></div>
           ${snapshotHtml(app)}`;
@@ -1998,7 +2037,7 @@ ai photo enhancer"></textarea>
           </div>`;
 
         const bySection = {
-          overview: sectionOverview, snapshot: sectionSnapshot, keywords: sectionKeywords, coverage: sectionCoverage,
+          overview: sectionOverview, insights: sectionInsights, snapshot: sectionSnapshot, keywords: sectionKeywords, coverage: sectionCoverage,
           compare: sectionCompare, trends: sectionTrends, settings: sectionSettings,
         };
         const body = printAll

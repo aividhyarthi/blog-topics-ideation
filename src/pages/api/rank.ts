@@ -16,6 +16,7 @@ import { discoverKeywords } from '../../lib/rank/discover';
 import { fetchTrendsScores } from '../../lib/rank/trends';
 import type { Annotation, TrackedApp, TrackerConfig } from '../../lib/rank/types';
 import { parseKeywordsWithVolumes } from '../../lib/rank/keywords';
+import { buildInsights } from '../../lib/rank/insights';
 import { parseReportEmails } from '../../lib/rank/email';
 import { randomUUID } from 'node:crypto';
 
@@ -212,6 +213,28 @@ function statePayload(userId?: string) {
         // keyword they care about ranks, sorted by volume, regardless of
         // whether it made the cut into the daily-tracked list.
         coverageTrends: covKeywords.length ? keywordTrends(app, merged, 60, covKeywords) : [],
+        // The "why" behind the numbers — see insights.ts. Computed here so
+        // it's deterministic and testable rather than assembled in the page's
+        // inline script.
+        insights: (() => {
+          const trends = keywordTrends(app, merged);
+          const chart = chartTrend(app, snapshots);
+          const rh = ratingHistory[app.key] || [];
+          return buildInsights({
+            app,
+            trends,
+            rating: rh.length ? rh[rh.length - 1] : null,
+            ratingHistory: rh,
+            chart: { position: chart.position, chart: chart.chart, depth: chart.depth, error: chart.error },
+            annotations: (app.annotations || []).map((a) => ({ ...a, impact: annotationImpact(widerOverview, a.date) })),
+            competitors: cfg.apps
+              .filter((c) => c.competitorOf === app.key)
+              .map((c) => {
+                const crh = ratingHistory[c.key] || [];
+                return { app: c, trends: keywordTrends(c, merged), rating: crh.length ? crh[crh.length - 1] : null };
+              }),
+          });
+        })(),
         asoCache: asoCache[app.key] || null,
         reviewThemes: reviewThemes[app.key] || null,
         ratingHistory: ratingHistory[app.key] || [],

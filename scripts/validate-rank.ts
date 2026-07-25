@@ -355,5 +355,63 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
   eq('overview visibility ignores failed/unchecked', ov.tracked, 1);
 }
 
+
+// --- insights: the "why", especially non-listing causes ----------------------
+{
+  const { buildInsights } = await import('../src/lib/rank/insights');
+  const mkApp = (key: string, title: string) => ({ key, title, store: 'play', appId: 'x', country: 'in',
+    lang: 'en', developer: null, icon: null, url: null, genreId: null, keywords: [], addedAt: '' }) as any;
+  const kw = (keyword: string, position: number | null, extra: any = {}) =>
+    ({ keyword, position, prevPosition: null, delta: null, best: position, history: [], top: [], checked: true, ...extra }) as any;
+  const rating = (negativeShare: number, tone: string) =>
+    ({ dateKey: '2026-07-22', total: 100, negativeShare, tone, windowDays: 28 }) as any;
+
+  // A rival is ahead AND materially healthier on reviews -> the report must
+  // name reviews as a listing-INDEPENDENT cause, not suggest a copy rewrite.
+  const res = buildInsights({
+    app: mkApp('me', 'My App'),
+    trends: [kw('a', 20), kw('b', 30), kw('c', 40)],
+    rating: rating(18, 'bad'),
+    ratingHistory: [rating(9, 'mid'), rating(18, 'bad')],
+    annotations: [],
+    chart: null,
+    competitors: [{ app: mkApp('them', 'Rival'), trends: [kw('a', 2), kw('b', 3), kw('c', 4)], rating: rating(4, 'good') }],
+  });
+  const comp = res.find((r) => r.kind === 'competitor')!;
+  eq('insight: competitor ahead is flagged', comp.tone, 'bad');
+  eq('insight: head-to-head is counted', comp.detail.includes('3 of 3'), true);
+  eq('insight: names the review-quality gap', comp.detail.includes('14pt review-quality gap'), true);
+  eq('insight: says it is not a copy fix', comp.detail.includes('not a keyword or copy fix'), true);
+  const rev = res.find((r) => r.kind === 'reviews')!;
+  eq('insight: bad review health flagged', rev.tone, 'bad');
+  eq('insight: rising 1-2 star share noted', rev.title.includes('up 9pt'), true);
+
+  // Inverse case: ahead of me, but MY reviews are healthier -> must NOT blame reviews.
+  const res2 = buildInsights({
+    app: mkApp('me', 'My App'),
+    trends: [kw('a', 20)], rating: rating(3, 'good'), ratingHistory: [rating(3, 'good')],
+    annotations: [], chart: null,
+    competitors: [{ app: mkApp('them', 'Rival'), trends: [kw('a', 2)], rating: rating(15, 'bad') }],
+  });
+  const comp2 = res2.find((r) => r.kind === 'competitor')!;
+  eq('insight: does not blame reviews when mine are better', comp2.detail.includes('reviews are not what is putting them ahead'), true);
+
+  // A short category-chart response must be surfaced as a caveat, not a verdict.
+  const res3 = buildInsights({
+    app: mkApp('me', 'My App'), trends: [kw('a', 5)], rating: null, ratingHistory: [],
+    annotations: [], competitors: [],
+    chart: { position: null, chart: 'Top Free · FINANCE', depth: 48 },
+  });
+  eq('insight: short chart response is caveated', res3.some((r) => r.kind === 'chart' && r.title.includes('48')), true);
+
+  // Errored/unchecked keywords are called out so the scores aren't over-read.
+  const res4 = buildInsights({
+    app: mkApp('me', 'My App'),
+    trends: [kw('a', 5), kw('b', null, { error: 'boom' }), kw('c', null, { checked: false })],
+    rating: null, ratingHistory: [], annotations: [], competitors: [], chart: null,
+  });
+  eq('insight: data-quality caveat counts both cases', res4.some((r) => r.kind === 'coverage' && r.title.startsWith('2 keywords')), true);
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');
