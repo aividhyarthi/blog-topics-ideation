@@ -14,37 +14,33 @@ const { current } = Astro.props as Props;
 
 const posts = await getCollection('blog');
 const themes = [...new Set(posts.map((p) => p.data.theme))].sort();
-const countOf = (t: string) => posts.filter((p) => p.data.theme === t).length;
 ---
 <nav class="subnav" aria-label="Blog topics">
   <div class="subnav-inner">
-    <a href="/blog" class:list={['chip', !current && 'active']}>All posts</a>
+    <a href="/blog" class:list={['tlink', !current && 'active']}>All posts</a>
     {themes.map((t) => (
-      <a href={`/blog/topic/${topicSlug(t)}`} class:list={['chip', current === t && 'active']}>
-        {t}<span class="n">{countOf(t)}</span>
-      </a>
+      <a href={`/blog/topic/${topicSlug(t)}`} class:list={['tlink', current === t && 'active']}>{t}</a>
     ))}
   </div>
 </nav>
 
 <style>
+  /* A row of nine pill-chips with counts wrapped onto two lines and read as
+     clutter rather than navigation. Plain text links on one line, with the
+     active item marked by an underline, look like the section nav this is. */
   .subnav { border-bottom: 1px solid #e5e7eb; background: #fff; }
   .subnav-inner {
-    max-width: 1160px; margin: 0 auto; padding: 0 22px 12px;
-    display: flex; gap: 8px; flex-wrap: wrap;
+    max-width: 1160px; margin: 0 auto; padding: 0 22px;
+    display: flex; gap: 22px; align-items: stretch;
+    overflow-x: auto; scrollbar-width: none;
   }
-  .chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    border: 1px solid #e5e7eb; border-radius: 999px; padding: 6px 13px;
-    font-size: 13px; font-weight: 600; color: #6b7280; text-decoration: none;
-    white-space: nowrap; transition: border-color .15s, color .15s, background .15s;
+  .subnav-inner::-webkit-scrollbar { display: none; }
+  .tlink {
+    position: relative; white-space: nowrap; text-decoration: none;
+    color: #6b7280; font-size: 14px; font-weight: 600;
+    padding: 12px 0 13px; border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
   }
-  .chip:hover { border-color: #cbd0da; color: #16181d; }
-  .chip.active { background: #16181d; border-color: #16181d; color: #fff; }
-  .chip .n { font-size: 11px; font-weight: 700; opacity: .65; }
-  /* The row can outgrow a phone screen; scroll it rather than wrapping into a
-     tall block that pushes the article below the fold. */
-  @media (max-width: 640px) {
-    .subnav-inner { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  }
+  .tlink:hover { color: #16181d; }
+  .tlink.active { color: #16181d; border-bottom-color: #4338ca; font-weight: 700; }
 </style>
