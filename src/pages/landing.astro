@@ -1,11 +1,22 @@
 ---
-// AppRankr landing page — served at "/" in product mode (middleware rewrite).
-import { BRAND, PLANS, TRIAL_DAYS, CURRENCY, formatPrice, SITE_URL } from '../lib/saas/plans';
+// AppRankr landing page, served at "/" in product mode (middleware rewrite).
+//
+// Deliberately shows no price list: billing is handled manually over
+// UPI/WhatsApp (see lib/saas/plans.ts), so a public price grid advertised a
+// self-serve checkout that doesn't exist. The page sells the product and the
+// free trial; the number gets discussed in the conversation that follows.
+import { getCollection } from 'astro:content';
+import { BRAND, TRIAL_DAYS, SITE_URL } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../components/AdSenseMeta.astro';
 import Icon from '../components/Icon.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 const user = Astro.locals.user;
+
+const latestPosts = (await getCollection('blog'))
+  .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
+  .slice(0, 3);
+const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 const pageTitle = `${BRAND} — App Rank Tracker & ASO Tool for Google Play + App Store`;
 const pageDescription = `${BRAND} is an ASO tool that tracks your app's keyword rank on Google Play and the App Store, finds every keyword you already rank for, and audits your store listing. ${TRIAL_DAYS}-day free trial, no card required.`;
@@ -17,13 +28,7 @@ const softwareAppJsonLd = {
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web',
   description: pageDescription,
-  offers: [PLANS.starter, PLANS.pro].map((p) => ({
-    '@type': 'Offer',
-    name: p.name,
-    price: p.priceMonthly,
-    priceCurrency: 'INR',
-    description: p.blurb,
-  })),
+  url: SITE_URL,
 };
 ---
 
@@ -38,69 +43,111 @@ const softwareAppJsonLd = {
     <title>{pageTitle}</title>
     <meta name="description" content={pageDescription} />
     <link rel="canonical" href={SITE_URL} />
+    <meta name="robots" content="max-image-preview:large, max-video-preview:-1" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={pageDescription} />
     <meta property="og:url" content={SITE_URL} />
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={pageDescription} />
     <script type="application/ld+json" set:html={JSON.stringify(softwareAppJsonLd)} />
     <style>
-      :root { --pink: #16181d; --pink-dark: #000000; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }
-      * { box-sizing: border-box; }
-      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fff; color: var(--ink); line-height: 1.55; }
-      .wrap { max-width: 1080px; margin: 0 auto; padding: 0 22px; }
-      header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; flex-wrap: wrap; gap: 10px; }
-      .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; }
-      .logo .betatag { font-size: 10px; font-weight: 800; color: var(--muted); background: #f3f4f6; border: 1px solid var(--line); padding: 2px 7px; border-radius: 999px; letter-spacing: 0.02em; }
-      .logo .mark { width: 28px; height: 28px; border-radius: 8px; background: #16181d; color: #fff; display: grid; place-items: center; font-size: 14px; }
-      .navlinks { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-      a.btn { text-decoration: none; font-weight: 700; font-size: 14px; border-radius: 10px; padding: 10px 18px; white-space: nowrap; }
-      @media (max-width: 420px) {
-        .navlinks { gap: 6px; }
-        .navlinks a.btn { padding: 9px 12px; font-size: 13px; }
+      /* Indigo accent matches the blog, the nav and the post artwork, so the
+         marketing site and the content site read as one product. */
+      :root {
+        --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280;
+        --line: #e5e7eb; --bg: #f8f9fb; --ok: #0a8a5f; --bad: #c0392b;
       }
-      a.btn.primary { background: var(--pink); color: #fff; }
-      a.btn.primary:hover { background: var(--pink-dark); }
-      a.btn.ghost { color: var(--ink); border: 1px solid var(--line); }
-      a.btn.ghost:hover { border-color: var(--ink); color: var(--ink); }
-      .hero { padding: 64px 0 30px; text-align: center; }
-      .hero h1 { font-size: 42px; letter-spacing: -0.03em; margin: 0 auto 14px; max-width: 760px; line-height: 1.15; }
-      .hero h1 em { font-style: normal; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: 3px; text-underline-offset: 7px; }
-      .hero p { font-size: 17px; color: var(--muted); max-width: 640px; margin: 0 auto 26px; }
-      .trialnote { font-size: 13px; color: var(--muted); margin-top: 10px; }
-      .band { background: var(--bg); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 46px 0; margin-top: 50px; }
-      .feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-      @media (max-width: 840px) { .feats { grid-template-columns: 1fr; } .hero h1 { font-size: 32px; } }
-      .feat { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
-      .feat .ico { width: 42px; height: 42px; border-radius: 10px; background: #f3f4f6; color: var(--ink); display: grid; place-items: center; }
-      .feat h3 { margin: 8px 0 6px; font-size: 16px; }
-      .feat p { margin: 0; font-size: 13.5px; color: var(--muted); }
-      .pricing { padding: 56px 0 30px; text-align: center; }
-      .pricing h2 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 6px; }
-      .pricing .sub { color: var(--muted); margin: 0 0 26px; }
-      .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 330px)); gap: 16px; justify-content: center; }
-      @media (max-width: 760px) { .cards { grid-template-columns: 1fr; } }
-      .plan { border: 1px solid var(--line); border-radius: 16px; padding: 24px; text-align: left; }
-      .plan.hot { border-color: var(--ink); box-shadow: 0 4px 24px rgba(0,0,0,0.08); position: relative; }
-      .plan.hot .tag { position: absolute; top: -11px; right: 18px; background: var(--ink); color: #fff; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
-      .plan h3 { margin: 0; font-size: 17px; }
-      .plan .price { font-size: 34px; font-weight: 800; margin: 8px 0 2px; }
-      .plan .price span { font-size: 14px; font-weight: 600; color: var(--muted); }
-      .plan .blurb { color: var(--muted); font-size: 13.5px; margin: 0 0 14px; }
-      .plan ul { list-style: none; padding: 0; margin: 0 0 18px; font-size: 13.5px; }
-      .plan li { padding: 4px 0; }
-      .plan li::before { content: '✓  '; color: var(--ink); font-weight: 800; }
-      footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 36px 0 30px; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: var(--ink); background: #fff; line-height: 1.6; }
+      .wrap { max-width: 1160px; margin: 0 auto; padding: 0 22px; }
+
+      header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; flex-wrap: wrap; gap: 10px; }
+      .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; text-decoration: none; color: var(--ink); }
+      .logo .mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(120deg, #6366f1, #8b5cf6); color: #fff; display: grid; place-items: center; font-size: 14px; }
+      .logo .betatag { font-size: 10px; font-weight: 800; color: var(--pink-dark); background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.25); padding: 2px 7px; border-radius: 999px; }
+      .navlinks { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      .btn { text-decoration: none; font-weight: 700; font-size: 14px; border-radius: 10px; padding: 10px 18px; white-space: nowrap; display: inline-block; }
+      .btn.primary { background: var(--pink); color: #fff; }
+      .btn.primary:hover { background: var(--pink-dark); }
+      .btn.ghost { color: var(--muted); padding: 10px 12px; }
+      .btn.ghost:hover { color: var(--ink); }
+
+      .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 54px; align-items: center; padding: 46px 0 60px; }
+      @media (max-width: 940px) { .hero { grid-template-columns: 1fr; gap: 34px; padding: 30px 0 44px; } }
+      .eyebrow { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: var(--pink-dark); background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); padding: 5px 12px; border-radius: 999px; margin-bottom: 18px; }
+      .hero h1 { font-size: 46px; line-height: 1.1; letter-spacing: -0.03em; margin: 0 0 16px; }
+      @media (max-width: 640px) { .hero h1 { font-size: 34px; } }
+      .hero p.lede { font-size: 17.5px; color: var(--muted); margin: 0 0 26px; max-width: 54ch; }
+      .cta-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      .trialnote { color: var(--muted); font-size: 13px; margin-top: 14px; }
+
+      /* Product visuals are built from markup, not screenshots: they stay sharp
+         at any density and can't go stale when the real dashboard changes. */
+      .mock { border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 20px 50px rgba(20,20,50,.10); overflow: hidden; }
+      .mock-bar { display: flex; align-items: center; gap: 6px; padding: 11px 14px; border-bottom: 1px solid var(--line); background: var(--bg); }
+      .mock-bar i { width: 9px; height: 9px; border-radius: 50%; background: #d9dce4; display: block; }
+      .mock-bar span { margin-left: 8px; font-size: 11.5px; color: var(--muted); font-weight: 600; }
+      .mock-body { padding: 16px; }
+      .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 14px; }
+      .kpi { border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; background: var(--bg); }
+      .kpi .l { font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 800; }
+      .kpi .v { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 3px; }
+      .kpi .d { font-size: 10.5px; font-weight: 700; }
+      .up { color: var(--ok); } .down { color: var(--bad); }
+      .spark { display: flex; align-items: flex-end; gap: 5px; height: 66px; margin-bottom: 14px; }
+      .spark i { flex: 1; border-radius: 4px 4px 2px 2px; background: var(--pink); opacity: .2; display: block; }
+      .spark i.on { opacity: 1; }
+      .rows { border-top: 1px solid var(--line); }
+      .row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 8px 2px; border-bottom: 1px solid var(--bg); font-size: 12.5px; }
+      .row .kw { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .row .pos { font-variant-numeric: tabular-nums; font-weight: 700; }
+      .row .dl { font-size: 11px; font-weight: 700; }
+
+      .band { background: var(--bg); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 54px 0; }
+      .sec-head { text-align: center; max-width: 62ch; margin: 0 auto 36px; }
+      .sec-head h2 { font-size: 30px; letter-spacing: -0.02em; margin: 0 0 10px; }
+      .sec-head p { color: var(--muted); margin: 0; font-size: 16px; }
+      .feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+      @media (max-width: 880px) { .feats { grid-template-columns: 1fr; } }
+      .feat { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+      .feat .ico { width: 40px; height: 40px; border-radius: 11px; background: rgba(99,102,241,.1); color: var(--pink); display: grid; place-items: center; margin-bottom: 13px; }
+      .feat h3 { margin: 0 0 7px; font-size: 17px; letter-spacing: -0.01em; }
+      .feat p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+      .split { display: grid; grid-template-columns: 1fr 1fr; gap: 50px; align-items: center; padding: 58px 0; }
+      .split.rev > .txt { order: 2; }
+      @media (max-width: 940px) { .split, .split.rev { grid-template-columns: 1fr; gap: 28px; padding: 38px 0; } .split.rev > .txt { order: 0; } }
+      .split h2 { font-size: 27px; letter-spacing: -0.02em; margin: 0 0 12px; }
+      .split p { color: var(--muted); font-size: 16px; margin: 0 0 14px; }
+      .ticks { list-style: none; margin: 0; padding: 0; }
+      .ticks li { position: relative; padding-left: 26px; margin-bottom: 9px; font-size: 15px; }
+      .ticks li::before { content: '✓'; position: absolute; left: 0; top: 0; color: var(--pink); font-weight: 800; }
+
+      .posts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+      @media (max-width: 880px) { .posts { grid-template-columns: 1fr; } }
+      .pcard { display: block; text-decoration: none; color: inherit; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; transition: border-color .15s, box-shadow .15s, transform .15s; }
+      .pcard:hover { border-color: #cbd0da; box-shadow: 0 8px 24px rgba(20,20,40,.08); transform: translateY(-2px); }
+      .pcard img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; border-bottom: 1px solid var(--line); }
+      .pcard .pb { padding: 16px 17px 18px; }
+      .pcard .pt { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--pink); }
+      .pcard h3 { font-size: 16px; margin: 7px 0 6px; letter-spacing: -0.01em; line-height: 1.35; }
+      .pcard p { font-size: 13.5px; color: var(--muted); margin: 0 0 10px; }
+      .pcard .pm { font-size: 12px; color: var(--muted); }
+      .seeall { text-align: center; margin-top: 26px; }
+
+      .final { text-align: center; padding: 62px 0 70px; }
+      .final h2 { font-size: 30px; letter-spacing: -0.02em; margin: 0 0 10px; }
+      .final p { color: var(--muted); margin: 0 0 22px; font-size: 16px; }
     </style>
   </head>
   <body>
     <div class="wrap">
       <header class="top">
-        <div class="logo"><span class="mark">▲</span>{BRAND}<span class="betatag">Beta 1.0</span></div>
+        <a class="logo" href="/"><span class="mark">▲</span>{BRAND}<span class="betatag">Beta 1.0</span></a>
         <div class="navlinks">
-          <a class="btn ghost" href="#pricing">Pricing</a>
+          <a class="btn ghost" href="#features">Features</a>
           <a class="btn ghost" href="/blog">Blog</a>
           <a class="btn ghost" href="/about">About</a>
           {user
@@ -110,65 +157,156 @@ const softwareAppJsonLd = {
       </header>
 
       <section class="hero">
-        <h1>Know exactly where your app ranks — <em>every keyword, every day</em></h1>
-        <p>
-          {BRAND} is an app rank tracker and ASO (App Store Optimization) tool in one: track your
-          app's position in Google Play and App Store search for the keywords that matter, discover
-          the keywords you already rank for, and audit your store listing — two tools, one subscription.
-        </p>
-        <a class="btn primary" href="/signup" style="font-size:16px;padding:13px 26px;">Start your {TRIAL_DAYS}-day free trial</a>
-        <div class="trialnote">Full access for {TRIAL_DAYS} days · no card needed to start</div>
+        <div>
+          <span class="eyebrow">Google Play + Apple App Store</span>
+          <h1>Know exactly where your app ranks, every keyword, every day</h1>
+          <p class="lede">
+            {BRAND} tracks your keyword positions on both stores, finds the terms you already rank
+            for, and tells you what's actually moving them, including the things your listing copy
+            can't fix.
+          </p>
+          <div class="cta-row">
+            <a class="btn primary" href="/signup" style="font-size:16px;padding:13px 26px;">Start your {TRIAL_DAYS}-day free trial</a>
+            <a class="btn ghost" href="/blog" style="font-weight:700;">Read the ASO guides →</a>
+          </div>
+          <div class="trialnote">Full access for {TRIAL_DAYS} days · no card needed to start</div>
+        </div>
+
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><span>Rank Tracker · Overview</span></div>
+          <div class="mock-body">
+            <div class="kpis">
+              <div class="kpi"><div class="l">Visibility</div><div class="v">63.0</div><div class="d up">▲ 2.6</div></div>
+              <div class="kpi"><div class="l">Top 10</div><div class="v">18</div><div class="d up">▲ 4</div></div>
+              <div class="kpi"><div class="l">Ranking</div><div class="v">308</div><div class="d up">▲ 12</div></div>
+            </div>
+            <div class="spark">
+              <i style="height:34%"></i><i style="height:41%"></i><i style="height:38%"></i>
+              <i style="height:52%"></i><i style="height:61%"></i><i style="height:57%"></i>
+              <i style="height:70%"></i><i style="height:78%"></i><i class="on" style="height:92%"></i>
+            </div>
+            <div class="rows">
+              <div class="row"><span class="kw">direct mutual funds</span><span class="pos">#1</span><span class="dl up">▲ 2</span></div>
+              <div class="row"><span class="kw">mutual fund app</span><span class="pos">#6</span><span class="dl up">▲ 1</span></div>
+              <div class="row"><span class="kw">sip investment</span><span class="pos">#12</span><span class="dl down">▼ 3</span></div>
+              <div class="row"><span class="kw">best investment app</span><span class="pos">#20</span><span class="dl up">▲ 5</span></div>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
 
-    <div class="band">
+    <div class="band" id="features">
       <div class="wrap">
+        <div class="sec-head">
+          <h2>Two tools, one subscription</h2>
+          <p>Track where you stand, then find out why, without switching between five dashboards.</p>
+        </div>
         <div class="feats">
-          <div class="feat"><div class="ico"><Icon name="trending" size={22} /></div><h3>Rank Tracker</h3>
-            <p>Daily position, movement vs yesterday, best-ever rank and a trend for every keyword — plus Top 1/10/30/100 counts, a search visibility score, top-chart position, and one-click keyword discovery (finds every keyword you already rank for in the top 200).</p></div>
-          <div class="feat"><div class="ico"><Icon name="search" size={22} /></div><h3>ASO Inspector</h3>
-            <p>Paste a Google Play listing and get an ASO score, keyword coverage, competitor comparison, and AI-rewritten title/description copy — all from the live listing.</p></div>
-          <div class="feat"><div class="ico"><Icon name="radar" size={22} /></div><h3>Competitor watch</h3>
-            <p>Track rival apps on the same keywords in Rank Tracker, see who holds #1 for each term, and compare listings side by side in ASO Inspector.</p></div>
+          <div class="feat">
+            <div class="ico"><Icon name="trending" size={22} /></div>
+            <h3>Rank Tracker</h3>
+            <p>Daily position, movement since the last check, best-ever rank and a trend line for every keyword, plus Top 1/10/30/100 counts, a visibility score and your category chart position.</p>
+          </div>
+          <div class="feat">
+            <div class="ico"><Icon name="search" size={22} /></div>
+            <h3>ASO Inspector</h3>
+            <p>Paste a Google Play listing and get an ASO score, keyword coverage, a competitor comparison and AI-rewritten title and description copy, all from the live listing.</p>
+          </div>
+          <div class="feat">
+            <div class="ico"><Icon name="radar" size={22} /></div>
+            <h3>Competitor watch</h3>
+            <p>Track rivals on the same keywords, see who holds #1 for each term, and compare review health side by side to find the gaps your listing copy can't close.</p>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="wrap">
-      <section class="pricing" id="pricing">
-        <h2>Simple pricing</h2>
-        <p class="sub">Every plan starts with a {TRIAL_DAYS}-day free trial. Pay by UPI — scan, tap, or WhatsApp us. Cancel anytime.</p>
-        <div class="cards">
-          <div class="plan">
-            <h3>{PLANS.starter.name}</h3>
-            <div class="price">{CURRENCY}{formatPrice(PLANS.starter.priceMonthly)}<span>/month</span></div>
-            <p class="blurb">{PLANS.starter.blurb}</p>
-            <ul>
-              <li>{PLANS.starter.maxApps} apps (yours or competitors')</li>
-              <li>{PLANS.starter.maxKeywordsPerApp} keywords per app</li>
-              <li>Google Play + Apple App Store</li>
-              <li>Daily automatic rank checks</li>
-              <li>Keyword discovery</li>
-              <li>ASO Inspector (listing audit + AI rewrites)</li>
-            </ul>
-            <a class="btn primary" href="/signup" style="display:block;text-align:center;">Start free trial</a>
-          </div>
-          <div class="plan hot">
-            <span class="tag">MOST POPULAR</span>
-            <h3>{PLANS.pro.name}</h3>
-            <div class="price">{CURRENCY}{formatPrice(PLANS.pro.priceMonthly)}<span>/month</span></div>
-            <p class="blurb">{PLANS.pro.blurb}</p>
-            <ul>
-              <li>{PLANS.pro.maxApps} apps (yours or competitors')</li>
-              <li>{PLANS.pro.maxKeywordsPerApp} keywords per app</li>
-              <li>Google Play + Apple App Store</li>
-              <li>Daily automatic rank checks</li>
-              <li>Keyword discovery</li>
-              <li>CSV export</li>
-            </ul>
-            <a class="btn primary" href="/signup" style="display:block;text-align:center;">Start free trial</a>
+      <section class="split">
+        <div class="txt">
+          <h2>Find every keyword you already rank for</h2>
+          <p>Most apps rank for far more terms than anyone is tracking. Keyword discovery scans the store and pulls back everything you appear for in the top 200, so your list is built from real data instead of guesses.</p>
+          <ul class="ticks">
+            <li>Track up to 2,000 keywords per app</li>
+            <li>Search volume and difficulty on every term</li>
+            <li>Grouped by category, sorted however you like</li>
+          </ul>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><span>Keyword coverage</span></div>
+          <div class="mock-body">
+            <div class="rows" style="border-top:none;">
+              <div class="row"><span class="kw">zero commission mutual funds</span><span class="pos">#4</span><span class="dl up">▲ 6</span></div>
+              <div class="row"><span class="kw">index fund investment</span><span class="pos">#9</span><span class="dl up">new</span></div>
+              <div class="row"><span class="kw">elss tax saving</span><span class="pos">#15</span><span class="dl up">▲ 2</span></div>
+              <div class="row"><span class="kw">portfolio tracker india</span><span class="pos">#23</span><span class="dl down">▼ 1</span></div>
+              <div class="row"><span class="kw">goal based investing</span><span class="pos">#31</span><span class="dl up">▲ 9</span></div>
+              <div class="row"><span class="kw">nps calculator</span><span class="pos">#44</span><span class="dl up">new</span></div>
+            </div>
           </div>
         </div>
+      </section>
+
+      <section class="split rev">
+        <div class="txt">
+          <h2>Know why a rank moved, not just that it did</h2>
+          <p>The Insights view separates the changes you made from the ones you didn't. When a competitor pulls ahead on shared keywords, it tells you whether that's a listing problem or something a rewrite will never fix.</p>
+          <ul class="ticks">
+            <li>Title and description edits measured before vs after</li>
+            <li>Review health compared against each competitor</li>
+            <li>Failed checks flagged instead of shown as "not ranking"</li>
+          </ul>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><span>Insights</span></div>
+          <div class="mock-body" style="font-size:12.5px;">
+            <div style="border-left:3px solid var(--ok);padding:8px 0 8px 11px;margin-bottom:9px;">
+              <b>Listing change on 22 Jul: +3 visibility</b>
+              <div style="color:var(--muted);margin-top:2px;">Rewrote title to lead with "Direct Mutual Funds".</div>
+            </div>
+            <div style="border-left:3px solid var(--bad);padding:8px 0 8px 11px;margin-bottom:9px;">
+              <b>17.6% of recent reviews are 1-2★ (up 9.6pt)</b>
+              <div style="color:var(--muted);margin-top:2px;">Invisible in your listing copy. Rewriting the title will not offset it.</div>
+            </div>
+            <div style="border-left:3px solid var(--bad);padding:8px 0 8px 11px;">
+              <b>Rival: ahead of you on shared keywords</b>
+              <div style="color:var(--muted);margin-top:2px;">Their 1-2★ share is 3% against your 17.6%, a 14.6pt gap. That's a product fix, not a copy fix.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="band">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>From the blog</h2>
+          <p>Practical ASO writing on what actually moves rank on Google Play and the App Store.</p>
+        </div>
+        <div class="posts">
+          {latestPosts.map((post) => (
+            <a class="pcard" href={`/blog/${post.slug}`}>
+              <img src={post.data.image} width="1200" height="675" alt="" loading="lazy" />
+              <div class="pb">
+                <span class="pt">{post.data.theme}</span>
+                <h3>{post.data.title}</h3>
+                <p>{post.data.description}</p>
+                <span class="pm">{fmt(post.data.publishDate)}</span>
+              </div>
+            </a>
+          ))}
+        </div>
+        <div class="seeall"><a class="btn ghost" href="/blog" style="font-weight:700;">See all guides →</a></div>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <section class="final">
+        <h2>Start tracking today</h2>
+        <p>Add your app, paste your keywords, and see where you stand tomorrow morning.</p>
+        <a class="btn primary" href="/signup" style="font-size:16px;padding:13px 28px;">Start your {TRIAL_DAYS}-day free trial</a>
+        <div class="trialnote">No card required · cancel any time</div>
       </section>
     </div>
 
