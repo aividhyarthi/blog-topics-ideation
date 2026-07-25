@@ -79,7 +79,16 @@ export interface Plan {
   id: PlanId;
   name: string;
   priceMonthly: number; // INR
+  /** Counts YOUR OWN apps only. Competitors are excluded (see
+   * countsAgainstPlan in api/rank.ts): they're the reason the tool is
+   * useful, and they're nearly free to check, because a competitor added
+   * against a primary inherits its keywords and the check runner shares one
+   * search cache keyed by keyword rather than by app, so its ranks come out
+   * of the SAME store search the primary already paid for. */
   maxApps: number;
+  /** Rivals trackable against each of your apps. Bounds the per-competitor
+   * metadata/chart/rating fetches (the only part that isn't cache-shared). */
+  maxCompetitorsPerApp: number;
   maxKeywordsPerApp: number;
   blurb: string;
 }
@@ -87,12 +96,12 @@ export interface Plan {
 export const PLANS: Record<PlanId, Plan> = {
   starter: {
     id: 'starter', name: 'Starter', priceMonthly: 2499,
-    maxApps: 3, maxKeywordsPerApp: 30,
+    maxApps: 3, maxCompetitorsPerApp: 3, maxKeywordsPerApp: 30,
     blurb: 'For a single app or side project',
   },
   pro: {
     id: 'pro', name: 'Pro', priceMonthly: 6499,
-    maxApps: 10, maxKeywordsPerApp: 60,
+    maxApps: 5, maxCompetitorsPerApp: 3, maxKeywordsPerApp: 60,
     blurb: 'For studios and agencies tracking a portfolio',
   },
 };

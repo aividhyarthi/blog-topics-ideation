@@ -10,7 +10,7 @@ const user = Astro.locals.user || null;
 const plan = user ? planOf(user.plan) : null;
 const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
 const limitsText = product && plan
-  ? `Your ${plan.name} plan tracks up to ${plan.maxApps} apps, ${plan.maxKeywordsPerApp} keywords each.`
+  ? `Your ${plan.name} plan tracks up to ${plan.maxApps} of your own apps (${plan.maxCompetitorsPerApp} competitors each, which don't count towards the limit), ${plan.maxKeywordsPerApp} keywords each.`
   : 'Up to 15 apps, 60 keywords each.';
 ---
 

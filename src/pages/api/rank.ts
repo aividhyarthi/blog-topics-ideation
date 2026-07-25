@@ -27,7 +27,7 @@ import { planOf } from '../../lib/saas/plans';
 import type { APIContext } from 'astro';
 
 // Internal (single-tenant) limits; product mode limits come from the user's plan.
-const INTERNAL_LIMITS = { maxApps: 15, maxKeywordsPerApp: 60 };
+const INTERNAL_LIMITS = { maxApps: 15, maxCompetitorsPerApp: 5, maxKeywordsPerApp: 60 };
 // Coverage list is a flat cap independent of plan. At this size it's checked
 // by the daily cron (scripts/rank-check.ts), not the on-demand button — a
 // synchronous HTTP request has no realistic chance of finishing 2000 keyword
@@ -38,9 +38,9 @@ const MAX_COVERAGE_KEYWORDS = 2000;
 function tenant(locals: APIContext['locals']) {
   if (locals.productMode && locals.user) {
     const plan = planOf(locals.user.plan);
-    return { userId: locals.user.id, maxApps: plan.maxApps, maxKeywords: plan.maxKeywordsPerApp };
+    return { userId: locals.user.id, maxApps: plan.maxApps, maxCompetitors: plan.maxCompetitorsPerApp, maxKeywords: plan.maxKeywordsPerApp };
   }
-  return { userId: undefined as string | undefined, maxApps: INTERNAL_LIMITS.maxApps, maxKeywords: INTERNAL_LIMITS.maxKeywordsPerApp };
+  return { userId: undefined as string | undefined, maxApps: INTERNAL_LIMITS.maxApps, maxCompetitors: INTERNAL_LIMITS.maxCompetitorsPerApp, maxKeywords: INTERNAL_LIMITS.maxKeywordsPerApp };
 }
 
 /**
@@ -119,6 +119,25 @@ function resolvePrimary(cfg: TrackerConfig, startKey: string): TrackedApp | null
     cur = next;
   }
   return cur;
+}
+
+/**
+ * Does this app consume one of the plan's app slots?
+ *
+ * Only YOUR OWN apps do. A competitor is excluded because it's the feature
+ * that makes the tool worth having, and because it's nearly free to check:
+ * it inherits its primary's keywords, and runCheck shares a single search
+ * cache keyed by (store, country, lang, keyword) rather than by app, so its
+ * positions come out of the SAME store search the primary already paid for.
+ *
+ * A competitorOf pointing at an app that no longer exists does NOT exempt it
+ * — otherwise removing a primary would silently make its orphaned rivals free
+ * forever, and the plan limit could be walked past by adding then deleting.
+ * Same rule as isPrimaryLike in rank.astro, so the UI and the API agree on
+ * what counts.
+ */
+function countsAgainstPlan(app: TrackedApp, apps: TrackedApp[]): boolean {
+  return !app.competitorOf || !apps.some((x) => x.key === app.competitorOf);
 }
 
 function alreadyCheckedToday(appKey: string, userId?: string): string | null {
@@ -259,7 +278,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   let body: Record<string, any>;
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
   const action = String(body.action || '');
-  const { userId, maxApps, maxKeywords } = tenant(locals);
+  const { userId, maxApps, maxCompetitors, maxKeywords } = tenant(locals);
   let cfg;
   try { cfg = loadConfig(userId); }
   catch (e) {
@@ -287,7 +306,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const lang = (String(body.lang || likeApp?.lang || 'en').trim() || 'en').toLowerCase();
     const key = `${parsed.store}:${parsed.appId}:${country}`;
     if (cfg.apps.some((a) => a.key === key)) return json({ error: 'That app + country is already tracked.' }, 400);
-    if (cfg.apps.length >= maxApps) return json({ error: `Your plan tracks up to ${maxApps} apps — remove one first or upgrade.` }, 400);
+    if (likeApp) {
+      const siblings = cfg.apps.filter((a) => a.competitorOf === likeApp.key).length;
+      if (siblings >= maxCompetitors) {
+        return json({ error: `You can track up to ${maxCompetitors} competitors per app. Remove one from "${likeApp.title}" first.` }, 400);
+      }
+    } else {
+      const owned = cfg.apps.filter((a) => countsAgainstPlan(a, cfg.apps)).length;
+      if (owned >= maxApps) {
+        return json({ error: `Your plan tracks up to ${maxApps} of your own apps — remove one first or upgrade. Competitors don't count towards this.` }, 400);
+      }
+    }
 
     // Metadata fetch is best-effort: if the store is unreachable right now the
     // app is still added (title falls back to the id) and ranks come later.
@@ -388,10 +417,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!app) return json({ error: 'App not found.' }, 404);
     const target = String(body.competitorOf || '');
     if (!target) {
+      // Unlinking PROMOTES this app to one of your own, so it starts
+      // consuming a plan slot. Without this check the limit could be walked
+      // straight past: add rivals freely, then unlink them one by one.
+      if (!countsAgainstPlan(app, cfg.apps)) {
+        const owned = cfg.apps.filter((a) => countsAgainstPlan(a, cfg.apps)).length;
+        if (owned >= maxApps) {
+          return json({ error: `Your plan tracks up to ${maxApps} of your own apps, and you're at the limit. Remove one before converting this competitor into your own app.` }, 400);
+        }
+      }
       delete app.competitorOf;
     } else {
       if (target === app.key) return json({ error: 'An app cannot be a competitor for itself.' }, 400);
       if (!cfg.apps.some((a) => a.key === target)) return json({ error: 'Target app not found.' }, 404);
+      if (app.competitorOf !== target) {
+        const siblings = cfg.apps.filter((a) => a.key !== app.key && a.competitorOf === target).length;
+        if (siblings >= maxCompetitors) {
+          return json({ error: `That app already has ${maxCompetitors} competitors. Remove one from it first.` }, 400);
+        }
+      }
       // Always link to the chain's top-level app. The UI only offers
       // top-level targets, but the API must hold the same invariant —
       // links that formed chains (A→B→C) or loops (A→B→A) are what made

@@ -153,7 +153,8 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
                 <h3>{p.name}</h3>
                 <div class="price">{CURRENCY}{formatPrice(p.priceMonthly)}<span>/month</span></div>
                 <ul>
-                  <li>{p.maxApps} apps</li>
+                  <li>{p.maxApps} of your own apps</li>
+                  <li>{p.maxCompetitorsPerApp} competitors per app (don't count towards the limit)</li>
                   <li>{p.maxKeywordsPerApp} keywords per app</li>
                   <li>Both stores · daily checks · discovery · ASO Inspector</li>
                 </ul>

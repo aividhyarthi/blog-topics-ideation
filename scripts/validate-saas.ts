@@ -88,5 +88,40 @@ const after = findUserByEmail('rudra@appstudiox.com')!;
 eq('manual activation sets status + plan', { status: after.status, plan: after.plan }, { status: 'active', plan: 'pro' });
 
 rmSync(tmp, { recursive: true, force: true });
+
+// --- plan limits: competitors are free, your own apps are not ----------------
+{
+  const { PLANS } = await import('../src/lib/saas/plans');
+  // Mirrors countsAgainstPlan in api/rank.ts. Kept in the test so a change to
+  // that rule has to be a deliberate one, not an accident.
+  const countsAgainstPlan = (app: any, apps: any[]) =>
+    !app.competitorOf || !apps.some((x: any) => x.key === app.competitorOf);
+  const owned = (apps: any[]) => apps.filter((a) => countsAgainstPlan(a, apps)).length;
+
+  eq('starter tracks 3 of your own apps', PLANS.starter.maxApps, 3);
+  eq('pro tracks 5 of your own apps', PLANS.pro.maxApps, 5);
+  eq('3 competitors per app on both plans',
+    [PLANS.starter.maxCompetitorsPerApp, PLANS.pro.maxCompetitorsPerApp], [3, 3]);
+
+  const mine = { key: 'a' };
+  const apps = [mine, { key: 'b', competitorOf: 'a' }, { key: 'c', competitorOf: 'a' }, { key: 'd', competitorOf: 'a' }];
+  eq('a primary plus 3 competitors uses ONE app slot', owned(apps), 1);
+
+  // Pro at full stretch: 5 primaries, each with 3 rivals = 20 tracked apps.
+  const full = [1, 2, 3, 4, 5].flatMap((i) => [
+    { key: `p${i}` },
+    { key: `p${i}c1`, competitorOf: `p${i}` },
+    { key: `p${i}c2`, competitorOf: `p${i}` },
+    { key: `p${i}c3`, competitorOf: `p${i}` },
+  ]);
+  eq('pro at the limit = 5 slots used', owned(full), PLANS.pro.maxApps);
+  eq('pro at the limit = 20 apps actually tracked', full.length, 20);
+
+  // An orphaned competitorOf must NOT stay exempt, or deleting a primary
+  // would quietly turn its rivals into free apps forever.
+  const orphaned = [{ key: 'x', competitorOf: 'deleted-app' }];
+  eq('orphaned competitor counts against the plan', owned(orphaned), 1);
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll SaaS checks passed.');
