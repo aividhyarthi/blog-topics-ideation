@@ -3,6 +3,7 @@
 // about why the nav below doesn't depend on Astro.locals.user here.
 export const prerender = true;
 import { getCollection } from 'astro:content';
+import { topicSlug } from '../../lib/blog/topics';
 import { BRAND, SITE_URL } from '../../lib/saas/plans';
 import GoogleAnalytics from '../../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../../components/AdSenseMeta.astro';
@@ -11,6 +12,7 @@ import BlogSidebar from '../../components/BlogSidebar.astro';
 import InlineTrialBanner from '../../components/InlineTrialBanner.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import BlogTopNav from '../../components/BlogTopNav.astro';
+import BlogSubNav from '../../components/BlogSubNav.astro';
 
 export async function getStaticPaths() {
   const posts = await getCollection('blog');
@@ -118,7 +120,7 @@ const breadcrumbJsonLd = {
       .crumbs a:hover { color: var(--ink); text-decoration: underline; }
       .crumbs .sep { margin: 0 7px; color: #cbd0da; }
       .crumbs .here { color: var(--ink); font-weight: 600; }
-      .posttheme { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #52525b; }
+      .posttheme { display:inline-block; text-decoration:none; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #52525b; }
       h1 { font-size: 30px; letter-spacing: -0.02em; margin: 8px 0 8px; line-height: 1.25; }
       .postmeta { font-size: 13px; color: var(--muted); margin-bottom: 30px; }
       .hero { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 12px; margin-bottom: 30px; display: block; border: 1px solid var(--line); }
@@ -148,13 +150,14 @@ const breadcrumbJsonLd = {
   </head>
   <body>
     <BlogTopNav active="blog" />
+    <BlogSubNav current={post.data.theme} />
     <main>
       <div class="wrap layout">
         <div>
           <nav class="crumbs" aria-label="Breadcrumb">
             <a href="/">Home</a><span class="sep">/</span><a href="/blog">Blog</a><span class="sep">/</span><span class="here">{post.data.title}</span>
           </nav>
-          <span class="posttheme">{post.data.theme}</span>
+          <a class="posttheme" href={`/blog/topic/${topicSlug(post.data.theme)}`}>{post.data.theme}</a>
           <h1>{post.data.title}</h1>
           <div class="postmeta">{fmt(post.data.publishDate)} · {post.data.author}</div>
           <img class="hero" src={post.data.image} width="1200" height="675" alt={post.data.title} />

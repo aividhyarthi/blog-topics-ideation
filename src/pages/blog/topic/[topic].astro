@@ -1,0 +1,109 @@
+---
+// One crawlable page per blog topic. Static, same as the rest of the blog.
+export const prerender = true;
+import { getCollection } from 'astro:content';
+import { BRAND, SITE_URL } from '../../../lib/saas/plans';
+import { topicSlug } from '../../../lib/blog/topics';
+import GoogleAnalytics from '../../../components/GoogleAnalytics.astro';
+import AdSenseMeta from '../../../components/AdSenseMeta.astro';
+import AdSenseScript from '../../../components/AdSenseScript.astro';
+import BlogSidebar from '../../../components/BlogSidebar.astro';
+import SiteFooter from '../../../components/SiteFooter.astro';
+import BlogTopNav from '../../../components/BlogTopNav.astro';
+import BlogSubNav from '../../../components/BlogSubNav.astro';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+  const themes = [...new Set(posts.map((p) => p.data.theme))];
+  return themes.map((theme) => ({
+    params: { topic: topicSlug(theme) },
+    props: {
+      theme,
+      posts: posts
+        .filter((p) => p.data.theme === theme)
+        .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf()),
+    },
+  }));
+}
+
+const { theme, posts } = Astro.props;
+const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const canonical = `${SITE_URL}/blog/topic/${topicSlug(theme)}`;
+const description = `${posts.length} guide${posts.length === 1 ? '' : 's'} on ${theme.toLowerCase()} for app store optimization, from the team behind ${BRAND}.`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <GoogleAnalytics />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <AdSenseMeta />
+    <AdSenseScript />
+    <title>{theme} — {BRAND} Blog</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content="max-image-preview:large, max-video-preview:-1" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={`${theme} — ${BRAND} Blog`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    {posts[0] && <meta property="og:image" content={`${SITE_URL}${posts[0].data.image}`} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      :root { --pink: #4338ca; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fff; color: var(--ink); line-height: 1.6; }
+      .wrap { max-width: 1160px; margin: 0 auto; padding: 0 22px; }
+      main { padding: 30px 0 60px; }
+      .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 48px; align-items: start; }
+      @media (max-width: 860px) { .layout { grid-template-columns: 1fr; gap: 30px; } }
+      .crumbs { font-size: 13px; margin-bottom: 14px; color: var(--muted); }
+      .crumbs a { color: var(--muted); text-decoration: none; font-weight: 600; }
+      .crumbs a:hover { color: var(--ink); text-decoration: underline; }
+      .crumbs .sep { margin: 0 7px; color: #cbd0da; }
+      h1 { font-size: 30px; letter-spacing: -0.02em; margin: 0 0 8px; }
+      .lede { color: var(--muted); font-size: 16px; margin: 0 0 26px; max-width: 62ch; }
+      .postlist { display: flex; flex-direction: column; gap: 12px; }
+      .postcard { display: flex; align-items: flex-start; gap: 18px; text-decoration: none; color: inherit; padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; background: #fff; transition: border-color .15s, box-shadow .15s, transform .15s; }
+      .postcard:hover { border-color: #cbd0da; box-shadow: 0 6px 20px rgba(20,20,40,.07); transform: translateY(-1px); }
+      .postcard .thumb { width: 160px; height: 90px; object-fit: cover; border-radius: 9px; border: 1px solid var(--line); flex-shrink: 0; }
+      .postcard .body { min-width: 0; }
+      .postcard h2 { font-size: 19px; margin: 0 0 6px; letter-spacing: -0.01em; }
+      .postcard p { color: var(--muted); font-size: 14.5px; margin: 0 0 10px; }
+      .postmeta { font-size: 12.5px; color: var(--muted); }
+      .sidebar-slot { position: sticky; top: 24px; }
+      @media (max-width: 560px) { .postcard { flex-direction: column; } .postcard .thumb { width: 100%; height: auto; aspect-ratio: 16/9; } }
+    </style>
+  </head>
+  <body>
+    <BlogTopNav active="blog" />
+    <BlogSubNav current={theme} />
+    <main>
+      <div class="wrap layout">
+        <div>
+          <nav class="crumbs" aria-label="Breadcrumb">
+            <a href="/">Home</a><span class="sep">/</span><a href="/blog">Blog</a><span class="sep">/</span><span>{theme}</span>
+          </nav>
+          <h1>{theme}</h1>
+          <p class="lede">{description}</p>
+          <div class="postlist">
+            {posts.map((post) => (
+              <a class="postcard" href={`/blog/${post.slug}`}>
+                <img class="thumb" src={post.data.image} width="160" height="90" alt="" loading="lazy" />
+                <div class="body">
+                  <h2>{post.data.title}</h2>
+                  <p>{post.data.description}</p>
+                  <span class="postmeta">{fmt(post.data.publishDate)} · {post.data.author}</span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+        <div class="sidebar-slot"><BlogSidebar /></div>
+      </div>
+    </main>
+    <SiteFooter />
+  </body>
+</html>

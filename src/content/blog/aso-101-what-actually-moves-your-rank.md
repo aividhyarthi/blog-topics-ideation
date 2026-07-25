@@ -1,6 +1,6 @@
 ---
 title: "App Store Optimization 101: What Actually Moves Your Rank"
-description: "A plain-language breakdown of what App Store Optimization really is, which levers you control, and which ones you don't — for anyone starting from zero."
+description: "A plain-language breakdown of what App Store Optimization really is, which levers you control, and which ones you don't, for anyone starting from zero."
 theme: "Fundamentals"
 image: "/blog/og/aso-101-what-actually-moves-your-rank.png"
 publishDate: 2026-06-24
@@ -8,16 +8,16 @@ publishDate: 2026-06-24
 
 App Store Optimization (ASO) gets described a hundred different ways, and most of them make it sound more mysterious than it is. Strip away the jargon and ASO is just this: **making your app easy to find and easy to choose, inside Google Play and the App Store's own search and browse surfaces.**
 
-That's it. Not paid ads, not social growth, not influencer marketing — those all drive traffic *to* the store listing. ASO is about what happens *once someone is already there*, searching or browsing.
+That's it. Not paid ads, not social growth, not influencer marketing. Those all drive traffic *to* the store listing. ASO is about what happens *once someone is already there*, searching or browsing.
 
 ## Two different jobs, often confused
 
 Every serious ASO framework splits into two halves, and conflating them is the single most common beginner mistake:
 
-**1. Discoverability — can people find you?**
-This is about ranking: when someone searches "photo editor" or "budget tracker," does your app show up on page one? Discoverability is driven mostly by keywords — where they appear in your listing, and how strong your app's overall relevance and quality signals are for that term.
+**1. Discoverability. Can people find you?**
+This is about ranking: when someone searches "photo editor" or "budget tracker," does your app show up on page one? Discoverability is driven mostly by keywords, where they appear in your listing, and how strong your app's overall relevance and quality signals are for that term.
 
-**2. Conversion — once found, do they install?**
+**2. Conversion. Once found, do they install?**
 This is about your icon, screenshots, preview video, ratings, and description convincing someone who's already looking at your listing to actually tap "Install." Conversion doesn't move your search rank directly, but it moves your *installs*, which is usually the actual metric you care about.
 
 A beautifully converting listing that nobody finds is invisible. A highly-ranked listing with a confusing icon and no screenshots leaks installs it earned. You need both, but they're solved with different tools.
@@ -30,22 +30,22 @@ This is the part most guides skip, and it matters because it tells you where to 
 |---|---|
 | Title and subtitle/short description (your highest-weighted keyword real estate) | The ranking algorithm itself, or how it weights any signal on a given day |
 | Long description | Install and uninstall rates (you influence them, but they're an outcome, not a lever) |
-| Screenshots, preview video, icon | Rating average (again — influenced, not directly set) |
-| Keyword field (iOS only — Android has no equivalent hidden field) | What your competitors do |
+| Screenshots, preview video, icon | Rating average (again, influenced, not directly set) |
+| Keyword field (iOS only. Android has no equivalent hidden field) | What your competitors do |
 | How often you update the app and refresh the listing | |
 | Responding to reviews, and the product changes that drive review *sentiment* | |
 
-A useful mental model: **score the things you can edit, and treat the outcome metrics (rating, installs, retention) as context, not knobs.** Chasing a rating number directly rarely works — chasing the product and support quality that produces a good rating does.
+A useful mental model: **score the things you can edit, and treat the outcome metrics (rating, installs, retention) as context, not knobs.** Chasing a rating number directly rarely works, chasing the product and support quality that produces a good rating does.
 
 ## The keyword relevance rule that trips people up
 
 Both stores reward *exact and partial matches* between what someone searches and what's in your indexed text fields. But there's a nuance that costs people ranking they think they've earned: **stuffing a keyword into your title doesn't help if the rest of your listing doesn't support it.**
 
-If your app is titled "BudgetTrack: Expense Manager" but your description, screenshots, and category all point toward "invoicing," you're sending mixed relevance signals for the term "expense manager." The stores' matching isn't just "does this string appear" — it's closer to "does this listing, as a whole, look like a strong answer to this query."
+If your app is titled "BudgetTrack: Expense Manager" but your description, screenshots, and category all point toward "invoicing," you're sending mixed relevance signals for the term "expense manager." The stores' matching isn't just "does this string appear". It's closer to "does this listing, as a whole, look like a strong answer to this query."
 
 Practically: pick your 2-3 real focus keywords, and make sure your title, subtitle/short description, and the first two lines of your long description all agree with each other about what the app actually does.
 
-> **Real-world scenario:** An expense-tracking app titled "Zenflow: Budget & Bills" ranked #34 for "expense tracker" despite the term appearing nowhere in its title. Its screenshots and category were both squarely "budgeting," and its description opened with "track every expense in seconds" — strong relevance everywhere except the single highest-weighted field. Adding "expense tracker" to the title (swapping out the vaguer "Budget & Bills") moved it to #11 for that term within three weeks, with no other changes.
+> **Real-world scenario:** An expense-tracking app titled "Zenflow: Budget & Bills" ranked #34 for "expense tracker" despite the term appearing nowhere in its title. Its screenshots and category were both squarely "budgeting," and its description opened with "track every expense in seconds", strong relevance everywhere except the single highest-weighted field. Adding "expense tracker" to the title (swapping out the vaguer "Budget & Bills") moved it to #11 for that term within three weeks, with no other changes.
 
 ## Why "just add more keywords" backfires
 
@@ -55,17 +55,17 @@ A title like "Photo Editor - Collage Maker - Filters - Sticker App - Free Camera
 
 ## The honest caveat
 
-Every ASO tool, including this one, is working from *inferred* signals — none of us have access to Google's or Apple's actual ranking code. What you get from rank tracking is a **consistent, comparable-over-time measurement**: if your visibility score goes from 40 to 65 after a title change, that's a real, trustworthy signal, even though the exact mechanism inside the algorithm stays a black box.
+Every ASO tool, including this one, is working from *inferred* signals. None of us have access to Google's or Apple's actual ranking code. What you get from rank tracking is a **consistent, comparable-over-time measurement**: if your visibility score goes from 40 to 65 after a title change, that's a real, trustworthy signal, even though the exact mechanism inside the algorithm stays a black box.
 
-That's also why a single day's rank reading matters less than the *trend*. Rankings move on their own day to day — trust the direction over two to three weeks, not the number on any one morning.
+That's also why a single day's rank reading matters less than the *trend*. Rankings move on their own day to day, trust the direction over two to three weeks, not the number on any one morning.
 
 ## Where to start, concretely
 
 If you're doing this for the first time, in order:
 
-1. **[Track your current rank](/signup)** for the 5-10 keywords you'd most want to be found for — you can't improve what you haven't measured.
-2. **Audit your title and subtitle** against those keywords — is your strongest term actually in there?
-3. **Check your rating trend**, not just the current average — a slow decline is an early warning your next ASO push should fix before it optimizes copy further.
-4. **Look at who currently ranks #1** for your top keyword — read their listing like a customer would. What are they doing that you aren't?
+1. **[Track your current rank](/signup)** for the 5-10 keywords you'd most want to be found for. You can't improve what you haven't measured.
+2. **Audit your title and subtitle** against those keywords. Is your strongest term actually in there?
+3. **Check your rating trend**, not just the current average. A slow decline is an early warning your next ASO push should fix before it optimizes copy further.
+4. **Look at who currently ranks #1** for your top keyword. Read their listing like a customer would. What are they doing that you aren't?
 
-None of this requires a big budget or a growth team. It requires measuring the right things and making deliberate, testable changes — one at a time, so you actually know what worked.
+None of this requires a big budget or a growth team. It requires measuring the right things and making deliberate, testable changes. One at a time, so you actually know what worked.

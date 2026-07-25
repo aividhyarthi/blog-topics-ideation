@@ -16,11 +16,11 @@ import AdSenseScript from '../../components/AdSenseScript.astro';
 import BlogSidebar from '../../components/BlogSidebar.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import BlogTopNav from '../../components/BlogTopNav.astro';
+import BlogSubNav from '../../components/BlogSubNav.astro';
 
 const posts = (await getCollection('blog')).sort(
   (a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf(),
 );
-const themes = [...new Set(posts.map((p) => p.data.theme))];
 const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 ---
 
@@ -88,20 +88,17 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
   </head>
   <body>
     <BlogTopNav active="blog" />
+    <BlogSubNav />
     <main>
       <div class="wrap layout">
         <div>
           <h1>ASO &amp; App Ranking Guides</h1>
           <p class="lede">Practical, no-fluff writing on App Store Optimization, keyword research, and what actually moves your app's rank on Google Play and the App Store.</p>
 
-          <div class="themefilter" id="themefilter">
-            <button class="active" data-theme="all">All</button>
-            {themes.map((t) => <button data-theme={t}>{t}</button>)}
-          </div>
 
           <div class="postlist" id="postlist">
             {posts.map((post) => (
-              <a class="postcard" href={`/blog/${post.slug}`} data-theme={post.data.theme}>
+              <a class="postcard" href={`/blog/${post.slug}`}>
                 <img class="thumb" src={post.data.image} width="160" height="90" alt="" loading="lazy" />
                 <div class="body">
                   <span class="posttheme">{post.data.theme}</span>
@@ -120,17 +117,5 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
       </div>
     </main>
     <SiteFooter />
-    <script>
-      const buttons = document.querySelectorAll('#themefilter button');
-      const cards = document.querySelectorAll('#postlist .postcard');
-      buttons.forEach((btn) => btn.addEventListener('click', () => {
-        buttons.forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        const theme = btn.getAttribute('data-theme');
-        cards.forEach((card) => {
-          card.style.display = theme === 'all' || card.getAttribute('data-theme') === theme ? 'block' : 'none';
-        });
-      }));
-    </script>
   </body>
 </html>

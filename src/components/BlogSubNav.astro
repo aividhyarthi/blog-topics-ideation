@@ -1,0 +1,50 @@
+---
+// Topic sub-navigation, shown on every blog page.
+//
+// Previously the only way to browse by topic was a client-side filter that
+// existed solely on the index — from inside an article there was no way to
+// reach related posts at all, which is what made the blog feel nav-less.
+// These are real links to real pages, so they work from anywhere, survive a
+// page refresh, can be shared, and are crawlable.
+import { getCollection } from 'astro:content';
+import { topicSlug } from '../lib/blog/topics';
+
+interface Props { current?: string }
+const { current } = Astro.props as Props;
+
+const posts = await getCollection('blog');
+const themes = [...new Set(posts.map((p) => p.data.theme))].sort();
+const countOf = (t: string) => posts.filter((p) => p.data.theme === t).length;
+---
+<nav class="subnav" aria-label="Blog topics">
+  <div class="subnav-inner">
+    <a href="/blog" class:list={['chip', !current && 'active']}>All posts</a>
+    {themes.map((t) => (
+      <a href={`/blog/topic/${topicSlug(t)}`} class:list={['chip', current === t && 'active']}>
+        {t}<span class="n">{countOf(t)}</span>
+      </a>
+    ))}
+  </div>
+</nav>
+
+<style>
+  .subnav { border-bottom: 1px solid #e5e7eb; background: #fff; }
+  .subnav-inner {
+    max-width: 1160px; margin: 0 auto; padding: 0 22px 12px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid #e5e7eb; border-radius: 999px; padding: 6px 13px;
+    font-size: 13px; font-weight: 600; color: #6b7280; text-decoration: none;
+    white-space: nowrap; transition: border-color .15s, color .15s, background .15s;
+  }
+  .chip:hover { border-color: #cbd0da; color: #16181d; }
+  .chip.active { background: #16181d; border-color: #16181d; color: #fff; }
+  .chip .n { font-size: 11px; font-weight: 700; opacity: .65; }
+  /* The row can outgrow a phone screen; scroll it rather than wrapping into a
+     tall block that pushes the article below the fold. */
+  @media (max-width: 640px) {
+    .subnav-inner { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  }
+</style>
