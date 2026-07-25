@@ -73,6 +73,17 @@ export interface TrackedApp {
    * than once on a Monday (e.g. an admin "Run now" after the scheduled
    * run already fired). */
   lastWeeklyDigest?: string;
+  /**
+   * Local (IST) hour window this app is allowed to be checked in, e.g.
+   * `{ startHour: 0, endHour: 4 }` for midnight–4am. Staggering apps across
+   * separate windows is what keeps a big portfolio from hammering the store
+   * endpoints all at once — the single biggest cause of the rate-limit
+   * errors that show up as "keyword not checked / failed" the next morning.
+   * Unset = checkable any time inside the nightly window (previous
+   * behaviour). Ignored on weekends (see isWithinCheckWindow) when there's
+   * no contention worth staggering around.
+   */
+  checkWindow?: { startHour: number; endHour: number };
 }
 
 export interface TrackerConfig {

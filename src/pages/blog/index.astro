@@ -3,9 +3,10 @@
 // it's fast and reliably crawlable, independent of the Node server. Because
 // this renders once at build time, request-scoped data like the logged-in
 // user isn't available here (see rank.astro/aso.astro for pages that do
-// need that) — the nav below always shows the logged-out CTAs, which is
-// harmless: a logged-in visitor clicking "Log in" or "Start free trial"
-// just gets redirected straight to /rank by those pages themselves.
+// need that). The nav ships its logged-out state and upgrades itself from
+// /api/auth/me on load — see BlogTopNav — so a signed-in reader isn't shown
+// a "Start free trial" CTA they're already past, without giving up the
+// static rendering that makes these pages cheap and reliably crawlable.
 export const prerender = true;
 import { getCollection } from 'astro:content';
 import { BRAND, SITE_URL } from '../../lib/saas/plans';
@@ -14,6 +15,7 @@ import AdSenseMeta from '../../components/AdSenseMeta.astro';
 import AdSenseScript from '../../components/AdSenseScript.astro';
 import BlogSidebar from '../../components/BlogSidebar.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
+import BlogTopNav from '../../components/BlogTopNav.astro';
 
 const posts = (await getCollection('blog')).sort(
   (a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf(),
@@ -85,14 +87,7 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
     </style>
   </head>
   <body>
-    <header class="top">
-      <a class="logo" href="/"><span class="mark">▲</span>{BRAND}<span class="betatag">Beta 1.0</span></a>
-      <div class="navlinks">
-        <a class="plain active" href="/blog">Blog</a>
-        <a class="plain" href="/about">About</a>
-        <a class="btn" href="/signup">Start free trial</a>
-      </div>
-    </header>
+    <BlogTopNav active="blog" />
     <main>
       <div class="wrap layout">
         <div>

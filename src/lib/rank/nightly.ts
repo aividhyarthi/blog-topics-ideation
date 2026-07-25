@@ -12,11 +12,11 @@
 //  - AppRankr product users (one config per user; only users with a live
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
-import { loadConfig, saveConfig, loadSnapshots, loadCoverageSnapshots, loadNightlyMarker, saveNightlyMarker } from './store';
+import { loadConfig, saveConfig, loadSnapshot, loadSnapshots, loadCoverageSnapshots, saveNightlyMarker } from './store';
 import { runCheck, checkCoverageBatch, checkRating, retryFailedChart } from './check';
 import { backfillDeveloperId, backfillGenreId } from './fetch';
 import { withTenantLock } from './lock';
-import { keywordTrends, overviewSeries, countsFromBuckets, universeSizeSeries, todayKey } from './track';
+import { keywordTrends, overviewSeries, countsFromBuckets, universeSizeSeries, todayKey, isWithinCheckWindow } from './track';
 import { parseReportEmails, buildDailyReportEmail, buildRankAlertEmail, buildWeeklyDigestEmail, sendReportEmail } from './email';
 import { writeNightlyStatus } from './run-status';
 import { checkAccess } from '../saas/plans';
@@ -59,22 +59,50 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
   }
 
   async function doCheckTenant(label: string, userId?: string) {
-    const cfg = loadConfig(userId);
-    if (!cfg.apps.length) return;
+    const fullCfg = loadConfig(userId);
+    if (!fullCfg.apps.length) return;
 
-    // The scheduler now retries hourly across a window instead of running
-    // once (see scheduler.ts) specifically so a crash/restart mid-run only
-    // costs an hour instead of silently dropping a whole tenant's report
-    // until the next day. That only helps if a tenant already fully checked
-    // today doesn't get needlessly re-run (and re-hit store rate limits)
-    // every single hour — this marker is what tells "done today" apart from
-    // "never reached yet". It's only written after every step below
-    // succeeds, so a run that dies partway through leaves no marker and
-    // gets retried in full on the next tick, same as before this existed.
+    // Only the apps whose staggered IST window is open right now (see
+    // isWithinCheckWindow). Checking a whole portfolio at once is what
+    // triggers store rate-limiting, which shows up the next morning as
+    // keywords that "failed" or were never checked.
+    const dueApps = fullCfg.apps.filter((a) => isWithinCheckWindow(a));
+    const deferred = fullCfg.apps.length - dueApps.length;
+    if (deferred) {
+      lines.push(`  [${label}] ${deferred} app(s) outside their check window right now — deferred to their slot.`);
+    }
+    if (!dueApps.length) return;
+    // NOTE: `cfg.apps` is narrowed to this run's apps, but every saveConfig
+    // below writes `fullCfg` — the objects in dueApps are the same
+    // references, so mutations propagate, and saving the narrowed copy
+    // would silently DELETE every deferred app from the config.
+    const cfg = { ...fullCfg, apps: dueApps };
+
+    // The scheduler retries hourly across a window instead of running once
+    // (see scheduler.ts) so a crash/restart mid-run only costs an hour
+    // rather than silently stranding a tenant's report until tomorrow. That
+    // only helps if work already finished today isn't redone (and re-hitting
+    // store rate limits) every hour — so completed work is skipped.
+    //
+    // This is tracked PER APP, not per tenant: with staggered windows
+    // (CRED 00:00-04:00, Kuvera 04:00-08:00) a tenant-level "done today"
+    // marker set after the first app's window would skip every app whose
+    // window opens later — they'd simply never be checked. Today's snapshot
+    // is the source of truth, and an errored row doesn't count as done, so
+    // a failed keyword check is retried on the next tick.
     const today = todayKey();
-    const alreadyDoneToday = loadNightlyMarker(userId)?.dateKey === today;
+    const todaySnap = loadSnapshot(today, userId);
+    const isDoneToday = (key: string) => {
+      const row = todaySnap?.apps.find((a) => a.key === key);
+      return !!row && !row.error && row.keywords.some((k) => !k.error);
+    };
+    const pending = dueApps.filter((a) => !isDoneToday(a.key));
+    const alreadyDoneToday = pending.length === 0;
 
     if (!alreadyDoneToday) {
+      // Only the apps still owing a check this run — an app already done
+      // isn't re-searched just because a sibling in the same window isn't.
+      cfg.apps = pending;
       // Best-effort backfill for apps tracked before developerId existed, or
       // whose genreId never got captured (e.g. a metadata fetch that failed
       // on the day the app was added, which the add-app flow deliberately
@@ -89,10 +117,11 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
         try { if (await backfillDeveloperId(a)) backfilled = true; } catch { /* best-effort */ }
         try { if (await backfillGenreId(a)) backfilled = true; } catch { /* best-effort */ }
       }
-      if (backfilled) saveConfig(cfg, userId);
+      if (backfilled) saveConfig(fullCfg, userId);
 
       const snap = await runCheck(cfg.apps, userId, cache);
-      for (const app of snap.apps.slice(-cfg.apps.length)) {
+      const justChecked = new Set(cfg.apps.map((a) => a.key));
+      for (const app of snap.apps.filter((a) => justChecked.has(a.key))) {
         const ranked = app.keywords.filter((k) => k.position != null).length;
         lines.push(`  [${label}] ${app.key}: ${ranked}/${app.keywords.length} keywords ranked${app.error ? ` · ${app.error}` : ''}`);
       }
@@ -182,7 +211,7 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
           lines.push(`  [${label}] ${app.key}: report email failed: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
-      if (digestSent) saveConfig(cfg, userId);
+      if (digestSent) saveConfig(fullCfg, userId);
       saveNightlyMarker(today, userId);
     } else {
       lines.push(`  [${label}] daily check already completed today — skipping to coverage.`);
@@ -191,7 +220,7 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
     // Runs every tick regardless of the marker above — see retryFailedChart's
     // own comment for why a chart failure otherwise only got one attempt per
     // day even across the scheduler's hourly retry window.
-    for (const app of cfg.apps) {
+    for (const app of dueApps) {
       try {
         if (await retryFailedChart(app, userId)) lines.push(`  [${label}] ${app.key}: chart retry succeeded.`);
       } catch { /* best-effort */ }
@@ -205,7 +234,7 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
     // (an earlier version capped each app at 60s/day) meant a big list
     // could never finish within the day it started — the snapshot resets
     // at midnight, so it permanently showed "not checked yet".
-    for (const app of cfg.apps) {
+    for (const app of dueApps) {
       if (!(app.coverageKeywords || []).length) continue;
       const remaining = deadline - Date.now();
       if (remaining <= 0) {

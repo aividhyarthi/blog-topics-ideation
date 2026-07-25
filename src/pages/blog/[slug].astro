@@ -10,6 +10,7 @@ import AdSenseScript from '../../components/AdSenseScript.astro';
 import BlogSidebar from '../../components/BlogSidebar.astro';
 import InlineTrialBanner from '../../components/InlineTrialBanner.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
+import BlogTopNav from '../../components/BlogTopNav.astro';
 
 export async function getStaticPaths() {
   const posts = await getCollection('blog');
@@ -146,14 +147,7 @@ const breadcrumbJsonLd = {
     </style>
   </head>
   <body>
-    <header class="top">
-      <a class="logo" href="/"><span class="mark">▲</span>{BRAND}<span class="betatag">Beta 1.0</span></a>
-      <div class="navlinks">
-        <a class="plain" href="/blog">Blog</a>
-        <a class="plain" href="/about">About</a>
-        <a class="btn" href="/signup">Start free trial</a>
-      </div>
-    </header>
+    <BlogTopNav active="blog" />
     <main>
       <div class="wrap layout">
         <div>

@@ -7,7 +7,7 @@
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey, universeSizeSeries, keywordDifficulties } from '../../lib/rank/track';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, ConfigReadError } from '../../lib/rank/store';
 import { analyzeReviewThemes } from '../../lib/rank/themes';
 import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/rank/check';
@@ -157,22 +157,28 @@ function statePayload(userId?: string) {
   const asoCache = loadAsoCache(userId);
   const ratingHistory = loadRatingHistory(userId);
   const reviewThemes = loadReviewThemes(userId);
+  // Every keyword-scoped view reads from ONE merged series (see
+  // mergeSnapshotSets) rather than only the daily or only the coverage
+  // snapshots — a keyword in both lists otherwise showed a real rank in one
+  // tab and "not checked" in the other purely depending on which check last
+  // touched it.
+  const merged = mergeSnapshotSets(covSnapshots, snapshots);
   return {
     apps: cfg.apps.map((app) => {
-      const overview = overviewSeries(app, snapshots);
+      const overview = overviewSeries(app, merged);
       const today = overview.length ? overview[overview.length - 1] : null;
       const prev = overview.length > 1 ? overview[overview.length - 2] : null;
       // A wider (unrendered) window so a ±14-day before/after impact read is
       // possible even for an annotation near the edge of the 30-day chart.
-      const widerOverview = overviewSeries(app, snapshots, 60);
+      const widerOverview = overviewSeries(app, merged, 60);
       const covKeywords = app.coverageKeywords || [];
-      const covOverview = covKeywords.length ? overviewSeries(app, covSnapshots, 60, covKeywords) : [];
+      const covOverview = covKeywords.length ? overviewSeries(app, merged, 60, covKeywords) : [];
       const covToday = covOverview.length ? covOverview[covOverview.length - 1] : null;
       const covPrev = covOverview.length > 1 ? covOverview[covOverview.length - 2] : null;
       return {
         ...app,
         annotations: (app.annotations || []).map((a) => ({ ...a, impact: annotationImpact(widerOverview, a.date) })),
-        trends: keywordTrends(app, snapshots),
+        trends: keywordTrends(app, merged),
         chart: chartTrend(app, snapshots),
         overview: {
           days: overview,
@@ -198,14 +204,14 @@ function statePayload(userId?: string) {
         // from daily snapshots (checked every day, so the fresher signal
         // wins for keywords in both lists).
         difficulty: {
-          ...(covKeywords.length ? keywordDifficulties(app, covSnapshots, covKeywords) : {}),
-          ...keywordDifficulties(app, snapshots, app.keywords),
+          ...(covKeywords.length ? keywordDifficulties(app, merged, covKeywords) : {}),
+          ...keywordDifficulties(app, merged, app.keywords),
         },
         // Per-keyword rows for the FULL coverage universe (not just the
         // plan-limited daily-tracked subset) — lets the owner see where every
         // keyword they care about ranks, sorted by volume, regardless of
         // whether it made the cut into the daily-tracked list.
-        coverageTrends: covKeywords.length ? keywordTrends(app, covSnapshots, 60, covKeywords) : [],
+        coverageTrends: covKeywords.length ? keywordTrends(app, merged, 60, covKeywords) : [],
         asoCache: asoCache[app.key] || null,
         reviewThemes: reviewThemes[app.key] || null,
         ratingHistory: ratingHistory[app.key] || [],
@@ -337,6 +343,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // deleting and re-adding it. This link is what scopes an app into a
   // single primary app's Compare tab instead of showing up for every app
   // in the account (see comparableApps on the client).
+  if (action === 'set-check-window') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    const raw = String(body.window || '').trim();
+    if (!raw) {
+      delete app.checkWindow;
+    } else {
+      const m = /^(\d{1,2})-(\d{1,2})$/.exec(raw);
+      if (!m) return json({ error: 'Invalid window — expected "startHour-endHour", e.g. "0-4".' }, 400);
+      const startHour = Number(m[1]), endHour = Number(m[2]);
+      if (startHour > 23 || endHour > 24) return json({ error: 'Hours must be 0-23 (end may be 24).' }, 400);
+      app.checkWindow = { startHour, endHour };
+    }
+    saveConfig(cfg, userId);
+    return json({ ok: true, ...statePayload(userId) });
+  }
+
   if (action === 'set-competitor-of') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);

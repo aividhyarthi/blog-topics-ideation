@@ -121,8 +121,14 @@ eq('visibility monotone', visibilityScore([1]) > visibilityScore([10]) && visibi
 
 const ov = overviewSeries(app, snaps);
 eq('overview day count', ov.length, 3);
-eq('overview last day buckets (27→11-30, null, null unranked)', ov[2].buckets, [0, 0, 0, 1, 0, 0, 2]);
-eq('overview tracked', ov[2].tracked, 3);
+// alpha=27 -> the 11-30 bucket; beta was searched and genuinely not found ->
+// Unranked. gamma is in the keyword list but has no row in any snapshot (never
+// searched), so it is NOT claimed as "Unranked" — that would assert a negative
+// result the check never established. It's reported as `unchecked` instead.
+eq('overview last day buckets (27→11-30, beta unranked, gamma excluded)', ov[2].buckets, [0, 0, 0, 1, 0, 0, 1]);
+eq('overview tracked counts only keywords with a real result', ov[2].tracked, 2);
+eq('overview reports the never-searched keyword separately', ov[2].unchecked, 1);
+eq('overview has no failed checks in this fixture', ov[2].failed, 0);
 eq('overview visibility > 0', ov[2].visibility > 0 && ov[2].visibility < 100, true);
 
 // overview with an explicit keyword list (the coverage-list overview reuses
@@ -294,6 +300,59 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
     iso(nextRunAt(new Date('2026-07-18T06:30:00.000Z'))), '2026-07-18T18:30:00.000Z');
   eq('just after the window ends: next run is tonight\'s window start',
     iso(nextRunAt(new Date('2026-07-18T07:00:00.000Z'))), '2026-07-18T18:30:00.000Z');
+}
+
+
+// --- check windows: staggering apps so they don't all hit the store at once ---
+{
+  const { isWithinCheckWindow, mergeSnapshotSets, overviewSeries } = await import('../src/lib/rank/track');
+  const mk = (w?: { startHour: number; endHour: number }) =>
+    ({ key: 'play:x:in', store: 'play', appId: 'x', country: 'in', lang: 'en', title: 'X',
+       developer: null, icon: null, url: null, genreId: null, keywords: ['a'], addedAt: '', checkWindow: w }) as any;
+  // 2026-07-22 is a Wednesday. IST = UTC+5:30.
+  const wedUtc = (h: number, m = 0) => new Date(Date.UTC(2026, 6, 22, h, m)); // hour is UTC
+  // 00:30 IST == 19:00 UTC on the previous day.
+  const istWed = (istHour: number) => new Date(Date.UTC(2026, 6, 21, 18, 30) + istHour * 3600 * 1000);
+  eq('no window set -> always allowed', isWithinCheckWindow(mk(), istWed(9)), true);
+  eq('inside 0-4 window at 1am IST', isWithinCheckWindow(mk({ startHour: 0, endHour: 4 }), istWed(1)), true);
+  eq('outside 0-4 window at 5am IST', isWithinCheckWindow(mk({ startHour: 0, endHour: 4 }), istWed(5)), false);
+  eq('inside 4-8 window at 5am IST', isWithinCheckWindow(mk({ startHour: 4, endHour: 8 }), istWed(5)), true);
+  eq('window boundary is exclusive at the end', isWithinCheckWindow(mk({ startHour: 0, endHour: 4 }), istWed(4)), false);
+  // 2026-07-25 is a Saturday -> windows ignored entirely.
+  const istSat = (istHour: number) => new Date(Date.UTC(2026, 6, 24, 18, 30) + istHour * 3600 * 1000);
+  eq('weekend ignores the window', isWithinCheckWindow(mk({ startHour: 0, endHour: 4 }), istSat(15)), true);
+  // A window that wraps past midnight.
+  eq('wrapping window 22-2 includes 23:00', isWithinCheckWindow(mk({ startHour: 22, endHour: 2 }), istWed(23)), true);
+  eq('wrapping window 22-2 excludes 12:00', isWithinCheckWindow(mk({ startHour: 22, endHour: 2 }), istWed(12)), false);
+
+  // --- merged snapshots: a keyword checked by EITHER run must show its rank ---
+  const app = { key: 'play:x:in', keywords: ['shared', 'dailyonly'] } as any;
+  const daily = [{ dateKey: '2026-07-22', checkedAt: 'T2', apps: [
+    { key: 'play:x:in', store: 'play', appId: 'x', country: 'in', topChart: null, score: null, ratings: null,
+      keywords: [{ keyword: 'shared', position: 7, depth: 200, top: [] }] } ] }] as any;
+  const coverage = [{ dateKey: '2026-07-22', checkedAt: 'T1', apps: [
+    { key: 'play:x:in', store: 'play', appId: 'x', country: 'in', topChart: null, score: null, ratings: null,
+      keywords: [{ keyword: 'shared', position: null, depth: 200, top: [], error: 'rate limited' },
+                 { keyword: 'covonly', position: 33, depth: 200, top: [] }] } ] }] as any;
+  const merged = mergeSnapshotSets(coverage, daily);
+  const kws = merged[0].apps[0].keywords;
+  const find = (k: string) => kws.find((x: any) => x.keyword === k);
+  eq('merged: daily rank wins over coverage error', find('shared').position, 7);
+  eq('merged: daily result clears the error', find('shared').error, undefined);
+  eq('merged: coverage-only keyword survives', find('covonly').position, 33);
+  eq('merged: one row per keyword', kws.length, 2);
+
+  // --- errored/unchecked keywords must not be counted as "Unranked" ---
+  const errApp = { key: 'play:x:in', keywords: ['shared', 'broken', 'never'] } as any;
+  const errSnaps = [{ dateKey: '2026-07-22', checkedAt: 'T', apps: [
+    { key: 'play:x:in', store: 'play', appId: 'x', country: 'in', topChart: null, score: null, ratings: null,
+      keywords: [{ keyword: 'shared', position: 5, depth: 200, top: [] },
+                 { keyword: 'broken', position: null, depth: 200, top: [], error: 'boom' }] } ] }] as any;
+  const ov = overviewSeries(errApp, errSnaps, 30, errApp.keywords)[0];
+  eq('overview counts the failed check separately', ov.failed, 1);
+  eq('overview counts the never-searched keyword separately', ov.unchecked, 1);
+  eq('overview does not bucket them as Unranked', ov.buckets[ov.buckets.length - 1], 0);
+  eq('overview visibility ignores failed/unchecked', ov.tracked, 1);
 }
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }

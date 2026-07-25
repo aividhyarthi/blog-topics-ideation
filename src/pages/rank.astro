@@ -350,6 +350,7 @@ const limitsText = product && plan
             <nav class="top">
               <a href="/rank" class="active">Rank Tracker</a>
               <a href="/aso">ASO Inspector</a>
+              <a href="/blog">Blog</a>
               <div class="usermenu">
                 <button type="button" class="usertrigger" id="usertrigger">{user?.email} <span class="caret">▾</span></button>
                 <div class="userdropdown" id="userdropdown">
@@ -1071,8 +1072,23 @@ ai photo enhancer"></textarea>
             ${tileHtml('Top 30 rankings', c.top30, p && p.top30)}
             ${tileHtml('Top 100 rankings', c.top100, p && p.top100)}
           </div>
-          <div class="chartbox" style="margin-top:12px;"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div></div>
+          <div class="chartbox" style="margin-top:12px;"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>
         </div>`;
+      }
+
+      // Keywords excluded from today's bars because their check failed or
+      // they weren't searched at all. They used to be silently counted as
+      // "Unranked", which both inflated that bar and dragged the visibility
+      // score down — making a throttled store look identical to a real
+      // ranking loss. Now they're excluded and stated explicitly instead.
+      function coverageNote(days) {
+        const today = days && days.length ? days[days.length - 1] : null;
+        if (!today) return '';
+        const bits = [];
+        if (today.failed) bits.push(`<b>${today.failed}</b> keyword${today.failed === 1 ? '' : 's'} failed to check`);
+        if (today.unchecked) bits.push(`<b>${today.unchecked}</b> not searched yet`);
+        if (!bits.length) return '';
+        return `<p class="hint" style="margin-top:6px;">${bits.join(' · ')} — excluded from the bars and the visibility score above rather than counted as "Unranked", since neither is a confirmed result. Retried on the next check.</p>`;
       }
 
       function trendChartsHtml(app) {
@@ -1103,9 +1119,22 @@ ai photo enhancer"></textarea>
         const chartErrHtml = app.chart && app.chart.error
           ? `<div class="alert info" style="display:block;">⚠︎ The category chart check has been failing (${esc(app.chart.error)}) — this is <b>not</b> a confirmed "not ranking", just a store fetch that keeps failing. Retried automatically on the next check.</div>`
           : '';
+        // The store's chart endpoint often returns far fewer entries than the
+        // 200 we ask for. "Not in the top of X" then overstates what was
+        // actually verified — if only 50 rows came back, an app sitting at
+        // #90 is reported as absent from a chart it's genuinely in. State
+        // the real depth, and flag it when it's well short of the request.
+        const depth = app.chart && app.chart.depth;
+        const shortChart = depth != null && depth < 150;
+        const depthNote = shortChart
+          ? `<p class="hint" style="margin-top:4px;">⚠︎ The store only returned <b>${depth}</b> chart entries for this request (we ask for 200). An app ranked below #${depth} in this category can't be detected from that response — so this is "not in the top ${depth}", not "not in the category chart".</p>`
+          : '';
+        const notRankedText = chartName
+          ? `Not in the top ${depth || '?'} of ${esc(chartName)}.`
+          : 'Not ranked in a top chart yet.';
         const catChartBox = isChartRanking
-          ? `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}${overallNote}</div>`
-          : `<div class="chartbox"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : (chartName ? `Not in the top of ${esc(chartName)} yet.` : 'Not ranked in a top chart yet.')}</p>${overallNote}</div>`;
+          ? `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}${overallNote}${depthNote}</div>`
+          : `<div class="chartbox"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : notRankedText}</p>${overallNote}${depthNote}</div>`;
         return `<div class="charts">
           ${catChartBox}
           <div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}</div>
@@ -1148,11 +1177,12 @@ ai photo enhancer"></textarea>
         // Same distinction as the Trends tab: a missing chart position can
         // mean "checked, genuinely not in it" OR "the chart fetch has been
         // failing" — those used to look identical (see track.ts's chartTrend).
+        const chartDepth = app.chart && app.chart.depth;
         const chartSub = app.chart && app.chart.position != null
           ? `in ${esc(chartName)}${chartDelta}`
           : app.chart && app.chart.error
             ? `chart check failing — not a confirmed miss, retrying`
-            : `not in the top of ${esc(chartName)} yet`;
+            : `not in the top ${chartDepth || '?'} of ${esc(chartName)}`;
 
         const rh = app.ratingHistory || [];
         const latestRating = rh.length ? rh[rh.length - 1] : null;
@@ -1919,6 +1949,22 @@ ai photo enhancer"></textarea>
             <button class="ghost" data-act="estimate-volumes">Estimate missing volumes</button>
           </div>
           <div class="settings-block no-print">
+            <h4>Daily check window <span class="hint" style="display:inline;">— IST</span></h4>
+            <p class="hint" style="margin:0 0 8px;">Stagger your apps into separate slots so they don't all hit the stores at once — simultaneous bursts are the main cause of rate-limited checks that come back as "failed" or unchecked keywords. Weekends ignore this and use the whole day, so large keyword lists can catch up.</p>
+            <select data-role="window-select">
+              <option value="" ${!app.checkWindow ? 'selected' : ''}>Any time (no stagger)</option>
+              ${[[0, 4], [4, 8], [8, 12], [12, 16], [16, 20], [20, 24]].map(([s, e]) => {
+                const val = `${s}-${e}`;
+                const sel = app.checkWindow && app.checkWindow.startHour === s && app.checkWindow.endHour === e;
+                const lbl = (h) => h === 0 ? '12am' : h === 12 ? '12pm' : h === 24 ? '12am' : h < 12 ? `${h}am` : `${h - 12}pm`;
+                return `<option value="${val}" ${sel ? 'selected' : ''}>${lbl(s)} – ${lbl(e)}</option>`;
+              }).join('')}
+            </select>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-window">Save check window</button>
+            </div>
+          </div>
+          <div class="settings-block no-print">
             <h4>Competitor relationship</h4>
             <p class="hint" style="margin:0 0 8px;">If this app is a rival you're tracking rather than your own, pick which of your apps it's a competitor for — that's what scopes it into that app's Compare tab instead of showing up everywhere.</p>
             <select data-role="competitor-of-select">
@@ -2329,6 +2375,15 @@ ai photo enhancer"></textarea>
           withBusy(btn, 'Reading recent reviews… ~30s', async () => {
             const data = await api({ action: 'review-themes', key });
             showToast('Review analysis done');
+            return data;
+          });
+          return;
+        }
+        if (act === 'save-window') {
+          withBusy(btn, 'Saving…', async () => {
+            const val = card.querySelector('[data-role="window-select"]').value;
+            const data = await api({ action: 'set-check-window', key, window: val });
+            showToast(val ? 'Check window saved' : 'Stagger removed — checks any time');
             return data;
           });
           return;

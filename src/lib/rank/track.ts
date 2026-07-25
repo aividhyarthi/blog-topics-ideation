@@ -22,6 +22,39 @@ export function keywordRank(appId: string, keyword: string, results: SearchHit[]
 
 export const todayKey = (d = new Date()) => d.toISOString().slice(0, 10);
 
+/** IST is UTC+5:30 and has no DST, so a fixed offset is exact here. */
+const IST_OFFSET_MS = 5.5 * 3600 * 1000;
+export const istParts = (now: Date) => {
+  const ist = new Date(now.getTime() + IST_OFFSET_MS);
+  return { hour: ist.getUTCHours(), day: ist.getUTCDay() }; // day: 0=Sun, 6=Sat
+};
+
+/**
+ * Is this app allowed to be checked right now?
+ *
+ * Apps are staggered into separate IST hour windows (see TrackedApp.checkWindow)
+ * so a portfolio doesn't fire every keyword search at the store simultaneously
+ * — concurrent bursts are what trigger the rate-limiting that surfaces the next
+ * morning as "most keyword rankings not checked or failed".
+ *
+ * Two deliberate escape hatches:
+ *  - No window set → always allowed (unchanged behaviour for existing apps).
+ *  - Weekends → all windows ignored, so a list too big to finish inside a
+ *    4-hour weekday slot can use the whole day to catch up.
+ *
+ * A window may wrap past midnight (e.g. 22→2), handled below.
+ */
+export function isWithinCheckWindow(app: TrackedApp, now = new Date()): boolean {
+  const w = app.checkWindow;
+  if (!w) return true;
+  const { hour, day } = istParts(now);
+  if (day === 0 || day === 6) return true; // weekend: no staggering needed
+  if (w.startHour === w.endHour) return true; // degenerate/full-day window
+  return w.startHour < w.endHour
+    ? hour >= w.startHour && hour < w.endHour
+    : hour >= w.startHour || hour < w.endHour; // wraps past midnight
+}
+
 /**
  * Trend rows for one app: latest snapshot vs the previous one, with best-ever
  * position and a compact oldest→newest history for sparklines.
@@ -64,7 +97,7 @@ export function keywordTrends(app: TrackedApp, snapshots: RankSnapshot[], histor
 
 /** Chart position trend (same shape logic as keywords, for the top-chart row). */
 export function chartTrend(app: TrackedApp, snapshots: RankSnapshot[], historyDays = 30): {
-  chart: string | null; position: number | null; delta: number | null; history: (number | null)[]; dateKeys: string[]; error?: string;
+  chart: string | null; position: number | null; delta: number | null; history: (number | null)[]; dateKeys: string[]; error?: string; depth: number | null;
 } {
   const perSnap = snapshots.map((s) => s.apps.find((a) => a.key === app.key) || null);
   const latest = perSnap.length ? perSnap[perSnap.length - 1] : null;
@@ -73,6 +106,13 @@ export function chartTrend(app: TrackedApp, snapshots: RankSnapshot[], historyDa
   const before = prev?.topChart?.position ?? null;
   return {
     chart: latest?.topChart?.chart ?? null,
+    // How many chart entries were ACTUALLY compared against. The store's
+    // chart endpoint routinely returns far fewer rows than requested, so
+    // "not in the chart" can really mean "not in the top 50" while the UI
+    // implies the full 200 was checked — a materially different claim, and
+    // the difference between "we're not ranking" and "we didn't look far
+    // enough". Surfaced so the UI can state the real number it verified.
+    depth: latest?.topChart?.depth ?? null,
     position: cur,
     delta: cur != null && before != null ? before - cur : null,
     history: perSnap.slice(-historyDays).map((r) => r?.topChart?.position ?? null),
@@ -148,6 +188,65 @@ export interface OverviewDay {
   buckets: number[];
   visibility: number;
   tracked: number;
+  /** Keywords whose check FAILED that day (store error), and keywords that
+   * weren't searched at all. Neither is counted in `buckets`/`visibility` —
+   * see the note in the function body for why that matters. */
+  failed: number;
+  unchecked: number;
+}
+
+/**
+ * Merges the daily-tracked and coverage snapshot series into one series per
+ * day, so a keyword's result is visible no matter WHICH of the two checks
+ * happened to produce it.
+ *
+ * The two lists overlap: a keyword can sit in both `keywords` (checked every
+ * day) and `coverageKeywords` (checked in time-bounded batches that may not
+ * reach it for days). Reading only the coverage snapshots — which is what
+ * every coverage-scoped view used to do — therefore showed a keyword as
+ * unranked/not-checked even when that same keyword had a real, fresh
+ * position sitting in the same day's DAILY snapshot. That's the "same
+ * keyword ranks in one tab and not the other" bug: not a checking failure,
+ * a reading failure.
+ *
+ * Daily wins on conflict (it's re-checked every day, so it's the fresher
+ * signal), matching the precedence already used for `difficulty`.
+ */
+export function mergeSnapshotSets(coverage: RankSnapshot[], daily: RankSnapshot[]): RankSnapshot[] {
+  const byDate = new Map<string, RankSnapshot>();
+  // Coverage first so daily overwrites it on conflict.
+  for (const source of [coverage, daily]) {
+    for (const snap of source) {
+      const existing = byDate.get(snap.dateKey);
+      if (!existing) {
+        byDate.set(snap.dateKey, {
+          dateKey: snap.dateKey,
+          checkedAt: snap.checkedAt,
+          apps: snap.apps.map((a) => ({ ...a, keywords: [...a.keywords] })),
+        });
+        continue;
+      }
+      if (snap.checkedAt > existing.checkedAt) existing.checkedAt = snap.checkedAt;
+      for (const app of snap.apps) {
+        const target = existing.apps.find((a) => a.key === app.key);
+        if (!target) { existing.apps.push({ ...app, keywords: [...app.keywords] }); continue; }
+        const merged = new Map(target.keywords.map((k) => [k.keyword, k]));
+        for (const kw of app.keywords) {
+          // Never let an errored row overwrite a good one from the other
+          // series — a failed check is exactly the case the other series
+          // might have a real answer for.
+          const prev = merged.get(kw.keyword);
+          if (prev && kw.error && !prev.error) continue;
+          merged.set(kw.keyword, kw);
+        }
+        target.keywords = [...merged.values()];
+        if (app.topChart) target.topChart = app.topChart;
+        if (app.score != null) target.score = app.score;
+        if (app.ratings != null) target.ratings = app.ratings;
+      }
+    }
+  }
+  return [...byDate.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
 }
 
 /** Per-day distribution + visibility series for one app (snapshots oldest→newest).
@@ -158,13 +257,26 @@ export function overviewSeries(app: TrackedApp, snapshots: RankSnapshot[], days 
     const r = s.apps.find((a) => a.key === app.key) || null;
     // Only days on which this app was actually checked produce a bar.
     if (!r) return null;
-    const positions = keywordList.map((kw) => r.keywords.find((k) => k.keyword === kw)?.position ?? null);
+    const rows = keywordList.map((kw) => r.keywords.find((k) => k.keyword === kw) || null);
+    // A keyword whose check ERRORED (store rate-limit/block) has no position,
+    // and a keyword that was never searched that day has no row at all —
+    // counting either as "Unranked" states a confirmed negative the check
+    // never actually established. It also silently drags the visibility
+    // score down, so a day the store throttled us looks identical to a day
+    // the app genuinely lost rankings. Both are excluded from the buckets
+    // and the score, and reported separately so the UI can say so.
+    const failed = rows.filter((k) => k && k.error).length;
+    const unchecked = rows.filter((k) => !k).length;
+    const positions = rows.filter((k) => k && !k.error).map((k) => k!.position ?? null);
     const buckets = new Array(RANK_BUCKETS.length + 1).fill(0);
     for (const p of positions) {
       const i = bucketIndex(p);
       buckets[i === -1 ? RANK_BUCKETS.length : i]++;
     }
-    return { dateKey: s.dateKey, buckets, visibility: visibilityScore(positions), tracked: positions.length };
+    return {
+      dateKey: s.dateKey, buckets, visibility: visibilityScore(positions),
+      tracked: positions.length, failed, unchecked,
+    };
   }).filter((d): d is OverviewDay => d !== null);
 }
 
