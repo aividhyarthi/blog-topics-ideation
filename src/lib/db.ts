@@ -66,6 +66,14 @@ function ensureSchema(): Promise<void> {
         -- to existing rows too). No unsubscribe UI yet — add one before sending
         -- real newsletters so this stays compliant.
         ALTER TABLE users ADD COLUMN IF NOT EXISTS newsletter_opt_in BOOLEAN NOT NULL DEFAULT true;
+        -- One free trial check per account (lifetime, not monthly) + a balance
+        -- of purchased one-time check credits that never expire.
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS free_check_used BOOLEAN NOT NULL DEFAULT false;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS credits INTEGER NOT NULL DEFAULT 0;
+        -- A payment claim is either a monthly-plan payment or a one-time credit
+        -- pack purchase; 'credits' records how many checks to grant on approval.
+        ALTER TABLE payment_claims ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'subscription';
+        ALTER TABLE payment_claims ADD COLUMN IF NOT EXISTS credits INTEGER;
 
         -- Every URL check (LLM Access Check or full audit), used to enforce the
         -- monthly plan limit — independent of whether a full report gets saved.

@@ -3,7 +3,7 @@ import { analyzeHtml, crawlabilitySignals, buildVisibility, PAGE_TYPE_LABEL } fr
 import { accessGroups, renderInfo } from '../../lib/access';
 import { extractContent } from '../../lib/extract';
 import { getUser } from '../../lib/auth';
-import { usageStatus, recordUsage } from '../../lib/billing';
+import { consumeAccess } from '../../lib/billing';
 import { dbEnabled } from '../../lib/db';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
@@ -56,17 +56,16 @@ export const POST: APIRoute = async (ctx) => {
   if (dbEnabled && !gateUser) {
     return json({ error: 'Create a free account to run a check — it takes 10 seconds.', requireAuth: true }, 401);
   }
-  if (gateUser) {
-    try {
-      const status = await usageStatus(gateUser.id);
-      if (!status.allowed) {
-        return json({ error: `You've used all ${status.limit} ${status.plan === 'pro' ? 'Pro' : 'free'} checks this month.${status.plan === 'pro' ? '' : ' Upgrade to CiteRank Pro ($99/mo, 500 checks) to continue.'}`, upgrade: status.plan !== 'pro' }, 402);
-      }
-    } catch { /* if usage lookup fails, don't block the request */ }
-  }
 
   const inputUrl = (body.url || '').trim();
   const pasted = (body.html || '').trim();
+
+  // Only a real, live URL fetch is a billable check — pasted HTML (no live
+  // fetch, no server bandwidth) stays free to re-check as many times as needed.
+  if (gateUser && inputUrl) {
+    const access = await consumeAccess(gateUser.id, 'access');
+    if (!access.allowed) return json({ error: access.message, upgrade: true }, 402);
+  }
 
   // ---- Pasted HTML: single-view audit (no live UA/robots context) ----
   if (!inputUrl && pasted) {
@@ -181,10 +180,6 @@ export const POST: APIRoute = async (ctx) => {
 
   let fetchNote: string | undefined;
   if (factsM.wordCount < 120 && factsD.wordCount < 120) fetchNote = 'Both fetches returned very little text — the page is likely JavaScript-rendered (content loads client-side).';
-
-  // Only a real, live URL fetch counts against the monthly limit — pasted HTML
-  // (no live fetch) is free to re-check as many times as needed.
-  if (gateUser) recordUsage(gateUser.id, 'access').catch(() => {});
 
   return json({
     mode: 'url', url: inputUrl, host,

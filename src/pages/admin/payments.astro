@@ -26,7 +26,7 @@ import Site from '../../layouts/Site.astro';
       $('claims').innerHTML = `<div class="ctable">${list.map((c) => `
         <div class="crow" data-id="${c.id}">
           <div class="crow-main">
-            <div class="crow-top"><b>${esc(c.email)}</b><span class="st ${STCLS[c.status] || ''}">${esc(c.status)}</span></div>
+            <div class="crow-top"><b>${esc(c.email)}</b><span class="kind">${c.kind === 'credits' ? `${c.credits || 1} check pack` : 'Monthly Pro'}</span><span class="st ${STCLS[c.status] || ''}">${esc(c.status)}</span></div>
             <div class="crow-sub">UTR: <code>${esc(c.utr)}</code>${c.amount ? ` · ${esc(c.amount)}` : ''} · ${new Date(c.createdAt).toLocaleString()}</div>
             ${c.note ? `<div class="crow-note">${esc(c.note)}</div>` : ''}
           </div>
@@ -68,6 +68,7 @@ import Site from '../../layouts/Site.astro';
     .st-pend { background: var(--warn-bg); color: var(--warn); }
     .st-ok { background: var(--ok-bg); color: var(--ok); }
     .st-bad { background: var(--bad-bg); color: var(--bad); }
+    .kind { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--pink); }
     .crow-sub { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
     .crow-sub code { background: #f1f5f9; padding: 1px 6px; border-radius: 5px; }
     .crow-note { font-size: 12.5px; color: var(--ink-2); margin-top: 6px; font-style: italic; }

@@ -1,16 +1,37 @@
 // Plan + usage enforcement, and the manual UPI payment-claim workflow (the
 // stopgap before Razorpay subscriptions: Stripe can't do recurring billing for
 // Indian businesses, so for now customers pay via UPI and an admin approves).
+//
+// Access model (in the order a check is charged against):
+//   1. Active Pro subscription — 500 checks/month, $99/mo.
+//   2. One free trial check — lifetime, once per account.
+//   3. Purchased one-time credits — never expire, bought in packs.
+// A check is BLOCKED only once all three are exhausted.
 
 import { query } from './db';
 import type { User } from './auth';
 
-export const PLAN_LIMITS: Record<'free' | 'pro', number> = { free: 5, pro: 500 };
+export const PLAN_LIMITS: Record<'free' | 'pro', number> = { free: 0, pro: 500 };
 export const PRO_PRICE_USD = 99;
 
-export interface UsageStatus { plan: 'free' | 'pro'; limit: number; used: number; remaining: number; allowed: boolean; expiresAt: string | null }
+// One-time check packs — pay-per-URL for casual/low-volume users. Priced well
+// above the subscription's per-check cost (₹8299/500 ≈ ₹17) on purpose: packs
+// trade a higher per-unit price for zero commitment; the subscription rewards
+// volume. Prices are in INR (UPI-only for now).
+export interface CreditPack { id: string; checks: number; priceInr: number; label: string }
+export const CREDIT_PACKS: CreditPack[] = [
+  { id: 'single', checks: 1, priceInr: 149, label: '1 check' },
+  { id: 'starter', checks: 5, priceInr: 599, label: '5 checks' },
+  { id: 'growth', checks: 20, priceInr: 1999, label: '20 checks' },
+];
 
-// A user is effectively "pro" only while plan='pro' AND not expired.
+export interface UsageStatus {
+  plan: 'free' | 'pro'; expiresAt: string | null;
+  planLimit: number; planUsed: number;
+  freeCheckAvailable: boolean; credits: number;
+  allowed: boolean; // can this account run ONE more check right now
+}
+
 async function effectivePlan(userId: string): Promise<{ plan: 'free' | 'pro'; expiresAt: string | null }> {
   const { rows } = await query<{ plan: string; plan_expires_at: string | null }>(
     'SELECT plan, plan_expires_at FROM users WHERE id = $1', [userId],
@@ -20,15 +41,59 @@ async function effectivePlan(userId: string): Promise<{ plan: 'free' | 'pro'; ex
   return { plan: active ? 'pro' : 'free', expiresAt: row?.plan_expires_at ?? null };
 }
 
+// Read-only status for the dashboard / pricing UI — does NOT consume anything.
 export async function usageStatus(userId: string): Promise<UsageStatus> {
   const { plan, expiresAt } = await effectivePlan(userId);
-  const limit = PLAN_LIMITS[plan];
-  const { rows } = await query<{ n: string }>(
-    `SELECT COUNT(*)::int AS n FROM usage_events WHERE user_id = $1 AND created_at >= date_trunc('month', now())`,
+  const planLimit = PLAN_LIMITS[plan];
+  const { rows } = await query<{ n: string; free_check_used: boolean; credits: number }>(
+    `SELECT (SELECT COUNT(*)::int FROM usage_events WHERE user_id = $1 AND created_at >= date_trunc('month', now())) AS n,
+            u.free_check_used, u.credits
+     FROM users u WHERE u.id = $1`,
     [userId],
   );
-  const used = Number(rows[0]?.n ?? 0);
-  return { plan, limit, used, remaining: Math.max(0, limit - used), allowed: used < limit, expiresAt };
+  const planUsed = Number(rows[0]?.n ?? 0);
+  const freeCheckAvailable = !rows[0]?.free_check_used;
+  const credits = Number(rows[0]?.credits ?? 0);
+  const allowed = (plan === 'pro' && planUsed < planLimit) || freeCheckAvailable || credits > 0;
+  return { plan, expiresAt, planLimit, planUsed, freeCheckAvailable, credits, allowed };
+}
+
+export interface ConsumeResult { allowed: boolean; via?: 'plan' | 'free' | 'credit'; creditsLeft?: number; message?: string }
+
+// Atomically check AND spend one unit of access, in priority order
+// (plan -> free trial -> credits). Called BEFORE doing the actual check, so a
+// unit is spent on the attempt (standard metered-API behaviour) — this also
+// records the usage event used for the dashboard/monthly plan counting.
+export async function consumeAccess(userId: string, tool: string): Promise<ConsumeResult> {
+  const { plan, planLimit } = await effectivePlan(userId);
+  if (plan === 'pro') {
+    const { rows } = await query<{ n: string }>(
+      `SELECT COUNT(*)::int AS n FROM usage_events WHERE user_id = $1 AND created_at >= date_trunc('month', now())`, [userId],
+    );
+    if (Number(rows[0]?.n ?? 0) < planLimit) {
+      await recordUsage(userId, tool);
+      return { allowed: true, via: 'plan' };
+    }
+  }
+  // Free trial: one lifetime check, claimed atomically so concurrent requests
+  // can't both grab it.
+  const { rows: freeRows } = await query<{ id: string }>(
+    `UPDATE users SET free_check_used = true WHERE id = $1 AND free_check_used = false RETURNING id`, [userId],
+  );
+  if (freeRows[0]) { await recordUsage(userId, tool); return { allowed: true, via: 'free' }; }
+
+  // Purchased credits, decremented atomically.
+  const { rows: creditRows } = await query<{ credits: number }>(
+    `UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits > 0 RETURNING credits`, [userId],
+  );
+  if (creditRows[0]) { await recordUsage(userId, tool); return { allowed: true, via: 'credit', creditsLeft: creditRows[0].credits }; }
+
+  return {
+    allowed: false,
+    message: plan === 'pro'
+      ? `You've used all ${planLimit} Pro checks this month.`
+      : `You've used your free check and have no credits left. Buy a check pack or subscribe to Pro to continue.`,
+  };
 }
 
 export async function recordUsage(userId: string, tool: string): Promise<void> {
@@ -42,32 +107,42 @@ export function isAdmin(user: User | null): boolean {
 }
 
 // ---- UPI payment claims ----
-export interface PaymentClaim { id: string; email: string; utr: string; amount: string | null; note: string | null; status: string; createdAt: string; reviewedAt: string | null }
+export interface PaymentClaim {
+  id: string; email: string; utr: string; amount: string | null; note: string | null;
+  kind: 'subscription' | 'credits'; credits: number | null;
+  status: string; createdAt: string; reviewedAt: string | null;
+}
 
-export async function createClaim(email: string, utr: string, amount: string, note: string): Promise<void> {
-  await query('INSERT INTO payment_claims (email, utr, amount, note) VALUES ($1, $2, $3, $4)', [email, utr, amount || null, note || null]);
+export async function createClaim(email: string, utr: string, amount: string, note: string, kind: 'subscription' | 'credits', credits?: number): Promise<void> {
+  await query('INSERT INTO payment_claims (email, utr, amount, note, kind, credits) VALUES ($1, $2, $3, $4, $5, $6)', [email, utr, amount || null, note || null, kind, credits ?? null]);
 }
 
 export async function listClaims(limit = 50): Promise<PaymentClaim[]> {
   const { rows } = await query<any>('SELECT * FROM payment_claims ORDER BY created_at DESC LIMIT $1', [limit]);
-  return rows.map((r) => ({ id: String(r.id), email: r.email, utr: r.utr, amount: r.amount, note: r.note, status: r.status, createdAt: r.created_at, reviewedAt: r.reviewed_at }));
+  return rows.map((r) => ({ id: String(r.id), email: r.email, utr: r.utr, amount: r.amount, note: r.note, kind: r.kind, credits: r.credits, status: r.status, createdAt: r.created_at, reviewedAt: r.reviewed_at }));
 }
 
-// Approve: mark the claim approved and grant/extend 30 days of Pro on the
-// matching account. Renewing early stacks onto the remaining time.
+// Approve: mark the claim approved, then either extend 30 days of Pro
+// (subscription) or add the purchased checks to the account's credit balance.
 export async function approveClaim(id: string): Promise<{ ok: boolean; error?: string }> {
-  const { rows } = await query<{ email: string; status: string }>('SELECT email, status FROM payment_claims WHERE id = $1', [id]);
+  const { rows } = await query<{ email: string; status: string; kind: string; credits: number | null }>('SELECT email, status, kind, credits FROM payment_claims WHERE id = $1', [id]);
   const claim = rows[0];
   if (!claim) return { ok: false, error: 'Claim not found.' };
   if (claim.status !== 'pending') return { ok: false, error: `Claim already ${claim.status}.` };
   const { rows: userRows } = await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [claim.email.toLowerCase().trim()]);
   if (!userRows[0]) return { ok: false, error: `No CiteRank account found for ${claim.email}. Ask them to sign up with this email first.` };
-  await query(
-    `UPDATE users SET plan = 'pro',
-       plan_expires_at = (CASE WHEN plan_expires_at IS NOT NULL AND plan_expires_at > now() THEN plan_expires_at ELSE now() END) + interval '30 days'
-     WHERE id = $1`,
-    [userRows[0].id],
-  );
+
+  if (claim.kind === 'credits') {
+    const n = claim.credits && claim.credits > 0 ? claim.credits : 1;
+    await query('UPDATE users SET credits = credits + $2 WHERE id = $1', [userRows[0].id, n]);
+  } else {
+    await query(
+      `UPDATE users SET plan = 'pro',
+         plan_expires_at = (CASE WHEN plan_expires_at IS NOT NULL AND plan_expires_at > now() THEN plan_expires_at ELSE now() END) + interval '30 days'
+       WHERE id = $1`,
+      [userRows[0].id],
+    );
+  }
   await query(`UPDATE payment_claims SET status = 'approved', reviewed_at = now() WHERE id = $1`, [id]);
   return { ok: true };
 }

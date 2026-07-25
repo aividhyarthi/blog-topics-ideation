@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { analyzeHtml, crawlabilitySignals, buildVisibility } from '../../lib/aeo';
 import { accessGroups, renderInfo } from '../../lib/access';
+import { getUser } from '../../lib/auth';
+import { dbEnabled } from '../../lib/db';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
 
@@ -35,7 +37,13 @@ async function fetchAs(url: string, ua: string, timeoutMs: number): Promise<Fetc
 const wc = (html: string): number => { const t = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return t ? t.split(' ').length : 0; };
 
 // Run ONE crawler against the URL (on-demand, so the client can space them out).
-export const POST: APIRoute = async ({ request }) => {
+// Login required (no separate charge — this is a bonus deep-dive within a
+// page the account already ran the main check on).
+export const POST: APIRoute = async (ctx) => {
+  const { request } = ctx;
+  if (dbEnabled && !(await getUser(ctx))) {
+    return json({ error: 'Sign in to run per-crawler checks.', requireAuth: true }, 401);
+  }
   let body: { url?: string; bot?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
   const url = (body.url || '').trim();

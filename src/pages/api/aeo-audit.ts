@@ -7,7 +7,7 @@ import {
 } from '../../lib/aeo';
 import { getUser } from '../../lib/auth';
 import { saveAudit } from '../../lib/audits';
-import { usageStatus, recordUsage } from '../../lib/billing';
+import { consumeAccess } from '../../lib/billing';
 import { dbEnabled } from '../../lib/db';
 
 const json = (data: unknown, status = 200) =>
@@ -200,12 +200,8 @@ export const POST: APIRoute = async (ctx) => {
     return json({ error: 'Create a free account to run an audit — it takes 10 seconds.', requireAuth: true }, 401);
   }
   if (gateUser) {
-    try {
-      const status = await usageStatus(gateUser.id);
-      if (!status.allowed) {
-        return json({ error: `You've used all ${status.limit} ${status.plan === 'pro' ? 'Pro' : 'free'} checks this month.${status.plan === 'pro' ? '' : ' Upgrade to CiteRank Pro ($99/mo, 500 checks) to continue.'}`, upgrade: status.plan !== 'pro' }, 402);
-      }
-    } catch { /* if usage lookup fails, don't block the request */ }
+    const access = await consumeAccess(gateUser.id, 'audit');
+    if (!access.allowed) return json({ error: access.message, upgrade: true }, 402);
   }
 
   // AI-judged signals use OpenAI or Anthropic (whichever has a key + credits).
@@ -307,12 +303,11 @@ export const POST: APIRoute = async (ctx) => {
     fetchNote, aiError,
   };
 
-  // Save to the user's history + count against their monthly limit (best-effort
-  // — a logging/save failure never blocks the response).
+  // Save to the user's history (best-effort — a save failure never blocks the
+  // response; usage was already charged up front by consumeAccess above).
   let savedId: string | null = null;
   if (gateUser) {
     try { savedId = await saveAudit(gateUser.id, report, meta); } catch { /* ignore */ }
-    recordUsage(gateUser.id, 'audit').catch(() => {});
   }
 
   return json({ report, meta: { ...meta, savedId } });

@@ -10,10 +10,12 @@ if (!dbEnabled || !user) return Astro.redirect('/');
 
 const usage = await usageStatus(user.id).catch(() => null);
 const audits = await listAudits(user.id, 10).catch(() => []);
-const used = usage?.used ?? 0;
-const limit = usage?.limit ?? 5;
-const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
 const isPro = usage?.plan === 'pro';
+const planUsed = usage?.planUsed ?? 0;
+const planLimit = usage?.planLimit ?? 0;
+const pct = isPro && planLimit ? Math.min(100, Math.round((planUsed / planLimit) * 100)) : 0;
+const credits = usage?.credits ?? 0;
+const freeCheckAvailable = usage?.freeCheckAvailable ?? false;
 const expiresAt = usage?.expiresAt ? new Date(usage.expiresAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : null;
 
 function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75) return '#12855a'; if (s >= 45) return '#b7791f'; return '#d43a3a'; }
@@ -32,16 +34,27 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
         <div class="dcard planrow">
           <div>
             <div class={`plan-badge${isPro ? ' pro' : ''}`}>{isPro ? 'Pro' : 'Free'}</div>
-            <div class="plan-sub">{isPro ? `Renews / expires ${expiresAt}` : '5 checks per month, free'}</div>
+            <div class="plan-sub">{isPro ? `500 checks/month · renews ${expiresAt}` : 'Pay per URL, or subscribe for volume'}</div>
           </div>
-          {!isPro && <a href="/pricing" class="btn-primary">Upgrade to Pro — $99/mo</a>}
+          {!isPro && <a href="/pricing" class="btn-primary">See plans</a>}
         </div>
 
-        <div class="dcard">
-          <div class="usage-top"><b>Usage this month</b><span>{used} / {limit} checks</span></div>
-          <div class="usage-bar"><i style={`width:${pct}%; background:${pct >= 90 ? '#d43a3a' : pct >= 70 ? '#b7791f' : '#2563eb'}`}></i></div>
-          {pct >= 80 && !isPro && <div class="usage-warn">You’re close to your monthly limit. <a href="/pricing">Upgrade to Pro</a> for 500 checks/month.</div>}
-        </div>
+        {isPro ? (
+          <div class="dcard">
+            <div class="usage-top"><b>Usage this month</b><span>{planUsed} / {planLimit} checks</span></div>
+            <div class="usage-bar"><i style={`width:${pct}%; background:${pct >= 90 ? '#d43a3a' : pct >= 70 ? '#b7791f' : '#2563eb'}`}></i></div>
+            {pct >= 80 && <div class="usage-warn">You’re close to your monthly limit — it resets on your renewal date.</div>}
+          </div>
+        ) : (
+          <div class="dcard">
+            <div class="usage-top"><b>Checks available</b></div>
+            <div class="balance-row">
+              <div class="bal-item"><span class="bal-n">{freeCheckAvailable ? 1 : 0}</span><span class="bal-l">Free trial check</span></div>
+              <div class="bal-item"><span class="bal-n">{credits}</span><span class="bal-l">Purchased credits</span></div>
+            </div>
+            {!freeCheckAvailable && credits === 0 && <div class="usage-warn">You’re out of checks. <a href="/pricing">Buy a check pack or subscribe</a> to continue.</div>}
+          </div>
+        )}
 
         <div class="dcard">
           <div class="dcard-head"><b>Recent audits</b><a href="/audit">Run a new audit →</a></div>
@@ -101,6 +114,10 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
     .usage-bar { height: 9px; border-radius: 999px; background: #edeef4; overflow: hidden; }
     .usage-bar > i { display: block; height: 100%; border-radius: 999px; }
     .usage-warn { margin-top: 12px; font-size: 12.5px; color: var(--warn); background: var(--warn-bg); border: 1px solid #f0e2b8; border-radius: 9px; padding: 9px 11px; }
+    .balance-row { display: flex; gap: 24px; margin-top: 10px; }
+    .bal-item { display: flex; flex-direction: column; }
+    .bal-n { font-size: 28px; font-weight: 800; color: var(--pink); letter-spacing: -.02em; }
+    .bal-l { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 2px; }
     .dcard-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
     .dcard-head a { font-size: 13px; font-weight: 700; }
     .empty { font-size: 13.5px; color: var(--muted); margin: 0; }

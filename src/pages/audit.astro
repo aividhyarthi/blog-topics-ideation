@@ -964,9 +964,13 @@ const locked = dbEnabled && !user;
           $('myaudits').onclick = showAudits; $('signout').onclick = signOut;
           fetch('/api/payments/status').then((r) => r.json()).then((d) => {
             const u = $('acctusage');
-            if (u && typeof d.used === 'number') {
-              const low = d.remaining <= Math.ceil(d.limit * 0.1);
-              u.innerHTML = `<a href="/pricing" class="usage-pill ${d.plan === 'pro' ? 'pro' : ''}${low ? ' low' : ''}">${d.plan === 'pro' ? 'Pro' : 'Free'} · ${d.used}/${d.limit}</a>`;
+            if (!u || !d.signedIn) return;
+            if (d.plan === 'pro') {
+              const low = (d.planLimit - d.planUsed) <= Math.ceil(d.planLimit * 0.1);
+              u.innerHTML = `<a href="/pricing" class="usage-pill pro${low ? ' low' : ''}">Pro · ${d.planUsed}/${d.planLimit}</a>`;
+            } else {
+              const left = (d.freeCheckAvailable ? 1 : 0) + (d.credits || 0);
+              u.innerHTML = `<a href="/pricing" class="usage-pill${left === 0 ? ' low' : ''}">Free · ${left} check${left === 1 ? '' : 's'} left</a>`;
             }
           }).catch(() => {});
         } else {

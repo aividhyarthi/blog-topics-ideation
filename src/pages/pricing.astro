@@ -1,76 +1,105 @@
 ---
 import Site from '../layouts/Site.astro';
 import QRCode from 'qrcode';
+import { CREDIT_PACKS, PRO_PRICE_USD } from '../lib/billing';
 
 // UPI is a stopgap for recurring billing: Stripe cannot process subscription
-// billing for Indian businesses, and Razorpay Subscriptions is the eventual
-// real fix. Until then, customers pay via UPI and an admin approves the claim
-// (see /api/payments/claim + /admin/payments). Configure via env vars — never
-// fabricate a payee ID.
+// billing for Indian businesses, and Razorpay is the eventual real fix. Until
+// then, customers pay via UPI and an admin approves the claim (see
+// /api/payments/claim + /admin/payments). Configure via env vars — never
+// fabricate a payee ID. The QR carries NO fixed amount (packages have
+// different prices) — the amount is shown per-package and the payer enters it
+// in their UPI app.
 const UPI_ID = (import.meta.env.UPI_ID || process.env.UPI_ID || '').trim();
 const UPI_NAME = (import.meta.env.UPI_PAYEE_NAME || process.env.UPI_PAYEE_NAME || 'CiteRank').trim();
-const UPI_AMOUNT = (import.meta.env.UPI_AMOUNT_INR || process.env.UPI_AMOUNT_INR || '8299').trim();
+const MONTHLY_INR = (import.meta.env.UPI_AMOUNT_INR || process.env.UPI_AMOUNT_INR || '8299').trim();
 const upiConfigured = Boolean(UPI_ID);
 let upiUri = '', qrSvg = '';
 if (upiConfigured) {
-  upiUri = `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&am=${encodeURIComponent(UPI_AMOUNT)}&cu=INR&tn=${encodeURIComponent('CiteRank Pro')}`;
-  qrSvg = await QRCode.toString(upiUri, { type: 'svg', width: 200, margin: 1, color: { dark: '#0f172a', light: '#00000000' } });
+  upiUri = `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&cu=INR`;
+  qrSvg = await QRCode.toString(upiUri, { type: 'svg', width: 180, margin: 1, color: { dark: '#0f172a', light: '#00000000' } });
 }
 ---
-<Site title="Pricing — CiteRank" description="CiteRank Pro — the complete AEO/GEO platform for $99/month.">
+<Site title="Pricing — CiteRank" description="Check one page free. Pay per URL, or subscribe for volume — CiteRank AEO/GEO intelligence.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Pricing</span>
-      <h1>One simple plan. Everything included.</h1>
-      <p>Full access to the AEO/GEO platform — the LLM Access Check, the full AEO audit, content extraction, per-crawler tabs, reports and history. No feature gates, no add-ons.</p>
+      <h1>Try it free. Pay only for what you check.</h1>
+      <p>Every account gets <b>one free check</b>. After that, buy a check pack for occasional use, or subscribe for volume — no forced annual lock-in.</p>
     </div>
   </section>
 
   <main>
-    <div class="wrap price-wrap">
-      <div class="pricecard">
-        <div class="pc-badge">Most popular</div>
-        <div class="pc-name">CiteRank Pro</div>
-        <div class="pc-price">$99<span>/month</span></div>
-        <div class="pc-sub">Billed monthly. Cancel anytime.</div>
-        <a href="/audit" class="btn-primary pc-cta">Start now</a>
+    <div class="wrap tier-grid">
+      <div class="tiercard">
+        <div class="pc-name">Free trial</div>
+        <div class="pc-price">₹0</div>
+        <div class="pc-sub">One check, on us — no card required.</div>
+        <a href="/audit" class="btn-ghost pc-cta">Sign up free</a>
         <ul class="pc-list">
-          <li><b>500 URL checks / month</b> across all tools</li>
-          <li><b>1 login</b> (single active session)</li>
-          <li>LLM Access Check — all AI crawler tabs</li>
-          <li>Full AEO audit with ranked fixes</li>
-          <li>Content extraction, gaps &amp; keywords</li>
-          <li>Page-type &amp; category-aware checks</li>
-          <li>Saved reports, history &amp; PDF export</li>
-          <li>Verify in real engines (share of voice)</li>
-          <li>Blog &amp; AEO/GEO playbooks</li>
-          <li>Email support</li>
+          <li>1 full check (LLM Access or AEO Audit)</li>
+          <li>All AI-crawler tabs included</li>
+          <li>No time limit to use it</li>
         </ul>
       </div>
 
-      <div class="price-side">
-        <div class="ps-item"><div class="ps-n">500</div><div class="ps-l">URL checks per month<span>Every access check or audit counts as one. Your usage resets on the 1st.</span></div></div>
-        <div class="ps-item"><div class="ps-n">1</div><div class="ps-l">Login per subscription<span>One active session at a time — signing in elsewhere ends the previous session.</span></div></div>
-        <div class="ps-item"><div class="ps-n">6+</div><div class="ps-l">AI crawlers checked<span>ChatGPT, ChatGPT Search, Perplexity, Claude, Copilot and Google AI.</span></div></div>
+      <div class="tiercard featured">
+        <div class="pc-badge">Pay per URL</div>
+        <div class="pc-name">Check packs</div>
+        <div class="pc-price">₹149<span>/check</span></div>
+        <div class="pc-sub">No subscription. Credits never expire.</div>
+        <div class="packlist">
+          {CREDIT_PACKS.map((p) => (
+            <label class="packrow">
+              <input type="radio" name="pack" value={p.id} data-checks={p.checks} data-price={p.priceInr} checked={p.id === 'starter'} />
+              <span class="pk-label">{p.label}</span>
+              <span class="pk-price">₹{p.priceInr}</span>
+            </label>
+          ))}
+        </div>
+        <a href="#pay" class="btn-primary pc-cta">Buy a check pack</a>
+      </div>
+
+      <div class="tiercard">
+        <div class="pc-badge alt">Best for volume</div>
+        <div class="pc-name">CiteRank Pro</div>
+        <div class="pc-price">${PRO_PRICE_USD}<span>/month</span></div>
+        <div class="pc-sub">500 checks/month. Cancel anytime.</div>
+        <a href="#pay" class="btn-primary pc-cta">Subscribe</a>
+        <ul class="pc-list">
+          <li><b>500 URL checks / month</b></li>
+          <li>Everything in check packs, plus:</li>
+          <li>Priority for high-volume teams</li>
+          <li>Best per-check price (~₹17/check)</li>
+        </ul>
       </div>
     </div>
 
-    <div class="wrap upi-wrap">
+    <div class="wrap feat-note">
+      <p>All tiers include: LLM Access Check across every AI crawler (ChatGPT, ChatGPT Search, Perplexity, Claude, Copilot, Google AI), the full AEO audit with ranked fixes, content extraction &amp; gap analysis, page-type/category-aware checks, saved reports, PDF export, and one login per account.</p>
+    </div>
+
+    <div class="wrap upi-wrap" id="pay">
       <h2 class="faq-h">Pay via UPI</h2>
-      <p class="upi-intro">Card billing for India isn’t live yet — for now, activate Pro by paying via UPI. It’s manually verified, usually within a few hours.</p>
+      <p class="upi-intro">Card billing for India isn’t live yet — for now, pay via UPI. It’s manually verified, usually within a few hours.</p>
       {upiConfigured ? (
         <div class="upicard">
           <div class="upi-qr" set:html={qrSvg} />
           <div class="upi-info">
-            <div class="upi-amt">₹{UPI_AMOUNT}<span> ≈ $99/month</span></div>
             <div class="upi-idrow"><span class="upi-id">{UPI_ID}</span><button class="btn-ghost sm" id="upicopy" data-upi={UPI_ID}>Copy UPI ID</button></div>
             <a href={upiUri} class="btn-primary upi-pay">Pay with UPI app</a>
+
+            <div class="paywhat">
+              <label class="pw-opt"><input type="radio" name="paywhat" value="credits" checked /> A check pack — <span id="pw-pack-amt">₹599 (5 checks)</span></label>
+              <label class="pw-opt"><input type="radio" name="paywhat" value="subscription" /> Monthly Pro — ₹{MONTHLY_INR} (500 checks/month)</label>
+            </div>
+
             <ol class="upi-steps">
-              <li>Scan the QR (or tap “Pay with UPI app” on mobile) and pay ₹{UPI_AMOUNT}.</li>
+              <li>Scan the QR (or tap “Pay with UPI app” on mobile) and pay the amount for what you’re buying above.</li>
               <li>Copy the UTR / transaction reference number from your UPI app.</li>
               <li>Submit it below with the email your CiteRank account uses.</li>
             </ol>
-            <form id="upiform" class="upiform" data-amount={`₹${UPI_AMOUNT}`}>
+            <form id="upiform" class="upiform">
               <input type="email" id="uf-email" placeholder="Your CiteRank account email" required />
               <input type="text" id="uf-utr" placeholder="UPI transaction reference (UTR)" required />
               <input type="text" id="uf-note" placeholder="Note (optional)" />
@@ -80,64 +109,89 @@ if (upiConfigured) {
           </div>
         </div>
       ) : (
-        <div class="upicard upi-off"><p>UPI payment isn’t configured on this deployment yet — email us to activate Pro manually.</p></div>
+        <div class="upicard upi-off"><p>UPI payment isn’t configured on this deployment yet — email us to activate manually.</p></div>
       )}
     </div>
 
     <div class="wrap faq-wrap">
       <h2 class="faq-h">Frequently asked</h2>
-      <div class="faq"><b>What counts as a URL check?</b><p>Any single page you run through the LLM Access Check or the Full AEO Audit. Running the same URL again counts again. Individual on-demand crawler runs within one report don’t each cost a check.</p></div>
-      <div class="faq"><b>Why only one login?</b><p>The Pro plan is per-seat. Only one active session is allowed at a time — if you sign in on another device, the earlier session is signed out. Need multiple seats? Contact us.</p></div>
-      <div class="faq"><b>What happens when I hit 500?</b><p>You’ll be prompted to wait for the monthly reset or upgrade. Your saved reports and history stay available.</p></div>
-      <div class="faq"><b>Can I cancel?</b><p>Yes — anytime, from your account. You keep access until the end of the billing period.</p></div>
+      <div class="faq"><b>What counts as a check?</b><p>Any single URL run through the LLM Access Check or the Full AEO Audit. Pasting HTML into the LLM Access Check (no live fetch) is always free. Individual on-demand crawler tabs within one report don’t each cost a check.</p></div>
+      <div class="faq"><b>Do check packs expire?</b><p>No — purchased credits never expire. Buy once, use whenever.</p></div>
+      <div class="faq"><b>Why only one login?</b><p>Accounts are per-seat. Only one active session is allowed at a time — signing in elsewhere ends the previous session. Need multiple seats? Contact us.</p></div>
+      <div class="faq"><b>Can I cancel Pro?</b><p>Yes — anytime. You keep access until the end of the billing period; your account then falls back to pay-per-check.</p></div>
     </div>
   </main>
 
-  <script>
+  <script define:vars={{ packs: CREDIT_PACKS, monthlyInr: MONTHLY_INR }}>
     const copyBtn = document.getElementById('upicopy');
     if (copyBtn) copyBtn.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(copyBtn.dataset.upi || ''); copyBtn.textContent = 'Copied!'; setTimeout(() => (copyBtn.textContent = 'Copy UPI ID'), 1500); }
       catch { /* clipboard may be unavailable */ }
     });
+
+    // Keep the "what am I paying for" summary in sync with the selected pack.
+    function selectedPack() {
+      const el = document.querySelector('input[name="pack"]:checked');
+      return el ? packs.find((p) => p.id === el.value) : packs[0];
+    }
+    function refreshPayWhat() {
+      const pk = selectedPack();
+      const el = document.getElementById('pw-pack-amt');
+      if (el && pk) el.textContent = `₹${pk.priceInr} (${pk.label})`;
+    }
+    document.querySelectorAll('input[name="pack"]').forEach((r) => r.addEventListener('change', refreshPayWhat));
+    refreshPayWhat();
+
     const form = document.getElementById('upiform');
     if (form) form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email = (document.getElementById('uf-email')).value.trim();
-      const utr = (document.getElementById('uf-utr')).value.trim();
-      const note = (document.getElementById('uf-note')).value.trim();
+      const email = document.getElementById('uf-email').value.trim();
+      const utr = document.getElementById('uf-utr').value.trim();
+      const note = document.getElementById('uf-note').value.trim();
+      const paywhat = (document.querySelector('input[name="paywhat"]:checked') || {}).value || 'credits';
       const msg = document.getElementById('uf-msg');
       const btn = document.getElementById('uf-go');
       btn.disabled = true; btn.textContent = 'Submitting…';
       msg.className = 'upi-msg'; msg.textContent = '';
+      const payload = { email, utr, note };
+      if (paywhat === 'credits') { const pk = selectedPack(); payload.pack = pk.id; payload.amount = `₹${pk.priceInr} (${pk.label})`; }
+      else { payload.amount = `₹${monthlyInr} (Monthly Pro)`; }
       try {
-        const res = await fetch('/api/payments/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, utr, note, amount: form.dataset.amount || '' }) });
+        const res = await fetch('/api/payments/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const d = await res.json();
         if (!res.ok) { msg.classList.add('err'); msg.textContent = d.error || 'Something went wrong.'; }
-        else { msg.classList.add('ok'); msg.textContent = 'Thanks! We’ll verify and activate Pro within a few hours.'; form.reset(); }
+        else { msg.classList.add('ok'); msg.textContent = 'Thanks! We’ll verify and activate your account within a few hours.'; form.reset(); refreshPayWhat(); }
       } catch { msg.classList.add('err'); msg.textContent = 'Network error — try again.'; }
       finally { btn.disabled = false; btn.textContent = 'Submit for verification'; }
     });
   </script>
 
   <style>
-    .price-wrap { display: grid; grid-template-columns: 380px 1fr; gap: 28px; align-items: start; }
-    @media (max-width: 820px) { .price-wrap { grid-template-columns: 1fr; } }
-    .pricecard { position: relative; border: 2px solid var(--pink); border-radius: 20px; background: #fff; padding: 30px 28px; box-shadow: 0 20px 50px -24px rgba(37,99,235,.35); }
-    .pc-badge { position: absolute; top: -13px; left: 28px; background: var(--pink); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; }
+    .tier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: stretch; }
+    @media (max-width: 900px) { .tier-grid { grid-template-columns: 1fr; } }
+    .tiercard { position: relative; border: 1px solid var(--line); border-radius: 20px; background: #fff; padding: 28px 26px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+    .tiercard.featured { border: 2px solid var(--pink); box-shadow: 0 20px 50px -24px rgba(37,99,235,.35); }
+    .pc-badge { position: absolute; top: -13px; left: 26px; background: var(--pink); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; }
+    .pc-badge.alt { background: var(--ink-900); }
     .pc-name { font-size: 15px; font-weight: 700; color: var(--muted); }
-    .pc-price { font-size: 48px; font-weight: 800; letter-spacing: -.03em; margin: 6px 0 2px; }
-    .pc-price span { font-size: 18px; font-weight: 600; color: var(--muted); }
+    .pc-price { font-size: 40px; font-weight: 800; letter-spacing: -.03em; margin: 6px 0 2px; }
+    .pc-price span { font-size: 16px; font-weight: 600; color: var(--muted); }
     .pc-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
-    .pc-cta { width: 100%; padding: 13px; font-size: 15px; }
-    .pc-list { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 11px; }
-    .pc-list li { position: relative; padding-left: 26px; font-size: 13.5px; color: var(--ink-2); }
+    .pc-cta { width: 100%; padding: 12px; font-size: 14.5px; margin-top: auto; }
+    .pc-list { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 10px; }
+    .pc-list li { position: relative; padding-left: 24px; font-size: 13px; color: var(--ink-2); }
     .pc-list li:before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--ok); font-weight: 800; }
     .pc-list li b { color: var(--ink); }
-    .price-side { display: grid; gap: 14px; }
-    .ps-item { display: flex; gap: 16px; align-items: center; border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 20px 22px; box-shadow: var(--shadow); }
-    .ps-n { font-size: 34px; font-weight: 800; color: var(--pink); letter-spacing: -.03em; min-width: 60px; }
-    .ps-l { font-size: 14px; font-weight: 700; }
-    .ps-l span { display: block; font-size: 12.5px; font-weight: 500; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+    .packlist { display: grid; gap: 8px; margin: 6px 0 18px; }
+    .packrow { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line-2); border-radius: 11px; padding: 10px 13px; cursor: pointer; font-size: 13.5px; }
+    .packrow:has(input:checked) { border-color: var(--pink); background: var(--accent-soft); }
+    .packrow input { margin: 0; }
+    .pk-label { font-weight: 600; }
+    .pk-price { margin-left: auto; font-weight: 800; color: var(--pink-dark); }
+    .feat-note { margin-top: 24px; }
+    .feat-note p { font-size: 13px; color: var(--muted); line-height: 1.7; text-align: center; max-width: 76ch; margin: 0 auto; }
+    .paywhat { display: grid; gap: 9px; margin: 14px 0 18px; }
+    .pw-opt { display: flex; align-items: center; gap: 9px; font-size: 13.5px; color: var(--ink-2); cursor: pointer; }
     .upi-wrap { margin-top: 56px; }
     .upi-intro { font-size: 14.5px; color: var(--muted); margin: 0 0 20px; max-width: 60ch; }
     .upicard { display: flex; gap: 30px; border: 1px solid var(--line); border-radius: 20px; background: #fff; padding: 28px; box-shadow: var(--shadow); flex-wrap: wrap; }
