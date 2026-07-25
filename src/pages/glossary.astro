@@ -1,0 +1,50 @@
+---
+import Site from '../layouts/Site.astro';
+
+const terms = [
+  { term: 'AEO (Answer Engine Optimization)', def: 'The practice of structuring content so AI answer engines — ChatGPT, Perplexity, Google AI Overviews — extract it, cite it, and quote it directly in their answers, instead of just ranking it in a list of links.' },
+  { term: 'GEO (Generative Engine Optimization)', def: 'A near-synonym for AEO, more common in academic research (e.g. the Princeton GEO study). Both describe optimizing for generative AI systems rather than traditional link-based search.' },
+  { term: 'GPTBot', def: 'OpenAI\'s web crawler, used to gather training data. It does NOT execute JavaScript — it only reads raw server-rendered HTML. If your content is injected by client-side JS, GPTBot sees an empty shell.' },
+  { term: 'OAI-SearchBot', def: 'OpenAI\'s separate crawler for ChatGPT Search / live browsing citations — distinct from GPTBot (training). A page can allow one and block the other in robots.txt.' },
+  { term: 'PerplexityBot', def: 'Perplexity\'s crawler, used to fetch pages for its live, cited answers. Like GPTBot, it reads raw HTML only — no JavaScript execution.' },
+  { term: 'ClaudeBot', def: 'Anthropic\'s web crawler for Claude. Respects robots.txt; like the others, it does not render JavaScript.' },
+  { term: 'Google-Extended', def: 'A robots.txt token that lets you opt OUT of your content being used for Gemini and AI Overviews training/grounding, separately from regular Googlebot search indexing.' },
+  { term: 'AI Overviews', def: 'Google\'s AI-generated summary shown above traditional search results for many queries, synthesizing and citing multiple sources.' },
+  { term: 'AI Mode', def: 'Google\'s more conversational, multi-turn AI search experience — a deeper AI-first search surface than AI Overviews.' },
+  { term: 'Citation rate', def: 'The percentage of times an AI engine cites your domain as a source when answering questions related to your content — the core AEO success metric, measurable by actually querying the engines.' },
+  { term: 'Share of voice (AI)', def: 'Your citation frequency relative to competitors across a set of prompts — e.g. "cited in 24% of answers vs a competitor\'s 40%."' },
+  { term: 'Extractability', def: 'How easily an AI model can pull a clean, quotable answer out of your content — short, direct sentences near the top of a section score higher than buried, hedged prose.' },
+  { term: 'Entity clarity', def: 'How consistently and explicitly your content names concrete entities (people, products, places) rather than relying on pronouns and vague references, which AI models struggle to resolve.' },
+  { term: 'llms.txt', def: 'An emerging, informal standard: a plain-text file at your site root listing your most important pages in Markdown, aimed at helping AI crawlers find your key content.' },
+  { term: 'Structured data / schema.org', def: 'Machine-readable markup (JSON-LD) describing your content\'s type, attributes and relationships — Product, Article, FAQPage, etc. — which AI systems can parse directly instead of guessing from prose.' },
+  { term: 'JS-rendered content', def: 'Content that appears only after JavaScript runs in a browser. Googlebot renders JS and sees it; GPTBot, PerplexityBot and ClaudeBot do not — so JS-rendered content is often invisible to AI answer engines even though it ranks fine on Google.' },
+  { term: 'Content gap (AEO)', def: 'A missing element — no FAQ schema, no author byline, no ingredients list, thin sections — that a competitor\'s better-structured page fills instead, winning the citation.' },
+  { term: 'Prompt coverage', def: 'How many of the realistic questions a user might ask an AI about a topic are actually and directly answered by a given page.' },
+];
+---
+<Site title="AEO / GEO Glossary — CiteRank" description="Plain-English definitions of the terms that matter for Answer Engine Optimization: GPTBot, AI Overviews, citation rate, and more.">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Glossary</span>
+      <h1>AEO / GEO terms, explained</h1>
+      <p>The vocabulary of Answer Engine Optimization — crawlers, metrics and concepts — in plain English.</p>
+    </div>
+  </section>
+  <main>
+    <div class="wrap gloss-list">
+      {terms.map((t) => (
+        <div class="gterm" id={t.term.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}>
+          <h3>{t.term}</h3>
+          <p>{t.def}</p>
+        </div>
+      ))}
+    </div>
+  </main>
+  <style>
+    .gloss-list { max-width: 820px; display: grid; }
+    .gterm { padding: 20px 0; border-top: 1px solid var(--line); }
+    .gterm:first-child { border-top: none; }
+    .gterm h3 { margin: 0 0 6px; font-size: 16.5px; font-weight: 700; letter-spacing: -.01em; }
+    .gterm p { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.65; }
+  </style>
+</Site>

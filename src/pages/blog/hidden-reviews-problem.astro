@@ -1,0 +1,44 @@
+---
+import Site from '../../layouts/Site.astro';
+---
+<Site title="The hidden reviews problem killing your product pages in AI — CiteRank" description="Your page shows '1,200 reviews.' AI answer engines might see 3 of them. Here's why, and how to fix it.">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">E-commerce · 6 min read</span>
+      <h1>The hidden reviews problem killing your product pages in AI</h1>
+      <p>Your page proudly shows "1,200 reviews." An AI shopping answer might be working from three of them.</p>
+    </div>
+  </section>
+  <main>
+    <article class="post wrap">
+      <p>Product pages routinely display a review count and star rating pulled from a database — <strong>"4.5 out of 5, 1,200 reviews"</strong> — while the actual review <em>text</em> renders only a handful at a time, with the rest loaded on scroll, on a "load more" click, or via a separate paginated API call. For a human shopper, this is a perfectly reasonable UX pattern. For an AI answer engine reading your raw HTML, it means something very different: the aggregate rating is visible, but the substance behind it — what reviewers actually said — mostly isn't.</p>
+
+      <h2>Why the gap matters more than it looks</h2>
+      <p>When ChatGPT, Perplexity or Google's AI Overviews answer a question like "is this good for oily skin?" or "does this phone's battery actually last a day?", they're not just reading your star rating — they're looking for the qualitative substance: what specific reviewers said about specific attributes. If only 3 of 1,200 reviews are present in the HTML a crawler receives, that's the entire evidence base the AI has to work with, no matter how impressive the aggregate number looks.</p>
+      <p>This creates a strange, easily-missed outcome: a product with a strong 4.5-star rating and genuinely enthusiastic reviews can still get a lukewarm or generic AI answer, simply because the AI never saw the reviews that would have made the case.</p>
+
+      <h2>The declared-vs-actual gap, made visible</h2>
+      <p>The fix starts with knowing the size of the gap on your own pages. CiteRank's product-page checks compare what a page <em>declares</em> (the schema.org <code>reviewCount</code> or the on-page "N reviews" text) against how many individual review blocks are <em>actually present</em> in the raw HTML — surfacing lines like "references 1,200 reviews, but only 3 are in the raw HTML." That single comparison, run automatically, is usually the fastest way to find where a product page is quietly underselling itself to AI.</p>
+
+      <h2>What to do about it</h2>
+      <ul>
+        <li><strong>Server-render a meaningful batch of reviews</strong> (10–20, not 3) in the initial HTML, not just the aggregate score.</li>
+        <li><strong>Keep the aggregateRating schema</strong>, but pair it with actual <code>Review</code> schema entries for the reviews you do render.</li>
+        <li><strong>Avoid gating all review text behind a client-side "load more"</strong> call — that content should exist in the page a crawler receives on the first request.</li>
+      </ul>
+
+      <div class="post-cta">
+        <a href="/" class="btn-primary">Check a product page free</a>
+        <a href="/audit" class="btn-ghost">Run the full AEO audit</a>
+      </div>
+    </article>
+  </main>
+  <style>
+    .post { max-width: 760px; }
+    .post p, .post li { font-size: 16px; color: var(--ink-2); line-height: 1.75; }
+    .post h2 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 34px 0 12px; }
+    .post ul { padding-left: 22px; display: grid; gap: 8px; }
+    .post code { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 14.5px; }
+    .post-cta { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
+  </style>
+</Site>
