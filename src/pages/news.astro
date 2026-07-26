@@ -92,21 +92,21 @@ const items = [
   <main>
     <div class="wrap news">
       <article class="lead">
-        <div class="ni-meta"><span class="ni-tag">{lead.tag}</span><span class="ni-date">{lead.date}</span></div>
-        <h2>{lead.title}</h2>
+        <div class="ni-meta"><span class="ni-tag">{lead.tag}</span><span class="ni-date">{lead.date}</span><span class="ni-src">{lead.source.name}</span></div>
+        <h2><a href={lead.source.url} target="_blank" rel="noopener nofollow">{lead.title}</a></h2>
         <p class="standfirst">{lead.standfirst}</p>
         <p>{lead.body}</p>
         <div class="sowhat"><b>What it means for your site</b><p>{lead.soWhat}</p></div>
-        <a class="src" href={lead.source.url} target="_blank" rel="noopener nofollow">Source: {lead.source.name} ↗</a>
+        <a class="readmore" href={lead.source.url} target="_blank" rel="noopener nofollow">Read the full story on {lead.source.name}<span aria-hidden="true">↗</span></a>
       </article>
 
       {items.map((it) => (
         <article class="newsitem">
-          <div class="ni-meta"><span class="ni-tag">{it.tag}</span><span class="ni-date">{it.date}</span></div>
-          <h3>{it.title}</h3>
+          <div class="ni-meta"><span class="ni-tag">{it.tag}</span><span class="ni-date">{it.date}</span><span class="ni-src">{it.source.name}</span></div>
+          <h3><a href={it.source.url} target="_blank" rel="noopener nofollow">{it.title}</a></h3>
           <p>{it.body}</p>
           <div class="sowhat"><b>What it means for your site</b><p>{it.soWhat}</p></div>
-          <a class="src" href={it.source.url} target="_blank" rel="noopener nofollow">Source: {it.source.name} ↗</a>
+          <a class="readmore" href={it.source.url} target="_blank" rel="noopener nofollow">Read the full story on {it.source.name}<span aria-hidden="true">↗</span></a>
         </article>
       ))}
     </div>
@@ -135,8 +135,17 @@ const items = [
     .sowhat b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--pink); margin-bottom: 5px; }
     .sowhat p { margin: 0 !important; font-size: 14.5px !important; color: var(--ink-2) !important; line-height: 1.65 !important; }
 
-    .src { display: inline-block; font-size: 12.5px; font-weight: 700; color: var(--faint); text-decoration: none; }
-    .src:hover { color: var(--pink); }
+    .ni-src { font-size: 12.5px; color: var(--faint); font-weight: 600; }
+    .ni-src::before { content: '·'; margin-right: 9px; }
+
+    /* Headlines are links — this is aggregated reporting, so a click goes to
+       whoever actually reported it, not to a copy of it on our own domain. */
+    .news h2 a, .news h3 a { color: inherit; text-decoration: none; }
+    .news h2 a:hover, .news h3 a:hover { color: var(--pink); text-decoration: underline; text-underline-offset: 3px; }
+
+    .readmore { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700; color: var(--pink); text-decoration: none; }
+    .readmore:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .readmore span { font-size: 12px; }
 
     .news-cta { max-width: 780px; margin-top: 40px; padding: 28px 30px; border: 1px solid var(--line); border-radius: 18px; background: var(--accent-soft); }
     .news-cta h3 { margin: 0 0 8px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }

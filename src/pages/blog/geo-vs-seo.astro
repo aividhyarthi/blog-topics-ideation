@@ -1,56 +1,108 @@
 ---
 import Site from '../../layouts/Site.astro';
+
+const sources = [
+  { name: 'Aggarwal et al., “GEO: Generative Engine Optimization” (Princeton, Georgia Tech, Allen Institute for AI, IIT Delhi)', url: 'https://arxiv.org/abs/2311.09735' },
+  { name: 'Ahrefs — AI Overviews and click-through rate', url: 'https://ahrefs.com/blog/' },
+  { name: 'Seer Interactive — AI Overview citation impact', url: 'https://www.seerinteractive.com/insights' },
+  { name: 'SE Ranking — llms.txt adoption across 300,000 domains', url: 'https://seranking.com/blog/' },
+  { name: 'Cloudflare — crawler policy and Pay Per Use', url: 'https://blog.cloudflare.com/' },
+];
 ---
-<Site title="GEO vs SEO — CiteRank Blog" description="Generative Engine Optimization vs SEO: what actually changes for your content strategy.">
+<Site
+  title="GEO vs SEO: what actually changes for your content — CiteRank"
+  description="Which of your SEO work carries over to AI search, which of it doesn't, and the measurable evidence for both. An honest diff."
+>
   <section class="pagehead">
     <div class="wrap">
-      <span class="eyebrow">Strategy · 7 min read</span>
+      <span class="eyebrow">Strategy · 6 min read · Updated July 2026</span>
       <h1>GEO vs SEO: what actually changes for your content</h1>
-      <p>Generative Engine Optimization isn’t a rebrand of SEO. It rewards different signals — here’s the honest diff.</p>
+      <p>Generative Engine Optimization isn't a rebrand of SEO. Here's the honest diff — including the parts of your existing work that still carry.</p>
     </div>
   </section>
+
   <main>
     <article class="post wrap">
-      <p><strong>GEO (Generative Engine Optimization)</strong> and <strong>AEO (Answer Engine Optimization)</strong> are two names for the same shift: optimizing for AI systems that generate an answer rather than return a list. The question everyone asks is whether their existing SEO work carries over. The honest answer: <em>some of it does, and some new things matter a lot more.</em></p>
+      <div class="answerbox">
+        <b>The short answer</b>
+        <p><strong>Roughly half your SEO work carries over — the technical half. What doesn't carry is the assumption that ranking well means being visible.</strong> Only about 10% of the URLs ChatGPT cites rank in Google's top 10 for the same query, so a strong ranking position is a weak predictor of whether you appear in AI answers at all.</p>
+      </div>
 
-      <h2>What carries over from SEO</h2>
+      <p>GEO (Generative Engine Optimization) and AEO (Answer Engine Optimization) name the same shift. GEO is the term the academic literature uses; AEO is the wider industry umbrella. Neither is a marketing rebrand of SEO, and the difference is measurable rather than philosophical.</p>
+
+      <h2>What carries over</h2>
+
+      <p>More than the "SEO is dead" crowd admits. These remain load-bearing:</p>
+
       <ul>
-        <li><b>Crawlability</b> — if a bot can’t fetch your page, nothing else matters. Still true, but now there are more bots (GPTBot, PerplexityBot, ClaudeBot) and more ways to block them (WAFs, not just robots.txt).</li>
-        <li><b>Authority</b> — brands the model already trusts get cited more. Off-page reputation still compounds.</li>
-        <li><b>Structured data</b> — schema was useful for rich results; it’s even more useful as a clean, machine-readable summary for LLMs.</li>
+        <li><strong>Crawl access.</strong> If a bot can't fetch the page, nothing downstream matters. The principle is unchanged; the surface area grew. There are now more crawlers to satisfy (GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended) and more places to accidentally block them. Cloudflare now restricts AI crawlers by default in some configurations and has set a September 2026 deadline for AI firms to separate search bots from AI bots — so your edge config is now as decisive as your robots.txt.</li>
+        <li><strong>Authority.</strong> Sources a model already treats as reliable get cited more. Off-page reputation still compounds; it just cashes out as citation frequency rather than rank.</li>
+        <li><strong>Structured data.</strong> Schema was useful for rich results. It's more useful now — it hands an engine an unambiguous machine-readable summary instead of asking it to infer your price, rating or author from prose.</li>
+        <li><strong>Genuine subject depth.</strong> Thin content failed at SEO and fails harder here, because there's nothing quotable in it.</li>
       </ul>
 
-      <h2>What’s genuinely new</h2>
-      <ul>
-        <li><b>Extractability over ranking</b> — you’re not competing for position #1; you’re competing to be a quotable sentence inside one answer. Lead with the answer, in plain language.</li>
-        <li><b>Rendering matters more</b> — Google renders JavaScript; most AI crawlers don’t. A React SPA can rank on Google and be invisible to ChatGPT at the same time.</li>
-        <li><b>Share of voice, not rank tracking</b> — the new metric is “in what % of AI answers for my topics do I appear, vs competitors?”</li>
-        <li><b>Citations as currency</b> — statistics, named sources and clear entities measurably increase the odds a model cites you (Princeton’s GEO research).</li>
-      </ul>
+      <h2>What genuinely changes</h2>
+
+      <p>Four things, in rough order of how much they'll cost you to ignore.</p>
+
+      <h3>Rendering became decisive</h3>
+      <p><strong>Googlebot executes JavaScript. The answer-engine crawlers do not.</strong> This asymmetry has no equivalent in classic SEO, where JS-rendering problems were a ranking delay rather than a wall. A client-rendered page can hold position one on Google and simultaneously be an empty shell to ChatGPT, Claude and Perplexity. There is no error, no warning, and no partial credit — a page that's 80% JavaScript-rendered doesn't get 80% of a citation, it gets none.</p>
+
+      <h3>Extraction replaced ranking</h3>
+      <p>You aren't competing for a position in a list; you're competing to be a sentence inside a paragraph the engine writes. Models retrieve <em>passages</em>, typically a section, stripped of surrounding context. A section that opens with a direct, self-contained answer gets lifted. The same fact hedged and buried three paragraphs down does not — regardless of how well the page as a whole is written.</p>
+
+      <h3>The metric changed shape</h3>
+      <p>Rank tracking assumes a stable, checkable position. AI answers are generated per query, vary between runs, and cite a handful of sources rather than ordering everything. The replacement metric is <strong>share of voice</strong>: across a defined prompt set, in what fraction of answers do you appear, and how does that compare to named competitors? You can't infer it from Search Console — it has to be measured by querying the engines directly.</p>
+
+      <h3>Citations became the currency</h3>
+      <p>This is the one with a controlled study behind it. Researchers from Princeton, Georgia Tech, the Allen Institute for AI and IIT Delhi tested which content changes increase citation by generative engines. Adding statistics, citing authoritative sources, and including direct quotations all produced meaningful lifts. The commercial stakes: Seer Interactive found cited brands earn roughly <strong>120% more clicks per impression</strong> than uncited brands on the same query — while AI Overviews correlate with a 58% CTR drop overall (Ahrefs, February 2026). The aggregate loss is real; the distribution between cited and uncited is where the difference is made.</p>
+
+      <h2>What to ignore</h2>
+
+      <p>One piece of received wisdom is worth actively skipping. <strong>llms.txt does not correlate with citation.</strong> SE Ranking analysed 300,000 domains, found 10.13% adoption, and tested whether the file predicted citation frequency — removing the variable improved their model's accuracy. The major crawlers skip it and read HTML directly. It is a comfortable task that feels like progress and isn't.</p>
 
       <h2>The practical playbook</h2>
+
       <ol>
-        <li>Confirm every AI crawler can reach and read your key pages (JS-render check).</li>
-        <li>Lead each section with a concise, quotable answer; phrase headings as real questions.</li>
-        <li>Add FAQ blocks, comparison tables and schema so content is easy to lift.</li>
-        <li>Name your entities and cite your sources with numbers.</li>
-        <li>Measure your citation rate in real engines and close the gaps.</li>
+        <li>Verify every AI crawler can actually reach and read your key pages — robots.txt <em>and</em> edge/WAF, plus a raw-HTML check for JS-rendered content.</li>
+        <li>Open each section with a concise, quotable answer. Phrase headings as the questions people actually ask.</li>
+        <li>Add FAQ blocks, comparison tables and schema so content is structurally easy to lift.</li>
+        <li>Replace vague claims with numbers, and attribute them to named sources.</li>
+        <li>Name entities explicitly — assume every section will be read in isolation, because it will be.</li>
+        <li>Measure citation rate and share of voice in real engines, then close the specific gaps.</li>
       </ol>
 
-      <p>CiteRank is built for exactly this loop — <a href="/">check access</a>, <a href="/audit">audit and fix</a>, then verify in real engines.</p>
+      <p>CiteRank is built for the first and last of those: <a href="/">check crawler access</a>, then <a href="/audit">audit and fix</a>.</p>
+
+      <h2>Sources</h2>
+      <ul class="srclist">
+        {sources.map((s) => (
+          <li><a href={s.url} target="_blank" rel="noopener nofollow">{s.name}</a></li>
+        ))}
+      </ul>
 
       <div class="post-cta">
         <a href="/" class="btn-primary">Check a page free</a>
-        <a href="/pricing" class="btn-ghost">See pricing</a>
+        <a href="/blog/what-is-aeo" class="btn-ghost">Start with the AEO primer</a>
       </div>
     </article>
   </main>
+
   <style>
     .post { max-width: 760px; }
     .post p, .post li { font-size: 16px; color: var(--ink-2); line-height: 1.75; }
-    .post h2 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 34px 0 12px; }
-    .post ul, .post ol { padding-left: 22px; display: grid; gap: 8px; }
-    .post b { color: var(--ink); }
+    .post h2 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 38px 0 12px; }
+    .post h3 { font-size: 18.5px; font-weight: 800; letter-spacing: -.015em; margin: 26px 0 8px; color: var(--ink); }
+    .post ul, .post ol { padding-left: 22px; display: grid; gap: 10px; }
+    .post b, .post strong { color: var(--ink); }
+
+    .answerbox { border-left: 3px solid var(--pink); background: var(--accent-soft); border-radius: 0 12px 12px 0; padding: 18px 22px; margin-bottom: 26px; }
+    .answerbox b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--pink); margin-bottom: 6px; }
+    .answerbox p { margin: 0; }
+
+    .srclist { display: grid; gap: 7px; }
+    .srclist li { font-size: 14.5px; color: var(--muted); }
+
     .post-cta { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
   </style>
 </Site>

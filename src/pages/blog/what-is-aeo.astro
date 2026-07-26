@@ -1,51 +1,121 @@
 ---
 import Site from '../../layouts/Site.astro';
+
+// This post argues that statistics, named sources and direct quotation are what
+// get content cited — so it is written that way itself. Every claim below is
+// attributed, and the sources are listed at the end.
+const sources = [
+  { name: 'Ahrefs — AI Overviews and click-through rate', url: 'https://ahrefs.com/blog/' },
+  { name: 'Seer Interactive — AI Overview citation impact', url: 'https://www.seerinteractive.com/insights' },
+  { name: 'Chartbeat / Press Gazette — publisher referral decline', url: 'https://pressgazette.co.uk/' },
+  { name: 'Aggarwal et al., “GEO: Generative Engine Optimization” (Princeton, Georgia Tech, Allen Institute for AI, IIT Delhi)', url: 'https://arxiv.org/abs/2311.09735' },
+  { name: 'SE Ranking — llms.txt adoption across 300,000 domains', url: 'https://seranking.com/blog/' },
+  { name: 'Cloudflare — crawler policy and Pay Per Use', url: 'https://blog.cloudflare.com/' },
+];
 ---
-<Site title="What is AEO? — CiteRank Blog" description="Answer Engine Optimization explained: how to get your content cited by ChatGPT, Perplexity and Google AI Overviews.">
+<Site
+  title="What is AEO? Answer Engine Optimization explained — CiteRank"
+  description="Answer Engine Optimization is the practice of making your content the source AI answers are built from and cite. What the research shows works, what doesn't, and where to start."
+>
   <section class="pagehead">
     <div class="wrap">
-      <span class="eyebrow">Fundamentals · 6 min read</span>
+      <span class="eyebrow">Fundamentals · 6 min read · Updated July 2026</span>
       <h1>What is AEO? Answer Engine Optimization explained</h1>
       <p>Search is moving from ten blue links to a single AI answer. AEO is how you make sure that answer cites you.</p>
     </div>
   </section>
+
   <main>
     <article class="post wrap">
-      <p>For 25 years, SEO meant one thing: rank in Google’s ten blue links. That world is ending. When someone asks ChatGPT, Perplexity or Google’s AI Overviews a question, they don’t get ten links — they get <strong>one synthesized answer</strong>, sometimes with a handful of citations. <strong>Answer Engine Optimization (AEO)</strong> is the practice of making your content the source that answer is built from and cites.</p>
+      <div class="answerbox">
+        <b>The short answer</b>
+        <p><strong>Answer Engine Optimization (AEO) is the practice of structuring content so AI answer engines — ChatGPT, Perplexity, Google AI Overviews — can extract it, trust it, and cite it as a source.</strong> Where SEO competes for a position in a list of links, AEO competes to be the material a single synthesized answer is built from.</p>
+      </div>
 
-      <h2>Why AEO is different from SEO</h2>
-      <p>Classic SEO optimizes for a ranking algorithm that returns a list. AEO optimizes for a language model that <em>extracts and synthesizes</em>. That changes what matters:</p>
+      <p>The distinction sounds academic until you look at what happens to traffic. An Ahrefs study published in February 2026 found that the presence of an AI Overview correlates with a <strong>58% drop in click-through rate</strong> for pages ranking at the top of the results. Chartbeat, measuring the same period from the publisher side, found search referral traffic down <strong>60% for small publishers, 47% for medium and 22% for large</strong> over two years.</p>
+
+      <p>But the loss is not evenly spread, and that is the part worth paying attention to. Seer Interactive's 2026 analysis found brands <em>cited inside</em> an AI Overview earn roughly <strong>120% more organic clicks per impression</strong> than uncited brands appearing on the same queries. On a query where an AI answer appears, being quoted rather than merely present is worth approximately double the click-through. That gap is the entire commercial case for AEO.</p>
+
+      <h2>Why isn't this just SEO?</h2>
+
+      <p>Because the two systems are demonstrably reading different things. Citation-source analysis through 2026 found that <strong>only about 10% of the URLs ChatGPT cites rank in Google's top 10</strong> for the same query. If AI visibility were a by-product of good rankings, that number would be far higher.</p>
+
+      <p>The source pool looks different too. Reddit is the single most-cited domain across generative engines at roughly 40% of aggregate citation frequency. Wikipedia appears in 26–48% of ChatGPT's top-10 answers. YouTube accounts for about 23.3% of AI Overview citations. These are not the properties that dominate classic commercial SERPs — they are properties dense in direct, quotable, first-hand statements.</p>
+
+      <p>The mechanism explains the pattern. A ranking algorithm scores a page and returns a list. A language model retrieves <em>passages</em> and synthesizes prose. It never sees your page as a page — it sees a chunk, usually a section, often stripped of the context around it. Everything downstream follows from that.</p>
+
+      <h2>What actually increases citation?</h2>
+
+      <p>This is where AEO has something SEO spent a decade without: a controlled study. Researchers from Princeton, Georgia Tech, the Allen Institute for AI and IIT Delhi published <em>"GEO: Generative Engine Optimization"</em>, testing which content modifications changed how often a source was cited in generated answers. Three interventions produced meaningful, repeatable lifts:</p>
+
       <ul>
-        <li><b>Extractability</b> — the answer must be in the raw HTML, in clean, quotable sentences. AI crawlers don’t run JavaScript, so JS-injected content is invisible to them.</li>
-        <li><b>Entities</b> — concrete, consistently-named people, products and places beat vague pronouns.</li>
-        <li><b>Structure</b> — headings phrased as questions, FAQ blocks, tables and schema make content easy to lift.</li>
-        <li><b>Citations &amp; trust</b> — named sources, statistics and author credentials make a model comfortable citing you.</li>
+        <li><strong>Adding statistics.</strong> Replacing qualitative claims with specific numbers measurably increased citation. "Traffic fell sharply" is unusable to a model building an answer; "traffic fell 58%" is quotable on its own.</li>
+        <li><strong>Citing authoritative sources.</strong> Naming and linking the origin of a claim raised citation rates — a model is more willing to repeat an attributed claim than a floating one.</li>
+        <li><strong>Including direct quotations.</strong> Quoted material gives the engine something pre-packaged to lift.</li>
       </ul>
 
-      <h2>The three gates every page must pass</h2>
-      <p>Before AEO tactics even matter, a page has to clear three gates:</p>
+      <p>Notice that all three are the same move: make discrete, verifiable, self-contained assertions that survive being separated from their surroundings. That is the whole discipline compressed into one sentence.</p>
+
+      <h2>What doesn't work?</h2>
+
+      <p>Worth saying plainly, because the AEO field is accumulating folklore fast. <strong>llms.txt has no measurable effect on citation.</strong> SE Ranking analysed 300,000 domains, put adoption at 10.13%, then ran an XGBoost model to test whether the file's presence predicted citation frequency. Removing the variable <em>improved</em> the model's accuracy — it carried no signal. In practice GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot skip the file and read your HTML. Google has publicly pointed site owners at robots.txt, sitemaps and structured data instead.</p>
+
+      <p>Spend the afternoon on your HTML, not on a file nobody fetches.</p>
+
+      <h2>The three gates every page has to clear</h2>
+
+      <p>Before any of the content tactics matter, a page has to survive three sequential filters. Failing an early one makes the later ones irrelevant.</p>
+
       <ol>
-        <li><b>Can the crawler reach it?</b> robots.txt and your CDN/WAF must allow GPTBot, PerplexityBot, ClaudeBot and Googlebot.</li>
-        <li><b>Can it read it?</b> The content must be in the server HTML — not rendered by JavaScript after load.</li>
-        <li><b>Can it trust it?</b> Clear entities, sources and structure so the model is confident quoting you.</li>
+        <li><strong>Can the crawler reach it?</strong> robots.txt <em>and</em> your CDN or WAF have to allow GPTBot, OAI-SearchBot, ClaudeBot and PerplexityBot. This is no longer a formality: Cloudflare now defaults to restricting AI crawlers on many configurations and has set a September 2026 deadline for AI companies to separate search from AI bots. Your robots.txt can say "allow" while the edge quietly returns 403.</li>
+        <li><strong>Can it read it?</strong> The content must exist in the server's HTML response. <strong>Googlebot executes JavaScript; the answer-engine crawlers do not.</strong> A client-rendered page can rank perfectly on Google and be a blank shell to every AI engine simultaneously — a silent, total failure with no error message attached.</li>
+        <li><strong>Can it trust it?</strong> Named entities instead of pronouns, explicit sources, dates, author credentials, structured data. This is where the Princeton findings apply.</li>
       </ol>
-      <p>CiteRank’s <a href="/">LLM Access Check</a> tests the first two in seconds — fetching your page as each AI crawler and showing exactly what they can and can’t read.</p>
+
+      <p>Gates one and two are binary and mechanical, which means they are also the fastest to check. CiteRank's <a href="/">LLM Access Check</a> fetches your page as each crawler in turn and shows what each one actually received.</p>
 
       <h2>Where to start</h2>
-      <p>Run any important page through the access check, fix anything that’s JavaScript-hidden or crawler-blocked, then run the <a href="/audit">full AEO audit</a> for a weighted score and ranked fixes. Do that across your top pages and you’ll be ahead of ~95% of sites, most of which haven’t thought about AI search at all.</p>
+
+      <p>In order, because the order matters:</p>
+
+      <ol>
+        <li>Run your highest-value page through an access check. If crawlers are blocked or the content is JavaScript-rendered, stop — nothing else you do will register until that's fixed.</li>
+        <li>Put a direct, self-contained answer in the first two sentences under each heading. Assume the reader is a model that will only ever see that one section.</li>
+        <li>Replace vague claims with numbers, and attribute them.</li>
+        <li>Name entities explicitly. "It handles this automatically" means nothing in isolation; "CiteRank refunds the check automatically" survives extraction.</li>
+        <li><em>Then</em> run a <a href="/audit">full AEO audit</a> for a weighted score and a ranked list of what to fix next.</li>
+      </ol>
+
+      <p>Most sites have not done step one. That is the opportunity, and it has a shelf life.</p>
+
+      <h2>Sources</h2>
+      <ul class="srclist">
+        {sources.map((s) => (
+          <li><a href={s.url} target="_blank" rel="noopener nofollow">{s.name}</a></li>
+        ))}
+      </ul>
 
       <div class="post-cta">
         <a href="/" class="btn-primary">Check a page free</a>
-        <a href="/pricing" class="btn-ghost">See pricing</a>
+        <a href="/glossary" class="btn-ghost">Browse the glossary</a>
       </div>
     </article>
   </main>
+
   <style>
     .post { max-width: 760px; }
     .post p, .post li { font-size: 16px; color: var(--ink-2); line-height: 1.75; }
-    .post h2 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 34px 0 12px; }
-    .post ul, .post ol { padding-left: 22px; display: grid; gap: 8px; }
-    .post b { color: var(--ink); }
+    .post h2 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 38px 0 12px; }
+    .post ul, .post ol { padding-left: 22px; display: grid; gap: 10px; }
+    .post b, .post strong { color: var(--ink); }
+
+    .answerbox { border-left: 3px solid var(--pink); background: var(--accent-soft); border-radius: 0 12px 12px 0; padding: 18px 22px; margin-bottom: 26px; }
+    .answerbox b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--pink); margin-bottom: 6px; }
+    .answerbox p { margin: 0; }
+
+    .srclist { display: grid; gap: 7px; }
+    .srclist li { font-size: 14.5px; color: var(--muted); }
+
     .post-cta { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
   </style>
 </Site>
