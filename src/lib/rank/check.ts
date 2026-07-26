@@ -33,13 +33,13 @@ async function checkKeywordsBounded(
   const rows: KeywordRank[] = [];
   const depth = searchDepth(app.store);
   const start = Date.now();
-  // A run of consecutive failures almost always means the store has started
-  // rate-limiting us, not that these specific keywords are broken — keep
-  // going and every remaining keyword burns as an "err" row. Back off after
-  // each error, and abandon the batch entirely after several in a row;
-  // errored keywords are NOT treated as done (see checkCoverageBatch), so
-  // they're retried by the next batch/run once the throttle clears.
+  // A run of consecutive failures means the store is throttling us. Backing
+  // off and pressing on is right; abandoning the batch at the FIRST sign of it
+  // is not, on a list of several hundred keywords a 30-second throttle used to
+  // end the whole day's coverage part-way through. Errored keywords are never
+  // marked done, so anything skipped is retried on the next tick regardless.
   let consecutiveErrors = 0;
+  const ABORT_AFTER_CONSECUTIVE_ERRORS = 30;
   for (const kw of keywordList) {
     if (Date.now() - start > timeBudgetMs) return { rows, exhausted: false };
     const cacheKey = `${app.store}|${app.country}|${app.lang}|${kw.toLowerCase()}`;
@@ -55,8 +55,9 @@ async function checkKeywordsBounded(
     } catch (e) {
       rows.push({ keyword: kw, position: null, depth, top: [], error: e instanceof Error ? e.message : String(e) });
       consecutiveErrors++;
-      if (consecutiveErrors >= 8) return { rows, exhausted: false };
-      await sleep(delayMs * 4); // errors usually mean throttling — slow down
+      if (consecutiveErrors >= ABORT_AFTER_CONSECUTIVE_ERRORS) return { rows, exhausted: false };
+      // Escalating back-off: ride out a short throttle instead of quitting on it.
+      await sleep(Math.min(delayMs * 2 ** Math.min(consecutiveErrors, 5), 15000));
     }
   }
   return { rows, exhausted: true };
@@ -204,6 +205,7 @@ export async function checkCoverageBatch(app: TrackedApp, userId?: string, timeB
   const mergedKeywords = [...(existingRow?.keywords || []).filter((k) => !rechecked.has(k.keyword)), ...rows];
   const result: AppRankResult = {
     key: app.key, store: app.store, appId: app.appId, country: app.country,
+    listSize: list.length,
     keywords: mergedKeywords,
     topChart: existingRow?.topChart ?? null,
     score: existingRow?.score ?? null,

@@ -157,6 +157,12 @@ export interface AppRankResult {
   score: number | null;
   ratings: number | null;
   error?: string;
+  /** How many keywords the app's list held when this result was written.
+   * Coverage checks save PARTIAL progress (see checkCoverageBatch), so
+   * `keywords.length` is "how far the run got today", not the size of the
+   * list. Without this the universe chart plotted run progress and showed a
+   * finished day as a cliff back to full size the next morning. */
+  listSize?: number;
 }
 
 /** One full check across all tracked apps — persisted per day. */

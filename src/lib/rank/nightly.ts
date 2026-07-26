@@ -12,7 +12,7 @@
 //  - AppRankr product users (one config per user; only users with a live
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
-import { loadConfig, saveConfig, loadSnapshot, loadSnapshots, loadCoverageSnapshots, saveNightlyMarker } from './store';
+import { loadConfig, saveConfig, loadSnapshot, loadSnapshots, loadCoverageSnapshot, loadCoverageSnapshots, saveNightlyMarker } from './store';
 import { runCheck, checkCoverageBatch, checkRating, retryFailedChart } from './check';
 import { backfillDeveloperId, backfillGenreId } from './fetch';
 import { withTenantLock } from './lock';
@@ -234,19 +234,48 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
     // (an earlier version capped each app at 60s/day) meant a big list
     // could never finish within the day it started — the snapshot resets
     // at midnight, so it permanently showed "not checked yet".
-    for (const app of dueApps) {
-      if (!(app.coverageKeywords || []).length) continue;
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) {
-        lines.push(`  [${label}] ${app.key}: coverage check deferred — out of time this run, will continue next run.`);
-        continue;
-      }
-      try {
-        const r = await checkCoverageBatch(app, userId, remaining);
-        lines.push(`  [${label}] ${app.key}: coverage ${r.done ? 'fully checked' : 'partially checked'} (${r.totalDone}/${r.total} keywords)`);
-        if (r.checkedNow > 0) checkedCoverage++;
-      } catch (e) {
-        lines.push(`  [${label}] ${app.key}: coverage check failed: ${e instanceof Error ? e.message : String(e)}`);
+    // Budget is SHARED and was handed out first-come-first-served: the first
+    // app in config order received the entire remaining budget, so whichever
+    // app sat last was starved every single day. With one small list and one
+    // large one that reliably produced "the small app is fine, the big app is
+    // always half-checked" — and, because a partial day is re-checked from
+    // scratch the next morning, a sawtooth in the coverage charts rather than
+    // steady progress.
+    //
+    // Two changes make starvation impossible: serve the app that is FURTHEST
+    // BEHIND first, and give each app an equal slice of what's left instead of
+    // letting one consume it all.
+    const coverageApps = dueApps.filter((a) => (a.coverageKeywords || []).length);
+    if (coverageApps.length) {
+      const covSnap = loadCoverageSnapshot(today, userId);
+      const progressOf = (a: typeof coverageApps[number]) => {
+        const total = (a.coverageKeywords || []).length;
+        const row = covSnap?.apps.find((x) => x.key === a.key);
+        const done = (row?.keywords || []).filter((k) => !k.error).length;
+        return total ? done / total : 1;
+      };
+      const ordered = coverageApps
+        .map((a) => ({ app: a, progress: progressOf(a) }))
+        .sort((x, y) => x.progress - y.progress);
+
+      for (let i = 0; i < ordered.length; i++) {
+        const { app } = ordered[i];
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          lines.push(`  [${label}] ${app.key}: coverage deferred — out of time this run, continues next run.`);
+          continue;
+        }
+        // Equal split of what's left across the apps still to be served. An
+        // app that finishes early returns its unused time to the ones after it,
+        // because `remaining` is recomputed each iteration.
+        const share = Math.max(30_000, Math.floor(remaining / (ordered.length - i)));
+        try {
+          const r = await checkCoverageBatch(app, userId, Math.min(share, remaining));
+          lines.push(`  [${label}] ${app.key}: coverage ${r.done ? 'fully checked' : 'partially checked'} (${r.totalDone}/${r.total} keywords)`);
+          if (r.checkedNow > 0) checkedCoverage++;
+        } catch (e) {
+          lines.push(`  [${label}] ${app.key}: coverage check failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
     }
   }

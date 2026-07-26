@@ -413,5 +413,49 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
   eq('insight: data-quality caveat counts both cases', res4.some((r) => r.kind === 'coverage' && r.title.startsWith('2 keywords')), true);
 }
 
+
+// --- universe chart must plot the LIST size, not how far the run got --------
+{
+  const { universeSizeSeries } = await import('../src/lib/rank/track');
+  const app = { key: 'a', keywords: [] } as any;
+  const row = (n: number, listSize?: number) => ({
+    key: 'a', store: 'play', appId: 'a', country: 'in', topChart: null, score: null, ratings: null,
+    listSize,
+    keywords: Array.from({ length: n }, (_, i) => ({ keyword: `k${i}`, position: 5, depth: 200, top: [] })),
+  });
+  // Day 2 is a partially-finished coverage run: 359 of 645 rows written.
+  const snaps = [
+    { dateKey: '2026-07-25', checkedAt: 'T', apps: [row(645, 645)] },
+    { dateKey: '2026-07-26', checkedAt: 'T', apps: [row(359, 645)] },
+  ] as any;
+  const series = universeSizeSeries(app, snaps);
+  eq('a partially-checked day does NOT read as a shrinking universe',
+    series.map((p) => p.count), [645, 645]);
+  // Snapshots written before listSize existed keep their old meaning.
+  const legacy = [{ dateKey: '2026-07-20', checkedAt: 'T', apps: [row(500)] }] as any;
+  eq('legacy rows fall back to the row count', universeSizeSeries(app, legacy)[0].count, 500);
+}
+
+// --- shared coverage budget must not starve the last app -------------------
+{
+  // Mirrors the allocation in nightly.ts. The old code passed the whole
+  // remaining budget to each app in turn, so the first consumed it all.
+  const alloc = (totalMs: number, appCount: number) => {
+    const out: number[] = [];
+    let remaining = totalMs;
+    for (let i = 0; i < appCount; i++) {
+      const share = Math.max(30_000, Math.floor(remaining / (appCount - i)));
+      const spent = Math.min(share, remaining);
+      out.push(spent);
+      remaining -= spent;
+    }
+    return out;
+  };
+  eq('two apps split a 20 minute budget evenly', alloc(20 * 60_000, 2), [600_000, 600_000]);
+  eq('no app is left with zero time', alloc(20 * 60_000, 4).every((n) => n > 0), true);
+  eq('the whole budget is used, not overspent',
+    alloc(20 * 60_000, 3).reduce((a, b) => a + b, 0), 20 * 60_000);
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');

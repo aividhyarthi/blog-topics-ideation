@@ -294,7 +294,9 @@ export function universeSizeSeries(app: TrackedApp, snapshots: RankSnapshot[], d
   return snapshots.slice(-days).map((s) => {
     const r = s.apps.find((a) => a.key === app.key) || null;
     if (!r) return null;
-    return { dateKey: s.dateKey, count: r.keywords.length };
+    // Prefer the recorded list size. Falling back to the row count keeps
+    // history written before listSize existed readable, at the old meaning.
+    return { dateKey: s.dateKey, count: r.listSize ?? r.keywords.length };
   }).filter((d): d is UniverseSizePoint => d !== null);
 }
 
