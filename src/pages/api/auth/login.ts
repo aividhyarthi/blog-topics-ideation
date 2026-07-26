@@ -5,7 +5,8 @@ import { findUserByEmail, verifyPassword, createSession, setSessionCookie, valid
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
 
 export const POST: APIRoute = async (ctx) => {
-  if (!dbEnabled) return json({ error: 'Accounts are not enabled yet (no database configured).' }, 503);
+  // Operator-facing detail belongs in /api/health, not in a customer's login form.
+  if (!dbEnabled) return json({ error: 'Accounts are temporarily unavailable. Please try again in a few minutes.', serviceDown: true }, 503);
   let body: { email?: string; password?: string };
   try { body = await ctx.request.json(); } catch { return json({ error: 'Invalid request.' }, 400); }
   const email = (body.email || '').trim().toLowerCase();

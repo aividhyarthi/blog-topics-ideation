@@ -1,84 +1,134 @@
-# Deploying to Railway (plain-English guide)
+# Deploying CiteRank to Railway
 
-This repo contains **one app with three tools**:
+CiteRank is a **paid, account-gated tool**. Accounts, credits, payments and saved
+audits all live in Postgres, so **the app needs a database to function at all**.
 
-- `/` — the **Blog Topic Engine**
-- `/audit` — the **AEO Auditor**
-- `/wbr` — the **WBR Builder** (weekly AI-visibility report from SEMrush CSVs)
-
-You do **not** need a separate codebase for the Auditor. If you want it to run
-on its **own Railway project** (separate from your other deployments, so nothing
-can conflict), just create a new Railway project that points at this repo. Both
-tools will be live on that one project's URL.
+> **If you see "Accounts are temporarily unavailable" on signup, this page is
+> the fix.** It means the running app found no database. Jump to
+> [Step 2](#step-2-add-postgres-required) — and check `/api/health` first, which
+> tells you exactly what the server can see.
 
 ---
 
-## Create a new, isolated Railway project (≈5 clicks)
+## Step 0 — check what's actually wrong
 
-> You only need to do this once. Everything you click is in the Railway website.
+Open `https://<your-domain>/api/health` in a browser. It answers the only
+question that matters, and exposes no passwords.
 
-1. Go to **https://railway.com** and log in.
-2. Click **New Project** → **Deploy from GitHub repo**.
-3. Choose the repo **`aividhyarthi/blog-topics-ideation`**.
-   (If Railway asks for permission to see your GitHub repos, approve it.)
-4. When it asks which branch to deploy, pick the **default branch** (the one
-   this change was merged into). To test *before* merging, pick the feature
-   branch instead.
-5. Open the new service → **Settings**:
-   - **Root Directory**: leave it as `/` (blank/root). All the app files live at
-     the top of the repo.
-   - Railway auto-detects the included `Dockerfile` — you don't change anything.
-6. Open the service → **Variables** → **New Variable**. Add these:
-   - `SITE_PASSWORD` → a password of your choice. **This locks the whole site**
-     so only people with the password can open it. **Add this** — the WBR data
-     is Nykaa-internal. (Optional companion: `SITE_USER`, defaults to `nykaa`.)
-   - `ANTHROPIC_API_KEY` → your Anthropic key (`sk-ant-...`). Needed for the
-     AEO Auditor's AI signals and the WBR's optional Claude fallback.
-   - `WBR_DATA_DIR` → `/data`. This is where the WBR remembers each week so it can
-     show week-over-week change. Pair it with a Volume (next step) so it survives
-     redeploys.
-   - **Do NOT add a `PORT` variable** — Railway sets that automatically.
-7. **Add a Volume for the weekly history** (so saved weeks aren't lost on redeploy):
-   open the service → **Variables/Settings → Volumes → New Volume**, and set the
-   **mount path** to `/data` (matching `WBR_DATA_DIR`). One-time setup.
-8. Railway builds and deploys. When it's done, open **Settings → Networking →
-   Generate Domain** to get a public URL.
+Database missing:
 
-That's it. Visit (you'll be asked for the password once):
+```json
+{ "ok": false, "accounts": "disabled", "db": { "configured": false } }
+```
 
-- `https://<your-domain>/` for the Topic Engine
-- `https://<your-domain>/audit` for the AEO Auditor
-- `https://<your-domain>/wbr` for the WBR Builder
+Database working:
+
+```json
+{ "ok": true, "accounts": "enabled", "db": { "host": "…" }, "users": 12 }
+```
+
+If `configured` is `false`, do Step 2. If it's `true` but `ok` is `false`, the
+URL is set but unreachable — check the Postgres service is running and that you
+used the **private** URL, not a public one behind a firewall.
 
 ---
 
-## After the first setup
+## Step 1 — create the Railway project
 
-Railway watches the branch you picked. Every time new code lands on that branch,
-Railway **redeploys automatically** — you don't have to do anything.
+1. Go to **https://railway.com** → **New Project** → **Deploy from GitHub repo**.
+2. Choose **`aividhyarthi/blog-topics-ideation`**.
+3. Pick the branch you want live (currently **`aeo-checker`**).
+4. Leave **Root Directory** blank. Railway auto-detects the `Dockerfile`.
 
-## Keeping the data private (important for Nykaa)
+---
 
-- **The site is password-locked** when `SITE_PASSWORD` is set — every page and the
-  upload endpoint require it. Always set it on Railway.
-- **Only weekly summaries are stored, behind the password.** To show week-over-week
-  change, the tool saves a small JSON summary per week (headline numbers, per-topic
-  visibility/mentions) in the `WBR_DATA_DIR` Volume. The raw uploaded CSV files are
-  **not** kept — they're processed in memory and discarded. You can delete any saved
-  week from the **View saved weeks** panel. Untick **Save to history** to generate a
-  report without storing anything.
-- **Railway gives you HTTPS** automatically, so uploads are encrypted in transit.
-- **Claude fallback:** only if you tick that box, the *topic names* the rules
-  couldn't categorize are sent to Anthropic's API to be classified (Anthropic does
-  not train on API data). Leave it **off** if you'd rather nothing leaves the box —
-  the rules alone produce the full report.
+## Step 2 — add Postgres (REQUIRED)
+
+Without this, nobody can sign up, log in, buy credits, or run a single check.
+The app deliberately **locks itself** rather than running unmetered.
+
+1. In your project, click **New** → **Database** → **Add PostgreSQL**.
+2. Wait for the Postgres service to finish provisioning.
+3. **Link it to the app** — this is the step everyone misses. Adding Postgres to
+   the project does **not** give your app the connection string automatically.
+
+   Open your **app service** (not the database) → **Variables** →
+   **New Variable** → **Add Reference** → select the **Postgres** service →
+   choose **`DATABASE_URL`** → **Add**.
+
+4. Redeploy the app service.
+5. Reload `/api/health`. It should now say `"accounts": "enabled"`.
+
+The database schema creates itself on first boot — there is no migration step.
+
+> The app also accepts `POSTGRES_URL`, `DATABASE_PRIVATE_URL`,
+> `DATABASE_PUBLIC_URL`, `PG_URL`, or the discrete `PGHOST` / `PGUSER` /
+> `PGPASSWORD` / `PGDATABASE` / `PGPORT` set. Any one of them works.
+
+---
+
+## Step 3 — the other variables
+
+Open the **app service** → **Variables**:
+
+| Variable | Required? | What it does |
+|---|---|---|
+| `DATABASE_URL` | **Yes** | Accounts, credits, payments, saved audits. See Step 2. |
+| `ADMIN_EMAIL` | **Yes, to get paid** | The account allowed to open `/admin/payments` and approve UPI payments. Set it to your own signup email. |
+| `SESSION_SECRET` | Recommended | Signs session cookies. Any long random string. |
+| `OPENAI_API_KEY` *or* `ANTHROPIC_API_KEY` | Recommended | Powers the AI-judged audit signals. Without either, rule-based signals still score and AI ones default to 50. |
+| `UPI_ID` | To accept payments | Your UPI address, e.g. `you@okhdfcbank`. Rendered into the QR on `/pricing`. |
+| `UPI_PAYEE_NAME` | To accept payments | Name shown in the payer's UPI app. |
+| `UPI_AMOUNT_INR` | Optional | Monthly Pro price in INR. Defaults to `8299`. |
+| `PORT` | **No — never set this** | Railway injects it. Setting it manually breaks routing. |
+
+Then **Settings → Networking → Generate Domain** for a public URL.
+
+---
+
+## Step 4 — verify before announcing it
+
+Run these against your live domain, in order:
+
+1. `/api/health` → `"accounts": "enabled"`.
+2. Open `/` signed out → you should see **"Sign in to run a check"**, not a
+   working form. The tool is gated on the server; if you can use it signed out,
+   something is very wrong.
+3. `/blog`, `/news`, `/glossary` signed out → these **should** load. They are
+   public on purpose, for search and AI visibility.
+4. Sign up → your first check is free. Run it.
+5. Run a second check → should be refused with a prompt to buy credits.
+6. Sign in as `ADMIN_EMAIL` → `/admin/payments` should open. Any other account
+   should be refused.
+
+---
+
+## How payment works today
+
+Stripe cannot do recurring billing for Indian businesses, so billing is a
+**manual UPI flow** for now:
+
+1. Customer picks a pack on `/pricing` and pays the QR via any UPI app.
+2. They submit the UTR/reference number as a payment claim.
+3. You open `/admin/payments`, cross-check the amount and UTR against your bank,
+   and click **Approve**.
+4. Credits (or Pro for 30 days) land on their account immediately.
+
+Nothing is charged automatically and nothing is stored about their card. Replace
+this with Razorpay Subscriptions when you're ready.
+
+---
+
+## Redeploys
+
+Railway watches the branch you selected and redeploys on every push. Postgres
+data survives redeploys — it lives in the database service, not the container.
 
 ## Common questions
 
-- **Do I need the API key?** The Auditor's AI-judged signals (answer quality,
-  off-page brand estimate, etc.) need `ANTHROPIC_API_KEY`. Without it the page
-  still loads and the rule-based signals still score; the AI ones default to 50.
-- **A URL won't audit ("bot-blocked / JS-rendered").** Some sites block crawlers.
-  Use the **"Paste article"** tab and paste the article's HTML or text instead.
-- **Will this touch my other Railway project?** No — a new Railway project is
-  fully isolated. It has its own URL, build, and variables.
+- **"Accounts are temporarily unavailable."** No database. Step 2.
+- **A URL won't check ("bot-blocked / JS-rendered").** Some sites refuse
+  crawlers. Use the **Paste** tab instead. A failed fetch is refunded — it does
+  not consume the customer's check.
+- **Can I let people try it without an account?** Not currently, by design. Every
+  check costs real bandwidth and AI tokens, so all of them are metered.
