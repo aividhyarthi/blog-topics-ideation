@@ -1,0 +1,186 @@
+---
+// A plain-English status page for the person who owns this deployment.
+// Deliberately jargon-free: it answers "is my site working, and if not, what
+// exactly do I click next?" It reveals no secrets — only whether a database
+// was found, which is already obvious from the locked homepage.
+import { dbEnabled, dbDiagnostic, query } from '../lib/db';
+
+const diag = dbDiagnostic();
+let reachable = false;
+let userCount: number | null = null;
+let dbError = '';
+
+if (dbEnabled) {
+  try {
+    const r = await query<{ n: string }>('SELECT count(*)::text AS n FROM users');
+    userCount = Number(r.rows[0]?.n ?? 0);
+    reachable = true;
+  } catch (e: any) {
+    dbError = String(e?.message || e).slice(0, 200);
+  }
+}
+
+// Names only — never values. Lets the operator see whether Railway is
+// injecting anything at all without exposing a password.
+const seenVars = Object.keys(process.env)
+  .filter((k) => /^(PG|DATABASE|POSTGRES)/i.test(k))
+  .sort();
+
+const state: 'live' | 'unreachable' | 'missing' = reachable ? 'live' : dbEnabled ? 'unreachable' : 'missing';
+
+const other = [
+  { key: 'ADMIN_EMAIL', label: 'Approve payments', why: 'The email address allowed to open the payments admin page. Set it to the email you sign up with.', set: Boolean(process.env.ADMIN_EMAIL) },
+  { key: 'UPI_ID', label: 'Take payments', why: 'Your UPI address. Without it the pricing page can’t show a payment QR.', set: Boolean(process.env.UPI_ID) },
+  { key: 'RESEND_API_KEY', label: 'Password resets', why: 'Lets customers reset a forgotten password themselves instead of emailing you.', set: Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM) },
+  { key: 'OPENAI_API_KEY', label: 'AI audit scores', why: 'Powers the AI-judged part of the full audit. Without it those scores default to 50.', set: Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY) },
+];
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Setup — CiteRank</title>
+    <style>
+      :root {
+        --blue: #2563eb; --blue-soft: #eaf1ff; --ink: #0f172a; --ink-2: #334155;
+        --muted: #64748b; --line: #e6ebf1; --bg: #f6f8fb;
+        --ok: #12855a; --ok-bg: #e3f4ec; --bad: #d43a3a; --bad-bg: #fcebeb;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.6;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+      .wrap { max-width: 680px; margin: 0 auto; padding: 40px 20px 70px; }
+
+      .banner { border-radius: 16px; padding: 26px 28px; margin-bottom: 26px; }
+      .banner.ok { background: var(--ok-bg); border: 1px solid #bfe5d2; }
+      .banner.bad { background: var(--bad-bg); border: 1px solid #f3c9c9; }
+      .banner h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: -.02em; }
+      .banner.ok h1 { color: var(--ok); }
+      .banner.bad h1 { color: var(--bad); }
+      .banner p { margin: 0; font-size: 15.5px; color: var(--ink-2); }
+
+      .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; margin-bottom: 20px; }
+      .card h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: -.01em; }
+      .card .lead { margin: 0 0 18px; font-size: 15px; color: var(--muted); }
+
+      ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+      ol.steps li { counter-increment: s; position: relative; padding: 0 0 20px 46px; }
+      ol.steps li::before {
+        content: counter(s); position: absolute; left: 0; top: 0;
+        width: 30px; height: 30px; border-radius: 50%; background: var(--blue); color: #fff;
+        font-weight: 700; font-size: 14px; display: grid; place-items: center;
+      }
+      ol.steps li::after {
+        content: ''; position: absolute; left: 15px; top: 34px; bottom: 4px; width: 2px; background: var(--line);
+      }
+      ol.steps li:last-child { padding-bottom: 0; }
+      ol.steps li:last-child::after { display: none; }
+      ol.steps b { display: block; font-size: 15.5px; margin-bottom: 3px; }
+      ol.steps p { margin: 0; font-size: 14.5px; color: var(--muted); }
+      kbd { background: #f1f5f9; border: 1px solid var(--line); border-bottom-width: 2px;
+        border-radius: 5px; padding: 1px 7px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: var(--ink); }
+
+      .rows { display: grid; gap: 10px; }
+      .row { display: flex; align-items: flex-start; gap: 12px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 11px; }
+      .pill { flex: none; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+        padding: 3px 9px; border-radius: 999px; margin-top: 2px; }
+      .pill.on { background: var(--ok-bg); color: var(--ok); }
+      .pill.off { background: #f1f5f9; color: var(--muted); }
+      .row b { font-size: 14.5px; }
+      .row p { margin: 2px 0 0; font-size: 13.5px; color: var(--muted); }
+
+      .seen { font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: var(--ink-2);
+        background: #f1f5f9; border-radius: 9px; padding: 12px 14px; word-break: break-all; }
+      .btn { display: inline-block; background: var(--blue); color: #fff; text-decoration: none;
+        font-weight: 700; font-size: 15px; padding: 12px 22px; border-radius: 10px; border: 0; cursor: pointer; }
+      .foot { font-size: 13.5px; color: var(--muted); text-align: center; }
+      .foot a { color: var(--blue); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      {state === 'live' ? (
+        <div class="banner ok">
+          <h1>Your site is live</h1>
+          <p>The database is connected and accounts are working. {userCount} {userCount === 1 ? 'person has' : 'people have'} signed up so far.</p>
+        </div>
+      ) : state === 'unreachable' ? (
+        <div class="banner bad">
+          <h1>Database found, but it won't connect</h1>
+          <p>A database address is set, but the app can't reach it. Check that the database service is running, and that you used the private connection string rather than a public one.</p>
+        </div>
+      ) : (
+        <div class="banner bad">
+          <h1>Your site can't take sign-ups yet</h1>
+          <p>CiteRank needs a database to remember who signs up and what they've paid for. It doesn't have one yet, so visitors see a locked page instead of the tool. Nothing else is broken — this is the only thing standing in the way.</p>
+        </div>
+      )}
+
+      {state === 'missing' && (
+        <div class="card">
+          <h2>Fix it in about two minutes</h2>
+          <p class="lead">All of this happens on railway.com. You don't need to write anything technical — just click.</p>
+          <ol class="steps">
+            <li>
+              <b>Open your project on railway.com</b>
+              <p>You'll see boxes for each part of your project. One of them is this website.</p>
+            </li>
+            <li>
+              <b>Check whether you already have a database</b>
+              <p>Look for a box called <kbd>Postgres</kbd>. If there isn't one, click <kbd>+ New</kbd> (top right) → <kbd>Database</kbd> → <kbd>Add PostgreSQL</kbd>, and wait for it to finish starting.</p>
+            </li>
+            <li>
+              <b>Click the box for the website — not the database</b>
+              <p>This is the step that's usually missed. The next part must happen on the website's box, not on Postgres.</p>
+            </li>
+            <li>
+              <b>Go to the Variables tab</b>
+              <p>Then click <kbd>+ New Variable</kbd>, and choose <kbd>Add Reference</kbd> rather than typing anything.</p>
+            </li>
+            <li>
+              <b>Pick Postgres, then DATABASE_URL</b>
+              <p>A dropdown appears. Choose the <kbd>Postgres</kbd> service, then choose <kbd>DATABASE_URL</kbd> from the list. Click <kbd>Add</kbd>.</p>
+            </li>
+            <li>
+              <b>Let it redeploy, then reload this page</b>
+              <p>Railway restarts the site automatically. Give it a minute, then press the button below.</p>
+            </li>
+          </ol>
+        </div>
+      )}
+
+      {state === 'unreachable' && dbError && (
+        <div class="card">
+          <h2>What the server reported</h2>
+          <p class="lead">Send this to your developer if it doesn't make sense — it contains no passwords.</p>
+          <div class="seen">{dbError}</div>
+        </div>
+      )}
+
+      <div class="card">
+        <h2>What this server can currently see</h2>
+        <p class="lead">Database-related settings found in this deployment. Names only — no passwords are shown, so this is safe to share.</p>
+        <div class="seen">{seenVars.length ? seenVars.join(', ') : 'Nothing. Railway is not passing any database settings to this site yet.'}</div>
+      </div>
+
+      {state === 'live' && (
+        <div class="card">
+          <h2>Everything else</h2>
+          <p class="lead">Optional, but each one turns on part of the business.</p>
+          <div class="rows">
+            {other.map((o) => (
+              <div class="row">
+                <span class={`pill ${o.set ? 'on' : 'off'}`}>{o.set ? 'On' : 'Off'}</span>
+                <div><b>{o.label}</b><p>{o.why}</p></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p style="text-align:center;margin:26px 0"><button class="btn" onclick="location.reload()">Check again</button></p>
+      <p class="foot">Bookmark this page — it always tells you the truth about what's running.<br />Machine-readable version: <a href="/api/health">/api/health</a></p>
+    </div>
+  </body>
+</html>

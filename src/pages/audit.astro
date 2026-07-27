@@ -111,6 +111,8 @@ const accountsDown = !dbEnabled;
       .gatecard .gate-icon svg { width: 26px; height: 26px; }
       .gatecard h2 { margin: 0 0 8px; font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
       .gatecard p { margin: 0 0 22px; font-size: 14px; color: var(--muted); line-height: 1.6; }
+      .gatecard .ownernote { margin: 0; font-size: 12.5px; color: var(--faint); }
+      .gatecard .ownernote a { color: var(--pink); font-weight: 600; }
       .gate-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
       .panel-lead { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
       .panel-lead .ttl { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
@@ -471,6 +473,7 @@ const accountsDown = !dbEnabled;
               <>
                 <h2>Accounts are temporarily unavailable</h2>
                 <p>We can't reach the account service right now, so sign-in is paused. Please try again in a few minutes.</p>
+                <p class="ownernote">Own this site? <a href="/setup">Open setup</a> to see what's missing.</p>
               </>
             ) : (
               <>
