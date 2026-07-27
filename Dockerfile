@@ -1,5 +1,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
+# better-sqlite3 compiles a native addon from source at install time.
+RUN apk add --no-cache python3 make g++
 COPY package*.json ./
 RUN npm install
 COPY . .

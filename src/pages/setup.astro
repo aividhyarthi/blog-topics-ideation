@@ -1,8 +1,8 @@
 ---
 // A plain-English status page for the person who owns this deployment.
 // Deliberately jargon-free: it answers "is my site working, and if not, what
-// exactly do I click next?" It reveals no secrets — only whether a database
-// was found, which is already obvious from the locked homepage.
+// exactly do I click next?" It reveals no secrets — only whether the data
+// folder was found, which is already obvious from the locked homepage.
 import { dbEnabled, dbDiagnostic, query } from '../lib/db';
 
 const diag = dbDiagnostic();
@@ -12,19 +12,13 @@ let dbError = '';
 
 if (dbEnabled) {
   try {
-    const r = await query<{ n: string }>('SELECT count(*)::text AS n FROM users');
+    const r = await query<{ n: number }>('SELECT count(*) AS n FROM users');
     userCount = Number(r.rows[0]?.n ?? 0);
     reachable = true;
   } catch (e: any) {
     dbError = String(e?.message || e).slice(0, 200);
   }
 }
-
-// Names only — never values. Lets the operator see whether Railway is
-// injecting anything at all without exposing a password.
-const seenVars = Object.keys(process.env)
-  .filter((k) => /^(PG|DATABASE|POSTGRES)/i.test(k))
-  .sort();
 
 const state: 'live' | 'unreachable' | 'missing' = reachable ? 'live' : dbEnabled ? 'unreachable' : 'missing';
 
@@ -107,44 +101,53 @@ const other = [
         </div>
       ) : state === 'unreachable' ? (
         <div class="banner bad">
-          <h1>Database found, but it won't connect</h1>
-          <p>A database address is set, but the app can't reach it. Check that the database service is running, and that you used the private connection string rather than a public one.</p>
+          <h1>A storage folder is set, but it's not writable</h1>
+          <p>The setting that points at where accounts get saved is there, but the app can't write to it. This usually means the Volume isn't actually mounted at that path yet.</p>
         </div>
       ) : (
         <div class="banner bad">
           <h1>Your site can't take sign-ups yet</h1>
-          <p>CiteRank needs a database to remember who signs up and what they've paid for. It doesn't have one yet, so visitors see a locked page instead of the tool. Nothing else is broken — this is the only thing standing in the way.</p>
+          <p>CiteRank needs one place to remember who signs up and what they've paid for. Right now it doesn't have one, so visitors see a locked page instead of the tool. Nothing else is broken — this is the only thing standing in the way, and it's a single step.</p>
         </div>
       )}
 
       {state === 'missing' && (
         <div class="card">
-          <h2>Fix it in about two minutes</h2>
-          <p class="lead">All of this happens on railway.com. You don't need to write anything technical — just click.</p>
+          <h2>Fix it in about a minute</h2>
+          <p class="lead">All of this happens on railway.com, on the ONE box that is your website — nothing else to find or click between.</p>
           <ol class="steps">
             <li>
-              <b>Open your project on railway.com</b>
-              <p>You'll see boxes for each part of your project. One of them is this website.</p>
+              <b>Open your project on railway.com, click your website's box</b>
+              <p>Not a second box, not a database — just the one that already runs your site.</p>
             </li>
             <li>
-              <b>Check whether you already have a database</b>
-              <p>Look for a box called <kbd>Postgres</kbd>. If there isn't one, click <kbd>+ New</kbd> (top right) → <kbd>Database</kbd> → <kbd>Add PostgreSQL</kbd>, and wait for it to finish starting.</p>
+              <b>Go to Settings → Volumes → New Volume</b>
+              <p>Set the mount path to <kbd>/data</kbd>. This gives your site a permanent folder that survives every future redeploy.</p>
             </li>
             <li>
-              <b>Click the box for the website — not the database</b>
-              <p>This is the step that's usually missed. The next part must happen on the website's box, not on Postgres.</p>
-            </li>
-            <li>
-              <b>Go to the Variables tab</b>
-              <p>Then click <kbd>+ New Variable</kbd>, and choose <kbd>Add Reference</kbd> rather than typing anything.</p>
-            </li>
-            <li>
-              <b>Pick Postgres, then DATABASE_URL</b>
-              <p>A dropdown appears. Choose the <kbd>Postgres</kbd> service, then choose <kbd>DATABASE_URL</kbd> from the list. Click <kbd>Add</kbd>.</p>
+              <b>Go to Variables → New Variable</b>
+              <p>Name: <kbd>DATA_DIR</kbd>. Value: <kbd>/data</kbd> — matching the path you just typed above. Click Add.</p>
             </li>
             <li>
               <b>Let it redeploy, then reload this page</b>
               <p>Railway restarts the site automatically. Give it a minute, then press the button below.</p>
+            </li>
+          </ol>
+        </div>
+      )}
+
+      {state === 'unreachable' && (
+        <div class="card">
+          <h2>If that just happened</h2>
+          <p class="lead">Double-check two things on your website's box (not a second box):</p>
+          <ol class="steps">
+            <li>
+              <b>Settings → Volumes</b>
+              <p>Confirm a Volume exists and its mount path is exactly <kbd>/data</kbd> — no typos, no trailing slash difference from the variable below.</p>
+            </li>
+            <li>
+              <b>Variables</b>
+              <p>Confirm <kbd>DATA_DIR</kbd> is set to exactly the same path as the Volume's mount path, then redeploy.</p>
             </li>
           </ol>
         </div>
@@ -160,8 +163,8 @@ const other = [
 
       <div class="card">
         <h2>What this server can currently see</h2>
-        <p class="lead">Database-related settings found in this deployment. Names only — no passwords are shown, so this is safe to share.</p>
-        <div class="seen">{seenVars.length ? seenVars.join(', ') : 'Nothing. Railway is not passing any database settings to this site yet.'}</div>
+        <p class="lead">Where it's looking for storage right now. Safe to share — it's a folder path, not a password.</p>
+        <div class="seen">{diag.dataDir ? `DATA_DIR = ${diag.dataDir}` : 'DATA_DIR is not set on this service yet.'}</div>
       </div>
 
       {state === 'live' && (

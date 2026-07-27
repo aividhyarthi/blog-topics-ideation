@@ -34,6 +34,13 @@ export interface UsageStatus {
   allowed: boolean; // can this account run ONE more check right now
 }
 
+// Computed in JS and bound as a parameter — see the note in auth.ts on why
+// "now" and "start of month" are never left to SQL-side functions.
+function monthStartIso(): string {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+}
+
 async function effectivePlan(userId: string): Promise<{ plan: 'free' | 'pro'; expiresAt: string | null }> {
   const { rows } = await query<{ plan: string; plan_expires_at: string | null }>(
     'SELECT plan, plan_expires_at FROM users WHERE id = $1', [userId],
@@ -47,11 +54,11 @@ async function effectivePlan(userId: string): Promise<{ plan: 'free' | 'pro'; ex
 export async function usageStatus(userId: string): Promise<UsageStatus> {
   const { plan, expiresAt } = await effectivePlan(userId);
   const planLimit = PLAN_LIMITS[plan];
-  const { rows } = await query<{ n: string; free_check_used: boolean; credits: number }>(
-    `SELECT (SELECT COUNT(*)::int FROM usage_events WHERE user_id = $1 AND created_at >= date_trunc('month', now())) AS n,
+  const { rows } = await query<{ n: number; free_check_used: number; credits: number }>(
+    `SELECT (SELECT COUNT(*) FROM usage_events WHERE user_id = $1 AND created_at >= $2) AS n,
             u.free_check_used, u.credits
      FROM users u WHERE u.id = $1`,
-    [userId],
+    [userId, monthStartIso()],
   );
   const planUsed = Number(rows[0]?.n ?? 0);
   const freeCheckAvailable = !rows[0]?.free_check_used;
@@ -69,8 +76,8 @@ export interface ConsumeResult { allowed: boolean; via?: 'plan' | 'free' | 'cred
 export async function consumeAccess(userId: string, tool: string): Promise<ConsumeResult> {
   const { plan, planLimit } = await effectivePlan(userId);
   if (plan === 'pro') {
-    const { rows } = await query<{ n: string }>(
-      `SELECT COUNT(*)::int AS n FROM usage_events WHERE user_id = $1 AND created_at >= date_trunc('month', now())`, [userId],
+    const { rows } = await query<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM usage_events WHERE user_id = $1 AND created_at >= $2`, [userId, monthStartIso()],
     );
     if (Number(rows[0]?.n ?? 0) < planLimit) {
       await recordUsage(userId, tool);
@@ -149,7 +156,7 @@ export async function createClaim(email: string, utr: string, amount: string, no
     await query('INSERT INTO payment_claims (email, utr, amount, note, kind, credits) VALUES ($1, $2, $3, $4, $5, $6)', [email, utr, amount || null, note || null, kind, credits ?? null]);
   } catch (e: any) {
     // Unique-index violation from a concurrent duplicate submission.
-    if (e?.code === '23505') throw new Error('That transaction reference has already been submitted.');
+    if (e?.code === 'SQLITE_CONSTRAINT_UNIQUE') throw new Error('That transaction reference has already been submitted.');
     throw e;
   }
 }
@@ -173,14 +180,18 @@ export async function approveClaim(id: string): Promise<{ ok: boolean; error?: s
     const n = claim.credits && claim.credits > 0 ? claim.credits : 1;
     await query('UPDATE users SET credits = credits + $2 WHERE id = $1', [userRows[0].id, n]);
   } else {
-    await query(
-      `UPDATE users SET plan = 'pro',
-         plan_expires_at = (CASE WHEN plan_expires_at IS NOT NULL AND plan_expires_at > now() THEN plan_expires_at ELSE now() END) + interval '30 days'
-       WHERE id = $1`,
-      [userRows[0].id],
+    // Stacks onto remaining time rather than resetting it: renewing a still-active
+    // Pro plan extends from its current expiry, not from today.
+    const { rows: cur } = await query<{ plan_expires_at: string | null }>(
+      'SELECT plan_expires_at FROM users WHERE id = $1', [userRows[0].id],
     );
+    const now = new Date();
+    const currentExpiry = cur[0]?.plan_expires_at ? new Date(cur[0].plan_expires_at) : null;
+    const base = currentExpiry && currentExpiry > now ? currentExpiry : now;
+    const newExpiry = new Date(base.getTime() + 30 * 86_400_000);
+    await query(`UPDATE users SET plan = 'pro', plan_expires_at = $2 WHERE id = $1`, [userRows[0].id, newExpiry.toISOString()]);
   }
-  await query(`UPDATE payment_claims SET status = 'approved', reviewed_at = now() WHERE id = $1`, [id]);
+  await query(`UPDATE payment_claims SET status = 'approved', reviewed_at = $2 WHERE id = $1`, [id, new Date().toISOString()]);
   return { ok: true };
 }
 
@@ -188,6 +199,6 @@ export async function rejectClaim(id: string): Promise<{ ok: boolean; error?: st
   const { rows } = await query<{ status: string }>('SELECT status FROM payment_claims WHERE id = $1', [id]);
   if (!rows[0]) return { ok: false, error: 'Claim not found.' };
   if (rows[0].status !== 'pending') return { ok: false, error: `Claim already ${rows[0].status}.` };
-  await query(`UPDATE payment_claims SET status = 'rejected', reviewed_at = now() WHERE id = $1`, [id]);
+  await query(`UPDATE payment_claims SET status = 'rejected', reviewed_at = $2 WHERE id = $1`, [id, new Date().toISOString()]);
   return { ok: true };
 }

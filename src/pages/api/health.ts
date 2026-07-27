@@ -20,14 +20,14 @@ export const GET: APIRoute = async () => {
         ok: false,
         accounts: 'disabled',
         db,
-        fix: 'Set DATABASE_URL on the app service. On Railway: app service → Variables → New Variable → Add Reference → select the Postgres service → DATABASE_URL, then redeploy.',
+        fix: 'Set DATA_DIR on this service, paired with a Volume mounted at the same path. On Railway: this service → Settings → Volumes → New Volume (mount path e.g. /data), then Variables → DATA_DIR = /data, then redeploy. Full walkthrough at /setup.',
       },
       503,
     );
   }
 
   try {
-    const r = await query<{ n: string }>('SELECT count(*)::text AS n FROM users');
+    const r = await query<{ n: number }>('SELECT count(*) AS n FROM users');
     return json({ ok: true, accounts: 'enabled', db, users: Number(r.rows[0]?.n ?? 0) });
   } catch (err: any) {
     return json(

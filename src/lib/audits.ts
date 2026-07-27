@@ -36,5 +36,7 @@ export async function getAudit(userId: string, id: string): Promise<{ report: an
   const { rows } = await query<any>(
     'SELECT report, meta FROM audits WHERE id = $1 AND user_id = $2', [id, userId],
   );
-  return rows[0] ? { report: rows[0].report, meta: rows[0].meta } : null;
+  // report/meta are stored as JSON text (no native JSONB column here), so they
+  // need an explicit parse back into objects on the way out.
+  return rows[0] ? { report: JSON.parse(rows[0].report), meta: JSON.parse(rows[0].meta) } : null;
 }

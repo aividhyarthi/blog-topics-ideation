@@ -1,7 +1,12 @@
-// Email + password auth with DB-backed sessions. No third-party provider needed
-// (works the moment DATABASE_URL is set). Passwords hashed with scrypt (Node
-// built-in crypto — no native deps). Sessions are random opaque tokens stored in
-// Postgres and carried in an httpOnly cookie, so they're revocable.
+// Email + password auth with DB-backed sessions. No third-party provider
+// needed. Passwords hashed with scrypt (Node built-in crypto — no native
+// deps). Sessions are random opaque tokens stored in SQLite and carried in an
+// httpOnly cookie, so they're revocable.
+//
+// "Now" is always computed here in JS (toISOString()) and bound as a query
+// parameter, never left to a SQL-side now() — Postgres and SQLite spell that
+// function differently, and pushing it into JS means one code path works
+// against either.
 
 import { randomBytes, scrypt as _scrypt, timingSafeEqual } from 'node:crypto';
 import type { APIContext } from 'astro';
@@ -49,18 +54,8 @@ export async function createSession(userId: string): Promise<{ token: string; ex
   const expires = new Date(Date.now() + SESSION_DAYS * 864e5);
   // Single-login: one active session per user — signing in ends prior sessions.
   await query('DELETE FROM sessions WHERE user_id = $1', [userId]);
-  await query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, userId, expires]);
+  await query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, userId, expires.toISOString()]);
   return { token, expires };
-}
-
-// ---- monthly usage limit (Pro plan: 500 URL checks / calendar month) ----
-export const MONTHLY_LIMIT = 500;
-export async function monthlyUsage(userId: string): Promise<number> {
-  const { rows } = await query<{ n: string }>(
-    `SELECT COUNT(*)::int AS n FROM audits WHERE user_id = $1 AND created_at >= date_trunc('month', now())`,
-    [userId],
-  );
-  return Number(rows[0]?.n ?? 0);
 }
 
 export async function destroySession(token: string): Promise<void> {
@@ -78,7 +73,7 @@ export async function createResetToken(email: string): Promise<string | null> {
   const expires = new Date(Date.now() + RESET_MINUTES * 60_000);
   // Only the newest link should work.
   await query('DELETE FROM password_resets WHERE user_id = $1', [user.id]);
-  await query('INSERT INTO password_resets (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, user.id, expires]);
+  await query('INSERT INTO password_resets (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, user.id, expires.toISOString()]);
   return token;
 }
 
@@ -89,7 +84,7 @@ export async function createResetToken(email: string): Promise<string | null> {
  */
 export async function consumeResetToken(token: string, newPassword: string): Promise<boolean> {
   const { rows } = await query<{ user_id: string }>(
-    'DELETE FROM password_resets WHERE token = $1 AND expires_at > now() RETURNING user_id', [token],
+    'DELETE FROM password_resets WHERE token = $1 AND expires_at > $2 RETURNING user_id', [token, new Date().toISOString()],
   );
   const userId = rows[0]?.user_id;
   if (!userId) return false;
@@ -108,7 +103,7 @@ export async function getUser(ctx: APIContext): Promise<User | null> {
   try {
     const { rows } = await query<{ id: string; email: string }>(
       `SELECT u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id
-       WHERE s.token = $1 AND s.expires_at > now()`, [token],
+       WHERE s.token = $1 AND s.expires_at > $2`, [token, new Date().toISOString()],
     );
     return rows[0] ? { id: String(rows[0].id), email: rows[0].email } : null;
   } catch { return null; }

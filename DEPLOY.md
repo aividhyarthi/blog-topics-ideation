@@ -1,35 +1,24 @@
 # Deploying CiteRank to Railway
 
 CiteRank is a **paid, account-gated tool**. Accounts, credits, payments and saved
-audits all live in Postgres, so **the app needs a database to function at all**.
+audits all live in a self-contained SQLite database file that the app carries
+with it — **no separate database service to create or link.** The one thing
+that has to exist is a persistent folder for that file to live in, or every
+redeploy wipes it.
 
 > **If you see "Accounts are temporarily unavailable" on signup, this page is
-> the fix.** It means the running app found no database. Jump to
-> [Step 2](#step-2-add-postgres-required) — and check `/api/health` first, which
-> tells you exactly what the server can see.
+> the fix.** It means the running app has nowhere durable to write. Jump to
+> [Step 2](#step-2-add-a-volume-required) — and check `/setup` first, it's a
+> plain-English status page built for exactly this.
 
 ---
 
 ## Step 0 — check what's actually wrong
 
-Open `https://<your-domain>/api/health` in a browser. It answers the only
-question that matters, and exposes no passwords.
-
-Database missing:
-
-```json
-{ "ok": false, "accounts": "disabled", "db": { "configured": false } }
-```
-
-Database working:
-
-```json
-{ "ok": true, "accounts": "enabled", "db": { "host": "…" }, "users": 12 }
-```
-
-If `configured` is `false`, do Step 2. If it's `true` but `ok` is `false`, the
-URL is set but unreachable — check the Postgres service is running and that you
-used the **private** URL, not a public one behind a firewall.
+Open `https://<your-domain>/setup` in a browser. It's written for a
+non-technical operator and tells you, in plain English, whether the site is
+live and what to click next if it isn't. `/api/health` gives the same
+information as raw JSON if you want it.
 
 ---
 
@@ -42,41 +31,38 @@ used the **private** URL, not a public one behind a firewall.
 
 ---
 
-## Step 2 — add Postgres (REQUIRED)
+## Step 2 — add a Volume (REQUIRED)
 
 Without this, nobody can sign up, log in, buy credits, or run a single check.
-The app deliberately **locks itself** rather than running unmetered.
+The app deliberately **locks itself** rather than running unmetered — and,
+just as important, rather than quietly storing real customer data on disk
+that vanishes the next time Railway redeploys.
 
-1. In your project, click **New** → **Database** → **Add PostgreSQL**.
-2. Wait for the Postgres service to finish provisioning.
-3. **Link it to the app** — this is the step everyone misses. Adding Postgres to
-   the project does **not** give your app the connection string automatically.
+This is all on the **one** service that is your website. There is no second
+service to create or link.
 
-   Open your **app service** (not the database) → **Variables** →
-   **New Variable** → **Add Reference** → select the **Postgres** service →
-   choose **`DATABASE_URL`** → **Add**.
+1. Open your website's service → **Settings** → **Volumes** → **New Volume**.
+2. Set the mount path to **`/data`**.
+3. Open **Variables** → **New Variable**: name **`DATA_DIR`**, value **`/data`**
+   (must match the mount path exactly).
+4. Redeploy.
+5. Reload `/setup`. It should now say your site is live.
 
-4. Redeploy the app service.
-5. Reload `/api/health`. It should now say `"accounts": "enabled"`.
-
-The database schema creates itself on first boot — there is no migration step.
-
-> The app also accepts `POSTGRES_URL`, `DATABASE_PRIVATE_URL`,
-> `DATABASE_PUBLIC_URL`, `PG_URL`, or the discrete `PGHOST` / `PGUSER` /
-> `PGPASSWORD` / `PGDATABASE` / `PGPORT` set. Any one of them works.
+The database schema creates itself on first boot — there is no migration step,
+and no second service's connection string to copy or get wrong.
 
 ---
 
 ## Step 3 — the other variables
 
-Open the **app service** → **Variables**:
+Open the service → **Variables**:
 
 | Variable | Required? | What it does |
 |---|---|---|
-| `DATABASE_URL` | **Yes** | Accounts, credits, payments, saved audits. See Step 2. |
+| `DATA_DIR` | **Yes** | Where accounts, credits, payments and saved audits live. See Step 2 — must be paired with a Volume at the same path. |
 | `ADMIN_EMAIL` | **Yes, to get paid** | The account allowed to open `/admin/payments` and approve UPI payments. Set it to your own signup email. |
 | `SESSION_SECRET` | Recommended | Signs session cookies. Any long random string. |
-| `RESEND_API_KEY` + `MAIL_FROM` | **Yes, in practice** | Sends password-reset email. Without both, a customer who forgets their password cannot recover the account themselves and the reset form says so honestly. Get a key at resend.com; `MAIL_FROM` must be an address on a domain you've verified there. |
+| `RESEND_API_KEY` + `MAIL_FROM` | **Yes, in practice** | Sends password-reset email. Without both, a customer who forgets their password cannot recover the account themselves, and the reset form says so honestly. Get a key at resend.com; `MAIL_FROM` must be an address on a domain you've verified there. |
 | `SUPPORT_EMAIL` | Recommended | Shown on the legal pages and in the "email us" fallback when reset mail isn't configured. |
 | `SITE_URL` | Recommended | Your public origin, e.g. `https://citerank.app`. Used for canonical tags, `sitemap.xml`, and links inside reset emails. Falls back to the request host. |
 | `OPENAI_API_KEY` *or* `ANTHROPIC_API_KEY` | Recommended | Powers the AI-judged audit signals. Without either, rule-based signals still score and AI ones default to 50. |
@@ -93,7 +79,7 @@ Then **Settings → Networking → Generate Domain** for a public URL.
 
 Run these against your live domain, in order:
 
-1. `/api/health` → `"accounts": "enabled"`.
+1. `/setup` → says your site is live.
 2. Open `/` signed out → you should see **"Sign in to run a check"**, not a
    working form. The tool is gated on the server; if you can use it signed out,
    something is very wrong.
@@ -122,16 +108,24 @@ this with Razorpay Subscriptions when you're ready.
 
 ---
 
-## Redeploys
+## Redeploys and backups
 
-Railway watches the branch you selected and redeploys on every push. Postgres
-data survives redeploys — it lives in the database service, not the container.
+Railway watches the branch you selected and redeploys on every push. The
+Volume persists across redeploys — that's the whole point of Step 2. It does
+**not** survive if the Volume itself is deleted, so treat it like you would any
+production database: back it up periodically. The entire database is one file
+at `/data/citerank.db` inside the container; Railway's volume backup/snapshot
+feature (if available on your plan) covers it automatically.
 
 ## Common questions
 
-- **"Accounts are temporarily unavailable."** No database. Step 2.
+- **"Accounts are temporarily unavailable."** No `DATA_DIR`/Volume yet. Step 2.
 - **A URL won't check ("bot-blocked / JS-rendered").** Some sites refuse
   crawlers. Use the **Paste** tab instead. A failed fetch is refunded — it does
   not consume the customer's check.
 - **Can I let people try it without an account?** Not currently, by design. Every
   check costs real bandwidth and AI tokens, so all of them are metered.
+- **Why SQLite instead of Postgres?** One process, one Volume, nothing to link
+  between services — the whole failure mode of "added the variable to the
+  wrong box" goes away. If you outgrow a single instance later, this can move
+  to Postgres without changing anything customer-facing.

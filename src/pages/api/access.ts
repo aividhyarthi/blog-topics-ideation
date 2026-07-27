@@ -51,7 +51,7 @@ export const POST: APIRoute = async (ctx) => {
 
   // An account is ALWAYS required to run a check. If the database isn't
   // configured the tool locks itself rather than falling open to anonymous
-  // access — a missing DATABASE_URL must never unlock the paid product.
+  // access — a missing DATA_DIR must never unlock the paid product.
   if (!dbEnabled) {
     return json({ error: 'Accounts are temporarily unavailable. Please try again shortly.', serviceDown: true }, 503);
   }
