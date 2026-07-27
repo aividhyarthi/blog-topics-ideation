@@ -39,6 +39,46 @@ const DATABASE_URL = resolveDatabaseUrl();
 
 export const dbEnabled = Boolean(DATABASE_URL);
 
+// Say so loudly at boot. Without a database the entire product is disabled, and
+// the only place an operator can see why is the deploy log — so print the
+// diagnosis there rather than making them guess from a locked page. Env var
+// NAMES only; never values.
+if (!dbEnabled) {
+  const seen = Object.keys(process.env)
+    .filter((k) => /^(PG|DATABASE|POSTGRES|RAILWAY)/i.test(k))
+    .sort();
+  console.error(
+    [
+      '',
+      '='.repeat(64),
+      'CiteRank: NO DATABASE CONFIGURED — accounts, payments and all',
+      'checks are DISABLED. The site will show "Accounts are temporarily',
+      'unavailable" to every visitor until this is fixed.',
+      '',
+      'Looked for: DATABASE_URL, POSTGRES_URL, POSTGRESQL_URL, PG_URL,',
+      '            DATABASE_PRIVATE_URL, DATABASE_PUBLIC_URL,',
+      '            or PGHOST + PGUSER + PGDATABASE',
+      '',
+      seen.length
+        ? `Database-ish variables this container CAN see: ${seen.join(', ')}`
+        : 'This container can see NO database-related variables at all.',
+      '',
+      'Fix on Railway: open the APP service (not the database) →',
+      'Variables → New Variable → Add Reference → pick the Postgres',
+      'service → DATABASE_URL → Add → redeploy.',
+      'Adding Postgres to the project does NOT set this by itself.',
+      '',
+      'Verify afterwards at /api/health',
+      '='.repeat(64),
+      '',
+    ].join('\n'),
+  );
+} else {
+  let where = 'unknown host';
+  try { where = new URL(DATABASE_URL!).host; } catch { /* ignore */ }
+  console.log(`CiteRank: database configured (${where}) — accounts enabled.`);
+}
+
 /** Non-secret diagnostic for /api/health — never exposes credentials. */
 export function dbDiagnostic() {
   let host: string | null = null;

@@ -1,7 +1,7 @@
 ---
 import Site from '../layouts/Site.astro';
 import QRCode from 'qrcode';
-import { CREDIT_PACKS, PRO_PRICE_USD } from '../lib/billing';
+import { CREDIT_PACKS } from '../lib/billing';
 
 // UPI is a stopgap for recurring billing: Stripe cannot process subscription
 // billing for Indian businesses, and Razorpay is the eventual real fix. Until
@@ -83,99 +83,14 @@ const faqSchema = {
       <div class="tiercard">
         <div class="pc-badge alt">Best for volume</div>
         <div class="pc-name">CiteRank Pro</div>
-        <div class="pc-price">${PRO_PRICE_USD}<span>/month</span></div>
-        <div class="pc-sub">500 checks/month. Cancel anytime.</div>
+        <div class="pc-price">₹{Number(MONTHLY_INR).toLocaleString('en-IN')}<span>/month</span></div>
+        <div class="pc-sub">500 checks/month. No auto-renewal.</div>
         <a href="#pay" class="btn-primary pc-cta">Subscribe</a>
         <ul class="pc-list">
           <li><b>500 URL checks / month</b></li>
           <li>Everything in check packs, plus:</li>
           <li>Priority for high-volume teams</li>
-          <li>Best per-check price (~₹17/check)</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="wrap feat-note">
-      <p>All tiers include: LLM Access Check across every AI crawler (ChatGPT, ChatGPT Search, Perplexity, Claude, Copilot, Google AI), the full AEO audit with ranked fixes, content extraction &amp; gap analysis, page-type/category-aware checks, saved reports, PDF export, and one login per account.</p>
-    </div>
-
-    <div class="wrap upi-wrap" id="pay">
-      <h2 class="faq-h">Pay via UPI</h2>
-      <p class="upi-intro">Card billing for India isn’t live yet — for now, pay via UPI. It’s manually verified, usually within a few hours.</p>
-      {upiConfigured ? (
-        <div class="upicard">
-          <div class="upi-qr" set:html={qrSvg} />
-          <div class="upi-info">
-            <div class="upi-idrow"><span class="upi-id">{UPI_ID}</span><button class="btn-ghost sm" id="upicopy" data-upi={UPI_ID}>Copy UPI ID</button></div>
-            <a href={upiUri} class="btn-primary upi-pay">Pay with UPI app</a>
-
-            <div class="paywhat">
-              <label class="pw-opt"><input type="radio" name="paywhat" value="credits" checked /> A check pack — <span id="pw-pack-amt">₹599 (5 checks)</span></label>
-              <label class="pw-opt"><input type="radio" name="paywhat" value="subscription" /> Monthly Pro — ₹{MONTHLY_INR} (500 checks/month)</label>
-            </div>
-
-            <ol class="upi-steps">
-              <li>Scan the QR (or tap “Pay with UPI app” on mobile) and pay the amount for what you’re buying above.</li>
-              <li>Copy the UTR / transaction reference number from your UPI app.</li>
-              <li>Submit it below with the email your CiteRank account uses.</li>
-            </ol>
-            <form id="upiform" class="upiform">
-              <input type="email" id="uf-email" placeholder="Your CiteRank account email" required />
-              <input type="text" id="uf-utr" placeholder="UPI transaction reference (UTR)" required />
-              <input type="text" id="uf-note" placeholder="Note (optional)" />
-              <button type="submit" class="btn-primary" id="uf-go">Submit for verification</button>
-              <div class="upi-msg" id="uf-msg"></div>
-            </form>
-          </div>
-        </div>
-      ) : (
-        <div class="upicard upi-off"><p>UPI payment isn’t configured on this deployment yet — email us to activate manually.</p></div>
-      )}
-    </div>
-  </section>
-
-  <main>
-    <div class="wrap tier-grid">
-      <div class="tiercard">
-        <div class="pc-name">Free trial</div>
-        <div class="pc-price">₹0</div>
-        <div class="pc-sub">One check, on us — no card required.</div>
-        <a href="/audit" class="btn-ghost pc-cta">Sign up free</a>
-        <ul class="pc-list">
-          <li>1 full check (LLM Access or AEO Audit)</li>
-          <li>All AI-crawler tabs included</li>
-          <li>No time limit to use it</li>
-        </ul>
-      </div>
-
-      <div class="tiercard featured">
-        <div class="pc-badge">Pay per URL</div>
-        <div class="pc-name">Check packs</div>
-        <div class="pc-price">₹149<span>/check</span></div>
-        <div class="pc-sub">No subscription. Credits never expire.</div>
-        <div class="packlist">
-          {CREDIT_PACKS.map((p) => (
-            <label class="packrow">
-              <input type="radio" name="pack" value={p.id} data-checks={p.checks} data-price={p.priceInr} checked={p.id === 'starter'} />
-              <span class="pk-label">{p.label}</span>
-              <span class="pk-price">₹{p.priceInr}</span>
-            </label>
-          ))}
-        </div>
-        <a href="#pay" class="btn-primary pc-cta">Buy a check pack</a>
-      </div>
-
-      <div class="tiercard">
-        <div class="pc-badge alt">Best for volume</div>
-        <div class="pc-name">CiteRank Pro</div>
-        <div class="pc-price">${PRO_PRICE_USD}<span>/month</span></div>
-        <div class="pc-sub">500 checks/month. Cancel anytime.</div>
-        <a href="#pay" class="btn-primary pc-cta">Subscribe</a>
-        <ul class="pc-list">
-          <li><b>500 URL checks / month</b></li>
-          <li>Everything in check packs, plus:</li>
-          <li>Priority for high-volume teams</li>
-          <li>Best per-check price (~₹17/check)</li>
+          <li>Best per-check price (~₹{Math.round(Number(MONTHLY_INR) / 500)}/check)</li>
         </ul>
       </div>
     </div>

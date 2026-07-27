@@ -3,7 +3,7 @@
 // Indian businesses, so for now customers pay via UPI and an admin approves).
 //
 // Access model (in the order a check is charged against):
-//   1. Active Pro subscription — 500 checks/month, $99/mo.
+//   1. Active Pro subscription — 500 checks/month, priced in INR.
 //   2. One free trial check — lifetime, once per account.
 //   3. Purchased one-time credits — never expire, bought in packs.
 // A check is BLOCKED only once all three are exhausted.
@@ -12,7 +12,9 @@ import { query } from './db';
 import type { User } from './auth';
 
 export const PLAN_LIMITS: Record<'free' | 'pro', number> = { free: 0, pro: 500 };
-export const PRO_PRICE_USD = 99;
+// Pro is priced and billed in INR — payment is UPI, and mixing $ and ₹ on one
+// pricing table just makes a buyer stop to do arithmetic. See UPI_AMOUNT_INR.
+export const PRO_PRICE_INR = 8299;
 
 // One-time check packs — pay-per-URL for casual/low-volume users. Priced well
 // above the subscription's per-check cost (₹8299/500 ≈ ₹17) on purpose: packs
