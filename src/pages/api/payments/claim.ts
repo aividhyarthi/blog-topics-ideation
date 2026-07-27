@@ -28,6 +28,10 @@ export const POST: APIRoute = async ({ request }) => {
     else await createClaim(email, utr, amount, note, 'subscription');
     return json({ ok: true });
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : 'Could not submit payment.' }, 500);
+    const msg = e instanceof Error ? e.message : 'Could not submit payment.';
+    // A re-submitted UTR is the customer's mistake to correct, not a server
+    // fault — 409 so the UI can show it as a normal message.
+    const status = /already been submitted/i.test(msg) ? 409 : 500;
+    return json({ error: msg }, status);
   }
 };

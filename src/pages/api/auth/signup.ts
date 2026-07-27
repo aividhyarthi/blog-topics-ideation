@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { dbEnabled } from '../../../lib/db';
 import { createUser, findUserByEmail, createSession, setSessionCookie, validEmail } from '../../../lib/auth';
+import { rateLimit, clientIp } from '../../../lib/ratelimit';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
 
@@ -14,6 +15,13 @@ export const POST: APIRoute = async (ctx) => {
   const password = body.password || '';
   if (!validEmail(email)) return json({ error: 'Enter a valid email address.' }, 400);
   if (password.length < 8) return json({ error: 'Password must be at least 8 characters.' }, 400);
+
+  // Every account carries a free check, so uncapped signups from one source is
+  // a direct cost channel, not just spam.
+  const rl = rateLimit(`signup:ip:${clientIp(ctx.request)}`, 5, 3600);
+  if (!rl.ok) {
+    return json({ error: `Too many accounts created from this network. Try again in ${Math.ceil(rl.retryAfter / 60)} minute(s).` }, 429);
+  }
 
   try {
     if (await findUserByEmail(email)) return json({ error: 'An account with that email already exists — try signing in.' }, 409);

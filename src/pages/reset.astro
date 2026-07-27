@@ -1,0 +1,84 @@
+---
+import Site from '../layouts/Site.astro';
+const token = Astro.url.searchParams.get('token') || '';
+---
+<Site title="Choose a new password — CiteRank" description="Set a new password for your CiteRank account.">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Account</span>
+      <h1>Choose a new password</h1>
+      <p>Pick something at least 8 characters long. You'll be signed out everywhere else.</p>
+    </div>
+  </section>
+  <main>
+    <div class="wrap rwrap">
+      {token ? (
+        <form class="rcard" id="rform">
+          <label class="fld" for="pw">New password</label>
+          <input id="pw" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters" />
+          <label class="fld" for="pw2">Confirm password</label>
+          <input id="pw2" type="password" autocomplete="new-password" minlength="8" required placeholder="Type it again" />
+          <button class="btn-primary" id="go" type="submit">Set new password</button>
+          <p class="msg" id="msg" hidden></p>
+        </form>
+      ) : (
+        <div class="rcard">
+          <h2>This link is incomplete</h2>
+          <p class="sub">Reset links expire after an hour and can only be used once. Request a fresh one from the sign-in screen.</p>
+          <a class="btn-primary" href="/">Back to sign in</a>
+        </div>
+      )}
+    </div>
+  </main>
+
+  <script define:vars={{ token }}>
+    const form = document.getElementById('rform');
+    if (form) {
+      const msg = document.getElementById('msg');
+      const btn = document.getElementById('go');
+      const show = (text, ok) => {
+        msg.textContent = text;
+        msg.className = 'msg' + (ok ? ' ok' : ' bad');
+        msg.hidden = false;
+      };
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const pw = document.getElementById('pw').value;
+        const pw2 = document.getElementById('pw2').value;
+        if (pw !== pw2) return show('Both passwords must match.', false);
+        btn.disabled = true;
+        btn.textContent = 'Setting…';
+        try {
+          const r = await fetch('/api/auth/reset', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ token, password: pw }),
+          });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error || 'Could not reset the password.');
+          show('Password updated. Redirecting you to sign in…', true);
+          setTimeout(() => { location.href = '/'; }, 1600);
+        } catch (err) {
+          show(err.message, false);
+          btn.disabled = false;
+          btn.textContent = 'Set new password';
+        }
+      });
+    }
+  </script>
+
+  <style>
+    .rwrap { max-width: 440px; }
+    .rcard { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 30px; box-shadow: var(--shadow); display: grid; gap: 8px; }
+    .rcard h2 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+    .rcard .sub { margin: 0 0 8px; font-size: 14.5px; color: var(--muted); line-height: 1.6; }
+    .fld { font-size: 13px; font-weight: 700; color: var(--ink-2); margin-top: 6px; }
+    .rcard input { width: 100%; padding: 11px 13px; font: inherit; font-size: 15px; border: 1px solid var(--line-2); border-radius: 10px; background: #fff; color: var(--ink); }
+    .rcard input:focus { outline: none; border-color: var(--pink); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .rcard button { margin-top: 14px; }
+    .rcard button[disabled] { opacity: .6; cursor: default; }
+    .msg { margin: 12px 0 0; font-size: 14px; line-height: 1.55; }
+    .msg.ok { color: var(--ok); }
+    .msg.bad { color: var(--bad); }
+  </style>
+</Site>

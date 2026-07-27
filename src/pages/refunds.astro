@@ -1,0 +1,59 @@
+---
+import Site from '../layouts/Site.astro';
+const updated = '27 July 2026';
+const contact = import.meta.env.SUPPORT_EMAIL || 'support@citerank.app';
+---
+<Site title="Refund & Cancellation Policy — CiteRank" description="When CiteRank refunds credits and subscriptions, and how to request one.">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Legal</span>
+      <h1>Refund &amp; Cancellation Policy</h1>
+      <p>Last updated {updated}</p>
+    </div>
+  </section>
+  <main>
+    <article class="legal wrap">
+      <h2>Failed checks are refunded automatically</h2>
+      <p>You should never pay for a result we didn't deliver. If we can't retrieve the page at all — the site blocks our request, the host is unreachable, the URL returns an error — <strong>the check is returned to your balance automatically</strong>. You don't need to ask, and the error message tells you it wasn't charged.</p>
+      <p>A check that completes and returns a report is a delivered result, even if the findings aren't what you hoped. A low score is a working product, not a failed one.</p>
+
+      <h2>Credit packs</h2>
+      <ul>
+        <li><strong>Unused credits:</strong> refundable in full within 7 days of purchase. If you bought a pack and haven't spent any of it, tell us and we'll return the money.</li>
+        <li><strong>Partly used packs:</strong> we'll refund the unused portion within 7 days of purchase, pro-rated at the pack's per-check price.</li>
+        <li><strong>After 7 days:</strong> credits don't expire, so they remain usable indefinitely — but they're no longer refundable.</li>
+      </ul>
+
+      <h2>Pro subscription</h2>
+      <ul>
+        <li><strong>Within 7 days of activation:</strong> full refund if you've run 10 checks or fewer.</li>
+        <li><strong>After that:</strong> the current 30-day period isn't refundable, but there's nothing to cancel — Pro doesn't auto-renew. It simply expires unless you choose to pay for another period.</li>
+      </ul>
+      <p>Because activation is manual, there is no recurring mandate on your account and no automatic charge to stop.</p>
+
+      <h2>Duplicate or mistaken payments</h2>
+      <p>If you paid twice, paid the wrong amount, or paid and never received your credits, email us with the UPI transaction reference. Duplicate payments are refunded in full — we don't keep money for something you didn't get.</p>
+
+      <h2>How to request a refund</h2>
+      <p>Email <a href={`mailto:${contact}`}>{contact}</a> from the address on your account, including:</p>
+      <ul>
+        <li>The UPI transaction reference (UTR) of the payment.</li>
+        <li>What you'd like refunded and briefly why.</li>
+      </ul>
+      <p>We'll respond within 2 business days. Approved refunds are sent back to the UPI account that made the payment, normally within 5–7 business days.</p>
+
+      <h2>When we decline</h2>
+      <p>We may decline a refund where an account has abused the metering system, submitted a fraudulent transaction reference, or consumed the majority of a pack before requesting one. We'll always explain the reason rather than simply refusing.</p>
+
+      <h2>Contact</h2>
+      <p><a href={`mailto:${contact}`}>{contact}</a></p>
+    </article>
+  </main>
+  <style>
+    .legal { max-width: 760px; }
+    .legal h2 { font-size: 20px; font-weight: 800; letter-spacing: -.02em; margin: 32px 0 10px; }
+    .legal p, .legal li { font-size: 15.5px; color: var(--ink-2); line-height: 1.72; }
+    .legal ul { padding-left: 22px; display: grid; gap: 8px; }
+    .legal strong { color: var(--ink); }
+  </style>
+</Site>

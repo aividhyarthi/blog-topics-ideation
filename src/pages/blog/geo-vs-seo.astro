@@ -8,8 +8,18 @@ const sources = [
   { name: 'SE Ranking — llms.txt adoption across 300,000 domains', url: 'https://seranking.com/blog/' },
   { name: 'Cloudflare — crawler policy and Pay Per Use', url: 'https://blog.cloudflare.com/' },
 ];
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: 'GEO vs SEO: what actually changes for your content',
+  datePublished: '2026-07-01',
+  dateModified: '2026-07-01',
+  author: { '@type': 'Organization', name: 'CiteRank' },
+  publisher: { '@type': 'Organization', name: 'CiteRank' },
+};
 ---
 <Site
+  schema={articleSchema}
   title="GEO vs SEO: what actually changes for your content — CiteRank"
   description="Which of your SEO work carries over to AI search, which of it doesn't, and the measurable evidence for both. An honest diff."
 >

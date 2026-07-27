@@ -76,6 +76,9 @@ Open the **app service** → **Variables**:
 | `DATABASE_URL` | **Yes** | Accounts, credits, payments, saved audits. See Step 2. |
 | `ADMIN_EMAIL` | **Yes, to get paid** | The account allowed to open `/admin/payments` and approve UPI payments. Set it to your own signup email. |
 | `SESSION_SECRET` | Recommended | Signs session cookies. Any long random string. |
+| `RESEND_API_KEY` + `MAIL_FROM` | **Yes, in practice** | Sends password-reset email. Without both, a customer who forgets their password cannot recover the account themselves and the reset form says so honestly. Get a key at resend.com; `MAIL_FROM` must be an address on a domain you've verified there. |
+| `SUPPORT_EMAIL` | Recommended | Shown on the legal pages and in the "email us" fallback when reset mail isn't configured. |
+| `SITE_URL` | Recommended | Your public origin, e.g. `https://citerank.app`. Used for canonical tags, `sitemap.xml`, and links inside reset emails. Falls back to the request host. |
 | `OPENAI_API_KEY` *or* `ANTHROPIC_API_KEY` | Recommended | Powers the AI-judged audit signals. Without either, rule-based signals still score and AI ones default to 50. |
 | `UPI_ID` | To accept payments | Your UPI address, e.g. `you@okhdfcbank`. Rendered into the QR on `/pricing`. |
 | `UPI_PAYEE_NAME` | To accept payments | Name shown in the payer's UPI app. |

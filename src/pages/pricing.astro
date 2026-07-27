@@ -19,8 +19,28 @@ if (upiConfigured) {
   upiUri = `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(UPI_NAME)}&cu=INR`;
   qrSvg = await QRCode.toString(upiUri, { type: 'svg', width: 180, margin: 1, color: { dark: '#0f172a', light: '#00000000' } });
 }
+
+// FAQ markup is the highest-value structured data for answer engines — it maps
+// a question directly onto a quotable answer. Kept in sync with the visible
+// list below; both render from the same array.
+const faqs = [
+  { q: 'What counts as a check?', a: 'Any single URL run through the LLM Access Check or the Full AEO Audit. Pasting HTML into the LLM Access Check (no live fetch) is always free. Individual on-demand crawler tabs within one report don\u2019t each cost a check.' },
+  { q: 'Do check packs expire?', a: 'No \u2014 purchased credits never expire. Buy once, use whenever.' },
+  { q: 'What if a page can\u2019t be fetched?', a: 'The check is returned to your balance automatically. You are never charged for a result we could not deliver.' },
+  { q: 'Why only one login?', a: 'Accounts are per-seat. Only one active session is allowed at a time \u2014 signing in elsewhere ends the previous session. Need multiple seats? Contact us.' },
+  { q: 'Can I cancel Pro?', a: 'Yes \u2014 anytime. Pro does not auto-renew, so there is no mandate to cancel; it simply expires at the end of the period unless you renew.' },
+];
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+};
 ---
-<Site title="Pricing — CiteRank" description="Check one page free. Pay per URL, or subscribe for volume — CiteRank AEO/GEO intelligence.">
+<Site schema={faqSchema} title="Pricing — CiteRank" description="Check one page free. Pay per URL, or subscribe for volume — CiteRank AEO/GEO intelligence.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Pricing</span>
@@ -112,13 +132,97 @@ if (upiConfigured) {
         <div class="upicard upi-off"><p>UPI payment isn’t configured on this deployment yet — email us to activate manually.</p></div>
       )}
     </div>
+  </section>
+
+  <main>
+    <div class="wrap tier-grid">
+      <div class="tiercard">
+        <div class="pc-name">Free trial</div>
+        <div class="pc-price">₹0</div>
+        <div class="pc-sub">One check, on us — no card required.</div>
+        <a href="/audit" class="btn-ghost pc-cta">Sign up free</a>
+        <ul class="pc-list">
+          <li>1 full check (LLM Access or AEO Audit)</li>
+          <li>All AI-crawler tabs included</li>
+          <li>No time limit to use it</li>
+        </ul>
+      </div>
+
+      <div class="tiercard featured">
+        <div class="pc-badge">Pay per URL</div>
+        <div class="pc-name">Check packs</div>
+        <div class="pc-price">₹149<span>/check</span></div>
+        <div class="pc-sub">No subscription. Credits never expire.</div>
+        <div class="packlist">
+          {CREDIT_PACKS.map((p) => (
+            <label class="packrow">
+              <input type="radio" name="pack" value={p.id} data-checks={p.checks} data-price={p.priceInr} checked={p.id === 'starter'} />
+              <span class="pk-label">{p.label}</span>
+              <span class="pk-price">₹{p.priceInr}</span>
+            </label>
+          ))}
+        </div>
+        <a href="#pay" class="btn-primary pc-cta">Buy a check pack</a>
+      </div>
+
+      <div class="tiercard">
+        <div class="pc-badge alt">Best for volume</div>
+        <div class="pc-name">CiteRank Pro</div>
+        <div class="pc-price">${PRO_PRICE_USD}<span>/month</span></div>
+        <div class="pc-sub">500 checks/month. Cancel anytime.</div>
+        <a href="#pay" class="btn-primary pc-cta">Subscribe</a>
+        <ul class="pc-list">
+          <li><b>500 URL checks / month</b></li>
+          <li>Everything in check packs, plus:</li>
+          <li>Priority for high-volume teams</li>
+          <li>Best per-check price (~₹17/check)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="wrap feat-note">
+      <p>All tiers include: LLM Access Check across every AI crawler (ChatGPT, ChatGPT Search, Perplexity, Claude, Copilot, Google AI), the full AEO audit with ranked fixes, content extraction &amp; gap analysis, page-type/category-aware checks, saved reports, PDF export, and one login per account.</p>
+    </div>
+
+    <div class="wrap upi-wrap" id="pay">
+      <h2 class="faq-h">Pay via UPI</h2>
+      <p class="upi-intro">Card billing for India isn’t live yet — for now, pay via UPI. It’s manually verified, usually within a few hours.</p>
+      {upiConfigured ? (
+        <div class="upicard">
+          <div class="upi-qr" set:html={qrSvg} />
+          <div class="upi-info">
+            <div class="upi-idrow"><span class="upi-id">{UPI_ID}</span><button class="btn-ghost sm" id="upicopy" data-upi={UPI_ID}>Copy UPI ID</button></div>
+            <a href={upiUri} class="btn-primary upi-pay">Pay with UPI app</a>
+
+            <div class="paywhat">
+              <label class="pw-opt"><input type="radio" name="paywhat" value="credits" checked /> A check pack — <span id="pw-pack-amt">₹599 (5 checks)</span></label>
+              <label class="pw-opt"><input type="radio" name="paywhat" value="subscription" /> Monthly Pro — ₹{MONTHLY_INR} (500 checks/month)</label>
+            </div>
+
+            <ol class="upi-steps">
+              <li>Scan the QR (or tap “Pay with UPI app” on mobile) and pay the amount for what you’re buying above.</li>
+              <li>Copy the UTR / transaction reference number from your UPI app.</li>
+              <li>Submit it below with the email your CiteRank account uses.</li>
+            </ol>
+            <form id="upiform" class="upiform">
+              <input type="email" id="uf-email" placeholder="Your CiteRank account email" required />
+              <input type="text" id="uf-utr" placeholder="UPI transaction reference (UTR)" required />
+              <input type="text" id="uf-note" placeholder="Note (optional)" />
+              <button type="submit" class="btn-primary" id="uf-go">Submit for verification</button>
+              <div class="upi-msg" id="uf-msg"></div>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <div class="upicard upi-off"><p>UPI payment isn’t configured on this deployment yet — email us to activate manually.</p></div>
+      )}
+    </div>
 
     <div class="wrap faq-wrap">
       <h2 class="faq-h">Frequently asked</h2>
-      <div class="faq"><b>What counts as a check?</b><p>Any single URL run through the LLM Access Check or the Full AEO Audit. Pasting HTML into the LLM Access Check (no live fetch) is always free. Individual on-demand crawler tabs within one report don’t each cost a check.</p></div>
-      <div class="faq"><b>Do check packs expire?</b><p>No — purchased credits never expire. Buy once, use whenever.</p></div>
-      <div class="faq"><b>Why only one login?</b><p>Accounts are per-seat. Only one active session is allowed at a time — signing in elsewhere ends the previous session. Need multiple seats? Contact us.</p></div>
-      <div class="faq"><b>Can I cancel Pro?</b><p>Yes — anytime. You keep access until the end of the billing period; your account then falls back to pay-per-check.</p></div>
+      {faqs.map((f) => (
+        <div class="faq"><b>{f.q}</b><p>{f.a}</p></div>
+      ))}
     </div>
   </main>
 

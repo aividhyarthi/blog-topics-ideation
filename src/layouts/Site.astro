@@ -1,7 +1,33 @@
 ---
 // Shared marketing layout — professional nav, footer, and palette for the
 // Pricing / Blog / News pages so the whole site reads as one product.
-const { title = 'CiteRank', description = 'AEO / GEO intelligence platform.' } = Astro.props;
+const { title = 'CiteRank', description = 'AEO / GEO intelligence platform.', schema } = Astro.props;
+
+// We audit other people's structured data, so ours has to be right. Every page
+// gets Organization + WebSite; pages pass their own `schema` for the specific
+// type (Article, FAQPage, DefinedTermSet, …).
+const origin = Astro.site?.origin || new URL(Astro.request.url).origin;
+const canonical = new URL(Astro.url.pathname, origin).href;
+
+const baseSchema = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${origin}/#org`,
+      name: 'CiteRank',
+      url: origin,
+      description: 'AEO / GEO intelligence platform that shows what AI crawlers can and cannot read on your site.',
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${origin}/#site`,
+      url: origin,
+      name: 'CiteRank',
+      publisher: { '@id': `${origin}/#org` },
+    },
+  ],
+};
 ---
 <!doctype html>
 <html lang="en">
@@ -11,6 +37,17 @@ const { title = 'CiteRank', description = 'AEO / GEO intelligence platform.' } =
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content="CiteRank" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <script type="application/ld+json" set:html={JSON.stringify(baseSchema)} />
+    {schema && <script type="application/ld+json" set:html={JSON.stringify(schema)} />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -92,7 +129,7 @@ const { title = 'CiteRank', description = 'AEO / GEO intelligence platform.' } =
         </div>
         <div class="footcol"><b>Product</b><a href="/">LLM Access Check</a><a href="/audit">Full AEO Audit</a><a href="/pricing">Pricing</a></div>
         <div class="footcol"><b>Resources</b><a href="/blog">Blog</a><a href="/news">News</a><a href="/glossary">Glossary</a></div>
-        <div class="footcol"><b>Company</b><a href="/pricing">Plans</a><a href="/blog">About AEO</a><a href="/news">Updates</a></div>
+        <div class="footcol"><b>Legal</b><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/refunds">Refunds &amp; Cancellation</a></div>
       </div>
       <div class="wrap footbottom">© 2026 CiteRank · By Rudra Kasturi Inc</div>
     </footer>

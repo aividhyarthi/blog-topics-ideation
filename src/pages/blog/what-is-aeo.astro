@@ -12,8 +12,18 @@ const sources = [
   { name: 'SE Ranking — llms.txt adoption across 300,000 domains', url: 'https://seranking.com/blog/' },
   { name: 'Cloudflare — crawler policy and Pay Per Use', url: 'https://blog.cloudflare.com/' },
 ];
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: 'What is AEO? Answer Engine Optimization explained',
+  datePublished: '2026-07-01',
+  dateModified: '2026-07-01',
+  author: { '@type': 'Organization', name: 'CiteRank' },
+  publisher: { '@type': 'Organization', name: 'CiteRank' },
+};
 ---
 <Site
+  schema={articleSchema}
   title="What is AEO? Answer Engine Optimization explained — CiteRank"
   description="Answer Engine Optimization is the practice of making your content the source AI answers are built from and cite. What the research shows works, what doesn't, and where to start."
 >

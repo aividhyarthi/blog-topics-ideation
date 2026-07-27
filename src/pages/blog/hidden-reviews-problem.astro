@@ -1,7 +1,16 @@
 ---
 import Site from '../../layouts/Site.astro';
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: 'The hidden reviews problem killing your product pages in AI',
+  datePublished: '2026-06-01',
+  dateModified: '2026-06-01',
+  author: { '@type': 'Organization', name: 'CiteRank' },
+  publisher: { '@type': 'Organization', name: 'CiteRank' },
+};
 ---
-<Site title="The hidden reviews problem killing your product pages in AI — CiteRank" description="Your page shows '1,200 reviews.' AI answer engines might see 3 of them. Here's why, and how to fix it.">
+<Site schema={articleSchema} title="The hidden reviews problem killing your product pages in AI — CiteRank" description="Your page shows '1,200 reviews.' AI answer engines might see 3 of them. Here's why, and how to fix it.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">E-commerce · 3 min read</span>

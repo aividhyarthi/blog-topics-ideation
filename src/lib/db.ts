@@ -152,7 +152,29 @@ function ensureSchema(): Promise<void> {
           reviewed_at  TIMESTAMPTZ
         );
         CREATE INDEX IF NOT EXISTS payment_claims_status_idx ON payment_claims(status, created_at DESC);
+
+        -- Password reset tokens. Single-use, short-lived; the row is deleted on
+        -- use so a leaked link can't be replayed.
+        CREATE TABLE IF NOT EXISTS password_resets (
+          token        TEXT PRIMARY KEY,
+          user_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          expires_at   TIMESTAMPTZ NOT NULL,
+          created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets(user_id);
       `);
+
+      // One UTR = one claim. Without this the same payment reference can be
+      // submitted repeatedly and approved more than once, minting free credits.
+      // Existing duplicates are collapsed first so the index can be created on
+      // databases that already have them.
+      try {
+        await p.query(`
+          DELETE FROM payment_claims a USING payment_claims b
+          WHERE a.id > b.id AND lower(trim(a.utr)) = lower(trim(b.utr));
+        `);
+        await p.query(`CREATE UNIQUE INDEX IF NOT EXISTS payment_claims_utr_uniq ON payment_claims (lower(trim(utr)));`);
+      } catch { /* non-fatal: createClaim also checks explicitly */ }
     })().catch((e) => { schemaReady = null; throw e; });
   }
   return schemaReady;

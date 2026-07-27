@@ -67,6 +67,38 @@ export async function destroySession(token: string): Promise<void> {
   await query('DELETE FROM sessions WHERE token = $1', [token]);
 }
 
+// ---- password reset ----
+const RESET_MINUTES = 60;
+
+/** Issue a single-use reset token. Returns null if no such account exists. */
+export async function createResetToken(email: string): Promise<string | null> {
+  const user = await findUserByEmail(email);
+  if (!user) return null;
+  const token = randomBytes(32).toString('hex');
+  const expires = new Date(Date.now() + RESET_MINUTES * 60_000);
+  // Only the newest link should work.
+  await query('DELETE FROM password_resets WHERE user_id = $1', [user.id]);
+  await query('INSERT INTO password_resets (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, user.id, expires]);
+  return token;
+}
+
+/**
+ * Spend a reset token and set the new password. Deletes the token and every
+ * active session, so a stolen link can't be reused and anyone already signed in
+ * as that user is kicked out.
+ */
+export async function consumeResetToken(token: string, newPassword: string): Promise<boolean> {
+  const { rows } = await query<{ user_id: string }>(
+    'DELETE FROM password_resets WHERE token = $1 AND expires_at > now() RETURNING user_id', [token],
+  );
+  const userId = rows[0]?.user_id;
+  if (!userId) return false;
+  const hash = await hashPassword(newPassword);
+  await query('UPDATE users SET password = $1 WHERE id = $2', [hash, userId]);
+  await query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+  return true;
+}
+
 // Resolve the logged-in user from the session cookie. Never throws — returns
 // null on any problem (no DB, no cookie, expired) so callers stay simple.
 export async function getUser(ctx: APIContext): Promise<User | null> {

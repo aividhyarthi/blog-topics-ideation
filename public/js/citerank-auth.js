@@ -61,11 +61,60 @@
       <input id="cra-pw" type="password" placeholder="${isLogin ? 'Your password' : 'At least 8 characters'}" autocomplete="${isLogin ? 'current-password' : 'new-password'}" />
       <div class="cra-err" id="cra-err"></div>
       <button class="cra-btn solid cra-go" id="cra-go">${isLogin ? 'Sign in' : 'Create account'}</button>
+      ${isLogin ? '<div class="cra-switch"><a id="cra-forgot">Forgot your password?</a></div>' : ''}
       <div class="cra-switch">${isLogin ? 'New here? <a id="cra-switch">Create an account</a>' : 'Have an account? <a id="cra-switch">Sign in</a>'}</div>
     `);
     document.getElementById('cra-go').addEventListener('click', () => submit(mode));
     document.getElementById('cra-switch').addEventListener('click', () => openAuth(isLogin ? 'signup' : 'login'));
     document.getElementById('cra-pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(mode); });
+    const forgot = document.getElementById('cra-forgot');
+    if (forgot) forgot.addEventListener('click', openForgot);
+    document.getElementById('cra-email').focus();
+  }
+
+  function openForgot() {
+    openModal(`
+      <h3>Reset your password</h3>
+      <p class="cra-sub">We'll email you a link to choose a new one. It expires in an hour.</p>
+      <label class="cra-fld" for="cra-email">Email</label>
+      <input id="cra-email" type="email" placeholder="you@company.com" autocomplete="email" />
+      <div class="cra-err" id="cra-err"></div>
+      <button class="cra-btn solid cra-go" id="cra-go">Send reset link</button>
+      <div class="cra-switch">Remembered it? <a id="cra-switch">Sign in</a></div>
+    `);
+    const send = async () => {
+      const email = document.getElementById('cra-email').value.trim();
+      const err = document.getElementById('cra-err');
+      const btn = document.getElementById('cra-go');
+      if (!email) { err.textContent = 'Enter your email address.'; err.style.display = 'block'; return; }
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try {
+        const res = await fetch('/api/auth/forgot', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const d = await res.json();
+        if (!res.ok) {
+          err.textContent = d.error || 'Could not send the reset link.';
+          err.style.display = 'block';
+          btn.disabled = false; btn.textContent = 'Send reset link';
+          return;
+        }
+        openModal(`
+          <h3>Check your inbox</h3>
+          <p class="cra-sub">If an account exists for that address, a reset link is on its way. It expires in an hour.</p>
+          <button class="cra-btn solid cra-go" id="cra-done">Done</button>
+        `);
+        document.getElementById('cra-done').addEventListener('click', closeModal);
+      } catch {
+        err.textContent = 'Network error. Try again.';
+        err.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Send reset link';
+      }
+    };
+    document.getElementById('cra-go').addEventListener('click', send);
+    document.getElementById('cra-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+    document.getElementById('cra-switch').addEventListener('click', () => openAuth('login'));
     document.getElementById('cra-email').focus();
   }
 

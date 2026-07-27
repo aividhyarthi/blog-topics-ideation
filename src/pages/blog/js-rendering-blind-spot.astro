@@ -1,7 +1,16 @@
 ---
 import Site from '../../layouts/Site.astro';
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: "Why AI crawlers can't read your JavaScript site",
+  datePublished: '2026-06-01',
+  dateModified: '2026-06-01',
+  author: { '@type': 'Organization', name: 'CiteRank' },
+  publisher: { '@type': 'Organization', name: 'CiteRank' },
+};
 ---
-<Site title="Why AI crawlers can't read your JavaScript site — CiteRank" description="Googlebot renders JavaScript. GPTBot, ClaudeBot and PerplexityBot don't. Here's what that means for your rankings in AI search.">
+<Site schema={articleSchema} title="Why AI crawlers can't read your JavaScript site — CiteRank" description="Googlebot renders JavaScript. GPTBot, ClaudeBot and PerplexityBot don't. Here's what that means for your rankings in AI search.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Technical · 3 min read</span>

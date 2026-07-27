@@ -135,7 +135,21 @@ export interface PaymentClaim {
 }
 
 export async function createClaim(email: string, utr: string, amount: string, note: string, kind: 'subscription' | 'credits', credits?: number): Promise<void> {
-  await query('INSERT INTO payment_claims (email, utr, amount, note, kind, credits) VALUES ($1, $2, $3, $4, $5, $6)', [email, utr, amount || null, note || null, kind, credits ?? null]);
+  // A UTR identifies exactly one real bank transaction, so it can back exactly
+  // one claim. Re-submitting it (by accident or on purpose) must not create a
+  // second approvable row.
+  const { rows: dupe } = await query<{ id: string }>(
+    'SELECT id FROM payment_claims WHERE lower(trim(utr)) = lower(trim($1))', [utr],
+  );
+  if (dupe[0]) throw new Error('That transaction reference has already been submitted. We\'ll review it shortly — no need to send it again.');
+
+  try {
+    await query('INSERT INTO payment_claims (email, utr, amount, note, kind, credits) VALUES ($1, $2, $3, $4, $5, $6)', [email, utr, amount || null, note || null, kind, credits ?? null]);
+  } catch (e: any) {
+    // Unique-index violation from a concurrent duplicate submission.
+    if (e?.code === '23505') throw new Error('That transaction reference has already been submitted.');
+    throw e;
+  }
 }
 
 export async function listClaims(limit = 50): Promise<PaymentClaim[]> {

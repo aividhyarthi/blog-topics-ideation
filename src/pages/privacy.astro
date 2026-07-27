@@ -1,0 +1,82 @@
+---
+import Site from '../layouts/Site.astro';
+const updated = '27 July 2026';
+const contact = import.meta.env.SUPPORT_EMAIL || 'support@citerank.app';
+---
+<Site title="Privacy Policy — CiteRank" description="What CiteRank collects, why, who it's shared with, and how to have it deleted.">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Legal</span>
+      <h1>Privacy Policy</h1>
+      <p>Last updated {updated}</p>
+    </div>
+  </section>
+  <main>
+    <article class="legal wrap">
+      <div class="note">This describes actual system behaviour, not aspirations. If something here stops being true, the policy is wrong and we want to know.</div>
+
+      <h2>What we collect</h2>
+      <ul>
+        <li><strong>Your email address</strong> — to identify your account and send account email.</li>
+        <li><strong>A password hash</strong> — scrypt with a per-account random salt. We never store your actual password and cannot recover it, which is why a forgotten password requires a reset link rather than us telling you what it was.</li>
+        <li><strong>Session tokens</strong> — random values in an httpOnly cookie, stored so sessions can be revoked.</li>
+        <li><strong>URLs you check, and the reports generated</strong> — so your history is available in your dashboard.</li>
+        <li><strong>Usage events</strong> — one row per check, for metering and billing.</li>
+        <li><strong>Payment claims</strong> — the email, transaction reference (UTR), amount and any note you submit, so we can verify a payment against our bank records.</li>
+      </ul>
+
+      <h2>What we don't collect</h2>
+      <ul>
+        <li><strong>Card or bank credentials.</strong> Payment happens entirely inside your own UPI app. We only ever see a transaction reference number you type in yourself.</li>
+        <li><strong>Third-party analytics or advertising trackers.</strong> There are none on this site.</li>
+        <li><strong>Anything from pages you check beyond the analysis itself.</strong> We fetch the page, analyse it, store the resulting report, and discard the raw HTML.</li>
+      </ul>
+
+      <h2>Who your data is shared with</h2>
+      <p>Only the processors needed to run the product:</p>
+      <ul>
+        <li><strong>Our hosting and database provider</strong> — stores the application and its database.</li>
+        <li><strong>OpenAI and/or Anthropic</strong> — the AI-judged portion of a full audit sends extracted page content to whichever provider is configured, to be scored. This applies to content you submit for audit, not to your account details.</li>
+        <li><strong>Our transactional email provider</strong> — receives your email address in order to deliver password reset messages.</li>
+      </ul>
+      <p>We do not sell personal data, and we do not share it for advertising.</p>
+
+      <h2>Pages you analyse</h2>
+      <p>When you submit a URL, our servers request that page from its origin, identifying as the relevant crawler user-agent. That request appears in the target site's logs with our server's IP address. Only submit URLs you have a legitimate reason to analyse.</p>
+
+      <h2>Retention</h2>
+      <ul>
+        <li>Account records and audit history are kept while your account is open.</li>
+        <li>Sessions expire after 30 days, and are deleted immediately on sign-out or password reset.</li>
+        <li>Password reset tokens expire after one hour and are deleted the moment they're used.</li>
+        <li>Payment claims are retained for accounting purposes.</li>
+      </ul>
+
+      <h2>Your rights</h2>
+      <p>Email us and we will action these promptly:</p>
+      <ul>
+        <li><strong>Access</strong> — a copy of the data held about you.</li>
+        <li><strong>Correction</strong> — fix anything inaccurate.</li>
+        <li><strong>Deletion</strong> — close your account and erase your data, subject to records we must keep for tax and accounting.</li>
+        <li><strong>Export</strong> — your audit history in a machine-readable form.</li>
+      </ul>
+
+      <h2>Security</h2>
+      <p>Passwords are hashed with scrypt and compared in constant time. Session cookies are httpOnly, Secure and SameSite. Sign-in, signup and password-reset endpoints are rate limited. Traffic is served over HTTPS. No system is perfectly secure, but we don't cut corners on the basics.</p>
+
+      <h2>Children</h2>
+      <p>CiteRank is a business tool and is not directed at anyone under 18.</p>
+
+      <h2>Contact</h2>
+      <p>Privacy questions or requests: <a href={`mailto:${contact}`}>{contact}</a>.</p>
+    </article>
+  </main>
+  <style>
+    .legal { max-width: 760px; }
+    .legal h2 { font-size: 20px; font-weight: 800; letter-spacing: -.02em; margin: 32px 0 10px; }
+    .legal p, .legal li { font-size: 15.5px; color: var(--ink-2); line-height: 1.72; }
+    .legal ul { padding-left: 22px; display: grid; gap: 8px; }
+    .legal strong { color: var(--ink); }
+    .note { background: var(--accent-soft); border-left: 3px solid var(--pink); border-radius: 0 10px 10px 0; padding: 14px 18px; font-size: 14px; color: var(--ink-2); line-height: 1.6; }
+  </style>
+</Site>

@@ -11,6 +11,38 @@ import { dbEnabled } from '../lib/db';
 const user = await getUser(Astro as any);
 const locked = !user;
 const accountsDown = !dbEnabled;
+
+// We score other sites on structured data, so the homepage carries its own.
+const origin = new URL(Astro.request.url).origin;
+const canonical = new URL(Astro.url.pathname, origin).href;
+const homeSchema = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${origin}/#org`,
+      name: 'CiteRank',
+      url: origin,
+      description: 'AEO / GEO intelligence platform that shows what AI crawlers can and cannot read on your site.',
+    },
+    {
+      '@type': 'SoftwareApplication',
+      name: 'CiteRank',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      url: origin,
+      publisher: { '@id': `${origin}/#org` },
+      description:
+        'Fetches your pages as Googlebot, GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot, then reports exactly what each crawler can and cannot read.',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'INR',
+        description: 'First check free, then one-time credit packs or a monthly Pro plan.',
+      },
+    },
+  ],
+};
 ---
 
 <!doctype html>
@@ -24,6 +56,13 @@ const accountsDown = !dbEnabled;
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Can LLMs read your page? — CiteRank" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content="CiteRank" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json" set:html={JSON.stringify(homeSchema)} />
     <style is:global>
       :root {
         --pink: #2563eb; --pink-dark: #1d4ed8; --accent-soft: #eaf1ff;
@@ -407,7 +446,7 @@ const accountsDown = !dbEnabled;
         </div>
         <div class="footcol"><b>Product</b><a href="/">LLM Access Check</a><a href="/audit">Full AEO Audit</a><a href="/pricing">Pricing</a></div>
         <div class="footcol"><b>Resources</b><a href="/blog">Blog</a><a href="/news">News</a><a href="/glossary">Glossary</a></div>
-        <div class="footcol"><b>Company</b><a href="/pricing">Plans</a><a href="/blog">About AEO</a><a href="/news">Updates</a></div>
+        <div class="footcol"><b>Legal</b><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/refunds">Refunds &amp; Cancellation</a></div>
       </div>
       <div class="wrap wide footbottom">© 2026 CiteRank · By Rudra Kasturi Inc · <span>LLM Access Check v3.1</span></div>
     </footer>
