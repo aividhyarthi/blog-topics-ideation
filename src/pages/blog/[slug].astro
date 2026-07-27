@@ -4,7 +4,7 @@
 export const prerender = true;
 import { getCollection } from 'astro:content';
 import { topicSlug } from '../../lib/blog/topics';
-import { BRAND, SITE_URL } from '../../lib/saas/plans';
+import { BRAND, SITE_URL, OG_IMAGE_VERSION } from '../../lib/saas/plans';
 import GoogleAnalytics from '../../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../../components/AdSenseMeta.astro';
 import AdSenseScript from '../../components/AdSenseScript.astro';
@@ -29,7 +29,7 @@ const recentPosts = allPosts
   .map((p) => ({ slug: p.slug, title: p.data.title }));
 
 const canonicalUrl = `${SITE_URL}/blog/${post.slug}`;
-const imageUrl = `${SITE_URL}${post.data.image}`;
+const imageUrl = `${SITE_URL}${post.data.image}?${OG_IMAGE_VERSION}`;
 const faqs = post.data.faqs || [];
 
 const articleJsonLd = {

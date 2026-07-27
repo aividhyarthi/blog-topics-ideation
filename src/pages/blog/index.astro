@@ -9,7 +9,7 @@
 // static rendering that makes these pages cheap and reliably crawlable.
 export const prerender = true;
 import { getCollection } from 'astro:content';
-import { BRAND, SITE_URL } from '../../lib/saas/plans';
+import { BRAND, SITE_URL, OG_IMAGE_VERSION } from '../../lib/saas/plans';
 import GoogleAnalytics from '../../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../../components/AdSenseMeta.astro';
 import AdSenseScript from '../../components/AdSenseScript.astro';
@@ -41,7 +41,7 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
     <meta property="og:title" content={`${BRAND} Blog — ASO & App Ranking Guides`} />
     <meta property="og:description" content={`Practical, no-fluff guides on App Store Optimization, keyword research, and app ranking on Google Play and the App Store.`} />
     <meta property="og:url" content={`${SITE_URL}/blog`} />
-    {posts[0] && <meta property="og:image" content={`${SITE_URL}${posts[0].data.image}`} />}
+    {posts[0] && <meta property="og:image" content={`${SITE_URL}${posts[0].data.image}?${OG_IMAGE_VERSION}`} />}
     <meta name="twitter:card" content="summary_large_image" />
     <style>
       :root { --pink: #4338ca; --pink-dark: #372aa8; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }

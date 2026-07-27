@@ -47,6 +47,16 @@ export const GA_MEASUREMENT_ID = process.env.GA_MEASUREMENT_ID || 'G-8D07RHSDDJ'
 export const SITE_URL = (process.env.SITE_URL || 'https://apprankr.in').replace(/\/$/, '');
 
 /**
+ * Cache-busting suffix appended to og:image URLs. WhatsApp/Facebook's link
+ * crawler caches a preview per exact URL for days, so redrawing an og image
+ * under the same filename (as happened moving from the bar-chart-only
+ * design to this title-based one) doesn't reach chats that already cached
+ * the old preview until the URL itself changes. Bump this string whenever
+ * the og images are regenerated with a real visual change.
+ */
+export const OG_IMAGE_VERSION = 'v3';
+
+/**
  * Daily rank-report emails (src/lib/rank/email.ts), sent via Resend
  * (resend.com) — a plain HTTP API, no SDK dependency needed. Unset
  * RESEND_API_KEY disables report sending entirely (logs once, never throws),

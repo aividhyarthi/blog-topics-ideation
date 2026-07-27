@@ -2,7 +2,7 @@
 // One crawlable page per blog topic. Static, same as the rest of the blog.
 export const prerender = true;
 import { getCollection } from 'astro:content';
-import { BRAND, SITE_URL } from '../../../lib/saas/plans';
+import { BRAND, SITE_URL, OG_IMAGE_VERSION } from '../../../lib/saas/plans';
 import { topicSlug } from '../../../lib/blog/topics';
 import GoogleAnalytics from '../../../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../../../components/AdSenseMeta.astro';
@@ -49,7 +49,7 @@ const description = `${posts.length} guide${posts.length === 1 ? '' : 's'} on ${
     <meta property="og:title" content={`${theme} — ${BRAND} Blog`} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    {posts[0] && <meta property="og:image" content={`${SITE_URL}${posts[0].data.image}`} />}
+    {posts[0] && <meta property="og:image" content={`${SITE_URL}${posts[0].data.image}?${OG_IMAGE_VERSION}`} />}
     <meta name="twitter:card" content="summary_large_image" />
     <style>
       :root { --pink: #4338ca; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; }
