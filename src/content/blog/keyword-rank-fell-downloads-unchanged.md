@@ -3,7 +3,7 @@ title: "My Keyword Rank Fell But Downloads Didn't Change: What's Going On?"
 description: "Rank and downloads are related, not identical. Here's why a keyword position can drop with no visible change to installs, and when that's actually fine."
 theme: "Keywords"
 image: "/blog/og/keyword-rank-fell-downloads-unchanged.png"
-publishDate: 2026-08-04
+publishDate: 2026-07-23
 faqs:
   - question: "Why would my keyword rank drop but my download numbers stay the same?"
     answer: "Rank and downloads are correlated, not identical. A keyword drop only shows up in downloads if that specific keyword drives a meaningful share of your installs, if it moved far enough to leave the results a user actually scrolls through, and if nothing else (seasonality, other keywords, other channels) is offsetting it in the same window. A drop on a low-volume or low-intent keyword can be real and still invisible in your aggregate numbers."

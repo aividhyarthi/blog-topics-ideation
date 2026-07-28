@@ -3,7 +3,7 @@ title: "Category Rank vs. Keyword Rank: What's the Difference?"
 description: "An app can rank #1 in search for its exact keyword and still be nowhere in its category's top chart. Both are real signals. They just measure completely different things."
 theme: "Google Play"
 image: "/blog/og/category-rank-vs-keyword-rank.png"
-publishDate: 2026-07-29
+publishDate: 2026-07-18
 faqs:
   - question: "Why doesn't my app show a category chart rank even though it ranks well for keywords?"
     answer: "Two possible reasons, and it matters which one it is. Either your app genuinely isn't in the top of that category's download-velocity chart (a much harder bar to clear than any single keyword, since you're compared against the biggest apps in the whole category, not just competitors for your term) or the chart check itself failed (a scraper hiccup or rate limit), which isn't a confirmed result at all. A good rank tracker should show you explicitly which one it is instead of leaving both looking identical."

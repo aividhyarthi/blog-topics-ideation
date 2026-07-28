@@ -54,7 +54,7 @@ export const SITE_URL = (process.env.SITE_URL || 'https://apprankr.in').replace(
  * the old preview until the URL itself changes. Bump this string whenever
  * the og images are regenerated with a real visual change.
  */
-export const OG_IMAGE_VERSION = 'v3';
+export const OG_IMAGE_VERSION = 'v4';
 
 /**
  * Daily rank-report emails (src/lib/rank/email.ts), sent via Resend

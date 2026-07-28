@@ -3,7 +3,7 @@ title: "ASO for Fintech Apps: Trust Signals Over Screenshots"
 description: "A finance app's store listing has to clear a trust bar a game or utility app never faces. Here's why a regulatory badge often converts harder than a polished UI tour."
 theme: "Conversion & Growth"
 image: "/blog/og/aso-for-fintech-apps-trust-signals.png"
-publishDate: 2026-07-31
+publishDate: 2026-07-20
 faqs:
   - question: "Do trust signals actually affect app store ranking, or just conversion?"
     answer: "Primarily conversion, how many people who view your listing actually install. Trust signals aren't a documented direct ranking factor the way crash rate is. But conversion rate itself is believed to correlate with rank over time, through the same recent-installs/engagement pathway that rewards apps people are actually choosing to install once they see the listing, so a conversion lever today can plausibly become a ranking tailwind over weeks."

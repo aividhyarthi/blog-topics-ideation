@@ -3,7 +3,7 @@ title: "The Questions Everyone Asks ChatGPT About App Rankings, Answered With Re
 description: "The app-ranking questions people now ask an AI assistant instead of a search engine, answered directly, with the actual mechanics behind each answer."
 theme: "Fundamentals"
 image: "/blog/og/questions-people-ask-chatgpt-about-app-rankings.png"
-publishDate: 2026-08-08
+publishDate: 2026-07-28
 faqs:
   - question: "How often does the Google Play Store algorithm update?"
     answer: "There's no fixed schedule Google publishes. Rankings shift continuously as your own signals (installs, ratings, crash rate, keyword relevance) and your competitors' signals both move, not on a periodic algorithm-refresh cycle you can wait out. Treat rank as something that moves daily in small amounts, not something that resets on a schedule."
