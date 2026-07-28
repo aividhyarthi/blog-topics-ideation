@@ -141,7 +141,7 @@ rmSync(tmp, { recursive: true, force: true });
 
   // Before any grant, everyone is their own owner with the full workspace.
   eq('no grants = own workspace', resolveWorkspace(client),
-    { ownerId: client.id, appKeys: null, readOnly: false, sharedByEmail: null, mode: 'own', canSwitch: false });
+    { ownerId: client.id, appKeys: null, readOnly: false, sharedByEmail: null, mode: 'own', canSwitch: false, granteeEmail: null });
   eq('no grants = not a guest', isGuest(client), false);
 
   createGrant(owner.id, 'client-share@test.com', 'play:kuvera');
@@ -159,6 +159,25 @@ rmSync(tmp, { recursive: true, force: true });
   eq('guest does NOT see the other client app', seen.includes('play:cred'), false);
   eq('competitor expansion never pulls in a primary',
     expandWithCompetitors(apps, ['play:kuvera']).sort(), ['play:kuvera', 'play:kuvera-rival']);
+
+  // Cross-client leak guard. If one client's app is ALSO flagged as a
+  // competitor of another client's app, granting the second must not hand
+  // over the first — the implicit pull-in has to skip anything already
+  // shared with somebody else.
+  {
+    const crossed = [
+      { key: 'play:kuvera', title: 'Kuvera' },
+      { key: 'play:cred', title: 'Cash by CRED', competitorOf: 'play:kuvera' },
+      { key: 'play:plainrival', title: 'Plain rival', competitorOf: 'play:kuvera' },
+    ] as any[];
+    eq('a co-client app is NOT pulled in as a competitor',
+      expandWithCompetitors(crossed, ['play:kuvera'], ['play:cred']).sort(),
+      ['play:kuvera', 'play:plainrival']);
+    eq('a genuine competitor still comes along',
+      expandWithCompetitors(crossed, ['play:kuvera'], ['play:cred']).includes('play:plainrival'), true);
+    eq('explicitly granting that app still works',
+      expandWithCompetitors(crossed, ['play:cred'], ['play:cred']).includes('play:cred'), true);
+  }
 
   // The owner's own view is untouched by having issued a grant.
   eq('owner still sees everything', visibleApps(apps, resolveWorkspace(owner)).length, 3);

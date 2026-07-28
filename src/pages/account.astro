@@ -117,6 +117,7 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
       .applist :global(label) { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px; cursor: pointer; background: #fff; }
       .applist :global(label:hover) { border-color: #cbd0da; }
       .applist :global(input) { margin: 0; cursor: pointer; }
+      .applist :global(.cmp) { font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg); border-radius: 4px; padding: 2px 6px; }
       .shareerr { color: #c0392b; font-size: 13px; margin: 9px 0 0; display: none; }
       .shareerr.on { display: block; }
       #shares :global(.sharerow) { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
@@ -268,7 +269,9 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
             : '<p class="noshares">Nobody has shared access yet.</p>';
 
           appsBox.innerHTML = data.apps.length
-            ? data.apps.map((a) => `<label><input type="checkbox" value="${esc(a.key)}" />${esc(a.title)}</label>`).join('')
+            ? data.apps.map((a) => `<label><input type="checkbox" value="${esc(a.key)}" />${esc(a.title)}${
+                a.competitorOf ? `<span class="cmp">competitor of ${esc(a.competitorOf)}</span>` : ''
+              }</label>`).join('')
             : '<p style="color:var(--muted);font-size:13px;margin:0;">Add an app in the Rank Tracker first.</p>';
 
           sharesBox.querySelectorAll('[data-revoke]').forEach((btn) => {

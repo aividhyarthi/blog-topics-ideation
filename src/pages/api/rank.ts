@@ -49,13 +49,13 @@ function tenant(locals: APIContext['locals']) {
     const ws = resolveWorkspace(locals.user, locals.wsMode);
     return {
       userId: ws.ownerId, appKeys: ws.appKeys, readOnly: ws.readOnly, sharedByEmail: ws.sharedByEmail,
-      canSwitch: ws.canSwitch, mode: ws.mode,
+      canSwitch: ws.canSwitch, mode: ws.mode, granteeEmail: ws.granteeEmail,
       maxApps: plan.maxApps, maxCompetitors: plan.maxCompetitorsPerApp, maxKeywords: plan.maxKeywordsPerApp,
     };
   }
   return {
     userId: undefined as string | undefined, appKeys: null as string[] | null, readOnly: false, sharedByEmail: null,
-    canSwitch: false, mode: 'own' as const,
+    canSwitch: false, mode: 'own' as const, granteeEmail: null as string | null,
     maxApps: INTERNAL_LIMITS.maxApps, maxCompetitors: INTERNAL_LIMITS.maxCompetitorsPerApp, maxKeywords: INTERNAL_LIMITS.maxKeywordsPerApp,
   };
 }
@@ -190,12 +190,13 @@ function coverageAlreadyCheckedToday(app: TrackedApp, userId?: string): string |
  * don't have access to never reaches the browser at all — the dashboard's
  * read-only mode is a UI convenience, not the security boundary.
  */
-function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly: boolean; sharedByEmail: string | null; canSwitch?: boolean; mode?: string }) {
+function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly: boolean; sharedByEmail: string | null; canSwitch?: boolean; mode?: string; granteeEmail?: string | null }) {
   const cfg = loadConfig(userId);
   if (ws?.appKeys) {
     cfg.apps = visibleApps(cfg.apps, {
       ownerId: userId || '', appKeys: ws.appKeys, readOnly: true,
       sharedByEmail: ws.sharedByEmail, mode: 'shared', canSwitch: Boolean(ws.canSwitch),
+      granteeEmail: ws.granteeEmail ?? null,
     });
   }
   const snapshots = loadSnapshots(90, userId);

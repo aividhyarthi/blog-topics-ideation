@@ -14,7 +14,7 @@
 // two separate workspaces and the session views one at a time, chosen by
 // `mode` (the UI shows a switcher). Write permission is therefore a property
 // of the workspace being viewed, never of the account.
-import { listGrantsForEmail, findUserById, findUserByEmail } from './db';
+import { listGrantsForEmail, listGrantsByOwner, findUserById, findUserByEmail } from './db';
 import { loadConfig } from '../rank/store';
 import type { TrackedApp } from '../rank/types';
 
@@ -33,6 +33,8 @@ export interface Workspace {
   mode: WorkspaceMode;
   /** True when the account has both, so the UI should offer a switcher. */
   canSwitch: boolean;
+  /** Whose grants scoped this workspace; null when viewing your own. */
+  granteeEmail: string | null;
 }
 
 function ownsApps(userId: string): boolean {
@@ -48,7 +50,7 @@ function ownsApps(userId: string): boolean {
 export function resolveWorkspace(user: { id: string; email: string }, mode?: WorkspaceMode): Workspace {
   const grants = listGrantsForEmail(user.email);
   const own = (canSwitch: boolean): Workspace =>
-    ({ ownerId: user.id, appKeys: null, readOnly: false, sharedByEmail: null, mode: 'own', canSwitch });
+    ({ ownerId: user.id, appKeys: null, readOnly: false, sharedByEmail: null, mode: 'own', canSwitch, granteeEmail: null });
   if (!grants.length) return own(false);
 
   // Rule above means every grant shares one owner; take it from the first.
@@ -64,6 +66,7 @@ export function resolveWorkspace(user: { id: string; email: string }, mode?: Wor
     sharedByEmail: owner ? owner.email : null,
     mode: 'shared',
     canSwitch: hasOwn,
+    granteeEmail: user.email.toLowerCase(),
   };
 }
 
@@ -95,18 +98,31 @@ export function billingUserFor<T extends { id: string; email: string; status: st
  * `competitorOf: <granted key>` are pulled in — never another primary app,
  * which is what keeps one client's dashboard out of another client's view.
  */
-export function expandWithCompetitors(apps: TrackedApp[], appKeys: string[]): string[] {
+export function expandWithCompetitors(apps: TrackedApp[], appKeys: string[], sharedWithOthers: string[] = []): string[] {
   const granted = new Set(appKeys);
+  // An app the owner has shared with someone ELSE is a client's app in its
+  // own right, not merely a rival to compare against. Marking one client's
+  // app as a competitor of another's must never hand the second client a
+  // view of the first — so those are excluded from the implicit pull-in and
+  // only ever appear when granted explicitly.
+  const protectedKeys = new Set(sharedWithOthers.filter((k) => !granted.has(k)));
   for (const app of apps) {
-    if (app.competitorOf && granted.has(app.competitorOf)) granted.add(app.key);
+    if (app.competitorOf && granted.has(app.competitorOf) && !protectedKeys.has(app.key)) granted.add(app.key);
   }
   return [...granted];
 }
 
-/** Apply a workspace's app filter to a tracked-app list. */
+/**
+ * Apply a workspace's app filter to a tracked-app list. Needs the owner's
+ * full grant table (not just this guest's) to know which apps belong to
+ * another client — see expandWithCompetitors.
+ */
 export function visibleApps(apps: TrackedApp[], ws: Workspace): TrackedApp[] {
   if (!ws.appKeys) return apps;
-  const allowed = new Set(expandWithCompetitors(apps, ws.appKeys));
+  const sharedWithOthers = ws.granteeEmail
+    ? listGrantsByOwner(ws.ownerId).filter((g) => g.granteeEmail !== ws.granteeEmail).map((g) => g.appKey)
+    : [];
+  const allowed = new Set(expandWithCompetitors(apps, ws.appKeys, sharedWithOthers));
   return apps.filter((a) => allowed.has(a.key));
 }
 

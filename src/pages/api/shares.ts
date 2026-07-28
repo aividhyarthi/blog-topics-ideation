@@ -38,10 +38,20 @@ function sharesPayload(ownerId: string) {
   }
   return {
     shares: [...byEmail.values()],
-    // Only apps the owner actually owns outright — a competitor is shared
-    // implicitly with its primary (see expandWithCompetitors), so offering
-    // it as a separate checkbox would just be a confusing second way in.
-    apps: apps.filter((a) => !a.competitorOf).map((a) => ({ key: a.key, title: a.title })),
+    // EVERY tracked app is offerable. An earlier version listed only apps
+    // with no `competitorOf`, on the assumption that a competitor is always
+    // reachable through its primary — but an app flagged as a competitor of
+    // something else is still a real app the owner may need to share on its
+    // own (and an orphaned flag, pointing at an app since deleted, made one
+    // disappear from this list entirely with no way to get it back).
+    // Competitors are labelled rather than hidden.
+    apps: apps.map((a) => ({
+      key: a.key,
+      title: a.title,
+      competitorOf: a.competitorOf && apps.some((x) => x.key === a.competitorOf)
+        ? titleOf(a.competitorOf)
+        : null,
+    })),
   };
 }
 
@@ -69,8 +79,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Never grant a key the owner doesn't actually track — otherwise a
     // stale/hand-edited key would sit in the table forever, granting nothing
-    // but showing up in the UI as if it did.
-    const owned = new Set(loadConfig(user.id).apps.filter((a) => !a.competitorOf).map((a) => a.key));
+    // but showing up in the UI as if it did. Any tracked app counts, matching
+    // the picker above.
+    const owned = new Set(loadConfig(user.id).apps.map((a) => a.key));
     const unknown = appKeys.filter((k) => !owned.has(k));
     if (unknown.length) return json({ error: 'One of those apps isn\'t in your account any more — reload and try again.' }, 400);
 
