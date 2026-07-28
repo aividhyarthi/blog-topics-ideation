@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { parseAppId, fetchApp, fetchCompetitors, fetchRecentReviews, type AsoAppData } from '../../lib/aso/fetch';
 import { auditListing, competitorRow, keywordCoverage, keywordGap, keywordMatrix, type AsoReport, type CompetitorRow, type GapKeyword } from '../../lib/aso/audit';
 import { saveAsoCacheEntry } from '../../lib/rank/store';
+import { isGuest } from '../../lib/saas/grants';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -139,6 +140,11 @@ Give ONE focusVerdicts entry for EACH focus keyword listed above (so ${fkList.le
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
+  // Read-only guests (see lib/saas/grants.ts) can't run an audit — it spends
+  // the owner's Anthropic budget and overwrites the owner's cached report.
+  if (locals.productMode && locals.user && isGuest(locals.user)) {
+    return json({ error: 'This is a read-only shared view — ask the account owner to run an ASO check.' }, 403);
+  }
   let body: { url?: string; focusKeyword?: string; competitors?: string; lang?: string; country?: string; key?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 

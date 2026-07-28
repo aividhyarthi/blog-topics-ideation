@@ -6,8 +6,12 @@
 import { BRAND, PLANS, planOf, checkAccess, CURRENCY, formatPrice, UPI_ID, UPI_PAYEE_NAME, WHATSAPP_NUMBER } from '../lib/saas/plans';
 import qrcode from 'qrcode-generator';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
+import { isGuest } from '../lib/saas/grants';
 
 const user = Astro.locals.user!;
+// A guest account has no plan of its own and nothing to share onward, so the
+// billing and sharing cards below are hidden for them entirely.
+const guest = isGuest(user);
 const access = checkAccess(user.status, user.trialEndsAt);
 const plan = planOf(user.plan);
 const expired = Astro.url.searchParams.get('expired') === '1';
@@ -101,6 +105,27 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
       button:disabled { opacity: 0.5; cursor: not-allowed; }
       summary.btn { list-style: none; width: 100%; }
       summary.btn::-webkit-details-marker { display: none; }
+      /* Shared access. The rows and app chips below are built client-side
+         from template strings, so they never carry Astro's scoping
+         attribute — those selectors have to be :global() or they simply
+         don't apply and the list renders as unstyled inline text. */
+      .cardnote { color: var(--muted); font-size: 13.5px; margin: 0 0 14px; line-height: 1.55; }
+      .flabel { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 5px; }
+      #share-email { width: 100%; max-width: 380px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 7px; font-size: 13.5px; font-family: inherit; }
+      #share-email:focus { outline: none; border-color: var(--pink); }
+      .applist { display: flex; flex-wrap: wrap; gap: 8px; }
+      .applist :global(label) { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px; cursor: pointer; background: #fff; }
+      .applist :global(label:hover) { border-color: #cbd0da; }
+      .applist :global(input) { margin: 0; cursor: pointer; }
+      .shareerr { color: #c0392b; font-size: 13px; margin: 9px 0 0; display: none; }
+      .shareerr.on { display: block; }
+      #shares :global(.sharerow) { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
+      #shares :global(.sharerow:first-child) { border-top: none; }
+      #shares :global(.who) { font-size: 13.5px; font-weight: 600; word-break: break-all; }
+      #shares :global(.what) { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+      #shares :global(.sharerow button) { padding: 6px 12px; font-size: 12.5px; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 7px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+      #shares :global(.sharerow button:hover) { border-color: #cbd0da; background: var(--bg); }
+      #shares :global(.noshares) { color: var(--muted); font-size: 13.5px; margin: 0; }
       .paybox { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); text-align: center; }
       .paybox .qr { width: 168px; height: 168px; margin: 0 auto 10px; }
       .paybox .qr svg { width: 100%; height: 100%; display: block; }
@@ -144,6 +169,25 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
           )}
         </div>
 
+        {!guest && (
+          <div class="card">
+            <h2>Shared access</h2>
+            <p class="cardnote">Give a client their own login that shows only the apps you pick — read-only, so they can see rankings and trends but can't change keywords, settings, or anything else. They sign up at <b>/signup</b> with the same email you enter here; the access applies as soon as that account exists.</p>
+            <div id="shares">
+              <p class="noshares">Loading…</p>
+            </div>
+            <div id="shareform" style="border-top:1px solid var(--line);margin-top:12px;padding-top:14px;">
+              <label class="flabel" for="share-email">Client email</label>
+              <input type="email" id="share-email" placeholder="analyst@clientcompany.com" />
+              <label class="flabel" style="margin-top:10px;">Apps they can see</label>
+              <div id="share-apps" class="applist"></div>
+              <div style="margin-top:12px;"><button class="btn primary" id="share-add" type="button">Give access</button></div>
+              <p id="share-err" class="shareerr"></p>
+            </div>
+          </div>
+        )}
+
+        {!guest && (
         <div class="card">
           <h2>{user.status === 'active' ? 'Change plan' : 'Choose your plan'}</h2>
           <p class="kv" style="padding-top:0;color:var(--muted);font-size:13.5px;">Pay by UPI — scan the QR, tap to pay in any UPI app, or message us on WhatsApp. No card, no netbanking, no payment gateway. We activate your account manually once the payment comes through.</p>
@@ -178,6 +222,7 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
             ))}
           </div>
         </div>
+        )}
       </div>
     </main>
     <script>
@@ -198,6 +243,63 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
         userTrigger.addEventListener('click', (e) => { e.stopPropagation(); userDropdown.classList.toggle('open'); });
         document.addEventListener('click', (e) => { if (!userDropdown.contains(e.target) && e.target !== userTrigger) userDropdown.classList.remove('open'); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') userDropdown.classList.remove('open'); });
+      }
+
+      /* ---------------------------- shared access ---------------------------- */
+      const sharesBox = document.getElementById('shares');
+      if (sharesBox) {
+        const appsBox = document.getElementById('share-apps');
+        const emailInput = document.getElementById('share-email');
+        const errBox = document.getElementById('share-err');
+        const addBtn = document.getElementById('share-add');
+        const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const showErr = (msg) => { errBox.textContent = msg || ''; errBox.classList.toggle('on', Boolean(msg)); };
+
+        function render(data) {
+          sharesBox.innerHTML = data.shares.length
+            ? data.shares.map((s) => `
+                <div class="sharerow">
+                  <div>
+                    <div class="who">${esc(s.email)}</div>
+                    <div class="what">Can view: ${s.apps.map((a) => esc(a.title)).join(', ')}</div>
+                  </div>
+                  <button type="button" data-revoke="${esc(s.email)}">Revoke</button>
+                </div>`).join('')
+            : '<p class="noshares">Nobody has shared access yet.</p>';
+
+          appsBox.innerHTML = data.apps.length
+            ? data.apps.map((a) => `<label><input type="checkbox" value="${esc(a.key)}" />${esc(a.title)}</label>`).join('')
+            : '<p style="color:var(--muted);font-size:13px;margin:0;">Add an app in the Rank Tracker first.</p>';
+
+          sharesBox.querySelectorAll('[data-revoke]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              const email = btn.getAttribute('data-revoke');
+              if (!confirm(`Remove ${email}'s access completely?`)) return;
+              btn.disabled = true;
+              try { render(await post('/api/shares', { action: 'revoke', email })); }
+              catch (e) { showErr(e.message); btn.disabled = false; }
+            });
+          });
+        }
+
+        addBtn.addEventListener('click', async () => {
+          showErr('');
+          const email = emailInput.value.trim();
+          const appKeys = [...appsBox.querySelectorAll('input:checked')].map((i) => i.value);
+          if (!email) return showErr('Enter the client’s email address.');
+          if (!appKeys.length) return showErr('Tick at least one app to share.');
+          addBtn.disabled = true;
+          try {
+            render(await post('/api/shares', { action: 'grant', email, appKeys }));
+            emailInput.value = '';
+          } catch (e) { showErr(e.message); }
+          addBtn.disabled = false;
+        });
+
+        fetch('/api/shares')
+          .then((r) => r.json())
+          .then((d) => { if (d.error) throw new Error(d.error); render(d); })
+          .catch(() => { sharesBox.innerHTML = '<p class="noshares">Couldn’t load shared access.</p>'; });
       }
     </script>
   </body>

@@ -24,6 +24,8 @@ const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
 import { planOf } from '../../lib/saas/plans';
+import { resolveWorkspace, visibleApps } from '../../lib/saas/grants';
+import { deleteGrantsForApp } from '../../lib/saas/db';
 import type { APIContext } from 'astro';
 
 // Internal (single-tenant) limits; product mode limits come from the user's plan.
@@ -34,13 +36,26 @@ const INTERNAL_LIMITS = { maxApps: 15, maxCompetitorsPerApp: 5, maxKeywordsPerAp
 // searches before the connection times out.
 const MAX_COVERAGE_KEYWORDS = 2000;
 
-/** Who is asking, and what are they allowed? */
+/**
+ * Who is asking, and what are they allowed? In product mode this also
+ * resolves read-only guests (see lib/saas/grants.ts) onto the OWNER's data
+ * directory with an app filter — `userId` is therefore "whose data", not
+ * "who is logged in", and must never be used to decide write permission.
+ * `readOnly` is the only thing that decides that.
+ */
 function tenant(locals: APIContext['locals']) {
   if (locals.productMode && locals.user) {
     const plan = planOf(locals.user.plan);
-    return { userId: locals.user.id, maxApps: plan.maxApps, maxCompetitors: plan.maxCompetitorsPerApp, maxKeywords: plan.maxKeywordsPerApp };
+    const ws = resolveWorkspace(locals.user);
+    return {
+      userId: ws.ownerId, appKeys: ws.appKeys, readOnly: ws.readOnly, sharedByEmail: ws.sharedByEmail,
+      maxApps: plan.maxApps, maxCompetitors: plan.maxCompetitorsPerApp, maxKeywords: plan.maxKeywordsPerApp,
+    };
   }
-  return { userId: undefined as string | undefined, maxApps: INTERNAL_LIMITS.maxApps, maxCompetitors: INTERNAL_LIMITS.maxCompetitorsPerApp, maxKeywords: INTERNAL_LIMITS.maxKeywordsPerApp };
+  return {
+    userId: undefined as string | undefined, appKeys: null as string[] | null, readOnly: false, sharedByEmail: null,
+    maxApps: INTERNAL_LIMITS.maxApps, maxCompetitors: INTERNAL_LIMITS.maxCompetitorsPerApp, maxKeywords: INTERNAL_LIMITS.maxKeywordsPerApp,
+  };
 }
 
 /**
@@ -167,9 +182,17 @@ function coverageAlreadyCheckedToday(app: TrackedApp, userId?: string): string |
   return allDone ? snap!.checkedAt : null;
 }
 
-/** Everything the UI needs in one payload. */
-function statePayload(userId?: string) {
+/**
+ * Everything the UI needs in one payload. `ws` scopes it for a read-only
+ * guest: the app list is filtered to what they were granted, so an app they
+ * don't have access to never reaches the browser at all — the dashboard's
+ * read-only mode is a UI convenience, not the security boundary.
+ */
+function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly: boolean; sharedByEmail: string | null }) {
   const cfg = loadConfig(userId);
+  if (ws?.appKeys) {
+    cfg.apps = visibleApps(cfg.apps, { ownerId: userId || '', appKeys: ws.appKeys, readOnly: true, sharedByEmail: ws.sharedByEmail });
+  }
   const snapshots = loadSnapshots(90, userId);
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null;
   const covSnapshots = loadCoverageSnapshots(60, userId);
@@ -263,12 +286,16 @@ function statePayload(userId?: string) {
     buckets: RANK_BUCKETS.map((b) => b.label),
     lastCheckedAt: latest?.checkedAt || null,
     snapshotDays: snapshots.map((s) => s.dateKey),
+    readOnly: Boolean(ws?.readOnly),
+    sharedByEmail: ws?.sharedByEmail || null,
   };
 }
 
 export const GET: APIRoute = async ({ locals }) => {
-  try { return json(statePayload(tenant(locals).userId)); }
-  catch (e) {
+  try {
+    const t = tenant(locals);
+    return json(statePayload(t.userId, t));
+  } catch (e) {
     if (e instanceof ConfigReadError) return json({ error: e.message }, 500);
     throw e;
   }
@@ -278,7 +305,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
   let body: Record<string, any>;
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
   const action = String(body.action || '');
-  const { userId, maxApps, maxCompetitors, maxKeywords } = tenant(locals);
+  const t = tenant(locals);
+  const { userId, maxApps, maxCompetitors, maxKeywords } = t;
+  // Read-only guests get exactly one verb: GET. Every action below either
+  // edits the owner's config or spends the owner's money (store fetches,
+  // Anthropic calls), so there is no useful subset to allow through and a
+  // per-action allowlist would be one forgotten `if` away from a hole.
+  if (t.readOnly) {
+    return json({ error: 'This is a read-only shared view — ask the account owner to make changes.' }, 403);
+  }
   let cfg;
   try { cfg = loadConfig(userId); }
   catch (e) {
@@ -386,6 +421,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     cfg.apps = cfg.apps.filter((a) => a.key !== key);
     if (cfg.apps.length === before) return json({ error: 'App not found.' }, 404);
     saveConfig(cfg, userId);
+    // Drop any read-only shares of this app too — otherwise re-adding the
+    // same app later would silently restore a guest's access to it.
+    if (userId) { try { deleteGrantsForApp(userId, key); } catch { /* grants are best-effort */ } }
     return json({ ok: true, ...statePayload(userId) });
   }
 

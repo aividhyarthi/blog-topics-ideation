@@ -15,6 +15,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { userFromSessionToken, readCookie, SESSION_COOKIE } from './lib/saas/auth';
 import { checkAccess, isAdminEmail } from './lib/saas/plans';
+import { billingUserFor } from './lib/saas/grants';
 import { checkDataPersistence } from './lib/rank/persistence-check';
 import { startNightlyScheduler } from './lib/rank/scheduler';
 
@@ -34,7 +35,7 @@ if (process.env.PRODUCT_MODE) {
 // search engines) without a login, same as /about.
 const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/blog', '/api/auth/', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.
-const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/admin', '/api/admin', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
+const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/admin', '/api/admin', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/shares', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
 // The two paid tools — gated on a live trial/subscription (checked below).
 const PAID_TOOL_PREFIXES = ['/rank', '/api/rank', '/aso', '/api/aso', '/api/aso-variants'];
 
@@ -77,7 +78,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     // (the owner) are whitelisted unconditionally — their own account never
     // locks itself out over trial/plan status.
     if (PAID_TOOL_PREFIXES.some(matches) && !isAdminEmail(user.email)) {
-      const access = checkAccess(user.status, user.trialEndsAt);
+      // For a read-only guest this resolves to the OWNER — they're riding on
+      // the owner's subscription, not one of their own (see grants.ts).
+      const billTo = billingUserFor(user);
+      const access = checkAccess(billTo.status, billTo.trialEndsAt);
       context.locals.access = access;
       if (!access.allowed) {
         return isJsonRoute(path)

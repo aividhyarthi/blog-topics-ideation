@@ -5,8 +5,11 @@
 // plan-based limits).
 import { BRAND, planOf, checkAccess } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
+import { isGuest } from '../lib/saas/grants';
 const product = Boolean(Astro.locals.productMode);
 const user = Astro.locals.user || null;
+// Read-only guest viewing an app someone shared with them (see grants.ts).
+const guest = product && user ? isGuest(user) : false;
 const plan = user ? planOf(user.plan) : null;
 const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
 const limitsText = product && plan
@@ -350,9 +353,9 @@ const limitsText = product && plan
               <span class="wordmark">{BRAND}</span>
               <span class="betatag">Beta 1.0</span>
             </a>
-            <h1>Your rank dashboard</h1>
+            <h1>{guest ? 'Rank dashboard' : 'Your rank dashboard'}</h1>
             <p>
-              Where your apps rank in <b>Google Play</b> and <b>App Store</b> search — position history,
+              Where {guest ? 'these apps rank' : 'your apps rank'} in <b>Google Play</b> and <b>App Store</b> search — position history,
               movement vs the last check, keyword discovery, and top-chart positions. Checked daily.
             </p>
             <nav class="top">
@@ -391,7 +394,9 @@ const limitsText = product && plan
       </div>
     </header>
 
-    {product && access?.trialDaysLeft && (
+    {/* Guests are riding on the owner's subscription — never nag a client to
+        buy a plan for a dashboard someone else is already paying for. */}
+    {product && !guest && access?.trialDaysLeft && (
       <div class="no-print" style="background:var(--warn-tint);border-bottom:1px solid rgba(242,169,59,0.3);color:var(--warn);font-size:13.5px;padding:9px 20px;text-align:center;">
         ⏳ <b>{access.trialDaysLeft} day{access.trialDaysLeft === 1 ? '' : 's'}</b> left in your free trial —
         <a href="/account" style="color:var(--warn);font-weight:700;">choose a plan</a> to keep your rank history running.
@@ -402,6 +407,7 @@ const limitsText = product && plan
       <div class="wrap">
         <div class="alert err no-print" id="err"></div>
         <div class="alert info no-print" id="info"></div>
+        <div class="alert info no-print" id="ro-banner" style="display:none;"></div>
 
         <div class="toolbar no-print">
           <span class="lastcheck" id="lastcheck"></span>
@@ -1059,7 +1065,13 @@ ai photo enhancer"></textarea>
 
       function overviewHtml(app) {
         const ov = app.overview;
-        if (!ov || !ov.days || !ov.days.length) return '<p class="hint">No check data yet — hit <b>Check now</b> to record the first data point.</p>';
+        if (!ov || !ov.days || !ov.days.length) {
+          // A read-only guest has no Check button to hit — telling them to
+          // press one is just a support message waiting to happen.
+          return state.readOnly
+            ? '<p class="hint">No check data yet — the first daily check hasn\'t run for this app.</p>'
+            : '<p class="hint">No check data yet — hit <b>Check now</b> to record the first data point.</p>';
+        }
         const c = ov.counts || {}, p = ov.prevCounts || null;
         const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
         const cur = ov.visibility, prev = ov.prevVisibility;
@@ -2118,7 +2130,11 @@ ai photo enhancer"></textarea>
         $('side-apps').innerHTML = primaries.map((app) =>
           sideAppBtn(app, false) + (byPrimary[app.key] || []).map((c) => sideAppBtn(c, true)).join('')).join('');
         const app = state.apps.find((a) => a.key === selectedAppKey);
-        $('snav').innerHTML = SECTIONS.map((s) => {
+        // Settings is entirely owner-only controls — for a read-only guest
+        // the whole tab would render empty once applyReadOnly() strips it.
+        const sections = state.readOnly ? SECTIONS.filter((s) => s.id !== 'settings') : SECTIONS;
+        if (state.readOnly && currentSection === 'settings') currentSection = 'overview';
+        $('snav').innerHTML = sections.map((s) => {
           const cnt = app ? sectionCount(app, s.id) : '';
           return `<button class="${s.id === currentSection ? 'active' : ''}" data-section="${s.id}">${s.label}${cnt !== '' ? `<span class="cnt">${cnt}</span>` : ''}</button>`;
         }).join('');
@@ -2136,11 +2152,32 @@ ai photo enhancer"></textarea>
         if (primaries.some((a) => a.key === prev)) sel.value = prev;
       }
 
+      // A read-only guest (an app shared with them by the account owner —
+      // see lib/saas/grants.ts) can look at everything and change nothing.
+      // The server rejects every write from them regardless; this only stops
+      // the UI offering buttons that would come back 403. Rather than an
+      // allowlist of "safe" controls sprinkled through the render functions,
+      // sweep the DOM after each render and drop anything that acts —
+      // a new mutating button added later is then read-only by default.
+      const READONLY_SAFE_ACTS = new Set(['pdf', 'pdf-snapshot', 'close-addapp-modal', 'close-kwmodal', 'dismiss-discover']);
+      function applyReadOnly() {
+        if (!state.readOnly) return;
+        document.querySelectorAll('[data-act]').forEach((el) => {
+          if (!READONLY_SAFE_ACTS.has(el.getAttribute('data-act'))) el.remove();
+        });
+        // Editable fields would silently discard whatever was typed.
+        document.querySelectorAll('#apps input, #apps textarea, #apps select').forEach((el) => {
+          if (!el.closest('[data-role="sortable"]')) el.setAttribute('disabled', 'disabled');
+        });
+      }
+
       function render() {
         const box = $('apps');
         if (!state.apps.length) {
           $('sidebar').style.display = 'none';
-          box.innerHTML = '<div class="card"><div class="empty">No apps tracked yet.<div style="margin-top:10px;"><button class="primary" id="empty-add-app">＋ Track your first app</button></div></div></div>';
+          box.innerHTML = state.readOnly
+            ? '<div class="card"><div class="empty">No apps have been shared with you yet.</div></div>'
+            : '<div class="card"><div class="empty">No apps tracked yet.<div style="margin-top:10px;"><button class="primary" id="empty-add-app">＋ Track your first app</button></div></div></div>';
         } else {
           if (!selectedAppKey || !state.apps.some((a) => a.key === selectedAppKey)) selectedAppKey = state.apps[0].key;
           renderSidebar();
@@ -2151,7 +2188,21 @@ ai photo enhancer"></textarea>
         const days = state.snapshotDays || [];
         $('lastcheck').textContent = state.lastCheckedAt
           ? `Last checked ${new Date(state.lastCheckedAt).toLocaleString()} · ${days.length} day${days.length === 1 ? '' : 's'} of history`
-          : 'Never checked — add apps and hit "Check all rankings now".';
+          : state.readOnly
+            ? 'No checks recorded yet.'
+            : 'Never checked — add apps and hit "Check all rankings now".';
+
+        if (state.readOnly) {
+          const banner = $('ro-banner');
+          banner.textContent = state.sharedByEmail
+            ? `Read-only view shared with you by ${state.sharedByEmail}. Rankings update automatically every day.`
+            : 'Read-only view. Rankings update automatically every day.';
+          banner.style.display = 'block';
+          $('checkall-btn').style.display = 'none';
+          const addBtn = $('toggle-add-app');
+          if (addBtn) addBtn.style.display = 'none';
+          applyReadOnly();
+        }
       }
 
       async function api(body) {

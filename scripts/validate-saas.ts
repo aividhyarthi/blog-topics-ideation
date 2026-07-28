@@ -123,5 +123,79 @@ rmSync(tmp, { recursive: true, force: true });
   eq('orphaned competitor counts against the plan', owned(orphaned), 1);
 }
 
+// --- read-only app sharing (grants) -----------------------------------------
+{
+  const { createGrant, listGrantsByOwner, deleteGrant, deleteGrantee, deleteGrantsForApp } = await import('../src/lib/saas/db');
+  const { resolveWorkspace, isGuest, visibleApps, expandWithCompetitors, assertCanGrant, billingUserFor } = await import('../src/lib/saas/grants');
+  const { signup: su2 } = await import('../src/lib/saas/auth');
+
+  const owner = su2('owner-share@test.com', 'password123', 'Owner').user!;
+  const client = su2('client-share@test.com', 'password123', 'Client').user!;
+
+  // Owner tracks two clients' apps, each with a competitor.
+  saveConfig({ apps: [
+    { key: 'play:kuvera', title: 'Kuvera' },
+    { key: 'play:kuvera-rival', title: 'Rival', competitorOf: 'play:kuvera' },
+    { key: 'play:cred', title: 'Cash by CRED' },
+  ] } as any, owner.id);
+
+  // Before any grant, everyone is their own owner with the full workspace.
+  eq('no grants = own workspace', resolveWorkspace(client), { ownerId: client.id, appKeys: null, readOnly: false, sharedByEmail: null });
+  eq('no grants = not a guest', isGuest(client), false);
+
+  createGrant(owner.id, 'client-share@test.com', 'play:kuvera');
+  const ws = resolveWorkspace(client);
+  eq('grant points the guest at the owner', ws.ownerId, owner.id);
+  eq('grant is read-only', ws.readOnly, true);
+  eq('guest is told whose data it is', ws.sharedByEmail, owner.email);
+  eq('grant is now a guest', isGuest(client), true);
+
+  // The granted app brings its competitor (Compare needs it) but never the
+  // other client's app — that is the whole point of the feature.
+  const apps = loadConfig(owner.id).apps;
+  const seen = visibleApps(apps, ws).map((a) => a.key).sort();
+  eq('guest sees the granted app and its competitor', seen, ['play:kuvera', 'play:kuvera-rival']);
+  eq('guest does NOT see the other client app', seen.includes('play:cred'), false);
+  eq('competitor expansion never pulls in a primary',
+    expandWithCompetitors(apps, ['play:kuvera']).sort(), ['play:kuvera', 'play:kuvera-rival']);
+
+  // The owner's own view is untouched by having issued a grant.
+  eq('owner still sees everything', visibleApps(apps, resolveWorkspace(owner)).length, 3);
+
+  // A guest rides on the OWNER's subscription, not their own dead trial.
+  eq('guest bills to the owner', billingUserFor(client).id, owner.id);
+  eq('owner bills to themselves', billingUserFor(owner).id, owner.id);
+
+  // Guard rails on creating a grant.
+  eq('cannot grant to yourself', Boolean(assertCanGrant(owner.id, owner.email, owner.email)), true);
+  eq('rejects a malformed email', Boolean(assertCanGrant(owner.id, owner.email, 'not-an-email')), true);
+  const owner2 = su2('owner2-share@test.com', 'password123', 'Owner2').user!;
+  eq('cannot be a guest of two owners', Boolean(assertCanGrant(owner2.id, owner2.email, 'client-share@test.com')), true);
+  const selfServe = su2('hasownapps@test.com', 'password123', 'Self').user!;
+  saveConfig({ apps: [{ key: 'play:theirown', title: 'Their own app' }] } as any, selfServe.id);
+  eq('cannot hide an existing customer behind a share', Boolean(assertCanGrant(owner.id, owner.email, 'hasownapps@test.com')), true);
+  eq('a fresh email is grantable', assertCanGrant(owner.id, owner.email, 'brand-new@test.com'), null);
+
+  // Re-granting is idempotent, not a duplicate row.
+  createGrant(owner.id, 'client-share@test.com', 'play:kuvera');
+  eq('re-granting the same app is a no-op', listGrantsByOwner(owner.id).length, 1);
+
+  // Revoking one app of several leaves the rest.
+  createGrant(owner.id, 'client-share@test.com', 'play:cred');
+  eq('second grant lands', resolveWorkspace(client).appKeys!.sort(), ['play:cred', 'play:kuvera']);
+  deleteGrant(owner.id, 'client-share@test.com', 'play:cred');
+  eq('revoking one app keeps the other', resolveWorkspace(client).appKeys, ['play:kuvera']);
+
+  // Untracking an app must not leave a live grant behind for a re-add.
+  createGrant(owner.id, 'client-share@test.com', 'play:cred');
+  deleteGrantsForApp(owner.id, 'play:cred');
+  eq('untracking an app drops its grants', resolveWorkspace(client).appKeys, ['play:kuvera']);
+
+  // Full revoke returns the guest to being an ordinary (own-workspace) user.
+  deleteGrantee(owner.id, 'client-share@test.com');
+  eq('full revoke ends the share', isGuest(client), false);
+  eq('ex-guest is their own owner again', resolveWorkspace(client).ownerId, client.id);
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll SaaS checks passed.');
