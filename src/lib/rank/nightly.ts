@@ -12,8 +12,9 @@
 //  - AppRankr product users (one config per user; only users with a live
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
-import { loadConfig, saveConfig, loadSnapshot, loadSnapshots, loadCoverageSnapshot, loadCoverageSnapshots, saveNightlyMarker } from './store';
+import { loadConfig, saveConfig, loadSnapshot, loadSnapshots, loadCoverageSnapshot, loadCoverageSnapshots, saveNightlyMarker, loadReviewThemes } from './store';
 import { runCheck, checkCoverageBatch, checkRating, retryFailedChart } from './check';
+import { analyzeReviewThemes } from './themes';
 import { backfillDeveloperId, backfillGenreId } from './fetch';
 import { withTenantLock } from './lock';
 import { keywordTrends, overviewSeries, countsFromBuckets, universeSizeSeries, todayKey, isWithinCheckWindow } from './track';
@@ -133,6 +134,21 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
       for (const app of cfg.apps) {
         try { await checkRating(app, userId); }
         catch (e) { lines.push(`  [${label}] ${app.key}: rating check failed: ${e instanceof Error ? e.message : String(e)}`); }
+      }
+
+      // Daily negative-review theme analysis (Play only) — the Trends tab's
+      // "what negative reviews complain about" panel used to sit frozen at
+      // whatever the owner last clicked. This costs one Anthropic call per
+      // Play app per day, so it's skipped once an entry already exists for
+      // today (an hourly retry tick re-entering this block, or a run that
+      // already covered this app, shouldn't re-spend it).
+      const reviewThemesCache = loadReviewThemes(userId);
+      for (const app of cfg.apps) {
+        if (app.store !== 'play') continue;
+        const existing = reviewThemesCache[app.key];
+        if (existing && existing.checkedAt.slice(0, 10) === today) continue;
+        try { await analyzeReviewThemes(app, userId); }
+        catch (e) { lines.push(`  [${label}] ${app.key}: review-theme analysis skipped: ${e instanceof Error ? e.message : String(e)}`); }
       }
 
       // Daily rank-report email — one per app with a saved recipient list,

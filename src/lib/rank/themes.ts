@@ -1,8 +1,10 @@
 // Review-theme analysis: what are the 1-3★ reviews actually complaining
 // about? Turns the rating-health number ("14% negative") into an action
 // ("the complaints are OTP failures and KYC delays"). One Anthropic call
-// per run, so it only ever runs from an explicit button click and the
-// result is cached (see store.ts loadReviewThemes) until the next click.
+// per run. Runs automatically once a day per Play app from the nightly
+// cron (see nightly.ts), and can also be triggered on demand from the
+// Trends tab's "Analyze reviews" / "Re-analyze now" button; either way the
+// result is cached (see store.ts loadReviewThemes) until the next run.
 import Anthropic from '@anthropic-ai/sdk';
 import { fetchRecentReviews } from '../aso/fetch';
 import { saveReviewThemesEntry } from './store';
