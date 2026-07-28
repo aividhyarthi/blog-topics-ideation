@@ -1,4 +1,4 @@
-// Self-contained SQLite persistence for CiteRank accounts, sessions, saved
+// Self-contained SQLite persistence for AI Page Audit accounts, sessions, saved
 // audits and payment claims. No separate database service, no connection
 // string to link between two Railway boxes — the app carries its own file.
 //
@@ -27,7 +27,7 @@ if (!dbEnabled) {
     [
       '',
       '='.repeat(64),
-      'CiteRank: NO DATA_DIR CONFIGURED — accounts, payments and all',
+      'AI Page Audit: NO DATA_DIR CONFIGURED — accounts, payments and all',
       'checks are DISABLED. Visitors see "Accounts are temporarily',
       'unavailable" until this is fixed.',
       '',
@@ -44,7 +44,7 @@ if (!dbEnabled) {
     ].join('\n'),
   );
 } else {
-  console.log(`CiteRank: database at ${DB_PATH} — accounts enabled.`);
+  console.log(`AI Page Audit: database at ${DB_PATH} — accounts enabled.`);
 }
 
 /** Non-secret diagnostic for /api/health and /setup. */
@@ -62,7 +62,7 @@ function getDb(): Database.Database {
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
-    if (fresh) console.log(`CiteRank: created new database file at ${DB_PATH}`);
+    if (fresh) console.log(`AI Page Audit: created new database file at ${DB_PATH}`);
   }
   return db;
 }

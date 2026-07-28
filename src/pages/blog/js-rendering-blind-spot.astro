@@ -6,11 +6,11 @@ const articleSchema = {
   headline: "Why AI crawlers can't read your JavaScript site",
   datePublished: '2026-06-01',
   dateModified: '2026-06-01',
-  author: { '@type': 'Organization', name: 'CiteRank' },
-  publisher: { '@type': 'Organization', name: 'CiteRank' },
+  author: { '@type': 'Organization', name: 'AI Page Audit' },
+  publisher: { '@type': 'Organization', name: 'AI Page Audit' },
 };
 ---
-<Site schema={articleSchema} title="Why AI crawlers can't read your JavaScript site — CiteRank" description="Googlebot renders JavaScript. GPTBot, ClaudeBot and PerplexityBot don't. Here's what that means for your rankings in AI search.">
+<Site schema={articleSchema} title="Why AI crawlers can't read your JavaScript site — AI Page Audit" description="Googlebot renders JavaScript. GPTBot, ClaudeBot and PerplexityBot don't. Here's what that means for your rankings in AI search.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Technical · 3 min read</span>
@@ -30,13 +30,13 @@ const articleSchema = {
       <p>It's not a partial degradation — it's binary. A page that's 80% JavaScript-rendered doesn't get 80% of an AI citation; it gets none, because there's nothing left to quote. And because the failure mode is silent (no error, no broken page, just an absence), most site owners never find out until they think to check — which is precisely the gap a dedicated crawler-access check exists to close.</p>
 
       <h2>How to check your own site</h2>
-      <p>Compare the word count of your raw server response against what you see in a rendered browser. If the raw HTML has a small fraction of the words, headings and structured data that the rendered page shows, that's the signature of a JS-rendering gap. CiteRank's <a href="/">LLM Access Check</a> automates exactly this comparison — fetching your page as each AI crawler and showing you precisely what they can and can't read, element by element.</p>
+      <p>Compare the word count of your raw server response against what you see in a rendered browser. If the raw HTML has a small fraction of the words, headings and structured data that the rendered page shows, that's the signature of a JS-rendering gap. AI Page Audit's <a href="/check">LLM Access Check</a> automates exactly this comparison — fetching your page as each AI crawler and showing you precisely what they can and can't read, element by element.</p>
 
       <h2>The fix</h2>
       <p>Server-side rendering (SSR) or static generation for the content that matters — title, price, description, key specs, reviews — solves this at the source. You don't need to abandon a JavaScript framework; you need the crawlable content to exist in the initial HTML response, with JavaScript layered on top for interactivity, not as the sole delivery mechanism for the substance of the page.</p>
 
       <div class="post-cta">
-        <a href="/" class="btn-primary">Check your page free</a>
+        <a href="/check" class="btn-primary">Check your page free</a>
         <a href="/audit" class="btn-ghost">Run the full AEO audit</a>
       </div>
     </article>

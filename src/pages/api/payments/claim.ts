@@ -20,7 +20,7 @@ export const POST: APIRoute = async ({ request }) => {
   const note = (body.note || '').trim().slice(0, 300);
   const pack = CREDIT_PACKS.find((p) => p.id === body.pack);
 
-  if (!validEmail(email)) return json({ error: 'Enter the email your CiteRank account uses.' }, 400);
+  if (!validEmail(email)) return json({ error: 'Enter the email your AI Page Audit account uses.' }, 400);
   if (utr.length < 4) return json({ error: 'Enter the UPI transaction reference (UTR) from your payment.' }, 400);
 
   try {

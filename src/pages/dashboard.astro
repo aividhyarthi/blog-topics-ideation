@@ -1,5 +1,5 @@
 ---
-import Site from '../layouts/Site.astro';
+import App from '../layouts/App.astro';
 import { getUser } from '../lib/auth';
 import { dbEnabled } from '../lib/db';
 import { usageStatus } from '../lib/billing';
@@ -20,12 +20,11 @@ const expiresAt = usage?.expiresAt ? new Date(usage.expiresAt).toLocaleDateStrin
 
 function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75) return '#12855a'; if (s >= 45) return '#b7791f'; return '#d43a3a'; }
 ---
-<Site title="Dashboard — CiteRank" description="Your CiteRank account, plan and usage.">
-  <section class="pagehead">
+<App tab="reports" title="Reports — AI Page Audit" description="Your saved audits, usage and plan.">
+  <section class="toolhead">
     <div class="wrap">
-      <span class="eyebrow">Account</span>
-      <h1>Welcome back{user.email ? `, ${user.email.split('@')[0]}` : ''}</h1>
-      <p>Your plan, usage and saved reports in one place.</p>
+      <h1>Reports</h1>
+      <p>Your saved audits, checks remaining and plan.</p>
     </div>
   </section>
   <main>
@@ -42,7 +41,7 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
         {isPro ? (
           <div class="dcard">
             <div class="usage-top"><b>Usage this month</b><span>{planUsed} / {planLimit} checks</span></div>
-            <div class="usage-bar"><i style={`width:${pct}%; background:${pct >= 90 ? '#d43a3a' : pct >= 70 ? '#b7791f' : '#2563eb'}`}></i></div>
+            <div class="usage-bar"><i style={`width:${pct}%; background:${pct >= 90 ? '#d43a3a' : pct >= 70 ? '#b7791f' : '#4f46e5'}`}></i></div>
             {pct >= 80 && <div class="usage-warn">You’re close to your monthly limit — it resets on your renewal date.</div>}
           </div>
         ) : (
@@ -59,7 +58,7 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
         <div class="dcard">
           <div class="dcard-head"><b>Recent audits</b><a href="/audit">Run a new audit →</a></div>
           {audits.length === 0 ? (
-            <p class="empty">No saved audits yet. <a href="/audit">Run your first audit</a> or check a URL on the <a href="/">homepage</a>.</p>
+            <p class="empty">No saved audits yet. <a href="/audit">Run your first audit</a> or run a <a href="/check">crawler access check</a>.</p>
           ) : (
             <div class="alist">
               {audits.map((a) => (
@@ -77,16 +76,14 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
       </div>
 
       <div class="dash-side">
-        <div class="dcard">
-          <div class="side-head">Quick actions</div>
-          <a href="/" class="side-link">LLM Access Check</a>
-          <a href="/audit" class="side-link">Full AEO Audit</a>
-          <a href="/pricing" class="side-link">Billing &amp; plan</a>
-        </div>
         <div class="dcard side-acc">
           <div class="side-head">Account</div>
           <div class="side-email">{user.email}</div>
           <button class="btn-ghost sm" id="dash-signout">Sign out</button>
+        </div>
+        <div class="dcard">
+          <div class="side-head">Plan</div>
+          <a href="/pricing" class="side-link">Billing &amp; plan</a>
         </div>
       </div>
     </div>
@@ -101,6 +98,11 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
   </script>
 
   <style>
+    .toolhead { border-bottom: 1px solid var(--line); background: #fff; }
+    .toolhead .wrap { padding: 26px 24px 22px; }
+    .toolhead h1 { margin: 0 0 5px; font-size: 24px; font-weight: 800; letter-spacing: -.025em; }
+    .toolhead p { margin: 0; font-size: 14.5px; color: var(--muted); }
+    main { padding: 28px 0 56px; }
     .dash-grid { display: grid; grid-template-columns: 1fr 280px; gap: 22px; align-items: start; }
     @media (max-width: 820px) { .dash-grid { grid-template-columns: 1fr; } }
     .dash-main { display: grid; gap: 18px; }
@@ -116,7 +118,7 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
     .usage-warn { margin-top: 12px; font-size: 12.5px; color: var(--warn); background: var(--warn-bg); border: 1px solid #f0e2b8; border-radius: 9px; padding: 9px 11px; }
     .balance-row { display: flex; gap: 24px; margin-top: 10px; }
     .bal-item { display: flex; flex-direction: column; }
-    .bal-n { font-size: 28px; font-weight: 800; color: var(--pink); letter-spacing: -.02em; }
+    .bal-n { font-size: 28px; font-weight: 800; color: var(--accent); letter-spacing: -.02em; }
     .bal-l { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 2px; }
     .dcard-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
     .dcard-head a { font-size: 13px; font-weight: 700; }
@@ -133,4 +135,4 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
     .side-email { font-size: 13px; color: var(--ink-2); margin-bottom: 12px; word-break: break-all; }
     .btn-ghost.sm { padding: 7px 13px; font-size: 12.5px; }
   </style>
-</Site>
+</App>

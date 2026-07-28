@@ -174,7 +174,7 @@ export async function approveClaim(id: string): Promise<{ ok: boolean; error?: s
   if (!claim) return { ok: false, error: 'Claim not found.' };
   if (claim.status !== 'pending') return { ok: false, error: `Claim already ${claim.status}.` };
   const { rows: userRows } = await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [claim.email.toLowerCase().trim()]);
-  if (!userRows[0]) return { ok: false, error: `No CiteRank account found for ${claim.email}. Ask them to sign up with this email first.` };
+  if (!userRows[0]) return { ok: false, error: `No AI Page Audit account found for ${claim.email}. Ask them to sign up with this email first.` };
 
   if (claim.kind === 'credits') {
     const n = claim.credits && claim.credits > 0 ? claim.credits : 1;

@@ -1,700 +1,317 @@
 ---
-// LLM Access Check — deep, multi-agent "can bots read this page?" tool.
-// Fetches the URL as Googlebot desktop/mobile + real devices + GPTBot, and
-// audits the raw HTML element-by-element in separate Desktop / Mobile tabs.
-//
-// Hard login wall: the tool form below is server-rendered ONLY for signed-in
-// visitors — no flash of the working tool before signup. Marketing content
-// above stays public. Locks (never unlocks) if the DB is unreachable.
-import { getUser } from '../lib/auth';
-import { dbEnabled } from '../lib/db';
-const user = await getUser(Astro as any);
-const locked = !user;
-const accountsDown = !dbEnabled;
+// Public marketing homepage. Deliberately NOT gated — the tool itself lives at
+// /check behind login, but a locked front door made the product look broken to
+// anyone arriving cold.
+import Site from '../layouts/Site.astro';
 
-// We score other sites on structured data, so the homepage carries its own.
 const origin = new URL(Astro.request.url).origin;
-const canonical = new URL(Astro.url.pathname, origin).href;
 const homeSchema = {
   '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'Organization',
-      '@id': `${origin}/#org`,
-      name: 'CiteRank',
-      url: origin,
-      description: 'AEO / GEO intelligence platform that shows what AI crawlers can and cannot read on your site.',
-    },
-    {
-      '@type': 'SoftwareApplication',
-      name: 'CiteRank',
-      applicationCategory: 'BusinessApplication',
-      operatingSystem: 'Web',
-      url: origin,
-      publisher: { '@id': `${origin}/#org` },
-      description:
-        'Fetches your pages as Googlebot, GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot, then reports exactly what each crawler can and cannot read.',
-      offers: {
-        '@type': 'Offer',
-        price: '0',
-        priceCurrency: 'INR',
-        description: 'First check free, then one-time credit packs or a monthly Pro plan.',
-      },
-    },
-  ],
+  '@type': 'SoftwareApplication',
+  name: 'AI Page Audit',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  url: origin,
+  description:
+    'Fetches your pages as Googlebot, GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot, then reports exactly what each crawler can and cannot read.',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'INR',
+    description: 'First check free, then one-time credit packs or a monthly Pro plan.',
+  },
 };
+
+// An illustrative result, clearly labelled as one on the page. The shape is the
+// common real-world failure: Google renders the JavaScript and sees everything,
+// the answer engines fetch raw HTML and see a shell, and one is blocked outright
+// at the CDN.
+const crawlers = [
+  { name: 'Googlebot', note: 'renders JavaScript', pct: 100 },
+  { name: 'Bingbot', note: 'renders JavaScript', pct: 96 },
+  { name: 'OAI-SearchBot', note: 'raw HTML only', pct: 22 },
+  { name: 'GPTBot', note: 'raw HTML only', pct: 22 },
+  { name: 'ClaudeBot', note: 'raw HTML only', pct: 19 },
+  { name: 'PerplexityBot', note: 'blocked at the CDN', pct: 0 },
+];
+
+// Chartbeat, March 2026 — one measure (fall in search referral traffic over two
+// years) across three categories, so a single-hue bar chart is the right form.
+const referral = [
+  { label: 'Small publishers', pct: 60 },
+  { label: 'Medium publishers', pct: 47 },
+  { label: 'Large publishers', pct: 22 },
+];
+
+const stats = [
+  { n: '58%', l: 'lower click-through on top-ranking pages when an AI Overview appears', src: 'Ahrefs, Feb 2026' },
+  { n: '+120%', l: 'more clicks per impression for brands cited inside the answer', src: 'Seer Interactive, 2026' },
+  { n: '10%', l: 'of the URLs ChatGPT cites also rank in Google’s top 10', src: 'Citation analysis, 2026' },
+];
+
+const features = [
+  { icon: '🔎', h: 'LLM Access Check', p: 'Fetch any URL as Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI — and see exactly what each crawler can and can’t read, from navigation to footer.' },
+  { icon: '🧩', h: 'Per-crawler tabs', p: 'A dedicated tab for every AI bot, run on demand with smart pacing so you get clean results without tripping the site’s rate-limiter.' },
+  { icon: '📄', h: 'Content extraction', p: 'Pulls the real data an LLM reads — title, rating, reviews, ingredients, specs, FAQs — and flags what’s declared vs actually in the HTML.' },
+  { icon: '🛒', h: 'Page-type aware', p: 'Detects article, product or listing — and the vertical (beauty, electronics, fashion, automotive) — then runs the right checks for that page.' },
+  { icon: '⚡', h: 'JavaScript & render analysis', p: 'Spots content injected by JavaScript, lazy-loaded media, tabs and “read more” that AI crawlers never see — the #1 hidden reason pages don’t get cited.' },
+  { icon: '🚧', h: 'Content-gap finder', p: 'Surfaces the missing pieces — no FAQ, no schema, thin sections, blocked crawlers — that competitors and AI answers exploit.' },
+  { icon: '📊', h: 'Full AEO audit', p: 'A weighted, category-specific score across six pillars with ranked, page-specific fixes and per-engine citation likelihood.' },
+  { icon: '📁', h: 'Reports & history', p: 'Save every audit to your account, export to PDF or copy as Markdown, and track how your AI visibility changes over time.' },
+];
+
+const tone = (p: number) => (p >= 80 ? 'ok' : p >= 40 ? 'warn' : 'bad');
+const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial' : p === 0 ? 'No access' : 'Near-empty');
 ---
+<Site
+  schema={homeSchema}
+  title="AI Page Audit — see your site the way AI answer engines see it"
+  description="Fetch any page as Googlebot, ChatGPT, Perplexity and Claude, and see exactly what each AI crawler can and cannot read. First check free."
+>
+  <!-- ── hero ───────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="wrap herogrid">
+      <div class="herocopy">
+        <span class="eyebrow">AI visibility for the new front page of search</span>
+        <h1>See your site the way <em>AI answer engines</em> see it</h1>
+        <p>
+          Google renders your JavaScript. ChatGPT, Perplexity and Claude don’t —
+          they read raw HTML. A page can rank beautifully and still be invisible
+          to every AI answer at the same time. We show you which, and why.
+        </p>
+        <div class="herocta">
+          <button class="btn-primary lg" id="cta-signup">Sign up free</button>
+          <button class="btn-ghost lg" id="cta-login">Log in</button>
+        </div>
+        <p class="herofine">Your first check is free · No card required</p>
+      </div>
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Can LLMs read your page? — CiteRank</title>
-    <meta name="description" content="Enter a URL and see exactly what Googlebot (desktop & mobile), real devices and the AI crawlers (ChatGPT, Claude, Perplexity) can and can't read — SEO tags, content, links, media, and JavaScript-hidden content." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="canonical" href={canonical} />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="Can LLMs read your page? — CiteRank" />
-    <meta property="og:url" content={canonical} />
-    <meta property="og:site_name" content="CiteRank" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <script type="application/ld+json" set:html={JSON.stringify(homeSchema)} />
-    <style is:global>
-      :root {
-        --pink: #2563eb; --pink-dark: #1d4ed8; --accent-soft: #eaf1ff;
-        --ink: #0f172a; --ink-2: #334155; --muted: #64748b; --faint: #94a3b8;
-        --line: #e6ebf1; --line-2: #dbe3ec; --bg: #f6f8fb; --card: #ffffff;
-        --ok: #12855a; --ok-bg: #e3f4ec; --warn: #b7791f; --warn-bg: #fbf1da;
-        --bad: #d43a3a; --bad-bg: #fcebeb; --na: #94a3b8; --indigo: #2563eb;
-        --ink-900: #0b1220;
-        --shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px -16px rgba(15,23,42,.16);
-      }
-      * { box-sizing: border-box; }
-      html { scroll-behavior: smooth; }
-      body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased; }
-      .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
-      svg { display: block; }
+      <!-- Product-output preview. One measure (share of page content the
+           crawler actually received) across six named crawlers. -->
+      <figure class="chartcard">
+        <figcaption>
+          <b>What each crawler can read</b>
+          <span>Example result · share of page content received</span>
+        </figcaption>
+        <div class="bars">
+          {crawlers.map((c) => (
+            <div class="barrow">
+              <div class="b-head">
+                <span class="b-name">{c.name}</span>
+                <span class="b-note">{c.note}</span>
+              </div>
+              <div class="b-track">
+                <div class={`b-fill ${tone(c.pct)}`} style={`width:${Math.max(c.pct, 1.5)}%`}></div>
+              </div>
+              <div class="b-val">
+                <b>{c.pct}%</b>
+                <span class={`b-tag ${tone(c.pct)}`}>{verdict(c.pct)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </figure>
+    </div>
+  </section>
 
-      .nav { position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,.82); backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid var(--line); }
-      .navinner { display: flex; align-items: center; gap: 14px; height: 60px; }
-      .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: -.02em; color: var(--ink); }
-      .brand .mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(140deg, #2563eb, #1d4ed8); display: grid; place-items: center; box-shadow: 0 4px 12px -4px rgba(29,78,216,.6); }
-      .brand .mark svg { width: 15px; height: 15px; color: #fff; }
-      .nav-link { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--muted); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-      .nav-link svg { width: 14px; height: 14px; }
-      .nav-link:hover { color: var(--pink); }
-      .wrap.wide { max-width: 1140px; }
-      .navmenu { margin-left: 28px; display: flex; gap: 22px; }
-      .navmenu a { font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-decoration: none; }
-      .navmenu a:hover { color: var(--pink); }
-      .navcta { margin-left: auto; display: flex; align-items: center; gap: 14px; }
-      .nav-login { font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-decoration: none; }
-      .nav-login:hover { color: var(--pink); }
-      .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--pink); color: #fff; border: none; border-radius: 10px; padding: 11px 20px; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none; box-shadow: 0 6px 18px -8px rgba(37,99,235,.6); transition: .15s; }
-      .btn-primary:hover { background: var(--pink-dark); transform: translateY(-1px); }
-      .btn-primary.sm { padding: 8px 15px; font-size: 13px; border-radius: 9px; }
-      .btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #fff; color: var(--ink); border: 1px solid var(--line-2); border-radius: 10px; padding: 11px 20px; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none; transition: .15s; }
-      .btn-ghost:hover { border-color: var(--pink); color: var(--pink); }
-      @media (max-width: 820px) { .navmenu { display: none; } }
-      @media (max-width: 480px) { .nav-login { display: none; } }
+  <!-- ── sourced proof ──────────────────────────────────────── -->
+  <section class="proof">
+    <div class="wrap proofgrid">
+      {stats.map((s) => (
+        <div class="stat">
+          <div class="s-n">{s.n}</div>
+          <div class="s-l">{s.l}</div>
+          <div class="s-src">{s.src}</div>
+        </div>
+      ))}
+    </div>
+  </section>
 
-      /* features section */
-      .features { border-top: 1px solid var(--line); background: #fff; padding: 64px 0 72px; }
-      .sec-eyebrow { text-align: center; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); margin-bottom: 12px; }
-      .sec-h2 { text-align: center; font-size: 30px; font-weight: 800; letter-spacing: -.03em; margin: 0 0 12px; }
-      .sec-sub { text-align: center; font-size: 16px; color: var(--muted); max-width: 60ch; margin: 0 auto 40px; line-height: 1.6; }
-      .sec-sub b, .sec-h2 b { color: var(--ink); }
-      .fgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-      @media (max-width: 860px) { .fgrid { grid-template-columns: 1fr 1fr; } }
-      @media (max-width: 560px) { .fgrid { grid-template-columns: 1fr; } }
-      .fcard { border: 1px solid var(--line); border-radius: 16px; padding: 22px; background: #fff; transition: box-shadow .18s, transform .18s, border-color .18s; }
-      .fcard:hover { box-shadow: var(--shadow); transform: translateY(-2px); border-color: var(--line-2); }
-      .fcard .ficon { width: 42px; height: 42px; border-radius: 11px; background: var(--accent-soft); display: grid; place-items: center; font-size: 21px; margin-bottom: 14px; }
-      .fcard h3 { margin: 0 0 7px; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
-      .fcard p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.6; }
-      .fcta { display: flex; gap: 12px; justify-content: center; margin-top: 40px; flex-wrap: wrap; }
+  <!-- ── the stakes, with real data ─────────────────────────── -->
+  <section class="why">
+    <div class="wrap whygrid">
+      <div class="whycopy">
+        <span class="eyebrow">Why this matters now</span>
+        <h2>Search referrals are falling hardest for the smallest sites</h2>
+        <p>
+          Chartbeat measured the drop in search referral traffic over two years.
+          The decline scales inversely with size — which means being one of the
+          handful of sources an answer engine trusts is now worth more than a
+          page-one ranking ever was.
+        </p>
+        <p class="whynote">
+          The good news in the same data: the loss is <strong>not</strong> evenly
+          spread. Cited sources earn roughly double the click-through of uncited
+          ones on the very same query.
+        </p>
+      </div>
 
-      /* footer */
-      .site-footer { background: var(--ink-900); color: #cbd5e1; padding: 50px 0 26px; }
-      .footcols { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 30px; }
-      @media (max-width: 720px) { .footcols { grid-template-columns: 1fr 1fr; } }
-      .footbrand .brand { color: #fff; margin-bottom: 12px; }
-      .footbrand p { font-size: 13px; color: #94a3b8; line-height: 1.6; max-width: 34ch; margin: 0; }
-      .footcol { display: flex; flex-direction: column; gap: 10px; }
-      .footcol b { color: #fff; font-size: 13px; margin-bottom: 3px; }
-      .footcol a { color: #cbd5e1; text-decoration: none; font-size: 13px; }
-      .footcol a:hover { color: #fff; }
-      .footbottom { margin-top: 36px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.1); font-size: 12px; color: #94a3b8; }
-      .footbottom span { color: #cbd5e1; }
+      <figure class="chartcard">
+        <figcaption>
+          <b>Fall in search referral traffic</b>
+          <span>Over two years, by publisher size · Chartbeat, Mar 2026</span>
+        </figcaption>
+        <div class="bars">
+          {referral.map((r) => (
+            <div class="barrow compact">
+              <div class="b-head"><span class="b-name">{r.label}</span></div>
+              <div class="b-track">
+                <div class="b-fill solo" style={`width:${r.pct}%`}></div>
+              </div>
+              <div class="b-val"><b>−{r.pct}%</b></div>
+            </div>
+          ))}
+        </div>
+      </figure>
+    </div>
+  </section>
 
-      .hero { border-bottom: 1px solid var(--line); background: radial-gradient(800px 320px at 80% -10%, rgba(37,99,235,.10), transparent 60%); }
-      .hero .wrap { padding: 44px 24px 36px; }
-      .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pink-dark); background: var(--accent-soft); border: 1px solid #c7ddff; padding: 5px 12px; border-radius: 999px; margin-bottom: 16px; }
-      .hero h1 { margin: 0 0 12px; font-size: 34px; line-height: 1.1; font-weight: 800; letter-spacing: -.03em; }
-      .hero p { margin: 0; font-size: 16px; color: var(--ink-2); max-width: 62ch; line-height: 1.6; }
-      @media (max-width: 640px) { .hero h1 { font-size: 27px; } }
-
-      main { padding: 26px 0 72px; }
-      .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: var(--shadow); }
-      .gatecard { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 48px 32px; box-shadow: var(--shadow); text-align: center; max-width: 480px; margin: 0 auto; }
-      .gatecard .gate-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--accent-soft); color: var(--pink); display: grid; place-items: center; margin: 0 auto 18px; }
-      .gatecard .gate-icon svg { width: 26px; height: 26px; }
-      .gatecard h2 { margin: 0 0 8px; font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
-      .gatecard p { margin: 0 0 22px; font-size: 14px; color: var(--muted); line-height: 1.6; }
-      .gatecard .ownernote { margin: 0; font-size: 12.5px; color: var(--faint); }
-      .gatecard .ownernote a { color: var(--pink); font-weight: 600; }
-      .gate-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-      label.fld { display: block; font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin-bottom: 6px; }
-      .inrow { display: flex; gap: 10px; }
-      @media (max-width: 560px) { .inrow { flex-direction: column; } }
-      input[type=url] { flex: 1; border: 1px solid var(--line-2); border-radius: 12px; padding: 13px 15px; font-size: 15px; color: var(--ink); background: #fcfcfe; outline: none; font-family: inherit; transition: .15s; }
-      input:focus { border-color: var(--pink); box-shadow: 0 0 0 3.5px rgba(37,99,235,.14); background: #fff; }
-      button.primary { display: inline-flex; align-items: center; justify-content: center; gap: 9px; background: var(--ink); color: #fff; border: none; border-radius: 12px; padding: 13px 26px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; box-shadow: 0 6px 18px -8px rgba(20,21,26,.6); transition: .15s; white-space: nowrap; }
-      button.primary svg { width: 17px; height: 17px; }
-      button.primary:hover { transform: translateY(-1px); }
-      button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-      .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      .pastelink { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
-      .pastelink a { color: var(--pink-dark); font-weight: 600; cursor: pointer; }
-      #pastewrap { margin-top: 12px; display: none; }
-      textarea { width: 100%; min-height: 150px; border: 1px solid var(--line-2); border-radius: 12px; padding: 12px 14px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #fcfcfe; outline: none; resize: vertical; }
-      textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3.5px rgba(37,99,235,.14); }
-      .alert { margin-top: 14px; padding: 12px 14px; border-radius: 11px; font-size: 13.5px; display: none; align-items: center; gap: 9px; }
-      .alert svg { width: 16px; height: 16px; flex-shrink: 0; }
-      .alert.err { background: var(--bad-bg); color: #b3261e; border: 1px solid #f6c9c6; }
-      .alert.info { background: var(--accent-soft); color: var(--pink-dark); border: 1px solid #c7ddff; }
-
-      #out { margin-top: 24px; display: none; }
-      .viscard { border: 1px solid var(--line); border-radius: 18px; padding: 20px; background: #fff; box-shadow: var(--shadow); border-top: 4px solid var(--line-2); }
-      .viscard.yes { border-top-color: var(--ok); } .viscard.partial { border-top-color: var(--warn); } .viscard.no { border-top-color: var(--bad); }
-      .verdicthead { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
-      .vbadge { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; letter-spacing: -.02em; padding: 7px 15px; border-radius: 999px; }
-      .vbadge svg { width: 17px; height: 17px; }
-      .vbadge.yes { background: var(--ok-bg); color: var(--ok); } .vbadge.partial { background: var(--warn-bg); color: var(--warn); } .vbadge.no { background: var(--bad-bg); color: var(--bad); }
-      .rendertags { display: flex; gap: 8px; flex-wrap: wrap; }
-      .rendertag { font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); display: inline-flex; align-items: center; gap: 6px; }
-      .rendertag b { font-weight: 800; }
-      .rendertag.html { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
-      .rendertag.js { background: var(--bad-bg); color: var(--bad); border-color: #f4cfcf; }
-      .vreason { font-size: 14px; color: var(--ink-2); line-height: 1.6; margin: 13px 0 0; }
-      .vhost { font-size: 12.5px; color: var(--muted); margin-top: 6px; word-break: break-all; }
-
-      /* extracted content */
-      .content-card { border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: var(--shadow); padding: 20px; }
-      .cprod { border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 4px; }
-      .cname { font-size: 19px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
-      .cmeta { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
-      .cpill { font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px; background: #f1f1f6; color: var(--ink-2); border: 1px solid var(--line); }
-      .cpill.price { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
-      .cpill.rating { background: var(--warn-bg); color: var(--warn); border-color: #f0e2b8; }
-      .cdesc { font-size: 13px; color: var(--ink-2); line-height: 1.6; margin-top: 11px; }
-      .csub { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 18px 0 9px; }
-      .cattrs { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-      @media (max-width: 560px) { .cattrs { grid-template-columns: 1fr; } }
-      .cattr { display: flex; gap: 8px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; background: #fbfbfe; }
-      .cattr .ck { color: var(--muted); font-weight: 600; flex-shrink: 0; }
-      .cattr .cv { color: var(--ink); font-weight: 600; }
-      .csec { margin-top: 12px; }
-      .csech { font-size: 13px; font-weight: 700; }
-      .csect { font-size: 12.5px; color: var(--ink-2); line-height: 1.6; margin-top: 3px; }
-      .cfaq { border-left: 3px solid var(--line-2); padding: 2px 0 2px 12px; margin-bottom: 11px; }
-      .cfq { font-size: 13px; font-weight: 700; }
-      .cfa { font-size: 12.5px; color: var(--ink-2); line-height: 1.55; margin-top: 3px; }
-      .crev { font-size: 12.5px; color: var(--ink-2); line-height: 1.55; background: #f7f7fa; border-radius: 10px; padding: 9px 12px; margin-bottom: 7px; font-style: italic; }
-      .cwords { font-size: 10.5px; font-weight: 700; color: var(--muted); background: #f1f1f6; border-radius: 999px; padding: 1px 7px; margin-left: 6px; }
-      .ckeys { display: flex; gap: 6px; flex-wrap: wrap; }
-      .ckey { font-size: 12px; font-weight: 600; color: var(--pink-dark); background: var(--accent-soft); border: 1px solid #c7ddff; padding: 4px 10px; border-radius: 999px; }
-
-      .resbar { display: flex; justify-content: flex-end; gap: 9px; margin: 14px 0 -4px; }
-      .ghostbtn { display: inline-flex; align-items: center; gap: 7px; background: #fff; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; transition: .15s; }
-      .ghostbtn svg { width: 14px; height: 14px; }
-      .ghostbtn:hover { border-color: var(--pink); color: var(--pink); }
-      .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 11px; font-size: 13.5px; font-weight: 500; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 200; box-shadow: 0 12px 32px -12px rgba(0,0,0,.5); }
-      .toast.show { opacity: 1; }
-
-      .gaps-card { border: 1px solid #f4cfcf; border-radius: 14px; background: linear-gradient(180deg, #fef7f7, #fff); box-shadow: var(--shadow); padding: 6px 16px; }
-      .gap2 { display: flex; gap: 11px; align-items: flex-start; padding: 11px 0; border-top: 1px solid #f6dede; }
-      .gap2:first-child { border-top: none; }
-      .gap2 svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; color: var(--bad); }
-      .gap2 b { font-size: 13px; font-weight: 700; display: block; }
-      .gap2 span { font-size: 12px; color: var(--muted); line-height: 1.5; }
-      .pasted-note { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--pink-dark); background: var(--accent-soft); border: 1px solid #c7ddff; border-radius: 11px; padding: 10px 13px; margin: 12px 0; line-height: 1.5; }
-      .pasted-note svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
-
-      @media print {
-        @page { margin: 14mm; }
-        body { background: #fff !important; }
-        .nav, .hero, main > .wrap > .card, footer, .resbar, .toast, .tabs { display: none !important; }
-        #out { display: block !important; margin: 0 !important; }
-        .tabpanel { display: block !important; }
-        .content-card, .viscard, .grp, .gaps-card, .viewer, .arow, .botrow { box-shadow: none !important; break-inside: avoid; }
-        .grp .gitems { display: block !important; }
-        a[href]:after { content: ""; }
-      }
-      .banner { display: flex; gap: 10px; align-items: flex-start; border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-size: 13px; line-height: 1.55; }
-      .banner svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
-      .banner.warn { background: var(--warn-bg); color: #8a5d00; border: 1px solid #f0e2b8; }
-      .banner.bad { background: var(--bad-bg); color: #9f2828; border: 1px solid #f4cfcf; }
-
-      /* tabs */
-      .tabs { display: inline-flex; gap: 4px; background: #f1f1f6; border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin: 24px 0 4px; }
-      .tab { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 9px; border: none; background: transparent; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); font-family: inherit; transition: .15s; }
-      .tab svg { width: 15px; height: 15px; }
-      .tab.active { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(20,20,40,.12); }
-      .tabpanel { display: none; }
-      .tabpanel.active { display: block; }
-
-      .sectitle { font-size: 13px; font-weight: 800; letter-spacing: -.01em; margin: 22px 0 11px; color: var(--ink); }
-      .accessrows { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-      @media (max-width: 560px) { .accessrows { grid-template-columns: 1fr; } }
-      .arow { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; box-shadow: var(--shadow); }
-      .arow .aic { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; }
-      .arow .aic svg { width: 13px; height: 13px; }
-      .arow.ok .aic { background: var(--ok-bg); color: var(--ok); } .arow.blocked .aic { background: var(--bad-bg); color: var(--bad); }
-      .arow .awho { font-size: 13px; font-weight: 700; }
-      .arow .akind { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); }
-      .arow .anote { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
-
-      .grp { border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 11px; overflow: hidden; box-shadow: var(--shadow); }
-      .grp > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 13.5px; }
-      .grp > summary::-webkit-details-marker { display: none; }
-      .grp .caret { color: var(--faint); transition: transform .15s; }
-      .grp .caret svg { width: 13px; height: 13px; }
-      .grp[open] .caret { transform: rotate(90deg); }
-      .grp .gcount { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--muted); }
-      .gpills { display: inline-flex; gap: 4px; margin-left: 8px; }
-      .gpill { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 999px; }
-      .gpill.read { background: var(--ok-bg); color: var(--ok); } .gpill.warn { background: var(--warn-bg); color: var(--warn); } .gpill.missed { background: var(--bad-bg); color: var(--bad); }
-      .gitems { padding: 2px 16px 12px; }
-      .git { display: flex; gap: 12px; align-items: flex-start; padding: 11px 0; border-top: 1px solid var(--line); }
-      .git:first-child { border-top: none; }
-      .gchip { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
-      .gchip svg { width: 12px; height: 12px; }
-      .gchip.read { background: var(--ok-bg); color: var(--ok); } .gchip.partial { background: var(--warn-bg); color: var(--warn); }
-      .gchip.missed { background: var(--bad-bg); color: var(--bad); } .gchip.warn { background: var(--warn-bg); color: var(--warn); } .gchip.info { background: #eef0f5; color: var(--na); }
-      .gname { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-      .gtag { font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; }
-      .gtag.read { background: var(--ok-bg); color: var(--ok); } .gtag.partial { background: var(--warn-bg); color: var(--warn); }
-      .gtag.missed { background: var(--bad-bg); color: var(--bad); } .gtag.warn { background: var(--warn-bg); color: var(--warn); } .gtag.info { background: #eef0f5; color: var(--muted); }
-      .gdetail { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; word-break: break-word; }
-
-      .viewers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-      @media (max-width: 680px) { .viewers { grid-template-columns: 1fr; } }
-      .viewer { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: #fff; border-left: 3px solid var(--line-2); box-shadow: var(--shadow); }
-      .viewer.pass { border-left-color: var(--ok); } .viewer.warn { border-left-color: var(--warn); } .viewer.fail { border-left-color: var(--bad); }
-      .vw-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-      .vw-who { font-size: 13px; font-weight: 700; line-height: 1.3; }
-      .vw-js { font-size: 9.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
-      .vw-js.yes { background: #e9e6fb; color: var(--indigo); } .vw-js.no { background: #eef0f5; color: var(--muted); }
-      .vw-access { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 800; margin-bottom: 6px; }
-      .vw-access svg { width: 13px; height: 13px; }
-      .vw-access.pass { color: var(--ok); } .vw-access.warn { color: var(--warn); } .vw-access.fail { color: var(--bad); }
-      .vw-sees { font-size: 12px; color: var(--muted); line-height: 1.5; }
-
-      .bots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-      @media (max-width: 560px) { .bots { grid-template-columns: 1fr; } }
-      .botrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; background: #fff; }
-      .botname { font-size: 13px; font-weight: 600; }
-      .botbadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
-      .botbadge svg { width: 11px; height: 11px; }
-      .botbadge.allowed, .botbadge.default { background: var(--ok-bg); color: var(--ok); }
-      .botbadge.partial { background: var(--warn-bg); color: var(--warn); }
-      .botbadge.blocked { background: var(--bad-bg); color: var(--bad); }
-
-      /* live AI-crawler matrix */
-      .aigrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-      @media (max-width: 620px) { .aigrid { grid-template-columns: 1fr; } }
-      .airow { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; box-shadow: var(--shadow); border-left: 3px solid var(--line-2); }
-      .airow.allowed { border-left-color: var(--ok); }
-      .airow.partial { border-left-color: var(--warn); }
-      .airow.blocked { border-left-color: var(--bad); }
-      .aitop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-      .ainame { font-size: 13px; font-weight: 700; }
-      .aibadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
-      .aibadge svg { width: 11px; height: 11px; }
-      .aibadge.allowed { background: var(--ok-bg); color: var(--ok); }
-      .aibadge.partial { background: var(--warn-bg); color: var(--warn); }
-      .aibadge.blocked { background: var(--bad-bg); color: var(--bad); }
-      .ainote { font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
-
-      /* on-demand bot run panels */
-      .tabs-wrap { flex-wrap: wrap; }
-      .botrun { border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(180deg, #fbfbff, #fff); box-shadow: var(--shadow); padding: 16px 18px; }
-      .botrun-h { font-size: 14px; font-weight: 800; letter-spacing: -.01em; }
-      .botrun-sub { font-size: 11px; font-weight: 700; color: var(--muted); background: #f1f1f6; border: 1px solid var(--line); padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
-      .botrun-p { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin: 8px 0 14px; }
-      .botgo { font-size: 13.5px; }
-      .botgo:disabled { opacity: 1; background: #eceaf9; color: var(--pink-dark); box-shadow: none; cursor: not-allowed; }
-
-      .note { margin-top: 16px; font-size: 12px; color: var(--muted); background: #f1f1f6; border-radius: 12px; padding: 12px 14px; line-height: 1.6; }
-      .note a { color: var(--pink-dark); font-weight: 600; }
-      footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 30px 24px; border-top: 1px solid var(--line); }
-      footer b { color: var(--ink-2); }
-    </style>
-  </head>
-  <body>
-    <div class="nav">
-      <div class="wrap navinner">
-        <a href="/" class="brand">
-          <span class="mark"><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="13" width="3.2" height="6" rx="1.2" fill="currentColor" opacity="0.55"/><rect x="10.4" y="9.5" width="3.2" height="9.5" rx="1.2" fill="currentColor" opacity="0.8"/><rect x="15.8" y="5.5" width="3.2" height="13.5" rx="1.2" fill="currentColor"/></svg></span>
-          CiteRank
-        </a>
-        <nav class="navmenu">
-          <a href="#features">Features</a>
-          <a href="/audit">Full Audit</a>
-          <a href="/pricing">Pricing</a>
-          <a href="/blog">Blog</a>
-          <a href="/news">News</a>
-          <a href="/glossary">Glossary</a>
-        </nav>
-        <div class="navcta" id="cr-navauth"></div>
+  <!-- ── features ───────────────────────────────────────────── -->
+  <section class="features" id="features">
+    <div class="wrap">
+      <div class="sec-eyebrow">Everything in one platform</div>
+      <h2 class="sec-h2">The complete AEO / GEO toolkit</h2>
+      <p class="sec-sub">
+        Traditional SEO tools tell you how Google sees your site. AI Page Audit
+        tells you how AI answer engines see it — the new front page of search.
+      </p>
+      <div class="fgrid">
+        {features.map((f) => (
+          <div class="fcard">
+            <div class="f-ico" aria-hidden="true">{f.icon}</div>
+            <h3>{f.h}</h3>
+            <p>{f.p}</p>
+          </div>
+        ))}
       </div>
     </div>
-    <script src="/js/citerank-auth.js" defer></script>
+  </section>
 
-    <section class="hero">
-      <div class="wrap">
-        <span class="eyebrow">AEO / GEO Intelligence Platform</span>
-        <h1>See your site the way AI search sees it</h1>
-        <p>CiteRank fetches your pages as <strong>Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI</strong> — then shows exactly what each crawler can and can’t read, extracts your content, and finds the gaps that keep you out of AI answers.{accountsDown ? '' : ' Your first check is free.'}</p>
+  <!-- ── closing CTA ────────────────────────────────────────── -->
+  <section class="endcta">
+    <div class="wrap">
+      <h2>Find out what AI can actually read on your site</h2>
+      <p>One check takes about 20 seconds. The first one is on us.</p>
+      <div class="herocta center">
+        <button class="btn-primary lg" id="cta-signup2">Sign up free</button>
+        <a href="/pricing" class="btn-ghost lg">See pricing</a>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <main>
-      <div class="wrap">
-        {locked ? (
-          <div class="gatecard">
-            <div class="gate-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
-            {accountsDown ? (
-              <>
-                <h2>Accounts are temporarily unavailable</h2>
-                <p>We can't reach the account service right now, so sign-in is paused. Please try again in a few minutes.</p>
-                <p class="ownernote">Own this site? <a href="/setup">Open setup</a> to see what's missing.</p>
-              </>
-            ) : (
-              <>
-                <h2>Sign in to run a check</h2>
-                <p>Create a free account and your first check is on us. After that, buy checks as you need them or go unlimited with Pro.</p>
-                <div class="gate-actions">
-                  <button class="btn-primary" id="gate-signup">Get started free</button>
-                  <button class="btn-ghost" id="gate-login">Log in</button>
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <div class="card">
-            <label class="fld" for="url">Page URL</label>
-            <div class="inrow">
-              <input id="url" type="url" placeholder="https://example.com/your-page" />
-              <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>Check access</button>
-            </div>
-            <div class="pastelink">Can’t fetch it (login-walled or blocked)? <a id="pastetoggle">Paste the HTML instead</a></div>
-            <div id="pastewrap"><textarea id="html" placeholder="Paste the page's HTML source here…"></textarea></div>
-            <div class="alert err" id="err"></div>
-            <div class="alert info" id="info"></div>
-          </div>
-        )}
+  <script>
+    // The auth widget loads separately; wait for it rather than assuming order.
+    const open = (mode) => {
+      const go = setInterval(() => {
+        if (!window.CRAuth) return;
+        clearInterval(go);
+        window.CRAuth.openAuth(mode);
+      }, 40);
+    };
+    for (const id of ['cta-signup', 'cta-signup2']) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', () => open('signup'));
+    }
+    const li = document.getElementById('cta-login');
+    if (li) li.addEventListener('click', () => open('login'));
+  </script>
 
-        <section id="out"></section>
-      </div>
-    </main>
-    {locked && (
-      <script>
-        document.addEventListener('DOMContentLoaded', () => {
-          const wait = setInterval(() => {
-            if (!window.CRAuth) return;
-            clearInterval(wait);
-            const su = document.getElementById('gate-signup'), li = document.getElementById('gate-login');
-            if (su) su.addEventListener('click', () => window.CRAuth.openAuth('signup'));
-            if (li) li.addEventListener('click', () => window.CRAuth.openAuth('login'));
-          }, 50);
-        });
-      </script>
-    )}
+  <style>
+    /* ---- hero ---- */
+    .hero {
+      border-bottom: 1px solid var(--line);
+      background:
+        radial-gradient(900px 400px at 12% -20%, rgba(79, 70, 229, .13), transparent 62%),
+        radial-gradient(700px 340px at 92% 0%, rgba(2, 132, 199, .10), transparent 60%);
+    }
+    .herogrid {
+      display: grid; grid-template-columns: 1.05fr .95fr; gap: 54px;
+      align-items: center; padding: 66px 24px 70px;
+    }
+    .herocopy h1 { margin: 0 0 16px; font-size: 46px; line-height: 1.06; letter-spacing: -.035em; font-weight: 800; }
+    .herocopy h1 em { font-style: normal; color: var(--accent); }
+    .herocopy > p { margin: 0 0 26px; font-size: 17px; line-height: 1.65; color: var(--ink-2); max-width: 52ch; }
+    .herocta { display: flex; gap: 12px; flex-wrap: wrap; }
+    .herocta.center { justify-content: center; }
+    .btn-primary.lg, .btn-ghost.lg { padding: 14px 26px; font-size: 15px; border-radius: 11px; }
+    .herofine { margin: 16px 0 0; font-size: 13px; color: var(--faint); }
 
-    <section class="features" id="features">
-      <div class="wrap wide">
-        <div class="sec-eyebrow">Everything in one platform</div>
-        <h2 class="sec-h2">The complete AEO / GEO toolkit</h2>
-        <p class="sec-sub">Traditional SEO tools tell you how Google sees your site. CiteRank tells you how <b>AI answer engines</b> see it — the new front page of search.</p>
-        <div class="fgrid">
-          <div class="fcard"><div class="ficon">🔎</div><h3>LLM Access Check</h3><p>Fetch any URL as Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI — and see exactly what each crawler can and can’t read, from navigation to footer.</p></div>
-          <div class="fcard"><div class="ficon">🧩</div><h3>Per-crawler tabs</h3><p>A dedicated tab for every AI bot, run on demand with smart pacing so you get clean, accurate results without tripping the site’s rate-limiter.</p></div>
-          <div class="fcard"><div class="ficon">📄</div><h3>Content extraction</h3><p>Pulls the real data an LLM reads — title, rating, reviews, ingredients, specs, FAQs — and flags what’s declared vs actually in the HTML.</p></div>
-          <div class="fcard"><div class="ficon">🛒</div><h3>Page-type &amp; category aware</h3><p>Detects article, product or listing — and even the vertical (beauty, electronics, fashion, automotive) — then runs the right checks for that page.</p></div>
-          <div class="fcard"><div class="ficon">⚡</div><h3>JavaScript &amp; render analysis</h3><p>Spots content injected by JavaScript, lazy-loaded media, tabs and “read more” that AI crawlers never see — the #1 hidden reason pages don’t get cited.</p></div>
-          <div class="fcard"><div class="ficon">🚧</div><h3>Content-gap finder</h3><p>Surfaces the missing pieces — no FAQ, no schema, thin sections, blocked crawlers — that competitors and AI answers exploit.</p></div>
-          <div class="fcard"><div class="ficon">📊</div><h3>Full AEO audit</h3><p>A weighted, category-specific score across six pillars with ranked, page-specific fixes and per-engine citation likelihood.</p></div>
-          <div class="fcard"><div class="ficon">✅</div><h3>Verify in real engines</h3><p>Run your prompts through live answer engines and measure your real citation rate and share of voice vs competitors — ground truth, not a guess.</p></div>
-          <div class="fcard"><div class="ficon">📁</div><h3>Reports &amp; history</h3><p>Save every audit to your account, export to PDF or copy as Markdown, and track how your AI visibility changes over time.</p></div>
-        </div>
-        <div class="fcta">
-          <a href="/pricing" class="btn-primary">See pricing — $99/mo</a>
-          <a href="/audit" class="btn-ghost">Try the full AEO audit</a>
-        </div>
-      </div>
-    </section>
+    /* ---- shared chart card ---- */
+    .chartcard {
+      margin: 0; background: var(--card); border: 1px solid var(--line);
+      border-radius: 16px; padding: 22px 24px 20px; box-shadow: var(--shadow-lg);
+    }
+    .chartcard figcaption { display: grid; gap: 3px; margin-bottom: 20px; }
+    .chartcard figcaption b { font-size: 15px; font-weight: 800; letter-spacing: -.015em; }
+    .chartcard figcaption span { font-size: 12.5px; color: var(--faint); }
 
-    <footer class="site-footer">
-      <div class="wrap wide footcols">
-        <div class="footbrand">
-          <div class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="13" width="3.2" height="6" rx="1.2" fill="currentColor" opacity="0.55"/><rect x="10.4" y="9.5" width="3.2" height="9.5" rx="1.2" fill="currentColor" opacity="0.8"/><rect x="15.8" y="5.5" width="3.2" height="13.5" rx="1.2" fill="currentColor"/></svg></span>CiteRank</div>
-          <p>AEO / GEO intelligence for the age of AI search. By Rudra Kasturi Inc.</p>
-        </div>
-        <div class="footcol"><b>Product</b><a href="/">LLM Access Check</a><a href="/audit">Full AEO Audit</a><a href="/pricing">Pricing</a></div>
-        <div class="footcol"><b>Resources</b><a href="/blog">Blog</a><a href="/news">News</a><a href="/glossary">Glossary</a></div>
-        <div class="footcol"><b>Legal</b><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/refunds">Refunds &amp; Cancellation</a></div>
-      </div>
-      <div class="wrap wide footbottom">© 2026 CiteRank · By Rudra Kasturi Inc · <span>LLM Access Check v3.1</span></div>
-    </footer>
+    .bars { display: grid; gap: 15px; }
+    .barrow { display: grid; grid-template-columns: 1fr; gap: 6px; }
+    .b-head { display: flex; align-items: baseline; gap: 8px; }
+    .b-name { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+    .b-note { font-size: 11.5px; color: var(--faint); }
+    /* Recessive track; the fill carries the signal. */
+    .b-track { height: 9px; border-radius: 999px; background: #eef1f6; overflow: hidden; }
+    .b-fill { height: 100%; border-radius: 999px; min-width: 3px; }
+    .b-fill.ok { background: var(--ok); }
+    .b-fill.warn { background: var(--warn); }
+    .b-fill.bad { background: var(--bad); }
+    .b-fill.solo { background: var(--accent); }
+    .b-val { display: flex; align-items: center; gap: 9px; }
+    .b-val b { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); }
+    /* State is named in words, never colour alone. */
+    .b-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+    .b-tag.ok { background: var(--ok-bg); color: var(--ok); }
+    .b-tag.warn { background: var(--warn-bg); color: var(--warn); }
+    .b-tag.bad { background: var(--bad-bg); color: var(--bad); }
 
-    <script>
-      const $ = (id) => document.getElementById(id);
-      const IC = {
-        check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg>',
-        x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
-        alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5h.01"/></svg>',
-        info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 11v5"/><path d="M12 8h.01"/></svg>',
-        eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
-        caret: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
-        desktop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
-        mobile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>',
-        bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 8V4M9 4h6"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M2 13v2M22 13v2"/></svg>',
-        copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
-        download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>',
-        clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
-      };
-      const CHIP = { read: 'read', partial: 'partial', missed: 'missed', warn: 'warn', info: 'info' };
-      const CHIP_IC = { read: IC.check, partial: IC.alert, missed: IC.x, warn: IC.alert, info: IC.info };
-      const TAG_TXT = { read: 'can access', partial: 'partial', missed: 'cannot access', warn: 'caution', info: 'info' };
-      const ACCESS_ST = { ok: 'pass', partial: 'warn', blocked: 'fail' };
-      const BOT_IC = { allowed: IC.check, default: IC.check, partial: IC.alert, blocked: IC.x };
+    /* ---- proof band ---- */
+    .proof { background: #fff; border-bottom: 1px solid var(--line); }
+    .proofgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; padding: 40px 24px; }
+    .stat { border-left: 3px solid var(--accent); padding-left: 18px; }
+    .s-n { font-size: 34px; font-weight: 800; letter-spacing: -.035em; color: var(--accent); line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .s-l { margin-top: 6px; font-size: 14px; color: var(--ink-2); line-height: 1.55; }
+    .s-src { margin-top: 7px; font-size: 11.5px; color: var(--faint); }
 
-      function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-      function showErr(m) { const e = $('err'); e.innerHTML = IC.alert + '<span>' + esc(m) + '</span>'; e.style.display = 'flex'; }
-      function hideAlerts() { $('err').style.display = 'none'; $('info').style.display = 'none'; }
+    /* ---- why section ---- */
+    .why { padding: 72px 0; }
+    .whygrid { display: grid; grid-template-columns: 1fr 1fr; gap: 54px; align-items: center; }
+    .whycopy h2 { margin: 0 0 14px; font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1.2; }
+    .whycopy p { margin: 0 0 14px; font-size: 15.5px; line-height: 1.7; color: var(--ink-2); }
+    .whynote { border-left: 3px solid var(--accent-line); padding-left: 16px; color: var(--muted) !important; }
 
-      let pasteMode = false;
-      $('pastetoggle').addEventListener('click', () => {
-        pasteMode = !pasteMode;
-        $('pastewrap').style.display = pasteMode ? 'block' : 'none';
-        $('pastetoggle').textContent = pasteMode ? 'use a URL instead' : 'Paste the HTML instead';
-      });
+    /* ---- features ---- */
+    .features { border-top: 1px solid var(--line); background: #fff; padding: 66px 0 74px; }
+    .sec-eyebrow { text-align: center; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
+    .sec-h2 { text-align: center; font-size: 31px; font-weight: 800; letter-spacing: -.03em; margin: 0 0 12px; }
+    .sec-sub { text-align: center; font-size: 16px; color: var(--muted); max-width: 62ch; margin: 0 auto 42px; line-height: 1.6; }
+    .fgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .fcard { border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; background: var(--card); transition: border-color .15s, transform .15s, box-shadow .15s; }
+    .fcard:hover { border-color: var(--accent-line); transform: translateY(-2px); box-shadow: var(--shadow); }
+    .f-ico { font-size: 21px; margin-bottom: 12px; }
+    .fcard h3 { margin: 0 0 7px; font-size: 15px; font-weight: 800; letter-spacing: -.015em; }
+    .fcard p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.62; }
 
-      function renderTag(r) {
-        return r.type === 'html'
-          ? `<span class="rendertag html">${IC.check} <b>Server HTML</b>${r.framework ? ' · ' + esc(r.framework) : ''} · ${r.words} words</span>`
-          : `<span class="rendertag js">${IC.x} <b>JavaScript-rendered</b>${r.framework ? ' · ' + esc(r.framework) : ''} · ${r.words} words in HTML</span>`;
-      }
-      function groupHtml(groups) {
-        return groups.map((g) => {
-          const c = { read: 0, warn: 0, missed: 0 };
-          g.items.forEach((i) => { if (i.status === 'read' || i.status === 'info') c.read++; else if (i.status === 'missed') c.missed++; else c.warn++; });
-          const pills = `<span class="gpills">${c.read ? `<span class="gpill read">${c.read}</span>` : ''}${c.warn ? `<span class="gpill warn">${c.warn}</span>` : ''}${c.missed ? `<span class="gpill missed">${c.missed}</span>` : ''}</span>`;
-          const open = c.missed || c.warn ? ' open' : '';
-          const items = g.items.map((i) => `<div class="git"><span class="gchip ${CHIP[i.status]}">${CHIP_IC[i.status]}</span><div><div class="gname">${esc(i.label)} <span class="gtag ${CHIP[i.status]}">${TAG_TXT[i.status]}</span></div><div class="gdetail">${esc(i.detail)}</div></div></div>`).join('');
-          return `<details class="grp"${open}><summary><span class="caret">${IC.caret}</span>${esc(g.title)}${pills}<span class="gcount">${g.items.length}</span></summary><div class="gitems">${items}</div></details>`;
-        }).join('');
-      }
-      function tabPanel(view, isPasted) {
-        const rows = (view.access || []).map((a) => {
-          const cls = a.status === 'ok' ? 'ok' : 'blocked';
-          return `<div class="arow ${cls}"><span class="aic">${a.status === 'ok' ? IC.check : IC.x}</span><div><div class="awho">${esc(a.who)} <span class="akind">${esc(a.kind)}</span></div><div class="anote">${esc(a.note)}</div></div></div>`;
-        }).join('');
-        const lazy = view.render && view.render.lazy ? `<div class="banner warn">${IC.alert}<div><b>Delayed / lazy content detected:</b> ${esc(view.render.lazyDetail)}. A crawler that doesn’t scroll or wait may never load it.</div></div>` : '';
-        return `
-          ${isPasted ? '' : `<div class="sectitle">Access &amp; rendering</div><div class="accessrows">${rows}</div>`}
-          <div style="margin-top:12px" class="rendertags">${renderTag(view.render)}</div>
-          ${lazy}
-          <div class="sectitle">What can be read — navigation to footer</div>
-          ${groupHtml(view.groups)}`;
-      }
+    /* ---- closing CTA ---- */
+    .endcta { padding: 66px 0 78px; text-align: center; border-top: 1px solid var(--line); background: var(--accent-soft); }
+    .endcta h2 { margin: 0 0 10px; font-size: 29px; font-weight: 800; letter-spacing: -.03em; }
+    .endcta p { margin: 0 0 24px; font-size: 16px; color: var(--ink-2); }
 
-      function contentBlock(c) {
-        if (!c || !c.hasAny) return '';
-        const rows = [];
-        if (c.name) rows.push(`<div class="cname">${esc(c.name)}</div>`);
-        const meta = [];
-        if (c.brand) meta.push(`<span class="cpill">${esc(c.brand)}</span>`);
-        if (c.price) meta.push(`<span class="cpill price">${esc(c.price)}</span>`);
-        if (c.availability) meta.push(`<span class="cpill">${esc(c.availability)}</span>`);
-        if (c.rating && c.rating.value) meta.push(`<span class="cpill rating">★ ${esc(c.rating.value)}${c.rating.ratings ? ` · ${Number(c.rating.ratings).toLocaleString()} ratings` : ''}${c.rating.reviews ? ` · ${Number(c.rating.reviews).toLocaleString()} reviews` : ''}</span>`);
-        if (meta.length) rows.push(`<div class="cmeta">${meta.join('')}</div>`);
-        if (c.description) rows.push(`<div class="cdesc">${esc(c.description)}</div>`);
-        let html = `<div class="cprod">${rows.join('')}</div>`;
-        if (c.keywords && c.keywords.length) html += `<div class="csub">Topics / keywords the page targets</div><div class="ckeys">${c.keywords.map((k) => `<span class="ckey">${esc(k)}</span>`).join('')}</div>`;
-        if (c.attributes && c.attributes.length) html += `<div class="csub">Attributes / specs</div><div class="cattrs">${c.attributes.map((a) => `<div class="cattr"><span class="ck">${esc(a.name)}</span><span class="cv">${esc(a.value)}</span></div>`).join('')}</div>`;
-        if (c.sections && c.sections.length) html += `<div class="csub">Content sections</div>` + c.sections.map((s) => `<div class="csec"><div class="csech">${esc(s.heading)} <span class="cwords">${s.words} words</span></div><div class="csect">${esc(s.text)}</div></div>`).join('');
-        if (c.faqs && c.faqs.length) html += `<div class="csub">FAQs (${c.faqs.length})</div>` + c.faqs.map((f) => `<div class="cfaq"><div class="cfq">${esc(f.q)}</div><div class="cfa">${esc(f.a)}</div></div>`).join('');
-        if (c.reviews && c.reviews.length) html += `<div class="csub">Review snippets (${c.reviews.length} in the HTML)</div>` + c.reviews.map((r) => `<div class="crev">“${esc(r)}”</div>`).join('');
-        return `<div class="sectitle" style="margin-top:22px">Content extracted from this page <span style="font-weight:500;color:var(--muted)">— the actual data an LLM pulls</span></div><div class="content-card">${html}</div>`;
-      }
-
-      function renderResult(d) {
-        const out = $('out'), isPasted = d.mode === 'pasted';
-        const v = d.overall;
-        let html = `
-          <div class="viscard ${v.level}">
-            <div class="verdicthead">
-              <span class="vbadge ${v.level}">${v.level === 'yes' ? IC.check : v.level === 'no' ? IC.x : IC.alert} ${esc(v.label)}</span>
-              <span class="rendertags">${d.desktop ? `<span class="rendertag ${d.desktop.render.type}">${IC.desktop} ${d.desktop.render.type === 'html' ? 'Desktop: HTML' : 'Desktop: JS'}</span>` : ''}${!isPasted && d.mobile ? `<span class="rendertag ${d.mobile.render.type}">${IC.mobile} ${d.mobile.render.type === 'html' ? 'Mobile: HTML' : 'Mobile: JS'}</span>` : ''}</span>
-            </div>
-            <div class="vreason">${esc(v.reason)}</div>
-            ${d.host ? `<div class="vhost">${esc(d.url || d.host)}${d.pageTypeLabel ? ` · detected as <b>${esc(d.pageTypeLabel)}</b>` : ''}</div>` : (d.pageTypeLabel ? `<div class="vhost">Detected as <b>${esc(d.pageTypeLabel)}</b></div>` : '')}
-            ${d.fetchNote ? `<div class="banner bad">${IC.alert}<div>${esc(d.fetchNote)}</div></div>` : ''}
-            ${!isPasted && d.parity && !d.parity.same ? `<div class="banner warn">${IC.alert}<div><b>Mobile ≠ Desktop.</b> ${esc(d.parity.note)}</div></div>` : ''}
-          </div>
-          <div class="resbar"><button class="ghostbtn" id="copyall">${IC.copy} Copy all</button><button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button></div>`;
-
-        html += contentBlock(d.content);
-
-        // Content gaps — the missing bits competitors / ChatGPT exploit.
-        if (d.gaps && d.gaps.length) {
-          html += `<div class="sectitle" style="margin-top:22px">Content gaps <span style="font-weight:500;color:var(--muted)">— what's missing (competitors &amp; AI exploit these)</span></div><div class="gaps-card">${d.gaps.map((g) => `<div class="gap2">${IC.x}<div><b>${esc(g.label)}</b><span>${esc(g.detail)}</span></div></div>`).join('')}</div>`;
-        }
-
-        // Tabs: Desktop | Mobile (fetched now) + one tab per AI bot (run on-demand).
-        const botTabs = d.botTabs || [];
-        const tabBtns = [
-          `<button class="tab active" data-tab="desktop">${IC.desktop} Desktop</button>`,
-          `<button class="tab" data-tab="mobile">${IC.mobile} Mobile</button>`,
-          ...botTabs.map((b) => `<button class="tab" data-tab="bot-${b.id}">${IC.bot} ${esc(b.label)}</button>`),
-        ].join('');
-        const botPanels = botTabs.map((b) => `
-          <div class="tabpanel" id="tab-bot-${b.id}">
-            <div class="botrun">
-              <div class="botrun-h">${esc(b.label)} <span class="botrun-sub">${esc(b.sub)}</span></div>
-              <div class="botrun-p">We fetch the page <b>live as ${esc(b.sub)}</b> and show exactly what this crawler can read. Runs are spaced out (1-min cooldown) so we never burst the site and trigger a false block.</div>
-              ${isPasted
-                ? `<div class="pasted-note" style="margin:8px 0 0">${IC.info} Live crawler checks need a URL — paste mode can't run bots.</div>`
-                : `<button class="primary botgo" data-bot="${b.id}" data-label="${esc(b.label)}">${IC.bot} Run ${esc(b.label)}</button>`}
-            </div>
-            <div id="botout-${b.id}"></div>
-          </div>`).join('');
-
-        html += `
-          <div class="sectitle" style="margin-top:22px">Fetch as each agent <span style="font-weight:500;color:var(--muted)">— Desktop &amp; Mobile now; each AI bot on demand</span></div>
-          <div class="tabs tabs-wrap">${tabBtns}</div>
-          ${isPasted ? `<div class="pasted-note">${IC.info} Pasted HTML is a single snapshot. Enter a live <b>URL</b> to compare Desktop vs Mobile and to run each AI crawler.</div>` : ''}
-          <div class="tabpanel active" id="tab-desktop">${tabPanel(d.desktop, isPasted)}</div>
-          <div class="tabpanel" id="tab-mobile">${tabPanel(d.mobile, isPasted)}</div>
-          ${botPanels}`;
-
-        // shared: who sees what + LLM crawler + robots bots
-        const viewers = (d.viewers || []).map((vw) => {
-          const st = ACCESS_ST[vw.access];
-          return `<div class="viewer ${st}"><div class="vw-top"><span class="vw-who">${esc(vw.who)}</span><span class="vw-js ${vw.rendersJs ? 'yes' : 'no'}">${vw.rendersJs ? 'runs JS' : 'no JS'}</span></div><div class="vw-access ${st}">${vw.access === 'ok' ? IC.check : vw.access === 'partial' ? IC.alert : IC.x} ${vw.access === 'ok' ? 'Can read it' : vw.access === 'partial' ? 'Partial' : 'Blocked'}</div><div class="vw-sees">${esc(vw.sees)}</div></div>`;
-        }).join('');
-        html += `<div class="sectitle">Who sees what</div><div class="viewers">${viewers}</div>`;
-
-        if (d.bots && d.bots.length) {
-          html += `<div class="sectitle">Are the AI crawlers allowed? (robots.txt)</div><div class="bots">${d.bots.map((b) => `<div class="botrow"><span class="botname">${esc(b.label)}</span><span class="botbadge ${b.status}">${BOT_IC[b.status]} ${b.status === 'blocked' ? 'Blocked' : b.status === 'partial' ? 'Partial' : 'Allowed'}</span></div>`).join('')}</div>`;
-        }
-
-        html += `<div class="note">Googlebot runs JavaScript, so it sees your full page. The AI answer crawlers (ChatGPT, Claude, Perplexity) do <b>not</b> run JavaScript — they read only the raw HTML, so anything injected by JS is invisible to them. Want scores, fixes and a real-engine citation check? <a href="/audit">Run the full AEO audit →</a></div>`;
-
-        out.innerHTML = html;
-        out.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
-          out.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
-          out.querySelectorAll('.tabpanel').forEach((x) => x.classList.remove('active'));
-          t.classList.add('active');
-          $('tab-' + t.dataset.tab).classList.add('active');
-        }));
-        out.querySelectorAll('.botgo').forEach((btn) => btn.addEventListener('click', () => runBot(d.url, btn.dataset.bot, btn.dataset.label, btn)));
-        const pdfBtn = $('pdfbtn'); if (pdfBtn) pdfBtn.addEventListener('click', () => window.print());
-        const copyBtn = $('copyall'); if (copyBtn) copyBtn.addEventListener('click', () => copyAll(d));
-        out.style.display = 'block';
-        out.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-
-      function showToast(msg) { let t = $('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); } t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1900); }
-      async function copyAll(d) {
-        const c = d.content || {}, L = [];
-        L.push(`# LLM Access Check — ${d.url || 'Pasted HTML'}`);
-        if (d.pageTypeLabel) L.push(`Page type: ${d.pageTypeLabel}`);
-        L.push(`Verdict: ${d.overall.label} — ${d.overall.reason}`);
-        L.push('');
-        if (c.name) L.push(`## ${c.name}`);
-        const meta = [c.brand, c.price, c.availability, c.rating && c.rating.value ? `★ ${c.rating.value}${c.rating.ratings ? ` · ${c.rating.ratings} ratings` : ''}${c.rating.reviews ? ` · ${c.rating.reviews} reviews` : ''}` : ''].filter(Boolean);
-        if (meta.length) L.push(meta.join(' · '));
-        if (c.description) { L.push(''); L.push(c.description); }
-        if (c.keywords && c.keywords.length) { L.push(''); L.push(`Keywords: ${c.keywords.join(', ')}`); }
-        if (c.attributes && c.attributes.length) { L.push(''); L.push('### Attributes'); c.attributes.forEach((a) => L.push(`- ${a.name}: ${a.value}`)); }
-        if (c.sections && c.sections.length) { c.sections.forEach((s) => { L.push(''); L.push(`### ${s.heading} (${s.words} words)`); L.push(s.text); }); }
-        if (c.faqs && c.faqs.length) { L.push(''); L.push('### FAQs'); c.faqs.forEach((f) => { L.push(`**${f.q}**`); L.push(f.a); }); }
-        if (c.reviews && c.reviews.length) { L.push(''); L.push('### Review snippets'); c.reviews.forEach((r) => L.push(`- "${r}"`)); }
-        if (d.gaps && d.gaps.length) { L.push(''); L.push('### Content gaps'); d.gaps.forEach((g) => L.push(`- ${g.label}: ${g.detail}`)); }
-        L.push(''); L.push('Generated by CiteRank · LLM Access Check');
-        try { await navigator.clipboard.writeText(L.join('\n')); showToast('Copied all content to clipboard'); }
-        catch { showToast('Copy failed — select & copy manually'); }
-      }
-
-      // ---- on-demand per-bot runs with a shared cooldown ----
-      const COOLDOWN_MS = 60000;
-      let cooldownUntil = 0, cdInt = null;
-      function refreshCooldown() {
-        const remain = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
-        document.querySelectorAll('.botgo').forEach((b) => {
-          if (b.dataset.running) return;
-          const ran = (document.getElementById('botout-' + b.dataset.bot) || {}).childElementCount > 0;
-          if (remain > 0) { b.disabled = true; b.innerHTML = IC.clock + ' Run available in ' + remain + 's'; }
-          else { b.disabled = false; b.innerHTML = IC.bot + ' ' + (ran ? 'Re-run ' : 'Run ') + b.dataset.label; }
-        });
-        if (remain <= 0 && cdInt) { clearInterval(cdInt); cdInt = null; }
-      }
-      function startCooldown() { cooldownUntil = Date.now() + COOLDOWN_MS; if (!cdInt) cdInt = setInterval(refreshCooldown, 1000); refreshCooldown(); }
-      function renderBot(r) {
-        const SCLS = { ok: 'allowed', blocked: 'blocked', noresponse: 'blocked', partial: 'partial' };
-        const STXT = { ok: 'Can read', blocked: 'Blocked', noresponse: 'No response', partial: 'Partial' };
-        const cls = SCLS[r.status] || 'partial';
-        const ic = r.status === 'ok' ? IC.check : r.status === 'partial' ? IC.alert : IC.x;
-        let h = `<div class="airow ${cls}" style="margin-top:14px"><div class="aitop"><span class="ainame">${esc(r.label)}</span><span class="aibadge ${cls}">${ic} ${STXT[r.status] || r.status}${r.status === 'ok' && r.words ? ` · ${r.words}w` : ''}</span></div><div class="ainote">${esc(r.note)}</div></div>`;
-        if (r.render) h += `<div style="margin-top:12px" class="rendertags">${renderTag(r.render)}</div>`;
-        if (r.groups) h += `<div class="sectitle">What this crawler can read</div>${groupHtml(r.groups)}`;
-        return h;
-      }
-      async function runBot(url, bot, label, btn) {
-        if (Date.now() < cooldownUntil || !url) return;
-        btn.dataset.running = '1'; btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Running ' + label + '…';
-        const out = document.getElementById('botout-' + bot);
-        try {
-          const res = await fetch('/api/access-bot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, bot }) });
-          const r = await res.json();
-          out.innerHTML = res.ok ? renderBot(r) : `<div class="banner bad" style="margin-top:12px">${IC.alert}<div>${esc(r.error || 'Failed to run this crawler.')}</div></div>`;
-        } catch (e) { out.innerHTML = `<div class="banner bad" style="margin-top:12px">${IC.alert}<div>Network error running this crawler.</div></div>`; }
-        finally { delete btn.dataset.running; startCooldown(); }
-      }
-
-      async function run() {
-        hideAlerts();
-        const payload = {};
-        if (pasteMode) { const html = $('html').value.trim(); if (!html) { showErr('Paste the page HTML to check.'); return; } payload.html = html; }
-        else { const url = $('url').value.trim(); if (!url) { showErr('Enter a page URL to check.'); return; } payload.url = url; }
-        const btn = $('go');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Checking…';
-        $('info').innerHTML = IC.eye + '<span>Fetching as Googlebot (desktop &amp; mobile), real devices and GPTBot, then auditing the HTML… ~10–20s.</span>';
-        $('info').style.display = 'flex';
-        try {
-          const res = await fetch('/api/access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-          const d = await res.json();
-          if (!res.ok) {
-            // Session expired / never signed in — prompt to sign in and retry.
-            if (d.requireAuth && window.CRAuth) { $('info').style.display = 'none'; window.CRAuth.requireAuth(run); return; }
-            showErr(d.error || 'Something went wrong.');
-          } else renderResult(d);
-        } catch (e) { showErr('Network error: ' + (e && e.message ? e.message : e)); }
-        finally { $('info').style.display = 'none'; btn.disabled = false; btn.innerHTML = IC.eye + 'Check access'; }
-      }
-      // An account is required to run a check — gate the button through CRAuth.
-      function goClicked() { if (window.CRAuth) window.CRAuth.requireAuth(run); else run(); }
-      $('go').addEventListener('click', goClicked);
-      $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') goClicked(); });
-    </script>
-  </body>
-</html>
+    /* ---- responsive ---- */
+    @media (max-width: 980px) {
+      .herogrid, .whygrid { grid-template-columns: 1fr; gap: 38px; }
+      .herocopy h1 { font-size: 38px; }
+      .fgrid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 720px) {
+      .proofgrid { grid-template-columns: 1fr; gap: 22px; padding: 32px 24px; }
+    }
+    @media (max-width: 560px) {
+      .herogrid { padding: 44px 24px 50px; }
+      .herocopy h1 { font-size: 31px; }
+      .fgrid { grid-template-columns: 1fr; }
+      .sec-h2, .endcta h2 { font-size: 24px; }
+      .chartcard { padding: 18px 16px 16px; }
+    }
+  </style>
+</Site>

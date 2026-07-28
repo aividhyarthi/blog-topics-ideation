@@ -81,7 +81,7 @@ const items = [
   },
 ];
 ---
-<Site title="AEO / GEO News — CiteRank" description="Dated, sourced reporting on AI search: crawler policy, Google AI Overviews, citation research and what each change means for your site.">
+<Site title="AEO / GEO News — AI Page Audit" description="Dated, sourced reporting on AI search: crawler policy, Google AI Overviews, citation research and what each change means for your site.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">News</span>
@@ -114,13 +114,13 @@ const items = [
     <div class="wrap news-cta">
       <h3>Where does your site stand on any of this?</h3>
       <p>The thing every story above has in common: what AI engines can read of your page is not what you see in a browser. Check yours in about 20 seconds.</p>
-      <a href="/" class="btn-primary">Run an LLM Access Check</a>
+      <a href="/check" class="btn-primary">Run an LLM Access Check</a>
     </div>
   </main>
   <style>
     .news { max-width: 780px; }
     .ni-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .ni-tag { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--pink); }
+    .ni-tag { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
     .ni-date { font-size: 12.5px; color: var(--faint); font-weight: 600; }
 
     .lead { padding: 30px 30px 26px; border: 1px solid var(--line-2); border-radius: 18px; background: #fff; box-shadow: var(--shadow); margin-bottom: 8px; }
@@ -131,8 +131,8 @@ const items = [
     .newsitem h3 { margin: 0 0 10px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; line-height: 1.3; }
     .news p { margin: 0 0 14px; font-size: 15px; color: var(--muted); line-height: 1.72; }
 
-    .sowhat { border-left: 3px solid var(--pink); background: var(--accent-soft); border-radius: 0 10px 10px 0; padding: 13px 16px; margin: 16px 0 14px; }
-    .sowhat b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--pink); margin-bottom: 5px; }
+    .sowhat { border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 10px 10px 0; padding: 13px 16px; margin: 16px 0 14px; }
+    .sowhat b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); margin-bottom: 5px; }
     .sowhat p { margin: 0 !important; font-size: 14.5px !important; color: var(--ink-2) !important; line-height: 1.65 !important; }
 
     .ni-src { font-size: 12.5px; color: var(--faint); font-weight: 600; }
@@ -141,9 +141,9 @@ const items = [
     /* Headlines are links — this is aggregated reporting, so a click goes to
        whoever actually reported it, not to a copy of it on our own domain. */
     .news h2 a, .news h3 a { color: inherit; text-decoration: none; }
-    .news h2 a:hover, .news h3 a:hover { color: var(--pink); text-decoration: underline; text-underline-offset: 3px; }
+    .news h2 a:hover, .news h3 a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 
-    .readmore { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700; color: var(--pink); text-decoration: none; }
+    .readmore { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700; color: var(--accent); text-decoration: none; }
     .readmore:hover { text-decoration: underline; text-underline-offset: 3px; }
     .readmore span { font-size: 12px; }
 

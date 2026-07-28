@@ -1,10 +1,10 @@
 ---
 import Site from '../layouts/Site.astro';
 const updated = '27 July 2026';
-const company = import.meta.env.COMPANY_NAME || 'CiteRank';
+const company = import.meta.env.COMPANY_NAME || 'AI Page Audit';
 const contact = import.meta.env.SUPPORT_EMAIL || 'support@citerank.app';
 ---
-<Site title="Terms of Service — CiteRank" description="The terms governing use of CiteRank's AEO analysis tools.">
+<Site title="Terms of Service — AI Page Audit" description="The terms governing use of AI Page Audit's AEO analysis tools.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Legal</span>
@@ -16,21 +16,21 @@ const contact = import.meta.env.SUPPORT_EMAIL || 'support@citerank.app';
     <article class="legal wrap">
       <div class="note">These terms are provided in good faith and in plain language. They are not a substitute for legal advice — have a qualified lawyer review them before you rely on them commercially.</div>
 
-      <h2>1. What CiteRank does</h2>
-      <p>CiteRank fetches web pages using the identifying headers of AI and search crawlers, analyses the HTML those crawlers receive, and reports on how readable and citable that content appears to be. It is a diagnostic and advisory tool.</p>
+      <h2>1. What AI Page Audit does</h2>
+      <p>AI Page Audit fetches web pages using the identifying headers of AI and search crawlers, analyses the HTML those crawlers receive, and reports on how readable and citable that content appears to be. It is a diagnostic and advisory tool.</p>
 
       <h2>2. No guarantee of results</h2>
-      <p><strong>We do not and cannot guarantee that following CiteRank's recommendations will cause any AI engine or search engine to cite, rank, index or mention your content.</strong> Those systems are operated by third parties, change without notice, and make their own decisions. Anyone promising guaranteed AI visibility is misrepresenting how these systems work. CiteRank reports what crawlers can read and where gaps exist; what an engine then does with your content is outside our control.</p>
+      <p><strong>We do not and cannot guarantee that following AI Page Audit's recommendations will cause any AI engine or search engine to cite, rank, index or mention your content.</strong> Those systems are operated by third parties, change without notice, and make their own decisions. Anyone promising guaranteed AI visibility is misrepresenting how these systems work. AI Page Audit reports what crawlers can read and where gaps exist; what an engine then does with your content is outside our control.</p>
 
       <h2>3. Accounts</h2>
       <p>You need an account to run checks. You are responsible for keeping your password secure and for activity under your account. One account is intended for one person — sessions are single-active by design, so signing in on a new device ends the previous session. Sharing credentials across a team is not supported and may result in suspension.</p>
 
       <h2>4. Acceptable use</h2>
-      <p>You may check pages you own, operate, or have a legitimate professional reason to analyse (for example, competitor research or client work). You may not use CiteRank to:</p>
+      <p>You may check pages you own, operate, or have a legitimate professional reason to analyse (for example, competitor research or client work). You may not use AI Page Audit to:</p>
       <ul>
         <li>Send high-volume automated requests to third-party sites, or use it as a proxy for scraping.</li>
         <li>Attempt to bypass usage metering, credit limits, or authentication.</li>
-        <li>Resell raw CiteRank output as an automated service without a written agreement with us.</li>
+        <li>Resell raw AI Page Audit output as an automated service without a written agreement with us.</li>
         <li>Check content that is unlawful in your jurisdiction or ours.</li>
       </ul>
       <p>We fetch third-party pages on your instruction. You are responsible for having the right to request analysis of a given URL.</p>
@@ -67,6 +67,6 @@ const contact = import.meta.env.SUPPORT_EMAIL || 'support@citerank.app';
     .legal p, .legal li { font-size: 15.5px; color: var(--ink-2); line-height: 1.72; }
     .legal ul { padding-left: 22px; display: grid; gap: 8px; }
     .legal strong { color: var(--ink); }
-    .note { background: var(--accent-soft); border-left: 3px solid var(--pink); border-radius: 0 10px 10px 0; padding: 14px 18px; font-size: 14px; color: var(--ink-2); line-height: 1.6; }
+    .note { background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; padding: 14px 18px; font-size: 14px; color: var(--ink-2); line-height: 1.6; }
   </style>
 </Site>

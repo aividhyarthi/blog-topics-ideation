@@ -6,7 +6,7 @@ import { siteOrigin } from '../lib/mail';
 // content, and the private/metered surfaces are named and disallowed.
 export const GET: APIRoute = ({ request }) => {
   const origin = siteOrigin(request);
-  const body = `# CiteRank — https://citerank.app
+  const body = `# AI Page Audit
 # AI answer engines are explicitly welcome on our public content.
 
 User-agent: GPTBot
@@ -41,6 +41,9 @@ Allow: /
 Disallow: /admin/
 Disallow: /api/
 Disallow: /dashboard
+Disallow: /check
+Disallow: /audit
+Disallow: /setup
 Disallow: /reset
 
 Sitemap: ${origin}/sitemap.xml

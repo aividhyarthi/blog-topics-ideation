@@ -1,11 +1,11 @@
-// CiteRank — predict→verify loop. The audit PREDICTS citability; this module
+// AI Page Audit — predict→verify loop. The audit PREDICTS citability; this module
 // MEASURES it. It runs the page's likely prompts through real answer engines
 // (OpenAI web search + Perplexity), then checks who actually got cited:
 //   - did THIS site's domain appear in the engine's sources? (ground truth)
 //   - was the brand named in the answer text?
 //   - which OTHER domains were cited instead? (competitor share of voice)
 //
-// Self-contained on purpose (no shared crawl/ pipeline) so the CiteRank product
+// Self-contained on purpose (no shared crawl/ pipeline) so the AI Page Audit product
 // stays standalone. Degrades gracefully: with no engine key it returns a clear
 // "configure a key" note rather than throwing.
 
@@ -186,7 +186,7 @@ export async function runVerification(input: VerifyInput): Promise<VerifyResult>
     return { ...base, note: 'No real-engine key configured. Add OPENAI_API_KEY (web search) or PERPLEXITY_API_KEY to verify against live answer engines.' };
   }
   if (!prompts.length) {
-    return { ...base, note: 'No prompts to verify. Run an audit first so CiteRank can generate the likely AI questions for this page.' };
+    return { ...base, note: 'No prompts to verify. Run an audit first so AI Page Audit can generate the likely AI questions for this page.' };
   }
 
   const brandRe = brand ? new RegExp(`\\b${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i') : null;

@@ -5,7 +5,6 @@ import { siteOrigin } from '../lib/mail';
 // deliberately absent (they're also disallowed in robots.txt).
 const ROUTES: { path: string; priority: string; changefreq: string }[] = [
   { path: '/', priority: '1.0', changefreq: 'weekly' },
-  { path: '/audit', priority: '0.9', changefreq: 'weekly' },
   { path: '/pricing', priority: '0.9', changefreq: 'monthly' },
   { path: '/glossary', priority: '0.8', changefreq: 'monthly' },
   { path: '/news', priority: '0.8', changefreq: 'weekly' },

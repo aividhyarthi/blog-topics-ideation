@@ -1,0 +1,159 @@
+/* AI Page Audit — the single source of truth for design tokens and shared
+   chrome. This used to be copy-pasted into three separate files (Site.astro,
+   index.astro, audit.astro), which is exactly how layouts drift out of sync;
+   both layouts now import this instead. */
+
+:root {
+  /* Indigo reads as an analysis/intelligence product rather than the generic
+     SaaS blue this replaced. --accent replaces the old --pink variable, which
+     confusingly held a blue value. */
+  --accent: #4f46e5;
+  --accent-dark: #4338ca;
+  --accent-soft: #eef2ff;
+  --accent-line: #c7d2fe;
+
+  /* Slate neutrals, very slightly cool, so they sit under indigo without
+     fighting it. */
+  --ink: #0f172a;
+  --ink-2: #334155;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --line: #e6e9f0;
+  --line-2: #d9dfea;
+  --bg: #f7f8fc;
+  --card: #fff;
+  --ink-900: #0b1020;
+
+  /* Semantic — deliberately separate from the accent, so "good/warn/bad"
+     never gets confused with "branded". */
+  --ok: #12855a;
+  --ok-bg: #e3f4ec;
+  --warn: #b7791f;
+  --warn-bg: #fbf1da;
+  --bad: #d43a3a;
+  --bad-bg: #fcebeb;
+  /* Used by the two tools: --na marks a signal that doesn't apply to this page
+     type, --indigo is their in-report accent. */
+  --na: #94a3b8;
+  --indigo: #4f46e5;
+
+  /* Categorical series for charts, assigned in this fixed order and never
+     cycled. Validated for colour-vision deficiency separation rather than
+     eyeballed — an earlier slate #64748b failed the chroma floor (read as
+     grey) and sat at ΔE 7.4 against the magenta under deuteranopia. None of
+     these is the semantic red/green. */
+  --c1: #4f46e5;
+  --c2: #0d9488;
+  --c3: #d97706;
+  --c4: #be185d;
+  --c5: #0284c7;
+
+  --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px -16px rgba(15, 23, 42, .16);
+  --shadow-lg: 0 2px 4px rgba(15, 23, 42, .04), 0 18px 40px -22px rgba(15, 23, 42, .28);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent-dark); }
+svg { display: block; }
+h1, h2, h3 { text-wrap: balance; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+  html { scroll-behavior: auto; }
+}
+
+.wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+
+/* ---- top navigation ---- */
+.nav {
+  position: sticky; top: 0; z-index: 40;
+  background: rgba(255, 255, 255, .85);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.navinner { display: flex; align-items: center; gap: 14px; height: 60px; }
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 800; font-size: 16.5px; letter-spacing: -.02em;
+  color: var(--ink); text-decoration: none; white-space: nowrap;
+}
+.brand .mark {
+  width: 28px; height: 28px; border-radius: 8px; flex: none;
+  background: linear-gradient(140deg, var(--accent), var(--accent-dark));
+  display: grid; place-items: center;
+  box-shadow: 0 4px 12px -4px rgba(67, 56, 202, .55);
+}
+.brand .mark svg { width: 15px; height: 15px; color: #fff; }
+.navmenu { margin-left: 28px; display: flex; gap: 22px; }
+.navmenu a { font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-decoration: none; }
+.navmenu a:hover { color: var(--accent); }
+.navcta { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+/* The auth widget injects its markup here, so this element needs to lay its own
+   children out — otherwise a long email collides with the buttons beside it. */
+#cr-navauth { display: flex; align-items: center; gap: 10px; min-width: 0; }
+@media (max-width: 900px) { .navmenu { display: none; } }
+
+/* ---- buttons ---- */
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--accent); color: #fff; border: none; border-radius: 10px;
+  padding: 11px 20px; font-size: 14px; font-weight: 700; font-family: inherit;
+  cursor: pointer; text-decoration: none;
+  box-shadow: 0 6px 18px -8px rgba(79, 70, 229, .65);
+  transition: background .15s, transform .15s;
+}
+.btn-primary:hover { background: var(--accent-dark); transform: translateY(-1px); }
+.btn-primary.sm { padding: 8px 15px; font-size: 13px; }
+.btn-primary[disabled] { opacity: .55; cursor: default; transform: none; }
+.btn-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: #fff; color: var(--ink); border: 1px solid var(--line-2);
+  border-radius: 10px; padding: 11px 20px; font-size: 14px; font-weight: 700;
+  font-family: inherit; cursor: pointer; text-decoration: none; transition: .15s;
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-ghost.sm { padding: 8px 15px; font-size: 13px; }
+
+/* ---- page header used by content pages ---- */
+.pagehead {
+  border-bottom: 1px solid var(--line);
+  background: radial-gradient(800px 320px at 80% -10%, rgba(79, 70, 229, .09), transparent 60%);
+}
+.pagehead .wrap { padding: 54px 24px 44px; }
+.eyebrow {
+  display: inline-block; font-size: 11.5px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--accent); background: var(--accent-soft);
+  border: 1px solid var(--accent-line); padding: 5px 12px;
+  border-radius: 999px; margin-bottom: 16px;
+}
+.pagehead h1 { margin: 0 0 12px; font-size: 38px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+.pagehead p { margin: 0; font-size: 17px; color: var(--ink-2); max-width: 66ch; }
+@media (max-width: 640px) { .pagehead h1 { font-size: 29px; } }
+
+main { padding: 44px 0 64px; }
+
+/* ---- marketing footer (public pages only — app pages get a slim one) ---- */
+.site-footer { background: var(--ink-900); color: #cbd5e1; padding: 50px 0 26px; }
+.footcols { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 30px; }
+@media (max-width: 720px) { .footcols { grid-template-columns: 1fr 1fr; } }
+.footbrand .brand { color: #fff; margin-bottom: 12px; }
+.footbrand p { font-size: 13px; color: #94a3b8; line-height: 1.6; max-width: 34ch; margin: 0; }
+.footcol { display: flex; flex-direction: column; gap: 10px; }
+.footcol b { color: #fff; font-size: 13px; margin-bottom: 3px; }
+.footcol a { color: #cbd5e1; text-decoration: none; font-size: 13px; }
+.footcol a:hover { color: #fff; }
+.footbottom {
+  margin-top: 36px; padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+  font-size: 12px; color: #94a3b8;
+}

@@ -18,13 +18,13 @@ const articleSchema = {
   headline: 'What is AEO? Answer Engine Optimization explained',
   datePublished: '2026-07-01',
   dateModified: '2026-07-01',
-  author: { '@type': 'Organization', name: 'CiteRank' },
-  publisher: { '@type': 'Organization', name: 'CiteRank' },
+  author: { '@type': 'Organization', name: 'AI Page Audit' },
+  publisher: { '@type': 'Organization', name: 'AI Page Audit' },
 };
 ---
 <Site
   schema={articleSchema}
-  title="What is AEO? Answer Engine Optimization explained — CiteRank"
+  title="What is AEO? Answer Engine Optimization explained — AI Page Audit"
   description="Answer Engine Optimization is the practice of making your content the source AI answers are built from and cite. What the research shows works, what doesn't, and where to start."
 >
   <section class="pagehead">
@@ -82,7 +82,7 @@ const articleSchema = {
         <li><strong>Can it trust it?</strong> Named entities instead of pronouns, explicit sources, dates, author credentials, structured data. This is where the Princeton findings apply.</li>
       </ol>
 
-      <p>Gates one and two are binary and mechanical, which means they are also the fastest to check. CiteRank's <a href="/">LLM Access Check</a> fetches your page as each crawler in turn and shows what each one actually received.</p>
+      <p>Gates one and two are binary and mechanical, which means they are also the fastest to check. AI Page Audit's <a href="/check">LLM Access Check</a> fetches your page as each crawler in turn and shows what each one actually received.</p>
 
       <h2>Where to start</h2>
 
@@ -92,7 +92,7 @@ const articleSchema = {
         <li>Run your highest-value page through an access check. If crawlers are blocked or the content is JavaScript-rendered, stop — nothing else you do will register until that's fixed.</li>
         <li>Put a direct, self-contained answer in the first two sentences under each heading. Assume the reader is a model that will only ever see that one section.</li>
         <li>Replace vague claims with numbers, and attribute them.</li>
-        <li>Name entities explicitly. "It handles this automatically" means nothing in isolation; "CiteRank refunds the check automatically" survives extraction.</li>
+        <li>Name entities explicitly. "It handles this automatically" means nothing in isolation; "AI Page Audit refunds the check automatically" survives extraction.</li>
         <li><em>Then</em> run a <a href="/audit">full AEO audit</a> for a weighted score and a ranked list of what to fix next.</li>
       </ol>
 
@@ -106,7 +106,7 @@ const articleSchema = {
       </ul>
 
       <div class="post-cta">
-        <a href="/" class="btn-primary">Check a page free</a>
+        <a href="/check" class="btn-primary">Check a page free</a>
         <a href="/glossary" class="btn-ghost">Browse the glossary</a>
       </div>
     </article>
@@ -119,8 +119,8 @@ const articleSchema = {
     .post ul, .post ol { padding-left: 22px; display: grid; gap: 10px; }
     .post b, .post strong { color: var(--ink); }
 
-    .answerbox { border-left: 3px solid var(--pink); background: var(--accent-soft); border-radius: 0 12px 12px 0; padding: 18px 22px; margin-bottom: 26px; }
-    .answerbox b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--pink); margin-bottom: 6px; }
+    .answerbox { border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 12px 12px 0; padding: 18px 22px; margin-bottom: 26px; }
+    .answerbox b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
     .answerbox p { margin: 0; }
 
     .srclist { display: grid; gap: 7px; }

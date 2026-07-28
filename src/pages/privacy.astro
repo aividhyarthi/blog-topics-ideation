@@ -3,7 +3,7 @@ import Site from '../layouts/Site.astro';
 const updated = '27 July 2026';
 const contact = import.meta.env.SUPPORT_EMAIL || 'support@citerank.app';
 ---
-<Site title="Privacy Policy — CiteRank" description="What CiteRank collects, why, who it's shared with, and how to have it deleted.">
+<Site title="Privacy Policy — AI Page Audit" description="What AI Page Audit collects, why, who it's shared with, and how to have it deleted.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Legal</span>
@@ -65,7 +65,7 @@ const contact = import.meta.env.SUPPORT_EMAIL || 'support@citerank.app';
       <p>Passwords are hashed with scrypt and compared in constant time. Session cookies are httpOnly, Secure and SameSite. Sign-in, signup and password-reset endpoints are rate limited. Traffic is served over HTTPS. No system is perfectly secure, but we don't cut corners on the basics.</p>
 
       <h2>Children</h2>
-      <p>CiteRank is a business tool and is not directed at anyone under 18.</p>
+      <p>AI Page Audit is a business tool and is not directed at anyone under 18.</p>
 
       <h2>Contact</h2>
       <p>Privacy questions or requests: <a href={`mailto:${contact}`}>{contact}</a>.</p>
@@ -77,6 +77,6 @@ const contact = import.meta.env.SUPPORT_EMAIL || 'support@citerank.app';
     .legal p, .legal li { font-size: 15.5px; color: var(--ink-2); line-height: 1.72; }
     .legal ul { padding-left: 22px; display: grid; gap: 8px; }
     .legal strong { color: var(--ink); }
-    .note { background: var(--accent-soft); border-left: 3px solid var(--pink); border-radius: 0 10px 10px 0; padding: 14px 18px; font-size: 14px; color: var(--ink-2); line-height: 1.6; }
+    .note { background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; padding: 14px 18px; font-size: 14px; color: var(--ink-2); line-height: 1.6; }
   </style>
 </Site>

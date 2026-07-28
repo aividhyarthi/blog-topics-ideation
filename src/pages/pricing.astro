@@ -11,7 +11,7 @@ import { CREDIT_PACKS } from '../lib/billing';
 // different prices) — the amount is shown per-package and the payer enters it
 // in their UPI app.
 const UPI_ID = (import.meta.env.UPI_ID || process.env.UPI_ID || '').trim();
-const UPI_NAME = (import.meta.env.UPI_PAYEE_NAME || process.env.UPI_PAYEE_NAME || 'CiteRank').trim();
+const UPI_NAME = (import.meta.env.UPI_PAYEE_NAME || process.env.UPI_PAYEE_NAME || 'AI Page Audit').trim();
 const MONTHLY_INR = (import.meta.env.UPI_AMOUNT_INR || process.env.UPI_AMOUNT_INR || '8299').trim();
 const upiConfigured = Boolean(UPI_ID);
 let upiUri = '', qrSvg = '';
@@ -40,7 +40,7 @@ const faqSchema = {
   })),
 };
 ---
-<Site schema={faqSchema} title="Pricing — CiteRank" description="Check one page free. Pay per URL, or subscribe for volume — CiteRank AEO/GEO intelligence.">
+<Site schema={faqSchema} title="Pricing — AI Page Audit" description="Check one page free. Pay per URL, or subscribe for volume — AI Page Audit AEO/GEO intelligence.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Pricing</span>
@@ -55,7 +55,7 @@ const faqSchema = {
         <div class="pc-name">Free trial</div>
         <div class="pc-price">₹0</div>
         <div class="pc-sub">One check, on us — no card required.</div>
-        <a href="/audit" class="btn-ghost pc-cta">Sign up free</a>
+        <a href="/check" class="btn-ghost pc-cta">Sign up free</a>
         <ul class="pc-list">
           <li>1 full check (LLM Access or AEO Audit)</li>
           <li>All AI-crawler tabs included</li>
@@ -82,7 +82,7 @@ const faqSchema = {
 
       <div class="tiercard">
         <div class="pc-badge alt">Best for volume</div>
-        <div class="pc-name">CiteRank Pro</div>
+        <div class="pc-name">AI Page Audit Pro</div>
         <div class="pc-price">₹{Number(MONTHLY_INR).toLocaleString('en-IN')}<span>/month</span></div>
         <div class="pc-sub">500 checks/month. No auto-renewal.</div>
         <a href="#pay" class="btn-primary pc-cta">Subscribe</a>
@@ -117,10 +117,10 @@ const faqSchema = {
             <ol class="upi-steps">
               <li>Scan the QR (or tap “Pay with UPI app” on mobile) and pay the amount for what you’re buying above.</li>
               <li>Copy the UTR / transaction reference number from your UPI app.</li>
-              <li>Submit it below with the email your CiteRank account uses.</li>
+              <li>Submit it below with the email your AI Page Audit account uses.</li>
             </ol>
             <form id="upiform" class="upiform">
-              <input type="email" id="uf-email" placeholder="Your CiteRank account email" required />
+              <input type="email" id="uf-email" placeholder="Your AI Page Audit account email" required />
               <input type="text" id="uf-utr" placeholder="UPI transaction reference (UTR)" required />
               <input type="text" id="uf-note" placeholder="Note (optional)" />
               <button type="submit" class="btn-primary" id="uf-go">Submit for verification</button>
@@ -189,8 +189,8 @@ const faqSchema = {
     .tier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: stretch; }
     @media (max-width: 900px) { .tier-grid { grid-template-columns: 1fr; } }
     .tiercard { position: relative; border: 1px solid var(--line); border-radius: 20px; background: #fff; padding: 28px 26px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
-    .tiercard.featured { border: 2px solid var(--pink); box-shadow: 0 20px 50px -24px rgba(37,99,235,.35); }
-    .pc-badge { position: absolute; top: -13px; left: 26px; background: var(--pink); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; }
+    .tiercard.featured { border: 2px solid var(--accent); box-shadow: 0 20px 50px -24px rgba(79,70,229,.35); }
+    .pc-badge { position: absolute; top: -13px; left: 26px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; }
     .pc-badge.alt { background: var(--ink-900); }
     .pc-name { font-size: 15px; font-weight: 700; color: var(--muted); }
     .pc-price { font-size: 40px; font-weight: 800; letter-spacing: -.03em; margin: 6px 0 2px; }
@@ -203,10 +203,10 @@ const faqSchema = {
     .pc-list li b { color: var(--ink); }
     .packlist { display: grid; gap: 8px; margin: 6px 0 18px; }
     .packrow { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line-2); border-radius: 11px; padding: 10px 13px; cursor: pointer; font-size: 13.5px; }
-    .packrow:has(input:checked) { border-color: var(--pink); background: var(--accent-soft); }
+    .packrow:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
     .packrow input { margin: 0; }
     .pk-label { font-weight: 600; }
-    .pk-price { margin-left: auto; font-weight: 800; color: var(--pink-dark); }
+    .pk-price { margin-left: auto; font-weight: 800; color: var(--accent-dark); }
     .feat-note { margin-top: 24px; }
     .feat-note p { font-size: 13px; color: var(--muted); line-height: 1.7; text-align: center; max-width: 76ch; margin: 0 auto; }
     .paywhat { display: grid; gap: 9px; margin: 14px 0 18px; }
@@ -221,13 +221,13 @@ const faqSchema = {
     .upi-amt { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
     .upi-amt span { font-size: 14px; font-weight: 600; color: var(--muted); }
     .upi-idrow { display: flex; align-items: center; gap: 10px; margin: 10px 0 16px; flex-wrap: wrap; }
-    .upi-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; background: var(--accent-soft); border: 1px solid #c7ddff; color: var(--pink-dark); padding: 6px 12px; border-radius: 9px; font-weight: 600; }
+    .upi-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; background: var(--accent-soft); border: 1px solid #c7ddff; color: var(--accent-dark); padding: 6px 12px; border-radius: 9px; font-weight: 600; }
     .btn-ghost.sm { padding: 7px 13px; font-size: 12.5px; }
     .upi-pay { display: inline-flex; margin-bottom: 20px; }
     .upi-steps { font-size: 13px; color: var(--ink-2); line-height: 1.7; padding-left: 20px; margin: 0 0 20px; }
     .upiform { display: grid; gap: 10px; max-width: 420px; }
     .upiform input { border: 1px solid var(--line-2); border-radius: 10px; padding: 11px 13px; font-size: 14px; font-family: inherit; }
-    .upiform input:focus { outline: none; border-color: var(--pink); box-shadow: 0 0 0 3px rgba(37,99,235,.14); }
+    .upiform input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.14); }
     .upiform button { justify-self: start; }
     .upi-msg { font-size: 13px; margin-top: 2px; }
     .upi-msg.ok { color: var(--ok); font-weight: 600; }

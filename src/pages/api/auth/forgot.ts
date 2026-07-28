@@ -32,7 +32,7 @@ export const POST: APIRoute = async (ctx) => {
     if (token) {
       const link = `${siteOrigin(ctx.request)}/reset?token=${token}`;
       const { html, text } = resetEmail(link);
-      await sendMail(email, 'Reset your CiteRank password', html, text);
+      await sendMail(email, 'Reset your AI Page Audit password', html, text);
     }
     // Same response whether or not the account exists — never confirm which
     // addresses are registered.

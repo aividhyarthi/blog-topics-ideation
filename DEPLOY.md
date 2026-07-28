@@ -1,6 +1,6 @@
-# Deploying CiteRank to Railway
+# Deploying AI Page Audit to Railway
 
-CiteRank is a **paid, account-gated tool**. Accounts, credits, payments and saved
+AI Page Audit is a **paid, account-gated tool**. Accounts, credits, payments and saved
 audits all live in a self-contained SQLite database file that the app carries
 with it — **no separate database service to create or link.** The one thing
 that has to exist is a persistent folder for that file to live in, or every

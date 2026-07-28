@@ -15,9 +15,9 @@
       .cra-widget { display: flex; align-items: center; gap: 12px; }
       .cra-email { font-size: 12.5px; color: var(--muted); font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .cra-btn { font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; border-radius: 9px; padding: 8px 14px; border: 1px solid var(--line-2); background: #fff; color: var(--ink-2); text-decoration: none; display: inline-flex; align-items: center; }
-      .cra-btn:hover { border-color: var(--pink); color: var(--pink); }
-      .cra-btn.solid { background: var(--pink); color: #fff; border-color: var(--pink); font-weight: 700; }
-      .cra-btn.solid:hover { background: var(--pink-dark); border-color: var(--pink-dark); color: #fff; }
+      .cra-btn:hover { border-color: var(--accent); color: var(--accent); }
+      .cra-btn.solid { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+      .cra-btn.solid:hover { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
       .cra-modal { position: fixed; inset: 0; z-index: 500; background: rgba(15,23,42,.45); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; padding: 20px; }
       .cra-modal.open { display: flex; }
       .cra-card { background: #fff; border-radius: 18px; width: 100%; max-width: 400px; padding: 26px; box-shadow: 0 24px 64px -24px rgba(15,23,42,.5); position: relative; }
@@ -26,12 +26,12 @@
       .cra-sub { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
       .cra-fld { display: block; font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin: 12px 0 5px; }
       .cra-card input { width: 100%; border: 1px solid var(--line-2); border-radius: 10px; padding: 11px 13px; font-size: 14px; font-family: inherit; box-sizing: border-box; }
-      .cra-card input:focus { outline: none; border-color: var(--pink); box-shadow: 0 0 0 3px rgba(37,99,235,.14); }
+      .cra-card input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.14); }
       .cra-go { width: 100%; justify-content: center; margin-top: 16px; padding: 11px; font-size: 14.5px; }
       .cra-switch { margin-top: 14px; font-size: 12.5px; color: var(--muted); text-align: center; }
-      .cra-switch a { color: var(--pink-dark); font-weight: 700; cursor: pointer; }
+      .cra-switch a { color: var(--accent-dark); font-weight: 700; cursor: pointer; }
       .cra-err { margin-top: 12px; padding: 9px 11px; border-radius: 9px; font-size: 12.5px; background: var(--bad-bg); color: #b3261e; border: 1px solid #f6c9c6; display: none; }
-      .cra-mandate { margin-top: 14px; font-size: 12px; color: var(--pink-dark); background: var(--accent-soft); border: 1px solid #c7ddff; border-radius: 9px; padding: 9px 11px; }
+      .cra-mandate { margin-top: 14px; font-size: 12px; color: var(--accent-dark); background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 9px; padding: 9px 11px; }
     `;
     document.head.appendChild(s);
   }
@@ -147,7 +147,11 @@
     document.querySelectorAll('#cr-navauth').forEach((el) => {
       if (!state.accountsEnabled) { el.innerHTML = ''; return; }
       if (state.user) {
-        el.innerHTML = `<span class="cra-email">${esc(state.user.email)}</span><a href="/dashboard" class="cra-btn">Dashboard</a><button class="cra-btn" id="cra-signout">Sign out</button>`;
+        // Inside the app shell the tab bar already links to Reports (/dashboard),
+        // so showing a Dashboard button here would be a duplicate control.
+        const inApp = document.body.classList.contains('appbody');
+        const dash = inApp ? '' : '<a href="/dashboard" class="cra-btn">Dashboard</a>';
+        el.innerHTML = `<span class="cra-email">${esc(state.user.email)}</span>${dash}<button class="cra-btn" id="cra-signout">Sign out</button>`;
         el.querySelector('#cra-signout').addEventListener('click', signOut);
       } else {
         el.innerHTML = `<button class="cra-btn" id="cra-signin">Log in</button><button class="cra-btn solid" id="cra-signup">Get started</button>`;

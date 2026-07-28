@@ -1,0 +1,117 @@
+---
+// Signed-in app shell. The three tools are the main body of every app page,
+// as a persistent tab bar — pick one and the other two stay visible with the
+// active one marked, rather than being buried in a sidebar.
+//
+// Deliberately NOT the marketing layout: no feature grid, no four-column
+// marketing footer. A logged-in workspace should look like a workspace.
+import '../styles/base.css';
+
+interface Props { title?: string; description?: string; tab: 'check' | 'audit' | 'reports' }
+const { title = 'AI Page Audit', description = 'Your AI visibility workspace.', tab } = Astro.props as Props;
+
+const TABS = [
+  { id: 'check', href: '/check', label: 'LLM Access Check', hint: 'What each AI crawler can read' },
+  { id: 'audit', href: '/audit', label: 'Full AEO Audit', hint: 'Weighted score and ranked fixes' },
+  { id: 'reports', href: '/dashboard', label: 'Reports', hint: 'Saved audits, usage and plan' },
+] as const;
+
+const MARK = `<svg viewBox="0 0 24 24" fill="none"><rect x="5" y="13" width="3.2" height="6" rx="1.2" fill="currentColor" opacity="0.55"/><rect x="10.4" y="9.5" width="3.2" height="9.5" rx="1.2" fill="currentColor" opacity="0.8"/><rect x="15.8" y="5.5" width="3.2" height="13.5" rx="1.2" fill="currentColor"/></svg>`;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body class="appbody">
+    <div class="nav">
+      <div class="wrap navinner">
+        <a href="/dashboard" class="brand"><span class="mark" set:html={MARK} />AI Page Audit</a>
+        <div class="navcta">
+          <a href="/pricing" class="applink">Plan &amp; billing</a>
+          <span id="cr-navauth"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabbar">
+      <div class="wrap tabrow" role="tablist">
+        {TABS.map((t) => (
+          <a
+            href={t.href}
+            class:list={['apptab', tab === t.id && 'on']}
+            aria-current={tab === t.id ? 'page' : undefined}
+          >
+            <span class="t-label">{t.label}</span>
+            <span class="t-hint">{t.hint}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+
+    <slot />
+
+    <script src="/js/citerank-auth.js" defer></script>
+
+    <footer class="app-footer">
+      <div class="wrap app-footrow">
+        <span>© 2026 AI Page Audit</span>
+        <span class="app-footlinks">
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/refunds">Refunds</a>
+          <a href="/">Home</a>
+        </span>
+      </div>
+    </footer>
+
+    <style is:global>
+      /* Column flex so a short page (an empty Reports tab, say) still pins the
+         footer to the bottom instead of leaving it floating mid-screen. */
+      .appbody { background: var(--bg); min-height: 100vh; display: flex; flex-direction: column; }
+      .appbody > main, .appbody > section { flex: none; }
+      .appbody > main { flex: 1 0 auto; }
+
+      .applink { font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-decoration: none; }
+      .applink:hover { color: var(--accent); }
+
+      /* The tool switcher. Always shows all three; the active one is marked by
+         weight, colour and an underline rather than by hiding the others. */
+      .tabbar { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 60px; z-index: 30; }
+      .tabrow { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+      .tabrow::-webkit-scrollbar { display: none; }
+
+      .apptab {
+        flex: none; display: grid; gap: 1px; padding: 13px 18px 12px;
+        border-bottom: 2.5px solid transparent; text-decoration: none;
+        color: var(--muted); transition: color .15s, border-color .15s, background .15s;
+      }
+      .apptab:hover { color: var(--ink); background: var(--accent-soft); }
+      .apptab .t-label { font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+      .apptab .t-hint { font-size: 11.5px; color: var(--faint); }
+      .apptab.on { color: var(--accent); border-bottom-color: var(--accent); }
+      .apptab.on .t-hint { color: var(--accent); opacity: .75; }
+
+      @media (max-width: 700px) {
+        .apptab { padding: 11px 14px 10px; }
+        .apptab .t-hint { display: none; }
+      }
+
+      /* Slim, functional footer — the marketing one has no place in a
+         signed-in workspace. */
+      .app-footer { margin-top: auto; border-top: 1px solid var(--line); background: #fff; padding: 18px 0; }
+      .app-footrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 12.5px; color: var(--faint); flex-wrap: wrap; }
+      .app-footlinks { display: flex; gap: 16px; }
+      .app-footlinks a { color: var(--faint); text-decoration: none; }
+      .app-footlinks a:hover { color: var(--accent); }
+    </style>
+  </body>
+</html>
