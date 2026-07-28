@@ -61,9 +61,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
 
     // Resolve the session for every request; pages read it from locals.
-    const user = userFromSessionToken(readCookie(context.request.headers.get('cookie'), SESSION_COOKIE));
+    const cookieHeader = context.request.headers.get('cookie');
+    const user = userFromSessionToken(readCookie(cookieHeader, SESSION_COOKIE));
     context.locals.user = user;
     context.locals.productMode = true;
+    // Which workspace an account with BOTH its own apps and shared ones is
+    // viewing. Carried in a cookie so page loads and the dashboard's own
+    // fetch()es agree without every call having to pass it explicitly.
+    context.locals.wsMode = readCookie(cookieHeader, 'ws_mode') === 'shared' ? 'shared' : undefined;
 
     if (path === '/') return next('/landing'); // rewrite: landing page is the storefront
     if (PUBLIC_PREFIXES.some(matches)) return next();
@@ -80,7 +85,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     if (PAID_TOOL_PREFIXES.some(matches) && !isAdminEmail(user.email)) {
       // For a read-only guest this resolves to the OWNER — they're riding on
       // the owner's subscription, not one of their own (see grants.ts).
-      const billTo = billingUserFor(user);
+      const billTo = billingUserFor(user, context.locals.wsMode);
       const access = checkAccess(billTo.status, billTo.trialEndsAt);
       context.locals.access = access;
       if (!access.allowed) {

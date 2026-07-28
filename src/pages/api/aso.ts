@@ -142,7 +142,7 @@ Give ONE focusVerdicts entry for EACH focus keyword listed above (so ${fkList.le
 export const POST: APIRoute = async ({ request, locals }) => {
   // Read-only guests (see lib/saas/grants.ts) can't run an audit — it spends
   // the owner's Anthropic budget and overwrites the owner's cached report.
-  if (locals.productMode && locals.user && isGuest(locals.user)) {
+  if (locals.productMode && locals.user && isGuest(locals.user, locals.wsMode)) {
     return json({ error: 'This is a read-only shared view — ask the account owner to run an ASO check.' }, 403);
   }
   let body: { url?: string; focusKeyword?: string; competitors?: string; lang?: string; country?: string; key?: string };

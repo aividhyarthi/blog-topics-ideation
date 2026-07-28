@@ -11,7 +11,7 @@ import { isGuest } from '../lib/saas/grants';
 const user = Astro.locals.user!;
 // A guest account has no plan of its own and nothing to share onward, so the
 // billing and sharing cards below are hidden for them entirely.
-const guest = isGuest(user);
+const guest = isGuest(user, Astro.locals.wsMode);
 const access = checkAccess(user.status, user.trialEndsAt);
 const plan = planOf(user.plan);
 const expired = Astro.url.searchParams.get('expired') === '1';

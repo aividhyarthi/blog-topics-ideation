@@ -140,7 +140,8 @@ rmSync(tmp, { recursive: true, force: true });
   ] } as any, owner.id);
 
   // Before any grant, everyone is their own owner with the full workspace.
-  eq('no grants = own workspace', resolveWorkspace(client), { ownerId: client.id, appKeys: null, readOnly: false, sharedByEmail: null });
+  eq('no grants = own workspace', resolveWorkspace(client),
+    { ownerId: client.id, appKeys: null, readOnly: false, sharedByEmail: null, mode: 'own', canSwitch: false });
   eq('no grants = not a guest', isGuest(client), false);
 
   createGrant(owner.id, 'client-share@test.com', 'play:kuvera');
@@ -171,14 +172,44 @@ rmSync(tmp, { recursive: true, force: true });
   eq('rejects a malformed email', Boolean(assertCanGrant(owner.id, owner.email, 'not-an-email')), true);
   const owner2 = su2('owner2-share@test.com', 'password123', 'Owner2').user!;
   eq('cannot be a guest of two owners', Boolean(assertCanGrant(owner2.id, owner2.email, 'client-share@test.com')), true);
-  const selfServe = su2('hasownapps@test.com', 'password123', 'Self').user!;
-  saveConfig({ apps: [{ key: 'play:theirown', title: 'Their own app' }] } as any, selfServe.id);
-  eq('cannot hide an existing customer behind a share', Boolean(assertCanGrant(owner.id, owner.email, 'hasownapps@test.com')), true);
   eq('a fresh email is grantable', assertCanGrant(owner.id, owner.email, 'brand-new@test.com'), null);
+
+  // Several people can share ONE app — there is no per-app grantee limit.
+  for (const e of ['viewer1@test.com', 'viewer2@test.com', 'viewer3@test.com']) {
+    createGrant(owner.id, e, 'play:kuvera');
+  }
+  eq('three emails can share one app',
+    listGrantsByOwner(owner.id).filter((g) => g.appKey === 'play:kuvera').length, 4);
+
+  // An account that tracks its OWN apps can also be a guest: it keeps its own
+  // workspace by default and switches to the shared one explicitly. This is
+  // what used to be blocked outright.
+  const both = su2('hasownapps@test.com', 'password123', 'Self').user!;
+  saveConfig({ apps: [{ key: 'play:theirown', title: 'Their own app' }] } as any, both.id);
+  eq('an account with its own apps IS grantable now', assertCanGrant(owner.id, owner.email, 'hasownapps@test.com'), null);
+  createGrant(owner.id, 'hasownapps@test.com', 'play:kuvera');
+
+  const ownWs = resolveWorkspace(both);
+  eq('defaults to their OWN workspace', { owner: ownWs.ownerId === both.id, ro: ownWs.readOnly }, { owner: true, ro: false });
+  eq('own workspace is not filtered', ownWs.appKeys, null);
+  eq('offered a switcher', ownWs.canSwitch, true);
+  eq('not a guest while in their own workspace', isGuest(both), false);
+
+  const sharedWs = resolveWorkspace(both, 'shared');
+  eq('switching lands on the owner workspace', sharedWs.ownerId, owner.id);
+  eq('shared workspace is read-only', sharedWs.readOnly, true);
+  eq('shared workspace is filtered', sharedWs.appKeys, ['play:kuvera']);
+  eq('is a guest while viewing the shared workspace', isGuest(both, 'shared'), true);
+  eq('their own apps are untouched by the share', loadConfig(both.id).apps.length, 1);
+
+  // Billing follows the workspace being viewed, not the account.
+  eq('bills to self in own workspace', billingUserFor(both).id, both.id);
+  eq('bills to owner in shared workspace', billingUserFor(both, 'shared').id, owner.id);
 
   // Re-granting is idempotent, not a duplicate row.
   createGrant(owner.id, 'client-share@test.com', 'play:kuvera');
-  eq('re-granting the same app is a no-op', listGrantsByOwner(owner.id).length, 1);
+  eq('re-granting the same app is a no-op',
+    listGrantsByOwner(owner.id).filter((g) => g.granteeEmail === 'client-share@test.com').length, 1);
 
   // Revoking one app of several leaves the rest.
   createGrant(owner.id, 'client-share@test.com', 'play:cred');

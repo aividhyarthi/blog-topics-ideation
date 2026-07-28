@@ -13,10 +13,16 @@ import { loadConfig } from '../../lib/rank/store';
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
-/** Sharing only exists in product mode, and a guest can never re-share. */
+/**
+ * Sharing only exists in product mode, and nobody can re-share apps they're
+ * merely a guest of. Deliberately keyed on the workspace being VIEWED: an
+ * account that owns apps and is also someone else's guest manages its own
+ * shares while in its own workspace, and loses that while viewing the
+ * shared one — same rule as every other write.
+ */
 function owner(locals: App.Locals) {
   if (!locals.productMode || !locals.user) return null;
-  if (isGuest(locals.user)) return null;
+  if (isGuest(locals.user, locals.wsMode)) return null;
   return locals.user;
 }
 

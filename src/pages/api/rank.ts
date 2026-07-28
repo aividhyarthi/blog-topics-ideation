@@ -46,14 +46,16 @@ const MAX_COVERAGE_KEYWORDS = 2000;
 function tenant(locals: APIContext['locals']) {
   if (locals.productMode && locals.user) {
     const plan = planOf(locals.user.plan);
-    const ws = resolveWorkspace(locals.user);
+    const ws = resolveWorkspace(locals.user, locals.wsMode);
     return {
       userId: ws.ownerId, appKeys: ws.appKeys, readOnly: ws.readOnly, sharedByEmail: ws.sharedByEmail,
+      canSwitch: ws.canSwitch, mode: ws.mode,
       maxApps: plan.maxApps, maxCompetitors: plan.maxCompetitorsPerApp, maxKeywords: plan.maxKeywordsPerApp,
     };
   }
   return {
     userId: undefined as string | undefined, appKeys: null as string[] | null, readOnly: false, sharedByEmail: null,
+    canSwitch: false, mode: 'own' as const,
     maxApps: INTERNAL_LIMITS.maxApps, maxCompetitors: INTERNAL_LIMITS.maxCompetitorsPerApp, maxKeywords: INTERNAL_LIMITS.maxKeywordsPerApp,
   };
 }
@@ -188,10 +190,13 @@ function coverageAlreadyCheckedToday(app: TrackedApp, userId?: string): string |
  * don't have access to never reaches the browser at all — the dashboard's
  * read-only mode is a UI convenience, not the security boundary.
  */
-function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly: boolean; sharedByEmail: string | null }) {
+function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly: boolean; sharedByEmail: string | null; canSwitch?: boolean; mode?: string }) {
   const cfg = loadConfig(userId);
   if (ws?.appKeys) {
-    cfg.apps = visibleApps(cfg.apps, { ownerId: userId || '', appKeys: ws.appKeys, readOnly: true, sharedByEmail: ws.sharedByEmail });
+    cfg.apps = visibleApps(cfg.apps, {
+      ownerId: userId || '', appKeys: ws.appKeys, readOnly: true,
+      sharedByEmail: ws.sharedByEmail, mode: 'shared', canSwitch: Boolean(ws.canSwitch),
+    });
   }
   const snapshots = loadSnapshots(90, userId);
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null;
@@ -288,6 +293,8 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
     snapshotDays: snapshots.map((s) => s.dateKey),
     readOnly: Boolean(ws?.readOnly),
     sharedByEmail: ws?.sharedByEmail || null,
+    canSwitch: Boolean(ws?.canSwitch),
+    wsMode: ws?.mode || 'own',
   };
 }
 

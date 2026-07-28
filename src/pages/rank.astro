@@ -9,7 +9,7 @@ import { isGuest } from '../lib/saas/grants';
 const product = Boolean(Astro.locals.productMode);
 const user = Astro.locals.user || null;
 // Read-only guest viewing an app someone shared with them (see grants.ts).
-const guest = product && user ? isGuest(user) : false;
+const guest = product && user ? isGuest(user, Astro.locals.wsMode) : false;
 const plan = user ? planOf(user.plan) : null;
 const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
 const limitsText = product && plan
@@ -155,6 +155,10 @@ const limitsText = product && plan
       .wn-line-title { font-size: 13px; color: var(--ink); }
       .charts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-top: 12px; }
       @media (max-width: 880px) { .charts { grid-template-columns: 1fr; } }
+      /* Same two charts on Overview, stacked full-width instead of side by
+         side — they sit directly under the visibility trend, where the
+         universe size is read against it rather than beside another chart. */
+      .ovcharts { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 18px; }
       .chartbox { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 8px; }
       .chartbox h4 { margin: 0 0 8px; font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
       .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--muted); }
@@ -412,6 +416,10 @@ const limitsText = product && plan
         <div class="toolbar no-print">
           <span class="lastcheck" id="lastcheck"></span>
           <div class="row">
+            <select id="ws-switch" style="display:none;" title="Switch between your own apps and apps shared with you">
+              <option value="own">My apps</option>
+              <option value="shared">Shared with me</option>
+            </select>
             <button class="ghost" id="csv-btn">Export CSV</button>
             <button class="primary" id="checkall-btn">Check all rankings now</button>
           </div>
@@ -1063,6 +1071,20 @@ ai photo enhancer"></textarea>
         return parts.join(' — ') + '.';
       }
 
+      // The two full-keyword-universe charts. Rendered on BOTH Overview (the
+      // tab that actually gets opened every day) and All Keywords, built from
+      // one function so the two copies can never drift apart. Returns '' when
+      // the app has no coverage list, or has one that's never been checked —
+      // an empty axis is worse than no chart.
+      function coverageChartsHtml(app) {
+        const cov = app.coverageOverview;
+        if (!cov || !cov.total || !cov.days || !cov.days.length) return '';
+        const legend = BUCKET_LABELS().map((l, i) =>
+          `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
+        return `<div class="chartbox"><h4>Keyword universe size over time</h4>${universeSizeChart(cov.universeTrend)}</div>
+          <div class="chartbox"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>`;
+      }
+
       function overviewHtml(app) {
         const ov = app.overview;
         if (!ov || !ov.days || !ov.days.length) {
@@ -1080,6 +1102,7 @@ ai photo enhancer"></textarea>
           : vDelta > 0 ? `<span class="delta up">▲ ${vDelta}</span> since last check — `
           : vDelta < 0 ? `<span class="delta down">▼ ${-vDelta}</span> since last check — `
           : `<span class="delta flat">＝ unchanged</span> since last check — `;
+        const covCharts = coverageChartsHtml(app);
         return `<div class="ov">
           <div class="headline">
             <div class="headline-eyebrow">Search visibility score</div>
@@ -1087,6 +1110,7 @@ ai photo enhancer"></textarea>
             <div class="headline-sub">${vDeltaHtml}${visibilityNarrative(app)}</div>
             <div class="chartbox">${visChart(ov.days, app.annotations)}</div>
           </div>
+          ${covCharts ? `<div class="ovcharts">${covCharts}</div>` : ''}
           <div class="tiles">
             ${tileHtml('Top 1 rankings', c.top1, p && p.top1)}
             ${tileHtml('Top 10 rankings', c.top10, p && p.top10)}
@@ -1451,7 +1475,6 @@ ai photo enhancer"></textarea>
           return `<div class="ov covov"><h4 class="covhead">Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords saved, not checked yet</span></h4>
             <p class="hint">Click <b>Check all keyword rankings</b> above to run the first check. Each check adds one point to this trend — run it every few days to see coverage of your full list growing or dropping over time.</p></div>`;
         }
-        const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
         const covErrCount = (app.coverageTrends || []).filter((t) => t.error).length;
         const covErrBanner = covErrCount
           ? `<div class="alert info" style="display:block;">⚠︎ ${covErrCount} of ${app.coverageTrends.length} keyword${app.coverageTrends.length === 1 ? '' : 's'} failed their last check (store rate-limit or a temporary block, not a real result) — not confirmed "not ranking"; retried automatically on the next check.</div>`
@@ -1459,10 +1482,7 @@ ai photo enhancer"></textarea>
         return `<div class="ov covov">
           <h4 class="covhead">Keyword coverage <span class="hint" style="display:inline;margin:0;">— ${cov.total} keywords, last checked ${cov.lastCheckedAt ? new Date(cov.lastCheckedAt).toLocaleString() : 'never'}</span></h4>
           ${covErrBanner}
-          <div class="charts">
-            <div class="chartbox"><h4>Keyword universe size over time</h4>${universeSizeChart(cov.universeTrend)}</div>
-            <div class="chartbox"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>
-          </div>
+          <div class="charts">${coverageChartsHtml(app)}</div>
           <div class="statblock">
             <div class="tiles">
               ${tileHtml('Top 1', c.top1, p && p.top1)}
@@ -2192,6 +2212,16 @@ ai photo enhancer"></textarea>
             ? 'No checks recorded yet.'
             : 'Never checked — add apps and hit "Check all rankings now".';
 
+        // Only accounts that have BOTH their own apps and apps shared with
+        // them ever see this — for everyone else there's nothing to switch.
+        const wsSwitch = $('ws-switch');
+        if (state.canSwitch) {
+          wsSwitch.style.display = '';
+          wsSwitch.value = state.wsMode || 'own';
+        } else {
+          wsSwitch.style.display = 'none';
+        }
+
         if (state.readOnly) {
           const banner = $('ro-banner');
           banner.textContent = state.sharedByEmail
@@ -2606,6 +2636,15 @@ ai photo enhancer"></textarea>
       });
 
       // CSV export: one row per app × keyword with today's rank + delta + best.
+      // The workspace is carried in a cookie so a plain page load lands in
+      // the same one (see middleware) — reload rather than re-fetch, so the
+      // server-rendered parts of the page agree with the data too.
+      $('ws-switch').addEventListener('change', (e) => {
+        const mode = e.target.value;
+        document.cookie = `ws_mode=${mode}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+        location.reload();
+      });
+
       $('csv-btn').addEventListener('click', () => {
         const rows = [['App', 'Store', 'Country', 'Keyword', 'Rank', 'Δ vs last check', 'Best', '#1 for keyword']];
         for (const app of state.apps) {

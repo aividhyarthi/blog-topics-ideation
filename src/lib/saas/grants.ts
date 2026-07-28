@@ -5,18 +5,20 @@
 // grant is the single exception — it lets a GUEST account read a specific
 // slice of an OWNER's workspace, and only read it.
 //
-// Two rules keep the model unambiguous, both enforced when a grant is
-// created (see assertCanGrant) rather than papered over at read time:
-//   1. A guest may hold grants from exactly ONE owner. Otherwise "whose
-//      workspace am I looking at?" has no single answer, and the dashboard
-//      would need a workspace switcher to be honest about it.
-//   2. A guest may not own tracked apps. If an account with its own apps
-//      were granted access, resolveWorkspace would have to choose between
-//      showing its own data and the shared data, and either choice silently
-//      hides something the user expects to see.
+// One rule keeps the model unambiguous, enforced when a grant is created
+// (see assertCanGrant) rather than papered over at read time: a guest may
+// hold grants from exactly ONE owner, so "whose workspace am I looking at?"
+// always has a single answer.
+//
+// An account CAN have both its own apps and apps shared with it. Those are
+// two separate workspaces and the session views one at a time, chosen by
+// `mode` (the UI shows a switcher). Write permission is therefore a property
+// of the workspace being viewed, never of the account.
 import { listGrantsForEmail, findUserById, findUserByEmail } from './db';
 import { loadConfig } from '../rank/store';
 import type { TrackedApp } from '../rank/types';
+
+export type WorkspaceMode = 'own' | 'shared';
 
 export interface Workspace {
   /** Whose data directory to read. For an owner this is their own id. */
@@ -27,32 +29,52 @@ export interface Workspace {
   readOnly: boolean;
   /** Owner's email, shown to the guest so they know whose data this is. */
   sharedByEmail: string | null;
+  /** Which of the two workspaces this is. */
+  mode: WorkspaceMode;
+  /** True when the account has both, so the UI should offer a switcher. */
+  canSwitch: boolean;
+}
+
+function ownsApps(userId: string): boolean {
+  try { return loadConfig(userId).apps.length > 0; } catch { return false; }
 }
 
 /**
- * Which workspace this logged-in user actually sees. An account with no
- * grants is always its own owner — sharing never changes what an existing
- * customer sees on their own dashboard.
+ * Which workspace this logged-in user sees. `mode` picks between their own
+ * apps and apps shared with them; an unavailable or missing mode falls back
+ * to their own workspace whenever they have one, so a share can never
+ * silently replace an existing customer's dashboard.
  */
-export function resolveWorkspace(user: { id: string; email: string }): Workspace {
+export function resolveWorkspace(user: { id: string; email: string }, mode?: WorkspaceMode): Workspace {
   const grants = listGrantsForEmail(user.email);
-  if (!grants.length) {
-    return { ownerId: user.id, appKeys: null, readOnly: false, sharedByEmail: null };
-  }
-  // Rule 1 above means every grant shares one owner; take it from the first.
+  const own = (canSwitch: boolean): Workspace =>
+    ({ ownerId: user.id, appKeys: null, readOnly: false, sharedByEmail: null, mode: 'own', canSwitch });
+  if (!grants.length) return own(false);
+
+  // Rule above means every grant shares one owner; take it from the first.
   const ownerId = grants[0].ownerId;
+  const hasOwn = ownsApps(user.id);
+  if (hasOwn && mode !== 'shared') return own(true);
+
   const owner = findUserById(ownerId);
   return {
     ownerId,
     appKeys: grants.filter((g) => g.ownerId === ownerId).map((g) => g.appKey),
     readOnly: true,
     sharedByEmail: owner ? owner.email : null,
+    mode: 'shared',
+    canSwitch: hasOwn,
   };
 }
 
-/** True when this account is a guest (reads someone else's workspace). */
-export function isGuest(user: { id: string; email: string } | null | undefined): boolean {
-  return !!user && listGrantsForEmail(user.email).length > 0;
+/**
+ * True when this session is CURRENTLY viewing a shared workspace. Depends on
+ * the active mode, not just on holding grants — an account with its own apps
+ * is a full owner while viewing its own workspace, and only read-only after
+ * switching to the shared one.
+ */
+export function isGuest(user: { id: string; email: string } | null | undefined, mode?: WorkspaceMode): boolean {
+  return !!user && resolveWorkspace(user, mode).readOnly;
 }
 
 /**
@@ -61,11 +83,10 @@ export function isGuest(user: { id: string; email: string } | null | undefined):
  * anything, so gating them on their own (long-expired) trial would lock a
  * client out of a dashboard the owner is actively paying for.
  */
-export function billingUserFor<T extends { id: string; email: string; status: string; trialEndsAt: string | null }>(user: T): T {
-  const grants = listGrantsForEmail(user.email);
-  if (!grants.length) return user;
-  const owner = findUserById(grants[0].ownerId);
-  return (owner as unknown as T) || user;
+export function billingUserFor<T extends { id: string; email: string; status: string; trialEndsAt: string | null }>(user: T, mode?: WorkspaceMode): T {
+  const ws = resolveWorkspace(user, mode);
+  if (ws.ownerId === user.id) return user; // viewing their own workspace
+  return (findUserById(ws.ownerId) as unknown as T) || user;
 }
 
 /**
@@ -103,13 +124,10 @@ export function assertCanGrant(ownerId: string, ownerEmail: string, granteeEmail
   const otherOwner = existing.find((g) => g.ownerId !== ownerId);
   if (otherOwner) return 'That email already has shared access from another account, and an account can only be a guest of one workspace.';
 
-  // Rule 2: never hide an existing customer's own apps behind a share.
+  // An account that tracks its own apps is fine to share with — it keeps its
+  // own workspace and gets a switcher for the shared one (see
+  // resolveWorkspace), so nothing of theirs is hidden.
   const grantee = findUserByEmail(email);
-  if (grantee) {
-    if (grantee.id === ownerId) return 'That\'s your own account — you already have full access.';
-    let ownsApps = false;
-    try { ownsApps = loadConfig(grantee.id).apps.length > 0; } catch { ownsApps = false; }
-    if (ownsApps) return 'That account already tracks its own apps, so it can\'t also be a read-only guest. Use a separate email for shared access.';
-  }
+  if (grantee && grantee.id === ownerId) return 'That\'s your own account — you already have full access.';
   return null;
 }
