@@ -29,9 +29,11 @@ export const CREDIT_PACKS: CreditPack[] = [
 
 export interface UsageStatus {
   plan: 'free' | 'pro'; expiresAt: string | null;
-  planLimit: number; planUsed: number;
+  planLimit: number | null; // null = unlimited (owner accounts)
+  planUsed: number;
   freeCheckAvailable: boolean; credits: number;
   allowed: boolean; // can this account run ONE more check right now
+  owner?: boolean;  // deployment owner: unlimited and unmetered
 }
 
 // Computed in JS and bound as a parameter — see the note in auth.ts on why
@@ -41,7 +43,35 @@ function monthStartIso(): string {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
 }
 
-async function effectivePlan(userId: string): Promise<{ plan: 'free' | 'pro'; expiresAt: string | null }> {
+/**
+ * Accounts belonging to whoever runs this deployment. They get unlimited Pro
+ * without paying themselves, never expire, and are never metered.
+ *
+ * Resolved at call time from OWNER_EMAILS (comma-separated), falling back to
+ * ADMIN_EMAIL, and finally to the product owner's own address so a fresh
+ * deployment works without any configuration. To hand this to someone else,
+ * set OWNER_EMAILS and this default stops applying.
+ */
+function ownerEmails(): Set<string> {
+  const env = process.env as Record<string, string | undefined>;
+  const raw = env.OWNER_EMAILS || env.ADMIN_EMAIL || 'rudra@appstudiox.com';
+  return new Set(
+    raw.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean),
+  );
+}
+
+/** True when this account is an owner account (unlimited, unmetered). */
+export async function isOwnerAccount(userId: string): Promise<boolean> {
+  const { rows } = await query<{ email: string }>('SELECT email FROM users WHERE id = $1', [userId]);
+  const email = rows[0]?.email?.trim().toLowerCase();
+  return Boolean(email && ownerEmails().has(email));
+}
+
+/** Owner-account view of a plan: Pro, unlimited, no expiry. */
+const OWNER_PLAN = { plan: 'pro' as const, expiresAt: null, owner: true };
+
+async function effectivePlan(userId: string): Promise<{ plan: 'free' | 'pro'; expiresAt: string | null; owner?: boolean }> {
+  if (await isOwnerAccount(userId)) return OWNER_PLAN;
   const { rows } = await query<{ plan: string; plan_expires_at: string | null }>(
     'SELECT plan, plan_expires_at FROM users WHERE id = $1', [userId],
   );
@@ -52,7 +82,22 @@ async function effectivePlan(userId: string): Promise<{ plan: 'free' | 'pro'; ex
 
 // Read-only status for the dashboard / pricing UI — does NOT consume anything.
 export async function usageStatus(userId: string): Promise<UsageStatus> {
-  const { plan, expiresAt } = await effectivePlan(userId);
+  const { plan, expiresAt, owner } = await effectivePlan(userId);
+  if (owner) {
+    // Still report how much has been run this month — useful — but never cap it.
+    const { rows } = await query<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM usage_events WHERE user_id = $1 AND created_at >= $2',
+      [userId, monthStartIso()],
+    );
+    return {
+      plan: 'pro', expiresAt: null,
+      // null rather than Infinity: this crosses a JSON boundary, and
+      // JSON.stringify(Infinity) silently becomes null anyway.
+      planLimit: null, planUsed: Number(rows[0]?.n ?? 0),
+      freeCheckAvailable: false, credits: 0,
+      allowed: true, owner: true,
+    };
+  }
   const planLimit = PLAN_LIMITS[plan];
   const { rows } = await query<{ n: number; free_check_used: number; credits: number }>(
     `SELECT (SELECT COUNT(*) FROM usage_events WHERE user_id = $1 AND created_at >= $2) AS n,
@@ -74,7 +119,14 @@ export interface ConsumeResult { allowed: boolean; via?: 'plan' | 'free' | 'cred
 // unit is spent on the attempt (standard metered-API behaviour) — this also
 // records the usage event used for the dashboard/monthly plan counting.
 export async function consumeAccess(userId: string, tool: string): Promise<ConsumeResult> {
-  const { plan, planLimit } = await effectivePlan(userId);
+  const { plan, owner } = await effectivePlan(userId);
+  // Owner accounts are recorded (so usage is still visible) but never limited
+  // and never charged against the free check or purchased credits.
+  if (owner) {
+    await recordUsage(userId, tool);
+    return { allowed: true, via: 'plan' };
+  }
+  const planLimit = PLAN_LIMITS[plan];
   if (plan === 'pro') {
     const { rows } = await query<{ n: number }>(
       `SELECT COUNT(*) AS n FROM usage_events WHERE user_id = $1 AND created_at >= $2`, [userId, monthStartIso()],

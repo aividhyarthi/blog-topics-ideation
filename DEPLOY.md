@@ -62,6 +62,7 @@ Open the service → **Variables**:
 | `DATA_DIR` | **Yes** | Where accounts, credits, payments and saved audits live. See Step 2 — must be paired with a Volume at the same path. |
 | `ADMIN_EMAIL` | **Yes, to get paid** | The account allowed to open `/admin/payments` and approve UPI payments. Set it to your own signup email. |
 | `SESSION_SECRET` | Recommended | Signs session cookies. Any long random string. |
+| `OWNER_EMAILS` | Optional | Comma-separated accounts that get unlimited Pro without paying — never metered, never expire. Defaults to `ADMIN_EMAIL`, and finally to the product owner's own address, so the owner has full access on a fresh deploy with no configuration. Set this to change who qualifies. |
 | `RESEND_API_KEY` + `MAIL_FROM` | **Yes, in practice** | Sends password-reset email. Without both, a customer who forgets their password cannot recover the account themselves, and the reset form says so honestly. Get a key at resend.com; `MAIL_FROM` must be an address on a domain you've verified there. |
 | `SUPPORT_EMAIL` | Recommended | Shown on the legal pages and in the "email us" fallback when reset mail isn't configured. |
 | `SITE_URL` | Recommended | Your public origin, e.g. `https://citerank.app`. Used for canonical tags, `sitemap.xml`, and links inside reset emails. Falls back to the request host. |
@@ -83,8 +84,8 @@ Run these against your live domain, in order:
 2. Open `/` signed out → you should see **"Sign in to run a check"**, not a
    working form. The tool is gated on the server; if you can use it signed out,
    something is very wrong.
-3. `/blog`, `/news`, `/glossary` signed out → these **should** load. They are
-   public on purpose, for search and AI visibility.
+3. `/glossary` signed out → this **should** load. It's public on purpose, for
+   search and AI visibility.
 4. Sign up → your first check is free. Run it.
 5. Run a second check → should be refused with a prompt to buy credits.
 6. Sign in as `ADMIN_EMAIL` → `/admin/payments` should open. Any other account

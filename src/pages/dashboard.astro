@@ -10,6 +10,7 @@ if (!dbEnabled || !user) return Astro.redirect('/');
 
 const usage = await usageStatus(user.id).catch(() => null);
 const audits = await listAudits(user.id, 10).catch(() => []);
+const isOwner = usage?.owner === true;
 const isPro = usage?.plan === 'pro';
 const planUsed = usage?.planUsed ?? 0;
 const planLimit = usage?.planLimit ?? 0;
@@ -32,13 +33,18 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
       <div class="dash-main">
         <div class="dcard planrow">
           <div>
-            <div class={`plan-badge${isPro ? ' pro' : ''}`}>{isPro ? 'Pro' : 'Free'}</div>
-            <div class="plan-sub">{isPro ? `500 checks/month · renews ${expiresAt}` : 'Pay per URL, or subscribe for volume'}</div>
+            <div class={`plan-badge${isPro ? ' pro' : ''}`}>{isOwner ? 'Pro · Owner' : isPro ? 'Pro' : 'Free'}</div>
+            <div class="plan-sub">{isOwner ? 'Unlimited checks · never expires' : isPro ? `500 checks/month · renews ${expiresAt}` : 'Pay per URL, or subscribe for volume'}</div>
           </div>
           {!isPro && <a href="/pricing" class="btn-primary">See plans</a>}
         </div>
 
-        {isPro ? (
+        {isOwner ? (
+          <div class="dcard">
+            <div class="usage-top"><b>Usage this month</b><span>{planUsed} {planUsed === 1 ? 'check' : 'checks'} · unlimited</span></div>
+            <div class="plan-sub">This account has full access — checks are recorded but never limited or charged.</div>
+          </div>
+        ) : isPro ? (
           <div class="dcard">
             <div class="usage-top"><b>Usage this month</b><span>{planUsed} / {planLimit} checks</span></div>
             <div class="usage-bar"><i style={`width:${pct}%; background:${pct >= 90 ? '#d43a3a' : pct >= 70 ? '#b7791f' : '#4f46e5'}`}></i></div>

@@ -547,17 +547,7 @@ import App from '../layouts/App.astro';
         if (USER) {
           el.innerHTML = `<span class="acct-usage" id="acctusage"></span><span class="acct-email">${esc(USER.email)}</span><a class="acct-btn" href="/dashboard">Dashboard</a><button class="acct-btn" id="myaudits">My audits</button><button class="acct-btn" id="signout">Sign out</button>`;
           $('myaudits').onclick = showAudits; $('signout').onclick = signOut;
-          fetch('/api/payments/status').then((r) => r.json()).then((d) => {
-            const u = $('acctusage');
-            if (!u || !d.signedIn) return;
-            if (d.plan === 'pro') {
-              const low = (d.planLimit - d.planUsed) <= Math.ceil(d.planLimit * 0.1);
-              u.innerHTML = `<a href="/pricing" class="usage-pill pro${low ? ' low' : ''}">Pro · ${d.planUsed}/${d.planLimit}</a>`;
-            } else {
-              const left = (d.freeCheckAvailable ? 1 : 0) + (d.credits || 0);
-              u.innerHTML = `<a href="/pricing" class="usage-pill${left === 0 ? ' low' : ''}">Free · ${left} check${left === 1 ? '' : 's'} left</a>`;
-            }
-          }).catch(() => {});
+          // Usage pill now lives in the app shell (App.astro).
         } else {
           el.innerHTML = `<button class="acct-btn solid" id="signin">Sign in</button>`;
           $('signin').onclick = () => openAuth('login');
