@@ -3,16 +3,20 @@ import Site from '../layouts/Site.astro';
 import QRCode from 'qrcode';
 import { CREDIT_PACKS } from '../lib/billing';
 
-// UPI is a stopgap for recurring billing: Stripe cannot process subscription
-// billing for Indian businesses, and Razorpay is the eventual real fix. Until
-// then, customers pay via UPI and an admin approves the claim (see
-// /api/payments/claim + /admin/payments). Configure via env vars — never
-// fabricate a payee ID. The QR carries NO fixed amount (packages have
-// different prices) — the amount is shown per-package and the payer enters it
-// in their UPI app.
+// Payment is deliberately UPI or WhatsApp only — no cards, no auto-renewal, no
+// payment processor in the middle. An admin verifies each payment and approves
+// it (see /api/payments/claim + /admin/payments). Configure via env vars —
+// never fabricate a payee ID. The QR carries NO fixed amount (packs have
+// different prices), so the amount is shown per-pack and typed by the payer.
 const UPI_ID = (import.meta.env.UPI_ID || process.env.UPI_ID || '').trim();
 const UPI_NAME = (import.meta.env.UPI_PAYEE_NAME || process.env.UPI_PAYEE_NAME || 'AI Page Audit').trim();
 const MONTHLY_INR = (import.meta.env.UPI_AMOUNT_INR || process.env.UPI_AMOUNT_INR || '8299').trim();
+
+// WhatsApp is the second (and only other) way to pay. Digits only — wa.me
+// rejects spaces, plus signs and dashes.
+const WHATSAPP = (import.meta.env.WHATSAPP_NUMBER || process.env.WHATSAPP_NUMBER || '').replace(/[^0-9]/g, '');
+const waConfigured = Boolean(WHATSAPP);
+const waLink = (msg: string) => `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`;
 const upiConfigured = Boolean(UPI_ID);
 let upiUri = '', qrSvg = '';
 if (upiConfigured) {
@@ -29,6 +33,8 @@ const faqs = [
   { q: 'What if a page can\u2019t be fetched?', a: 'The check is returned to your balance automatically. You are never charged for a result we could not deliver.' },
   { q: 'Why only one login?', a: 'Accounts are per-seat. Only one active session is allowed at a time \u2014 signing in elsewhere ends the previous session. Need multiple seats? Contact us.' },
   { q: 'Can I cancel Pro?', a: 'Yes \u2014 anytime. Pro does not auto-renew, so there is no mandate to cancel; it simply expires at the end of the period unless you renew.' },
+  { q: 'How can I pay?', a: 'UPI or WhatsApp \u2014 those are the only two options. We do not accept cards, we never store payment details, and nothing auto-renews. Pay by UPI and submit the reference number, or message us on WhatsApp and we will activate your account by hand.' },
+  { q: 'How long does activation take?', a: 'Each payment is checked by a person, usually within a few hours and always the same business day. You will get an email the moment your account is topped up.' },
 ];
 const faqSchema = {
   '@context': 'https://schema.org',
@@ -99,38 +105,83 @@ const faqSchema = {
       <p>All tiers include: LLM Access Check across every AI crawler (ChatGPT, ChatGPT Search, Perplexity, Claude, Copilot, Google AI), the full AEO audit with ranked fixes, content extraction &amp; gap analysis, page-type/category-aware checks, saved reports, PDF export, and one login per account.</p>
     </div>
 
-    <div class="wrap upi-wrap" id="pay">
-      <h2 class="faq-h">Pay via UPI</h2>
-      <p class="upi-intro">Card billing for India isn’t live yet — for now, pay via UPI. It’s manually verified, usually within a few hours.</p>
-      {upiConfigured ? (
-        <div class="upicard">
-          <div class="upi-qr" set:html={qrSvg} />
-          <div class="upi-info">
-            <div class="upi-idrow"><span class="upi-id">{UPI_ID}</span><button class="btn-ghost sm" id="upicopy" data-upi={UPI_ID}>Copy UPI ID</button></div>
-            <a href={upiUri} class="btn-primary upi-pay">Pay with UPI app</a>
+    <div class="wrap pay-wrap" id="pay">
+      <h2 class="faq-h">How to pay</h2>
+      <p class="pay-intro">
+        Two ways, both verified by a human — usually within a few hours, and always
+        the same business day. We never see or store your card or bank details.
+      </p>
 
-            <div class="paywhat">
-              <label class="pw-opt"><input type="radio" name="paywhat" value="credits" checked /> A check pack — <span id="pw-pack-amt">₹599 (5 checks)</span></label>
-              <label class="pw-opt"><input type="radio" name="paywhat" value="subscription" /> Monthly Pro — ₹{MONTHLY_INR} (500 checks/month)</label>
-            </div>
+      <div class="paygrid">
+        <!-- ── 1. UPI ── -->
+        <div class="paycard">
+          <div class="pay-head"><span class="pay-n">1</span><b>Pay by UPI</b><span class="pay-tag">Fastest</span></div>
+          {upiConfigured ? (
+            <>
+              <div class="upi-qr" set:html={qrSvg} />
+              <div class="upi-idrow">
+                <span class="upi-id">{UPI_ID}</span>
+                <button class="btn-ghost sm" id="upicopy" data-upi={UPI_ID}>Copy</button>
+              </div>
+              <a href={upiUri} class="btn-primary upi-pay">Open my UPI app</a>
 
-            <ol class="upi-steps">
-              <li>Scan the QR (or tap “Pay with UPI app” on mobile) and pay the amount for what you’re buying above.</li>
-              <li>Copy the UTR / transaction reference number from your UPI app.</li>
-              <li>Submit it below with the email your AI Page Audit account uses.</li>
-            </ol>
-            <form id="upiform" class="upiform">
-              <input type="email" id="uf-email" placeholder="Your AI Page Audit account email" required />
-              <input type="text" id="uf-utr" placeholder="UPI transaction reference (UTR)" required />
-              <input type="text" id="uf-note" placeholder="Note (optional)" />
-              <button type="submit" class="btn-primary" id="uf-go">Submit for verification</button>
-              <div class="upi-msg" id="uf-msg"></div>
-            </form>
-          </div>
+              <div class="paywhat">
+                <div class="pw-label">What are you paying for?</div>
+                <label class="pw-opt"><input type="radio" name="paywhat" value="credits" checked /> A check pack — <span id="pw-pack-amt">₹599 (5 checks)</span></label>
+                <label class="pw-opt"><input type="radio" name="paywhat" value="subscription" /> Monthly Pro — ₹{MONTHLY_INR} (500 checks/month)</label>
+              </div>
+
+              <ol class="upi-steps">
+                <li>Scan the QR, or tap <b>Open my UPI app</b> on your phone.</li>
+                <li>Pay the exact amount shown above.</li>
+                <li>Copy the <b>UTR</b> (transaction reference) from your UPI app.</li>
+                <li>Paste it below so we can match it to your account.</li>
+              </ol>
+
+              <form id="upiform" class="upiform">
+                <input type="email" id="uf-email" placeholder="The email on your account" required />
+                <input type="text" id="uf-utr" placeholder="UPI transaction reference (UTR)" required />
+                <input type="text" id="uf-note" placeholder="Note (optional)" />
+                <button type="submit" class="btn-primary" id="uf-go">Submit for verification</button>
+                <div class="upi-msg" id="uf-msg"></div>
+              </form>
+            </>
+          ) : (
+            <p class="pay-off">UPI isn’t switched on for this deployment yet. Use WhatsApp instead, or contact us.</p>
+          )}
         </div>
-      ) : (
-        <div class="upicard upi-off"><p>UPI payment isn’t configured on this deployment yet — email us to activate manually.</p></div>
-      )}
+
+        <!-- ── 2. WhatsApp ── -->
+        <div class="paycard">
+          <div class="pay-head"><span class="pay-n">2</span><b>Pay on WhatsApp</b><span class="pay-tag alt">Talk to a human</span></div>
+          <p class="pay-desc">
+            Prefer to just message us? Send a WhatsApp, tell us which pack you want, and
+            we’ll send payment details and activate your account by hand. Best if you’re
+            buying for a team, need an invoice, or want to ask something first.
+          </p>
+          {waConfigured ? (
+            <div class="wa-actions">
+              <a class="btn-wa" href={waLink('Hi — I would like to buy a check pack on AI Page Audit. My account email is: ')} target="_blank" rel="noopener">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.13h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.17 8.17 0 0 1-1.26-4.36c0-4.54 3.7-8.23 8.25-8.23 2.2 0 4.27.86 5.83 2.41a8.18 8.18 0 0 1 2.41 5.83c0 4.54-3.7 8.21-8.24 8.21Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.24-.64.8-.78.97-.14.16-.29.18-.53.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.47c-.16 0-.43.06-.65.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.17 1.73 2.64 4.19 3.7.59.25 1.04.4 1.4.52.59.19 1.12.16 1.55.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.11-.22-.17-.47-.29Z"/></svg>
+                Message us on WhatsApp
+              </a>
+              <span class="wa-num">+{WHATSAPP}</span>
+            </div>
+          ) : (
+            <p class="pay-off">WhatsApp isn’t switched on for this deployment yet — set WHATSAPP_NUMBER to enable it.</p>
+          )}
+          <ul class="wa-list">
+            <li>Ask a question before you pay</li>
+            <li>Request a GST invoice</li>
+            <li>Buy several seats for a team</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="pay-note">
+        <b>UPI and WhatsApp are the only ways to pay.</b> We don’t take cards, we don’t
+        auto-renew anything, and there’s no mandate on your account to cancel later.
+      </p>
     </div>
 
     <div class="wrap faq-wrap">
@@ -186,10 +237,35 @@ const faqSchema = {
   </script>
 
   <style>
+    /* ---- payment section: UPI + WhatsApp, nothing else ---- */
+    .pay-wrap { margin-top: 56px; }
+    .pay-intro { font-size: 15px; color: var(--ink-2); max-width: 68ch; margin: 0 0 26px; line-height: 1.65; }
+    .paygrid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+    .paycard { border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 24px; box-shadow: var(--shadow); }
+    .pay-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .pay-n { width: 26px; height: 26px; border-radius: 8px; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 13px; font-weight: 800; flex: none; }
+    .pay-head b { font-size: 17px; letter-spacing: -.02em; }
+    .pay-tag { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-dark); }
+    .pay-tag.alt { background: #e8f6ed; color: var(--ok); }
+    .pay-desc { font-size: 14.5px; color: var(--muted); line-height: 1.65; margin: 0 0 18px; }
+    .pay-off { font-size: 14px; color: var(--muted); margin: 0; }
+    .pw-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); margin-bottom: 8px; }
+
+    .btn-wa { display: inline-flex; align-items: center; justify-content: center; gap: 9px; background: #25d366; color: #05320f; border-radius: 10px; padding: 12px 20px; font-size: 14.5px; font-weight: 800; text-decoration: none; transition: .15s; }
+    .btn-wa:hover { background: #1eb955; transform: translateY(-1px); }
+    .btn-wa svg { width: 19px; height: 19px; }
+    .wa-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .wa-num { font-size: 13.5px; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+    .wa-list { margin: 18px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+    .wa-list li { font-size: 13.5px; color: var(--muted); }
+
+    .pay-note { margin: 22px 0 0; font-size: 14px; color: var(--ink-2); background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 11px; padding: 14px 17px; }
+    @media (max-width: 860px) { .paygrid { grid-template-columns: 1fr; } }
+
     .tier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: stretch; }
     @media (max-width: 900px) { .tier-grid { grid-template-columns: 1fr; } }
     .tiercard { position: relative; border: 1px solid var(--line); border-radius: 20px; background: #fff; padding: 28px 26px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
-    .tiercard.featured { border: 2px solid var(--accent); box-shadow: 0 20px 50px -24px rgba(79,70,229,.35); }
+    .tiercard.featured { border: 2px solid var(--accent); box-shadow: 0 20px 50px -24px rgba(8,145,178,.35); }
     .pc-badge { position: absolute; top: -13px; left: 26px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; }
     .pc-badge.alt { background: var(--ink-900); }
     .pc-name { font-size: 15px; font-weight: 700; color: var(--muted); }
@@ -227,7 +303,7 @@ const faqSchema = {
     .upi-steps { font-size: 13px; color: var(--ink-2); line-height: 1.7; padding-left: 20px; margin: 0 0 20px; }
     .upiform { display: grid; gap: 10px; max-width: 420px; }
     .upiform input { border: 1px solid var(--line-2); border-radius: 10px; padding: 11px 13px; font-size: 14px; font-family: inherit; }
-    .upiform input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.14); }
+    .upiform input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(8,145,178,.14); }
     .upiform button { justify-self: start; }
     .upi-msg { font-size: 13px; margin-top: 2px; }
     .upi-msg.ok { color: var(--ok); font-weight: 600; }

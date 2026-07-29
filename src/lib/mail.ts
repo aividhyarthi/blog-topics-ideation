@@ -53,7 +53,7 @@ change.`;
   const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#0f172a">
   <h1 style="font-size:20px;font-weight:800;letter-spacing:-.02em;margin:0 0 14px">Reset your AI Page Audit password</h1>
   <p style="font-size:15px;line-height:1.65;color:#334155;margin:0 0 22px">Choose a new password using the button below. The link expires in one hour and can only be used once.</p>
-  <p style="margin:0 0 24px"><a href="${link}" style="display:inline-block;background:#4f46e5;color:#fff;font-weight:700;font-size:15px;text-decoration:none;padding:12px 22px;border-radius:10px">Choose a new password</a></p>
+  <p style="margin:0 0 24px"><a href="${link}" style="display:inline-block;background:#0891b2;color:#fff;font-weight:700;font-size:15px;text-decoration:none;padding:12px 22px;border-radius:10px">Choose a new password</a></p>
   <p style="font-size:13px;line-height:1.6;color:#64748b;margin:0 0 8px">Or paste this into your browser:</p>
   <p style="font-size:12.5px;color:#64748b;word-break:break-all;margin:0 0 22px">${link}</p>
   <p style="font-size:13px;line-height:1.6;color:#94a3b8;margin:0;border-top:1px solid #e6ebf1;padding-top:16px">If you didn't ask for this, ignore this email — your password won't change.</p>

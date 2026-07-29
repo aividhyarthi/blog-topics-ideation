@@ -70,6 +70,7 @@ Open the service → **Variables**:
 | `UPI_ID` | To accept payments | Your UPI address, e.g. `you@okhdfcbank`. Rendered into the QR on `/pricing`. |
 | `UPI_PAYEE_NAME` | To accept payments | Name shown in the payer's UPI app. |
 | `UPI_AMOUNT_INR` | Optional | Monthly Pro price in INR. Defaults to `8299`. |
+| `WHATSAPP_NUMBER` | To accept payments | Your WhatsApp number in full international form, digits only, e.g. `919876543210`. Powers the "Message us on WhatsApp" button on `/pricing`. Without it, only UPI is offered. |
 | `PORT` | **No — never set this** | Railway injects it. Setting it manually breaks routing. |
 
 Then **Settings → Networking → Generate Domain** for a public URL.
@@ -93,19 +94,26 @@ Run these against your live domain, in order:
 
 ---
 
-## How payment works today
+## How payment works
 
-Stripe cannot do recurring billing for Indian businesses, so billing is a
-**manual UPI flow** for now:
+**UPI and WhatsApp are the only two routes, by design.** No cards, no payment
+processor, no auto-renewal, and no mandate on anyone's account.
 
-1. Customer picks a pack on `/pricing` and pays the QR via any UPI app.
-2. They submit the UTR/reference number as a payment claim.
-3. You open `/admin/payments`, cross-check the amount and UTR against your bank,
-   and click **Approve**.
+**By UPI:**
+1. Customer picks a pack on `/pricing` and pays the QR from any UPI app.
+2. They submit the UTR (transaction reference) as a payment claim.
+3. You open `/admin/payments`, match the amount and UTR against your bank, and
+   click **Approve**.
 4. Credits (or Pro for 30 days) land on their account immediately.
 
-Nothing is charged automatically and nothing is stored about their card. Replace
-this with Razorpay Subscriptions when you're ready.
+**By WhatsApp:**
+1. Customer taps **Message us on WhatsApp** on `/pricing`, pre-filled with what
+   they want to buy.
+2. You agree the amount, take payment however suits (UPI, invoice, transfer).
+3. Approve it in `/admin/payments` the same way.
+
+The same UTR can only ever be submitted once — a unique index enforces it — so a
+reference cannot be reused to claim credit twice.
 
 ---
 

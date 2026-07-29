@@ -35,19 +35,7 @@ const crawlers = [
   { name: 'PerplexityBot', note: 'blocked at the CDN', pct: 0 },
 ];
 
-// Chartbeat, March 2026 — one measure (fall in search referral traffic over two
-// years) across three categories, so a single-hue bar chart is the right form.
-const referral = [
-  { label: 'Small publishers', pct: 60 },
-  { label: 'Medium publishers', pct: 47 },
-  { label: 'Large publishers', pct: 22 },
-];
 
-const stats = [
-  { n: '58%', l: 'lower click-through on top-ranking pages when an AI Overview appears', src: 'Ahrefs, Feb 2026' },
-  { n: '+120%', l: 'more clicks per impression for brands cited inside the answer', src: 'Seer Interactive, 2026' },
-  { n: '10%', l: 'of the URLs ChatGPT cites also rank in Google’s top 10', src: 'Citation analysis, 2026' },
-];
 
 const features = [
   { icon: '🔎', h: 'LLM Access Check', p: 'Fetch any URL as Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI — and see exactly what each crawler can and can’t read, from navigation to footer.' },
@@ -114,55 +102,29 @@ const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial'
     </div>
   </section>
 
-  <!-- ── sourced proof ──────────────────────────────────────── -->
-  <section class="proof">
-    <div class="wrap proofgrid">
-      {stats.map((s) => (
-        <div class="stat">
-          <div class="s-n">{s.n}</div>
-          <div class="s-l">{s.l}</div>
-          <div class="s-src">{s.src}</div>
+  <!-- ── how it works (our product, not someone else's research) ── -->
+  <section class="how">
+    <div class="wrap">
+      <div class="sec-eyebrow">How it works</div>
+      <h2 class="sec-h2">Three steps, about twenty seconds</h2>
+      <p class="sec-sub">No install, no tag to add to your site, no waiting for a crawl. Paste a URL and read the answer.</p>
+      <div class="steps">
+        <div class="step">
+          <span class="st-n">1</span>
+          <h3>Paste any URL</h3>
+          <p>Your page, a client's page, or a competitor's. Nothing to install and no access to their site required — we fetch it the same way the crawlers do.</p>
         </div>
-      ))}
-    </div>
-  </section>
-
-  <!-- ── the stakes, with real data ─────────────────────────── -->
-  <section class="why">
-    <div class="wrap whygrid">
-      <div class="whycopy">
-        <span class="eyebrow">Why this matters now</span>
-        <h2>Search referrals are falling hardest for the smallest sites</h2>
-        <p>
-          Chartbeat measured the drop in search referral traffic over two years.
-          The decline scales inversely with size — which means being one of the
-          handful of sources an answer engine trusts is now worth more than a
-          page-one ranking ever was.
-        </p>
-        <p class="whynote">
-          The good news in the same data: the loss is <strong>not</strong> evenly
-          spread. Cited sources earn roughly double the click-through of uncited
-          ones on the very same query.
-        </p>
+        <div class="step">
+          <span class="st-n">2</span>
+          <h3>We fetch it as each crawler</h3>
+          <p>Googlebot, GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot and Bingbot — each with its real user-agent, paced so we never trip the site's rate limiter.</p>
+        </div>
+        <div class="step">
+          <span class="st-n">3</span>
+          <h3>You get the gap, and the fix</h3>
+          <p>Element by element: what each crawler received, what it missed, and a ranked list of what to change first. Export it as a PDF and hand it to a client.</p>
+        </div>
       </div>
-
-      <figure class="chartcard">
-        <figcaption>
-          <b>Fall in search referral traffic</b>
-          <span>Over two years, by publisher size · Chartbeat, Mar 2026</span>
-        </figcaption>
-        <div class="bars">
-          {referral.map((r) => (
-            <div class="barrow compact">
-              <div class="b-head"><span class="b-name">{r.label}</span></div>
-              <div class="b-track">
-                <div class="b-fill solo" style={`width:${r.pct}%`}></div>
-              </div>
-              <div class="b-val"><b>−{r.pct}%</b></div>
-            </div>
-          ))}
-        </div>
-      </figure>
     </div>
   </section>
 
@@ -221,7 +183,7 @@ const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial'
     .hero {
       border-bottom: 1px solid var(--line);
       background:
-        radial-gradient(900px 400px at 12% -20%, rgba(79, 70, 229, .13), transparent 62%),
+        radial-gradient(900px 400px at 12% -20%, rgba(8, 145, 178, .13), transparent 62%),
         radial-gradient(700px 340px at 92% 0%, rgba(2, 132, 199, .10), transparent 60%);
     }
     .herogrid {
@@ -265,20 +227,18 @@ const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial'
     .b-tag.warn { background: var(--warn-bg); color: var(--warn); }
     .b-tag.bad { background: var(--bad-bg); color: var(--bad); }
 
-    /* ---- proof band ---- */
-    .proof { background: #fff; border-bottom: 1px solid var(--line); }
-    .proofgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; padding: 40px 24px; }
-    .stat { border-left: 3px solid var(--accent); padding-left: 18px; }
-    .s-n { font-size: 34px; font-weight: 800; letter-spacing: -.035em; color: var(--accent); line-height: 1.1; font-variant-numeric: tabular-nums; }
-    .s-l { margin-top: 6px; font-size: 14px; color: var(--ink-2); line-height: 1.55; }
-    .s-src { margin-top: 7px; font-size: 11.5px; color: var(--faint); }
-
-    /* ---- why section ---- */
-    .why { padding: 72px 0; }
-    .whygrid { display: grid; grid-template-columns: 1fr 1fr; gap: 54px; align-items: center; }
-    .whycopy h2 { margin: 0 0 14px; font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1.2; }
-    .whycopy p { margin: 0 0 14px; font-size: 15.5px; line-height: 1.7; color: var(--ink-2); }
-    .whynote { border-left: 3px solid var(--accent-line); padding-left: 16px; color: var(--muted) !important; }
+    /* ---- how it works ---- */
+    .how { background: #fff; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 66px 0 72px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+    .step { position: relative; border: 1px solid var(--line); border-radius: 14px; padding: 26px 22px 22px; }
+    .st-n {
+      position: absolute; top: -15px; left: 22px;
+      width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+      background: var(--accent); color: #fff; font-size: 14px; font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .step h3 { margin: 8px 0 8px; font-size: 16.5px; font-weight: 800; letter-spacing: -.02em; }
+    .step p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.65; }
 
     /* ---- features ---- */
     .features { border-top: 1px solid var(--line); background: #fff; padding: 66px 0 74px; }
@@ -299,12 +259,10 @@ const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial'
 
     /* ---- responsive ---- */
     @media (max-width: 980px) {
-      .herogrid, .whygrid { grid-template-columns: 1fr; gap: 38px; }
+      .herogrid { grid-template-columns: 1fr; gap: 38px; }
+      .steps { grid-template-columns: 1fr; gap: 26px; }
       .herocopy h1 { font-size: 38px; }
       .fgrid { grid-template-columns: repeat(2, 1fr); }
-    }
-    @media (max-width: 720px) {
-      .proofgrid { grid-template-columns: 1fr; gap: 22px; padding: 32px 24px; }
     }
     @media (max-width: 560px) {
       .herogrid { padding: 44px 24px 50px; }

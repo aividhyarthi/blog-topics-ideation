@@ -26,7 +26,7 @@
       .cra-sub { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
       .cra-fld { display: block; font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin: 12px 0 5px; }
       .cra-card input { width: 100%; border: 1px solid var(--line-2); border-radius: 10px; padding: 11px 13px; font-size: 14px; font-family: inherit; box-sizing: border-box; }
-      .cra-card input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.14); }
+      .cra-card input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(8,145,178,.14); }
       .cra-go { width: 100%; justify-content: center; margin-top: 16px; padding: 11px; font-size: 14.5px; }
       .cra-switch { margin-top: 14px; font-size: 12.5px; color: var(--muted); text-align: center; }
       .cra-switch a { color: var(--accent-dark); font-weight: 700; cursor: pointer; }

@@ -4,15 +4,15 @@
    both layouts now import this instead. */
 
 :root {
-  /* Indigo reads as an analysis/intelligence product rather than the generic
-     SaaS blue this replaced. --accent replaces the old --pink variable, which
-     confusingly held a blue value. */
-  --accent: #4f46e5;
-  --accent-dark: #4338ca;
-  --accent-soft: #eef2ff;
-  --accent-line: #c7d2fe;
+  /* Deep cyan. Deliberately not indigo/violet — that palette now reads as
+     "generic AI product", which is the wrong signal for a tool being sold to
+     clients as a serious audit instrument. Also not the default SaaS blue. */
+  --accent: #0891b2;
+  --accent-dark: #0e7490;
+  --accent-soft: #ecfeff;
+  --accent-line: #a5f3fc;
 
-  /* Slate neutrals, very slightly cool, so they sit under indigo without
+  /* Slate neutrals, very slightly cool, so they sit under the cyan without
      fighting it. */
   --ink: #0f172a;
   --ink-2: #334155;
@@ -33,20 +33,20 @@
   --bad: #d43a3a;
   --bad-bg: #fcebeb;
   /* Used by the two tools: --na marks a signal that doesn't apply to this page
-     type, --indigo is their in-report accent. */
+     type, --indigo is their in-report accent (kept as a name for compatibility). */
   --na: #94a3b8;
-  --indigo: #4f46e5;
+  --indigo: #0891b2;
 
   /* Categorical series for charts, assigned in this fixed order and never
      cycled. Validated for colour-vision deficiency separation rather than
      eyeballed — an earlier slate #64748b failed the chroma floor (read as
      grey) and sat at ΔE 7.4 against the magenta under deuteranopia. None of
      these is the semantic red/green. */
-  --c1: #4f46e5;
-  --c2: #0d9488;
-  --c3: #d97706;
-  --c4: #be185d;
-  --c5: #0284c7;
+  --c1: #0891b2;
+  --c2: #ea580c;
+  --c3: #be185d;
+  --c4: #2563eb;
+  --c5: #4d7c0f;
 
   --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px -16px rgba(15, 23, 42, .16);
   --shadow-lg: 0 2px 4px rgba(15, 23, 42, .04), 0 18px 40px -22px rgba(15, 23, 42, .28);
@@ -90,7 +90,7 @@ h1, h2, h3 { text-wrap: balance; }
   width: 28px; height: 28px; border-radius: 8px; flex: none;
   background: linear-gradient(140deg, var(--accent), var(--accent-dark));
   display: grid; place-items: center;
-  box-shadow: 0 4px 12px -4px rgba(67, 56, 202, .55);
+  box-shadow: 0 4px 12px -4px rgba(14, 116, 144, .5);
 }
 .brand .mark svg { width: 15px; height: 15px; color: #fff; }
 .navmenu { margin-left: 28px; display: flex; gap: 22px; }
@@ -108,7 +108,7 @@ h1, h2, h3 { text-wrap: balance; }
   background: var(--accent); color: #fff; border: none; border-radius: 10px;
   padding: 11px 20px; font-size: 14px; font-weight: 700; font-family: inherit;
   cursor: pointer; text-decoration: none;
-  box-shadow: 0 6px 18px -8px rgba(79, 70, 229, .65);
+  box-shadow: 0 6px 18px -8px rgba(8, 145, 178, .6);
   transition: background .15s, transform .15s;
 }
 .btn-primary:hover { background: var(--accent-dark); transform: translateY(-1px); }
@@ -126,7 +126,7 @@ h1, h2, h3 { text-wrap: balance; }
 /* ---- page header used by content pages ---- */
 .pagehead {
   border-bottom: 1px solid var(--line);
-  background: radial-gradient(800px 320px at 80% -10%, rgba(79, 70, 229, .09), transparent 60%);
+  background: radial-gradient(800px 320px at 80% -10%, rgba(8, 145, 178, .10), transparent 60%);
 }
 .pagehead .wrap { padding: 54px 24px 44px; }
 .eyebrow {
