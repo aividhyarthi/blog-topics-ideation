@@ -13,7 +13,7 @@
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
 import { loadConfig, saveConfig, loadSnapshot, loadSnapshots, loadCoverageSnapshot, loadCoverageSnapshots, saveNightlyMarker, loadReviewThemes } from './store';
-import { runCheck, checkCoverageBatch, checkRating, retryFailedChart } from './check';
+import { runCheck, checkCoverageBatch, checkRating, retryFailedChart, SearchCache } from './check';
 import { analyzeReviewThemes } from './themes';
 import { backfillDeveloperId, backfillGenreId } from './fetch';
 import { withTenantLock } from './lock';
@@ -40,7 +40,7 @@ export interface NightlyResult {
  * making progress on each subsequent trigger instead of failing outright.
  */
 export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger = 'unknown'): Promise<NightlyResult> {
-  const cache = new Map<string, SearchHit[]>();
+  const cache = new SearchCache();
   let checkedApps = 0;
   let checkedCoverage = 0;
   const lines: string[] = [];
@@ -318,6 +318,16 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
   lines.push(checkedApps
     ? `Done — checked ${checkedApps} app(s)${checkedCoverage ? `, ${checkedCoverage} coverage list(s)` : ''}.`
     : 'Nothing to check yet.');
+
+  // How much duplicate store traffic the shared cache actually avoided. This
+  // is the number to read when coverage looks short: a high `saved` means the
+  // dedupe is working and any shortfall is time or throttling, not repeated
+  // searches; `failed` rising with it means the store is rate-limiting us.
+  const totalLookups = cache.requests + cache.hits;
+  if (totalLookups) {
+    const saved = Math.round((cache.hits / totalLookups) * 100);
+    lines.push(`Store traffic: ${cache.requests} search(es) issued, ${cache.hits} served from cache (${saved}% avoided), ${cache.errors} failed.`);
+  }
 
   writeNightlyStatus({
     startedAt, finishedAt: new Date().toISOString(), trigger,

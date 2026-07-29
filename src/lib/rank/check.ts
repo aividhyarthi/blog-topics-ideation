@@ -21,6 +21,25 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const MAX_CACHE_ENTRIES = 8000;
 
 /**
+ * The run-wide search cache, with counters. Plain Maps still work everywhere
+ * (this IS a Map), but a run that passes one of these gets a hard number for
+ * how much duplicate store traffic the cache actually avoided — which is the
+ * difference between "the coverage list looks better today" and knowing the
+ * dedupe is working. Surfaced in the nightly log (see runNightlyCheck).
+ */
+export class SearchCache extends Map<string, SearchHit[]> {
+  /** Real searches issued to the store. */
+  requests = 0;
+  /** Searches served from cache — no network, no politeness delay. */
+  hits = 0;
+  /** Searches that threw (rate-limit, block, network). */
+  errors = 0;
+}
+const bump = (c: Map<string, SearchHit[]>, k: 'requests' | 'hits' | 'errors') => {
+  if (c instanceof SearchCache) c[k]++;
+};
+
+/**
  * Key for one cached store search. Deliberately keyed on the SEARCH, not on
  * the app asking for it: the Play/App Store results for a keyword in a given
  * storefront are identical no matter which tracked app we're locating inside
@@ -72,7 +91,10 @@ async function checkKeywordsBounded(
     const cacheKey = searchCacheKey(app, kw);
     try {
       let hits = searchCache.get(cacheKey);
-      if (!hits) {
+      if (hits) {
+        bump(searchCache, 'hits');
+      } else {
+        bump(searchCache, 'requests');
         hits = await searchStore(app.store, kw, app.country, app.lang);
         cacheSet(searchCache, cacheKey, hits);
         await sleep(delayMs); // stay polite with the store endpoints
@@ -80,6 +102,7 @@ async function checkKeywordsBounded(
       rows.push(keywordRank(app.appId, kw, hits, depth));
       consecutiveErrors = 0;
     } catch (e) {
+      bump(searchCache, 'errors');
       rows.push({ keyword: kw, position: null, depth, top: [], error: e instanceof Error ? e.message : String(e) });
       consecutiveErrors++;
       if (consecutiveErrors >= ABORT_AFTER_CONSECUTIVE_ERRORS) return { rows, exhausted: false };
@@ -114,13 +137,17 @@ export async function checkApp(
     const cacheKey = searchCacheKey(app, kw);
     try {
       let hits = searchCache.get(cacheKey);
-      if (!hits) {
+      if (hits) {
+        bump(searchCache, 'hits');
+      } else {
+        bump(searchCache, 'requests');
         hits = await searchStore(app.store, kw, app.country, app.lang);
         cacheSet(searchCache, cacheKey, hits);
         await sleep(delayMs); // stay polite with the store endpoints
       }
       result.keywords.push(keywordRank(app.appId, kw, hits, depth));
     } catch (e) {
+      bump(searchCache, 'errors');
       result.keywords.push({
         keyword: kw, position: null, depth, top: [],
         error: e instanceof Error ? e.message : String(e),
