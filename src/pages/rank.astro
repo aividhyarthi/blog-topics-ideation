@@ -640,10 +640,21 @@ ai photo enhancer"></textarea>
 
       // Stacked bars: one bar per checked day, best bucket at the bottom,
       // 2px surface gaps between segments/bars, rounded cap on the top segment.
+      // Keywords the store never gave us an answer for that day (errored, or
+      // the run ran out of time before reaching them). NOT a ranking outcome.
+      const notCheckedOn = (d) => (d.failed || 0) + (d.unchecked || 0);
+
       function stackChart(days) {
         const W = 560, H = 170, padL = 26, padB = 18, padT = 6;
         const plotW = W - padL - 6, plotH = H - padT - padB;
-        const maxY = Math.max(1, ...days.map((d) => d.tracked));
+        // Scale to the whole LIST, not just the part that got checked. With
+        // the axis topping out at the checked count, a day where half the
+        // keywords never got searched drew a half-height bar — visually
+        // identical to every keyword crashing out of the rankings overnight.
+        // The unchecked remainder is drawn as its own hatched segment below,
+        // so a partial day reads as "not measured yet", which is what it is.
+        const maxY = Math.max(1, ...days.map((d) => d.tracked + notCheckedOn(d)));
+        const anyUnchecked = days.some((d) => notCheckedOn(d) > 0);
         const n = days.length;
         const slot = plotW / n, bw = Math.min(46, Math.max(8, slot * 0.62));
         let out = '';
@@ -667,15 +678,38 @@ ai photo enhancer"></textarea>
             segs += `<rect x="${x.toFixed(1)}" y="${(y + 1).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, h - 2).toFixed(1)}" fill="${BUCKET_COLORS[bi]}"/>`;
             topSegY = y; topBi = bi;
           });
+          // Unchecked sits on top, hatched, so it never reads as a rank bucket.
+          const nc = notCheckedOn(d);
+          if (nc) {
+            const h = (nc / maxY) * plotH;
+            y -= h;
+            segs += `<rect x="${x.toFixed(1)}" y="${(y + 1).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, h - 2).toFixed(1)}" fill="url(#ncHatch)" stroke="#c3c8d4" stroke-width="0.8"/>`;
+            topSegY = null; // hatched block is its own cap, no rounded overlay
+          }
           // rounded cap on the top of the stack
           if (topSegY != null) segs += `<rect x="${x.toFixed(1)}" y="${(topSegY + 1).toFixed(1)}" width="${bw.toFixed(1)}" height="6" rx="3" fill="${BUCKET_COLORS[topBi]}"/>`;
           const rows = d.buckets.map((v, bi) => v ? `<div class="tt-r"><span><span class="sw" style="background:${BUCKET_COLORS[bi]};display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;"></span>${esc(BUCKET_LABELS()[bi])}</span><b>${v}</b></div>` : '').join('');
-          const tid = tipId(`<div class="tt-d">${esc(fmtDay(d.dateKey))} · ${d.tracked} keywords</div>${rows}<div class="tt-r"><span>Visibility</span><b>${d.visibility.toFixed(1)}</b></div>`);
+          const ncRow = nc ? `<div class="tt-r"><span>Not checked</span><b>${nc}</b></div>` : '';
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(d.dateKey))} · ${d.tracked} of ${d.tracked + nc} checked</div>${rows}${ncRow}<div class="tt-r"><span>Visibility</span><b>${d.visibility.toFixed(1)}</b></div>`);
           out += segs;
           out += `<rect class="hcol" data-tip="${tid}" x="${(padL + slot * i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(d.dateKey))}</text>`;
         });
-        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+        const defs = anyUnchecked
+          ? `<defs><pattern id="ncHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+               <rect width="6" height="6" fill="#f1f3f7"/><line x1="0" y1="0" x2="0" y2="6" stroke="#c8cdd9" stroke-width="2.5"/>
+             </pattern></defs>` : '';
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${defs}${out}</svg>`;
+      }
+
+      /** Bucket legend, plus a "not checked" key when any day has one. */
+      function bucketLegend(days) {
+        const base = BUCKET_LABELS().map((l, i) =>
+          `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
+        const anyUnchecked = (days || []).some((d) => notCheckedOn(d) > 0);
+        return base + (anyUnchecked
+          ? `<span class="li"><span class="sw" style="background:repeating-linear-gradient(45deg,#f1f3f7 0 2px,#c8cdd9 2px 4px);border:1px solid #c3c8d4;"></span>Not checked</span>`
+          : '');
       }
 
       // Visibility score: the headline chart (see overviewHtml) — accent
@@ -1079,8 +1113,7 @@ ai photo enhancer"></textarea>
       function coverageChartsHtml(app) {
         const cov = app.coverageOverview;
         if (!cov || !cov.total || !cov.days || !cov.days.length) return '';
-        const legend = BUCKET_LABELS().map((l, i) =>
-          `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
+        const legend = bucketLegend(cov.days);
         return `<div class="chartbox"><h4>Keyword universe size over time</h4>${universeSizeChart(cov.universeTrend)}</div>
           <div class="chartbox"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>`;
       }
@@ -1095,7 +1128,7 @@ ai photo enhancer"></textarea>
             : '<p class="hint">No check data yet — hit <b>Check now</b> to record the first data point.</p>';
         }
         const c = ov.counts || {}, p = ov.prevCounts || null;
-        const legend = BUCKET_LABELS().map((l, i) => `<span class="li"><span class="sw" style="background:${BUCKET_COLORS[i]}"></span>${esc(l)}</span>`).join('');
+        const legend = bucketLegend(ov.days);
         const cur = ov.visibility, prev = ov.prevVisibility;
         const vDelta = (cur != null && prev != null) ? Math.round((cur - prev) * 10) / 10 : null;
         const vDeltaHtml = vDelta == null ? ''

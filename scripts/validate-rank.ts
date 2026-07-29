@@ -457,5 +457,51 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
     alloc(20 * 60_000, 3).reduce((a, b) => a + b, 0), 20 * 60_000);
 }
 
+// --- search-cache dedupe: why competitors are nearly free -------------------
+// The whole economics of tracking rivals rests on one store search serving
+// every app that shares the keyword. A cache key that varied by app would
+// quietly multiply store traffic by the number of competitors, blow the
+// nightly time budget, and trigger the rate-limiting that shows up as
+// "not checked" keywords — so pin the invariant down here.
+{
+  const { searchCacheKey } = await import('../src/lib/rank/check');
+  const primary = { store: 'play' as const, country: 'in', lang: 'en' };
+  const competitor = { store: 'play' as const, country: 'in', lang: 'en' };
+
+  eq('a primary and its competitor share one cached search',
+    searchCacheKey(primary, 'mutual funds'), searchCacheKey(competitor, 'mutual funds'));
+  eq('four apps on one keyword = one store request',
+    new Set([primary, competitor, primary, competitor].map((a) => searchCacheKey(a, 'sip'))).size, 1);
+  eq('keyword case does not fragment the cache',
+    searchCacheKey(primary, 'Mutual Funds'), searchCacheKey(primary, 'mutual funds'));
+
+  // …but results genuinely differ per storefront, so those must NOT collide.
+  eq('a different country is a different search',
+    searchCacheKey(primary, 'sip') === searchCacheKey({ ...primary, country: 'us' }, 'sip'), false);
+  eq('a different language is a different search',
+    searchCacheKey(primary, 'sip') === searchCacheKey({ ...primary, lang: 'hi' }, 'sip'), false);
+  eq('a different store is a different search',
+    searchCacheKey(primary, 'sip') === searchCacheKey({ ...primary, store: 'ios' }, 'sip'), false);
+  eq('different keywords stay separate',
+    searchCacheKey(primary, 'sip') === searchCacheKey(primary, 'elss'), false);
+}
+
+// --- back-off must never outrun the deadline --------------------------------
+{
+  // Mirrors the sleep in checkKeywordsBounded. A 15s back-off with 2s of
+  // budget left used to overshoot into the next app's slice.
+  const backoff = (delayMs: number, consecutiveErrors: number, left: number) =>
+    Math.max(0, Math.min(delayMs * 2 ** Math.min(consecutiveErrors, 5), 15000, left));
+
+  eq('back-off escalates while there is budget', backoff(400, 3, 60_000), 3200);
+  // The exponent caps at 5, so at the default 400ms delay the ceiling that
+  // actually binds is 400 * 2^5 = 12.8s; the 15s clamp only matters if the
+  // politeness delay is ever raised.
+  eq('back-off plateaus at 12.8s for the default delay', backoff(400, 20, 60_000), 12800);
+  eq('the 15s clamp binds at a larger delay', backoff(2000, 20, 60_000), 15000);
+  eq('back-off never exceeds the time left', backoff(400, 20, 2000), 2000);
+  eq('no negative sleep once the budget is spent', backoff(400, 20, -500), 0);
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');

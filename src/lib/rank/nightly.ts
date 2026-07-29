@@ -286,7 +286,11 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
         // because `remaining` is recomputed each iteration.
         const share = Math.max(30_000, Math.floor(remaining / (ordered.length - i)));
         try {
-          const r = await checkCoverageBatch(app, userId, Math.min(share, remaining));
+          // `cache` is the run-wide search cache, shared with the daily check
+          // above and across every app/tenant in this run — see the note in
+          // checkCoverageBatch for why that is the difference between one
+          // store request per keyword and one per keyword PER competitor.
+          const r = await checkCoverageBatch(app, userId, Math.min(share, remaining), cache);
           lines.push(`  [${label}] ${app.key}: coverage ${r.done ? 'fully checked' : 'partially checked'} (${r.totalDone}/${r.total} keywords)`);
           if (r.checkedNow > 0) checkedCoverage++;
         } catch (e) {

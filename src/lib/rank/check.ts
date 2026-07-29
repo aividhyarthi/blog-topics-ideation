@@ -12,6 +12,32 @@ import type { SearchHit } from './fetch';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * One nightly run shares a single search cache across every app and tenant
+ * (see runNightlyCheck), which is what makes competitors nearly free — but an
+ * unbounded Map of 2000-keyword result lists per tenant would grow all run.
+ * Well past any realistic single run's working set, and dropping the whole
+ * cache only costs re-fetches, never correctness.
+ */
+const MAX_CACHE_ENTRIES = 8000;
+
+/**
+ * Key for one cached store search. Deliberately keyed on the SEARCH, not on
+ * the app asking for it: the Play/App Store results for a keyword in a given
+ * storefront are identical no matter which tracked app we're locating inside
+ * them, so two apps (a primary and its competitor, or two tenants tracking
+ * the same term) share one request. Adding appId here would silently undo
+ * that and multiply store traffic by the number of apps.
+ */
+export const searchCacheKey = (
+  app: Pick<TrackedApp, 'store' | 'country' | 'lang'>,
+  keyword: string,
+) => `${app.store}|${app.country}|${app.lang}|${keyword.toLowerCase()}`;
+function cacheSet(cache: Map<string, SearchHit[]>, key: string, hits: SearchHit[]): void {
+  if (cache.size >= MAX_CACHE_ENTRIES) cache.clear();
+  cache.set(key, hits);
+}
+
+/**
  * Searches `keywordList` in order, stopping early once `timeBudgetMs` has
  * elapsed. `exhausted: false` means there's more of `keywordList` left
  * un-searched when time ran out — the caller decides what "more" means
@@ -41,13 +67,14 @@ async function checkKeywordsBounded(
   let consecutiveErrors = 0;
   const ABORT_AFTER_CONSECUTIVE_ERRORS = 30;
   for (const kw of keywordList) {
-    if (Date.now() - start > timeBudgetMs) return { rows, exhausted: false };
-    const cacheKey = `${app.store}|${app.country}|${app.lang}|${kw.toLowerCase()}`;
+    const left = timeBudgetMs - (Date.now() - start);
+    if (left <= 0) return { rows, exhausted: false };
+    const cacheKey = searchCacheKey(app, kw);
     try {
       let hits = searchCache.get(cacheKey);
       if (!hits) {
         hits = await searchStore(app.store, kw, app.country, app.lang);
-        searchCache.set(cacheKey, hits);
+        cacheSet(searchCache, cacheKey, hits);
         await sleep(delayMs); // stay polite with the store endpoints
       }
       rows.push(keywordRank(app.appId, kw, hits, depth));
@@ -56,8 +83,10 @@ async function checkKeywordsBounded(
       rows.push({ keyword: kw, position: null, depth, top: [], error: e instanceof Error ? e.message : String(e) });
       consecutiveErrors++;
       if (consecutiveErrors >= ABORT_AFTER_CONSECUTIVE_ERRORS) return { rows, exhausted: false };
-      // Escalating back-off: ride out a short throttle instead of quitting on it.
-      await sleep(Math.min(delayMs * 2 ** Math.min(consecutiveErrors, 5), 15000));
+      // Escalating back-off: ride out a short throttle instead of quitting on
+      // it — but never sleep past the deadline. A 15s back-off with 2s of
+      // budget left just burns the next app's share for nothing.
+      await sleep(Math.max(0, Math.min(delayMs * 2 ** Math.min(consecutiveErrors, 5), 15000, left)));
     }
   }
   return { rows, exhausted: true };
@@ -82,12 +111,12 @@ export async function checkApp(
   const depth = searchDepth(app.store);
 
   for (const kw of keywordList) {
-    const cacheKey = `${app.store}|${app.country}|${app.lang}|${kw.toLowerCase()}`;
+    const cacheKey = searchCacheKey(app, kw);
     try {
       let hits = searchCache.get(cacheKey);
       if (!hits) {
         hits = await searchStore(app.store, kw, app.country, app.lang);
-        searchCache.set(cacheKey, hits);
+        cacheSet(searchCache, cacheKey, hits);
         await sleep(delayMs); // stay polite with the store endpoints
       }
       result.keywords.push(keywordRank(app.appId, kw, hits, depth));
@@ -184,7 +213,12 @@ export interface CoverageBatchResult {
  * repeatedly is always safe and never re-searches the same keyword twice
  * in one day.
  */
-export async function checkCoverageBatch(app: TrackedApp, userId?: string, timeBudgetMs = 20000): Promise<CoverageBatchResult> {
+export async function checkCoverageBatch(
+  app: TrackedApp,
+  userId?: string,
+  timeBudgetMs = 20000,
+  searchCache: Map<string, SearchHit[]> = new Map(),
+): Promise<CoverageBatchResult> {
   const list = app.coverageKeywords || [];
   const dateKey = todayKey();
   const existingSnap = loadCoverageSnapshot(dateKey, userId);
@@ -198,7 +232,17 @@ export async function checkCoverageBatch(app: TrackedApp, userId?: string, timeB
     return { checkedNow: 0, totalDone: list.length, total: list.length, done: true };
   }
 
-  const { rows, exhausted } = await checkKeywordsBounded(app, remaining, new Map(), 400, timeBudgetMs);
+  // The cache is passed in and shared across every app in the run, NOT local
+  // to this call. A competitor added against a primary inherits that primary's
+  // keyword list, so with a per-app cache the same few hundred searches were
+  // repeated once per competitor — 4 apps sharing one list meant 4x the store
+  // requests for identical results. That burned the time budget (leaving half
+  // the list "not checked") and, worse, made rate-limiting far likelier, which
+  // is what turns unchecked keywords into a chart that looks like a mass drop.
+  // Sharing collapses those duplicates into one request each; the politeness
+  // sleep above only runs on a cache MISS, so a competitor's pass over
+  // already-searched keywords costs nothing.
+  const { rows, exhausted } = await checkKeywordsBounded(app, remaining, searchCache, 400, timeBudgetMs);
   // A retried keyword replaces its previous (errored) row rather than
   // duplicating it.
   const rechecked = new Set(rows.map((r) => r.keyword));
