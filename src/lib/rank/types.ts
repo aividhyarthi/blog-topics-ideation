@@ -84,6 +84,22 @@ export interface TrackedApp {
    * no contention worth staggering around.
    */
   checkWindow?: { startHour: number; endHour: number };
+  /**
+   * Most REAL store searches this app may issue per scheduler tick. The
+   * nightly scheduler ticks hourly, so this is effectively a per-hour rate
+   * limit for this app — the knob for "be gentle with the store" without
+   * giving up on checking everything, since whatever the cap leaves
+   * un-searched is picked up by the next tick rather than lost.
+   *
+   * Cache hits don't count (they never reach the store), so a competitor
+   * sharing its primary's keywords costs the primary's allowance once, not
+   * once per app. Unset = no per-app cap (only the run's time budget).
+   *
+   * Sizing it: an app finishes its full list in
+   * ceil(unique keywords / cap) hours, so the window it runs in needs at
+   * least that many hours. 645 keywords at 100/hour needs 7 hours.
+   */
+  hourlyRequestCap?: number;
 }
 
 export interface TrackerConfig {

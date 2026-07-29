@@ -13,7 +13,8 @@
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
 import { loadConfig, saveConfig, loadSnapshot, loadSnapshots, loadCoverageSnapshot, loadCoverageSnapshots, saveNightlyMarker, loadReviewThemes } from './store';
-import { runCheck, checkCoverageBatch, checkRating, retryFailedChart, SearchCache } from './check';
+import { runCheck, checkCoverageBatch, checkRating, retryFailedChart, SearchCache, newMeter } from './check';
+import type { RequestMeter } from './check';
 import { analyzeReviewThemes } from './themes';
 import { backfillDeveloperId, backfillGenreId } from './fetch';
 import { withTenantLock } from './lock';
@@ -79,6 +80,15 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
     // would silently DELETE every deferred app from the config.
     const cfg = { ...fullCfg, apps: dueApps };
 
+    // One store-request allowance per app for this tick, shared by its daily
+    // check and its coverage batch so the two together stay under the cap.
+    // Because the scheduler ticks hourly this is a per-hour rate limit; an
+    // app with no cap set is bounded only by the run's time budget.
+    const meters = new Map<string, RequestMeter>();
+    for (const a of dueApps) {
+      if (a.hourlyRequestCap && a.hourlyRequestCap > 0) meters.set(a.key, newMeter(a.hourlyRequestCap));
+    }
+
     // The scheduler retries hourly across a window instead of running once
     // (see scheduler.ts) so a crash/restart mid-run only costs an hour
     // rather than silently stranding a tenant's report until tomorrow. That
@@ -93,11 +103,19 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
     // a failed keyword check is retried on the next tick.
     const today = todayKey();
     const todaySnap = loadSnapshot(today, userId);
-    const isDoneToday = (key: string) => {
-      const row = todaySnap?.apps.find((a) => a.key === key);
-      return !!row && !row.error && row.keywords.some((k) => !k.error);
+    // Done means EVERY daily keyword has a good row today, not merely one.
+    // "some" left an app marked finished after a partial pass — whatever the
+    // hourly request cap, a store throttle, or a mid-run restart cut off was
+    // then never revisited, and those keywords sat unchecked until tomorrow.
+    // A failed chart fetch deliberately doesn't count here: it's retried on
+    // its own by retryFailedChart and must not force a whole re-search.
+    const isDoneToday = (app: { key: string; keywords: string[] }) => {
+      const row = todaySnap?.apps.find((a) => a.key === app.key);
+      if (!row) return false;
+      const ok = new Set(row.keywords.filter((k) => !k.error).map((k) => k.keyword));
+      return app.keywords.every((kw) => ok.has(kw));
     };
-    const pending = dueApps.filter((a) => !isDoneToday(a.key));
+    const pending = dueApps.filter((a) => !isDoneToday(a));
     const alreadyDoneToday = pending.length === 0;
 
     if (!alreadyDoneToday) {
@@ -120,7 +138,7 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
       }
       if (backfilled) saveConfig(fullCfg, userId);
 
-      const snap = await runCheck(cfg.apps, userId, cache);
+      const snap = await runCheck(cfg.apps, userId, cache, meters);
       const justChecked = new Set(cfg.apps.map((a) => a.key));
       for (const app of snap.apps.filter((a) => justChecked.has(a.key))) {
         const ranked = app.keywords.filter((k) => k.position != null).length;
@@ -290,7 +308,7 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
           // above and across every app/tenant in this run — see the note in
           // checkCoverageBatch for why that is the difference between one
           // store request per keyword and one per keyword PER competitor.
-          const r = await checkCoverageBatch(app, userId, Math.min(share, remaining), cache);
+          const r = await checkCoverageBatch(app, userId, Math.min(share, remaining), cache, meters.get(app.key));
           lines.push(`  [${label}] ${app.key}: coverage ${r.done ? 'fully checked' : 'partially checked'} (${r.totalDone}/${r.total} keywords)`);
           if (r.checkedNow > 0) checkedCoverage++;
         } catch (e) {

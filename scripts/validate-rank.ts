@@ -503,5 +503,60 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
   eq('no negative sleep once the budget is spent', backoff(400, 20, -500), 0);
 }
 
+// --- hourly request cap ------------------------------------------------------
+{
+  const { newMeter, checkApp, SearchCache, searchCacheKey } = await import('../src/lib/rank/check');
+  const KW = Array.from({ length: 250 }, (_, i) => `kw ${i}`);
+  const app: any = {
+    key: 'play:x', store: 'play', appId: 'com.x', country: 'in', lang: 'en',
+    title: 'X', developer: null, icon: null, url: null, genreId: null,
+    keywords: KW, addedAt: '2026-07-01T00:00:00.000Z',
+  };
+
+  // Cache pre-warmed => every lookup is a cache hit => the cap must NOT bite,
+  // because a cached result never touches the store. This is what keeps a
+  // competitor free instead of eating its primary's allowance.
+  const warm = new SearchCache();
+  for (const kw of KW) warm.set(searchCacheKey(app, kw), [{ appId: 'com.y', title: 'y' } as any]);
+  const m1 = newMeter(100);
+  const r1 = await checkApp(app, warm, 0, KW, m1);
+  eq('cached lookups do not consume the cap', m1.issued, 0);
+  eq('all keywords still returned from cache', r1.keywords.length, KW.length);
+
+  // Cold cache + no network in this sandbox: every search is attempted (and
+  // fails), so the cap is what stops it — proving requests are bounded even
+  // when the store is unreachable.
+  const cold = new SearchCache();
+  const m2 = newMeter(40);
+  const r2 = await checkApp(app, cold, 0, KW, m2);
+  eq('cap bounds the searches issued', m2.issued, 40);
+  eq('stops at the cap rather than walking the whole list', r2.keywords.length <= 40, true);
+  eq('un-searched keywords are omitted, not marked unranked',
+    r2.keywords.length < KW.length, true);
+
+  // Unmetered calls are unchanged.
+  const m3 = newMeter(0);
+  eq('a zero cap issues nothing', (await checkApp(app, new SearchCache(), 0, KW, m3)).keywords.length, 0);
+}
+
+// --- "done today" must mean every keyword, not just one ----------------------
+{
+  // Mirrors isDoneToday in nightly.ts. The old `some()` version marked an app
+  // finished after a partial pass, so anything the cap or a throttle cut off
+  // was never revisited that day.
+  const isDoneToday = (app: { keywords: string[] }, row: { keywords: { keyword: string; error?: string }[] } | null) => {
+    if (!row) return false;
+    const ok = new Set(row.keywords.filter((k) => !k.error).map((k) => k.keyword));
+    return app.keywords.every((kw) => ok.has(kw));
+  };
+  const app = { keywords: ['a', 'b', 'c'] };
+  eq('no snapshot = not done', isDoneToday(app, null), false);
+  eq('a partial pass is NOT done', isDoneToday(app, { keywords: [{ keyword: 'a' }] }), false);
+  eq('an errored keyword is NOT done',
+    isDoneToday(app, { keywords: [{ keyword: 'a' }, { keyword: 'b' }, { keyword: 'c', error: 'rate limited' }] }), false);
+  eq('every keyword good = done',
+    isDoneToday(app, { keywords: [{ keyword: 'a' }, { keyword: 'b' }, { keyword: 'c' }] }), true);
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');

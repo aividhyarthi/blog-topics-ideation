@@ -454,6 +454,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (startHour > 23 || endHour > 24) return json({ error: 'Hours must be 0-23 (end may be 24).' }, 400);
       app.checkWindow = { startHour, endHour };
     }
+    // Optional second half of the same form: the per-tick (= per-hour) store
+    // request cap. Sent together so one Save applies the whole schedule.
+    if (body.hourlyCap !== undefined) {
+      const raw = String(body.hourlyCap).trim();
+      if (!raw) {
+        delete app.hourlyRequestCap;
+      } else {
+        const cap = Number(raw);
+        if (!Number.isFinite(cap) || cap < 10 || cap > 2000) {
+          return json({ error: 'Searches per hour must be between 10 and 2000 (or blank for no cap).' }, 400);
+        }
+        app.hourlyRequestCap = Math.floor(cap);
+      }
+    }
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });
   }

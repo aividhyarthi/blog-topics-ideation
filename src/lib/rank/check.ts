@@ -40,6 +40,25 @@ const bump = (c: Map<string, SearchHit[]>, k: 'requests' | 'hits' | 'errors') =>
 };
 
 /**
+ * A per-app ceiling on how many REAL store searches one run may issue for
+ * that app. Cache hits are free and never counted — the cap exists to be
+ * polite to the store, and a cached result never touches it.
+ *
+ * The nightly scheduler ticks once an hour, so "per run" is "per hour" in
+ * practice: a cap of 100 means at most 100 searches an hour for that app.
+ * (A manual "Run now" is a deliberate extra run and gets its own allowance.)
+ * Running out is not an error — the un-searched keywords are simply left
+ * unchecked and picked up by the next tick, which is why they must never be
+ * recorded as errors or as real "not ranking" results.
+ */
+export interface RequestMeter {
+  limit: number;
+  issued: number;
+}
+export const newMeter = (limit: number): RequestMeter => ({ limit, issued: 0 });
+const meterExhausted = (m?: RequestMeter) => !!m && m.issued >= m.limit;
+
+/**
  * Key for one cached store search. Deliberately keyed on the SEARCH, not on
  * the app asking for it: the Play/App Store results for a keyword in a given
  * storefront are identical no matter which tracked app we're locating inside
@@ -74,6 +93,7 @@ async function checkKeywordsBounded(
   searchCache: Map<string, SearchHit[]>,
   delayMs: number,
   timeBudgetMs: number,
+  meter?: RequestMeter,
 ): Promise<{ rows: KeywordRank[]; exhausted: boolean }> {
   const rows: KeywordRank[] = [];
   const depth = searchDepth(app.store);
@@ -89,12 +109,18 @@ async function checkKeywordsBounded(
     const left = timeBudgetMs - (Date.now() - start);
     if (left <= 0) return { rows, exhausted: false };
     const cacheKey = searchCacheKey(app, kw);
+    const cached = searchCache.get(cacheKey);
+    // Out of this run's store-request allowance: stop rather than record a
+    // result we never actually looked up. Anything already cached is still
+    // free to serve, so keep going for those.
+    if (!cached && meterExhausted(meter)) return { rows, exhausted: false };
     try {
-      let hits = searchCache.get(cacheKey);
+      let hits = cached;
       if (hits) {
         bump(searchCache, 'hits');
       } else {
         bump(searchCache, 'requests');
+        if (meter) meter.issued++;
         hits = await searchStore(app.store, kw, app.country, app.lang);
         cacheSet(searchCache, cacheKey, hits);
         await sleep(delayMs); // stay polite with the store endpoints
@@ -126,6 +152,7 @@ export async function checkApp(
   searchCache: Map<string, SearchHit[]> = new Map(),
   delayMs = 400,
   keywordList: string[] = app.keywords,
+  meter?: RequestMeter,
 ): Promise<AppRankResult> {
   const result: AppRankResult = {
     key: app.key, store: app.store, appId: app.appId, country: app.country,
@@ -135,12 +162,18 @@ export async function checkApp(
 
   for (const kw of keywordList) {
     const cacheKey = searchCacheKey(app, kw);
+    const cached = searchCache.get(cacheKey);
+    // See checkKeywordsBounded: a keyword we had no allowance to search is
+    // left out of the result entirely, so it reads as "not checked yet"
+    // rather than as a confirmed absence from the rankings.
+    if (!cached && meterExhausted(meter)) break;
     try {
-      let hits = searchCache.get(cacheKey);
+      let hits = cached;
       if (hits) {
         bump(searchCache, 'hits');
       } else {
         bump(searchCache, 'requests');
+        if (meter) meter.issued++;
         hits = await searchStore(app.store, kw, app.country, app.lang);
         cacheSet(searchCache, cacheKey, hits);
         await sleep(delayMs); // stay polite with the store endpoints
@@ -211,9 +244,14 @@ export async function checkOne(app: TrackedApp, userId?: string): Promise<AppRan
 }
 
 /** Run a check for the given apps and merge the results into today's snapshot. */
-export async function runCheck(apps: TrackedApp[], userId?: string, cache = new Map<string, SearchHit[]>()): Promise<RankSnapshot> {
+export async function runCheck(
+  apps: TrackedApp[],
+  userId?: string,
+  cache = new Map<string, SearchHit[]>(),
+  meters?: Map<string, RequestMeter>,
+): Promise<RankSnapshot> {
   const results: AppRankResult[] = [];
-  for (const app of apps) results.push(await checkApp(app, cache));
+  for (const app of apps) results.push(await checkApp(app, cache, 400, app.keywords, meters?.get(app.key)));
   const dateKey = todayKey();
   const snap = mergeIntoSnapshot(loadSnapshot(dateKey, userId), dateKey, results);
   saveSnapshot(snap, userId);
@@ -245,6 +283,7 @@ export async function checkCoverageBatch(
   userId?: string,
   timeBudgetMs = 20000,
   searchCache: Map<string, SearchHit[]> = new Map(),
+  meter?: RequestMeter,
 ): Promise<CoverageBatchResult> {
   const list = app.coverageKeywords || [];
   const dateKey = todayKey();
@@ -269,7 +308,7 @@ export async function checkCoverageBatch(
   // Sharing collapses those duplicates into one request each; the politeness
   // sleep above only runs on a cache MISS, so a competitor's pass over
   // already-searched keywords costs nothing.
-  const { rows, exhausted } = await checkKeywordsBounded(app, remaining, searchCache, 400, timeBudgetMs);
+  const { rows, exhausted } = await checkKeywordsBounded(app, remaining, searchCache, 400, timeBudgetMs, meter);
   // A retried keyword replaces its previous (errored) row rather than
   // duplicating it.
   const rechecked = new Set(rows.map((r) => r.keyword));

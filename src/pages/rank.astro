@@ -515,6 +515,59 @@ ai photo enhancer"></textarea>
       // that doesn't match anything just never produces a tab, so this
       // doesn't do anything odd for apps outside that vertical — they just
       // end up with a "Brand + Comp" tab (if applicable) and "General".
+      // Check-window presets. Ranges are IST hours, end-exclusive. Kept wider
+      // than 4-hour blocks because a big keyword list under an hourly request
+      // cap needs enough hours to finish: see capPlanHint below.
+      const WINDOW_CHOICES = [
+        [0, 6], [0, 8], [4, 8], [6, 12], [7, 12], [8, 12],
+        [12, 18], [12, 20], [16, 20], [18, 24], [20, 24], [0, 24],
+      ];
+      const hourLabel = (h) =>
+        h === 0 || h === 24 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h - 12}pm`;
+
+      /**
+       * The whole point of the cap is to spread a big list out WITHOUT losing
+       * any of it, and that only works if the window is long enough to get
+       * through the list at that rate. Rather than let the owner discover the
+       * shortfall a day later as unchecked keywords, do the arithmetic here:
+       * hours needed = ceil(unique keywords / cap).
+       */
+      const windowHours = (w) => !w ? 24 : (w.startHour === w.endHour ? 24 : ((w.endHour - w.startHour + 24) % 24 || 24));
+      const sameWindow = (a, b) =>
+        (!a.checkWindow && !b.checkWindow) ||
+        (!!a.checkWindow && !!b.checkWindow &&
+          a.checkWindow.startHour === b.checkWindow.startHour && a.checkWindow.endHour === b.checkWindow.endHour);
+
+      function capPlanHint(app) {
+        const cap = app.hourlyRequestCap;
+        if (!cap || !app.checkWindow) return '';
+        const hours = windowHours(app.checkWindow);
+        const unique = new Set([...(app.keywords || []), ...(app.coverageKeywords || [])].map((k) => k.toLowerCase())).size;
+        if (!unique) return '';
+
+        // The search cache lives for ONE run, so two apps only share searches
+        // if they're checked in the same tick. A competitor scheduled in its
+        // primary's window rides that primary's results for free; scheduled
+        // elsewhere it re-searches the whole list itself and pays full price.
+        const primary = app.competitorOf ? state.apps.find((a) => a.key === app.competitorOf) : null;
+        if (primary && sameWindow(app, primary)) {
+          return `<p class="hint" style="margin:8px 0 0;color:var(--ok);font-weight:600;">
+            Shares <b>${esc(primary.title)}</b>'s window, so its searches are served from the same run's cache — costs close to nothing against this cap.</p>`;
+        }
+        if (primary && !sameWindow(app, primary)) {
+          return `<p class="hint" style="margin:8px 0 0;color:var(--warn);font-weight:600;">
+            ⚠︎ Checked in a different window from <b>${esc(primary.title)}</b>, so it can't reuse that run's cached searches and re-searches all ${unique} keywords itself.
+            Put it in the same window to make it near-free.</p>`;
+        }
+
+        const needed = Math.ceil(unique / cap);
+        const ok = needed <= hours;
+        return `<p class="hint" style="margin:8px 0 0;color:${ok ? 'var(--ok)' : 'var(--bad)'};font-weight:600;">
+          ${unique} keywords at ${cap}/hour needs <b>${needed} hour${needed === 1 ? '' : 's'}</b>; this window is <b>${hours}</b>.
+          ${ok ? 'The full list completes every day.' : `Short by ${needed - hours} hour${needed - hours === 1 ? '' : 's'} — widen the window or raise the cap to ${Math.ceil(unique / hours)}/hour, or the list will take more than a day to cycle.`}
+        </p>`;
+      }
+
       const CATEGORY_RULES = [
         { name: 'SIP', patterns: ['sip', 'systematic investment'] },
         { name: 'Mutual Funds', patterns: ['mutual fund', 'mf', 'nav', 'scheme'] },
@@ -2057,13 +2110,17 @@ ai photo enhancer"></textarea>
             <p class="hint" style="margin:0 0 8px;">Stagger your apps into separate slots so they don't all hit the stores at once — simultaneous bursts are the main cause of rate-limited checks that come back as "failed" or unchecked keywords. Weekends ignore this and use the whole day, so large keyword lists can catch up.</p>
             <select data-role="window-select">
               <option value="" ${!app.checkWindow ? 'selected' : ''}>Any time (no stagger)</option>
-              ${[[0, 4], [4, 8], [8, 12], [12, 16], [16, 20], [20, 24]].map(([s, e]) => {
+              ${WINDOW_CHOICES.map(([s, e]) => {
                 const val = `${s}-${e}`;
                 const sel = app.checkWindow && app.checkWindow.startHour === s && app.checkWindow.endHour === e;
-                const lbl = (h) => h === 0 ? '12am' : h === 12 ? '12pm' : h === 24 ? '12am' : h < 12 ? `${h}am` : `${h - 12}pm`;
-                return `<option value="${val}" ${sel ? 'selected' : ''}>${lbl(s)} – ${lbl(e)}</option>`;
+                return `<option value="${val}" ${sel ? 'selected' : ''}>${hourLabel(s)} – ${hourLabel(e)}</option>`;
               }).join('')}
             </select>
+            <label style="margin-top:10px;">Searches per hour for this app</label>
+            <p class="hint" style="margin:0 0 6px;">Caps how many keywords are searched at the store each hour, so a big list is spread out instead of hammering it in one go. Cached results (a competitor sharing this app's keywords) don't count. Blank = no cap.</p>
+            <input type="number" min="10" max="2000" step="10" data-role="hourly-cap" placeholder="no cap"
+                   value="${app.hourlyRequestCap || ''}" style="max-width:150px;" />
+            ${capPlanHint(app)}
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-window">Save check window</button>
             </div>
@@ -2535,7 +2592,8 @@ ai photo enhancer"></textarea>
         if (act === 'save-window') {
           withBusy(btn, 'Saving…', async () => {
             const val = card.querySelector('[data-role="window-select"]').value;
-            const data = await api({ action: 'set-check-window', key, window: val });
+            const cap = card.querySelector('[data-role="hourly-cap"]').value.trim();
+            const data = await api({ action: 'set-check-window', key, window: val, hourlyCap: cap });
             showToast(val ? 'Check window saved' : 'Stagger removed — checks any time');
             return data;
           });
