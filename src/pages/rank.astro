@@ -138,6 +138,10 @@ const limitsText = product && plan
       .statblock .table-wrap { border: none; border-radius: 0; border-top: 1px solid var(--line); margin-top: 10px; background: transparent; }
       .wn-card { background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px; }
       .wn-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
+      .promo-row { display: flex; align-items: center; gap: 9px; padding: 6px 0; border-top: 1px solid var(--bg); font-size: 13.5px; cursor: pointer; }
+      .promo-row:first-of-type { border-top: none; }
+      .promo-row .kw { flex: 1; }
+      .promo-row .pos { color: var(--ok); font-variant-numeric: tabular-nums; }
       .wn-card-ico { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; background: var(--tint); color: var(--accent); }
       .wn-card h4 { margin: 0; font-size: 11.5px; color: var(--ink); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
       .wn-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; padding: 5px 0; border-top: 1px solid var(--line); }
@@ -492,9 +496,9 @@ ai photo enhancer"></textarea>
       const SECTIONS = [
         { id: 'overview', label: 'Overview' },
         { id: 'insights', label: 'Insights' },
-        { id: 'snapshot', label: 'Daily Snapshot' },
-        { id: 'keywords', label: 'Daily Keyword Snapshot' },
-        { id: 'coverage', label: 'All Keywords Snapshot' },
+        { id: 'snapshot', label: 'Report Card' },
+        { id: 'keywords', label: 'Daily Keywords' },
+        { id: 'coverage', label: 'All Keywords' },
         { id: 'compare', label: 'Compare' },
         { id: 'trends', label: 'Trends' },
         { id: 'settings', label: 'Settings' },
@@ -568,15 +572,86 @@ ai photo enhancer"></textarea>
         </p>`;
       }
 
-      const CATEGORY_RULES = [
-        { name: 'SIP', patterns: ['sip', 'systematic investment'] },
-        { name: 'Mutual Funds', patterns: ['mutual fund', 'mf', 'nav', 'scheme'] },
-        { name: 'Tax Saving', patterns: ['tax sav', '80c', 'elss'] },
-        { name: 'Fixed Deposit', patterns: ['fixed deposit', 'fd'] },
-        { name: 'Retirement / NPS', patterns: ['nps', 'retirement', 'pension'] },
-        { name: 'Insurance', patterns: ['insurance', 'term plan', 'ulip'] },
-        { name: 'Gold', patterns: ['gold bond', 'sgb', 'digital gold'] },
-      ];
+      // Keyword grouping is DERIVED FROM THE KEYWORDS, not from a fixed list
+      // of categories. The previous version hardcoded a finance taxonomy
+      // (SIP / Mutual Funds / ELSS / NPS...), which had two bad consequences:
+      // a finance term it simply hadn't been told about ("liquid funds") fell
+      // into "General" despite being a major keyword, and every app outside
+      // finance — an ovulation tracker, a news app — had its ENTIRE list
+      // dumped into "General", making the tabs useless. Grouping now comes
+      // from the phrases that actually recur in this app's own list, so it
+      // adapts to any vertical and can't miss a term it never heard of.
+      const GROUP_STOPWORDS = new Set([
+        'app', 'apps', 'best', 'top', 'free', 'online', 'india', 'indian', 'new', 'my',
+        'for', 'and', 'the', 'with', 'in', 'on', 'to', 'of', 'a', 'an', 'or', 'how',
+        'download', 'login', 'near', 'me', 'today', 'live', 'latest', 'good', 'better',
+      ]);
+      const MAX_KEYWORD_GROUPS = 12;
+
+      /**
+       * Crude singulariser. Without it "liquid funds" and "liquid fund
+       * returns" land in different groups, and a "funds" group appears
+       * alongside "mutual fund" / "liquid fund" competing for the same
+       * keywords. Correctness matters less than applying the SAME rule when
+       * building groups and when matching against them — 'nps' and 'elss'
+       * are left alone by the length/'ss' guards.
+       */
+      const singular = (w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) ? w.slice(0, -1) : w;
+
+      /** Tokens of a keyword, minus stopwords and this app's brand words. */
+      function groupTokens(keyword, brandTokens) {
+        const brand = new Set(brandTokens.map(singular));
+        return keyword.toLowerCase().split(/[^a-z0-9]+/)
+          .map(singular)
+          .filter((w) => w.length > 2 && !GROUP_STOPWORDS.has(w) && !brand.has(w));
+      }
+
+      /**
+       * Builds the group list for one app from its own keywords. Two-word
+       * phrases are preferred over single words so groups read as real topics
+       * ("liquid fund", "mutual fund") instead of collapsing everything that
+       * contains "fund" into one bucket.
+       */
+      function buildKeywordGroups(keywords, brandTokens) {
+        const uni = new Map(), bi = new Map();
+        for (const kw of keywords) {
+          const toks = groupTokens(kw, brandTokens);
+          for (const t of new Set(toks)) uni.set(t, (uni.get(t) || 0) + 1);
+          for (let i = 0; i < toks.length - 1; i++) {
+            const phrase = `${toks[i]} ${toks[i + 1]}`;
+            bi.set(phrase, (bi.get(phrase) || 0) + 1);
+          }
+        }
+        // Thresholds scale with the list: a fixed "appears 4+ times" bar that
+        // suits a 600-keyword universe leaves most of a 40-keyword one in
+        // "Other", and a bar that suits 40 would produce dozens of noise
+        // groups at 600. Floors keep a pair of keywords from becoming a group.
+        const n = keywords.length;
+        const minUni = Math.max(3, Math.ceil(n / 50));
+        const minBi = Math.max(2, Math.ceil(n / 80));
+        const cands = [
+          ...[...bi].filter(([, c]) => c >= minBi).map(([p, c]) => ({ label: p, n: c, words: p.split(' '), bigram: true })),
+          ...[...uni].filter(([, c]) => c >= minUni).map(([w, c]) => ({ label: w, n: c, words: [w], bigram: false })),
+        ];
+        // Bigrams first (more specific), then by how much of the list they cover.
+        cands.sort((a, b) => (b.bigram ? 1 : 0) - (a.bigram ? 1 : 0) || b.n - a.n);
+        // Keep BOTH the bigram and the unigram it contains. Dropping "sip"
+        // because "sip calculator" exists sent every other sip keyword to
+        // "Other"; since bigrams are matched first, the specific group takes
+        // what it should and the unigram catches the remainder.
+        return cands.slice(0, MAX_KEYWORD_GROUPS);
+      }
+
+      /** Which group a keyword belongs to, given the groups built above. */
+      function groupOfKeyword(keyword, groups, brandTokens) {
+        const toks = groupTokens(keyword, brandTokens);
+        const set = new Set(toks);
+        const joined = ` ${toks.join(' ')} `;
+        for (const g of groups) {
+          if (g.bigram ? joined.includes(` ${g.label} `) : set.has(g.label)) return g.label;
+        }
+        return 'Other';
+      }
       function wordMatch(text, pattern) {
         const esc = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         return new RegExp(`\\b${esc}\\b`, 'i').test(text);
@@ -601,16 +676,36 @@ ai photo enhancer"></textarea>
         const brandPart = title.split(/[:\-–|,]/)[0];
         return brandPart.toLowerCase().split(/\s+/).filter((w) => w.length > 2 && !GENERIC_TITLE_WORDS.has(w));
       }
-      function categorizeKeyword(keyword, app) {
-        const kw = keyword.toLowerCase();
-        const ownTokens = brandTokensFromTitle(app.title);
+      /** Brand tokens for this app and its known competitors. */
+      function brandTokensFor(app) {
         const compTitles = ((app.asoCache && app.asoCache.data && app.asoCache.data.competitors) || []).map((c) => c.title || '');
-        const compTokens = compTitles.flatMap(brandTokensFromTitle);
-        if ([...ownTokens, ...compTokens].some((t) => wordMatch(kw, t))) return 'Brand + Comp';
-        for (const rule of CATEGORY_RULES) {
-          if (rule.patterns.some((p) => wordMatch(kw, p))) return rule.name;
-        }
-        return 'General';
+        return [...brandTokensFromTitle(app.title), ...compTitles.flatMap(brandTokensFromTitle)];
+      }
+
+      /**
+       * Groups for one app, cached per render pass — buildKeywordGroups walks
+       * the whole list, and the table asks for a group per row.
+       */
+      const GROUP_CACHE = {};
+      function groupsFor(app) {
+        const brand = brandTokensFor(app);
+        // Deduped: a keyword present in BOTH the daily and coverage lists
+        // otherwise counts twice and can push a one-off phrase over the
+        // threshold, producing a group with a single member.
+        const keys = [...new Set([...(app.keywords || []), ...(app.coverageKeywords || [])].map((k) => k.toLowerCase()))];
+        const sig = `${app.key}|${keys.length}|${brand.join(',')}`;
+        if (GROUP_CACHE[app.key] && GROUP_CACHE[app.key].sig === sig) return GROUP_CACHE[app.key];
+        const entry = { sig, brand, groups: buildKeywordGroups(keys, brand) };
+        GROUP_CACHE[app.key] = entry;
+        return entry;
+      }
+
+      function categorizeKeyword(keyword, app) {
+        const { brand, groups } = groupsFor(app);
+        // Brand and competitor names stay their own group — they behave
+        // differently from topic keywords and are read separately.
+        if (brand.some((t) => wordMatch(keyword.toLowerCase(), t))) return 'Brand + Comp';
+        return groupOfKeyword(keyword, groups, brand);
       }
       const MAX_COVERAGE = 2000;
       function sortVal(t, col) {
@@ -1056,6 +1151,41 @@ ai photo enhancer"></textarea>
       // regular daily check — no extra fetches, no extra cost. Each card
       // links straight into the tab with the full detail (Compare, Trends)
       // rather than trying to cram that detail onto Overview itself.
+      /**
+       * Keywords the app already ranks well for in the FULL coverage list but
+       * that aren't in the daily-tracked list.
+       *
+       * This gap is how a term you rank #1 for goes unnoticed: the coverage
+       * list is a wide net checked in batches, while the daily list is the
+       * small set that gets a position every single day, feeds the movers
+       * card, the visibility score and the rank-drop alerts. A keyword can sit
+       * in coverage ranking #1 for weeks and never appear on the daily
+       * dashboard, because nothing ever suggested promoting it. Surfacing the
+       * best of them turns "we forgot to add it" into one click.
+       */
+      function promotableHtml(app) {
+        const daily = new Set((app.keywords || []).map((k) => k.toLowerCase()));
+        const candidates = (app.coverageTrends || [])
+          .filter((t) => t.position != null && t.position <= 20 && !daily.has(t.keyword.toLowerCase()))
+          .sort((a, b) => a.position - b.position)
+          .slice(0, 8);
+        if (!candidates.length) return '';
+        const head = wnCardHead(ICO_RADAR, 'Ranking well, but not tracked daily');
+        const rows = candidates.map((t) => `
+          <label class="promo-row">
+            <input type="checkbox" data-role="promo-kw" value="${escAttr(t.keyword)}" checked />
+            <span class="kw">${esc(t.keyword)}</span>
+            <b class="pos">#${t.position}</b>
+          </label>`).join('');
+        return `<div class="wn-card">${head}
+          <p class="hint" style="margin:0 0 9px;">These are in your full keyword list and already ranking, but they're not in the daily set, so they get no daily position, no movement tracking and no drop alerts.</p>
+          ${rows}
+          <div class="row no-print" style="margin-top:10px;">
+            <button class="primary" data-act="promote-kw" style="padding:8px 14px;font-size:13px;">Track selected daily</button>
+          </div>
+        </div>`;
+      }
+
       function moversHtml(app) {
         const trends = app.trends || [];
         const withDelta = trends.filter((t) => t.delta != null && t.delta !== 0);
@@ -1518,9 +1648,9 @@ ai photo enhancer"></textarea>
           </table></div>`;
       }
 
-      // Groups the coverage list by category (see CATEGORY_RULES above) and
-      // renders a sub-tab per category actually present, so "Brand + Comp",
-      // "SIP", "MF" etc. can each be checked without scanning one long list.
+      // Groups the coverage list using the app's own derived topics (see
+      // buildKeywordGroups) and renders a sub-tab per group actually present,
+      // so each topic can be read without scanning one long flat list.
       function categorizedCoverageHtml(app) {
         // A keyword can legitimately sit in BOTH the daily-tracked list and
         // the full coverage list — they're checked by two separate passes
@@ -1541,7 +1671,18 @@ ai photo enhancer"></textarea>
           const cat = categorizeKeyword(t.keyword, app);
           (byCat[cat] = byCat[cat] || []).push(t);
         }
-        const order = ['Brand + Comp', ...CATEGORY_RULES.map((r) => r.name), 'General'];
+        // A tab holding one keyword isn't a topic, it's clutter — fold those
+        // back into Other so the tab bar stays readable.
+        for (const cat of Object.keys(byCat)) {
+          if (cat !== 'Brand + Comp' && cat !== 'Other' && byCat[cat].length < 2) {
+            byCat.Other = [...(byCat.Other || []), ...byCat[cat]];
+            delete byCat[cat];
+          }
+        }
+        // Derived groups in the order buildKeywordGroups ranked them, brand
+        // first and the leftovers last, so the tab bar is stable across
+        // renders rather than reshuffling as ranks move.
+        const order = ['Brand + Comp', ...groupsFor(app).groups.map((g) => g.label), 'Other'];
         const present = order.filter((c) => (byCat[c] || []).length);
         // Only one category present (usually "General") — a tab bar with a
         // single option is just noise, show the plain table instead.
@@ -1799,8 +1940,8 @@ ai photo enhancer"></textarea>
         </div>`;
       }
 
-      // Which categories your keyword list actually falls into (see
-      // CATEGORY_RULES) and how strong each app is in each — a single
+      // Which topics your keyword list actually falls into (derived per app,
+      // see buildKeywordGroups) and how strong each app is in each — a single
       // overall visibility number hides that you might be dominant in one
       // category and invisible in another; this is where that shows up.
       function categoryStrengthHtml(app, comps, kws) {
@@ -2013,21 +2154,24 @@ ai photo enhancer"></textarea>
           ${insightsHtml(app)}`;
 
         const sectionSnapshot = `
-          <div class="section-head no-print"><h2>Daily Snapshot</h2><p class="hint">Visibility, category rank, rating health, and keyword rankings — screenshot the card, or export it as a PDF for a long keyword list.</p></div>
+          <div class="section-head no-print"><h2>Report Card</h2><p class="hint">Visibility, category rank, rating health, and keyword rankings — screenshot the card, or export it as a PDF for a long keyword list.</p></div>
           ${snapshotHtml(app)}`;
 
         const moversCard = moversHtml(app);
+        const promoCard = promotableHtml(app);
         const sectionKeywords = `
-          <div class="section-head"><h2>Daily Keyword Snapshot</h2>
+          <div class="section-head"><h2>Daily Keywords</h2>
             <div class="row no-print"><button class="ghost" data-act="discover">Discover keywords</button></div>
           </div>
+          <p class="hint" style="margin:0 0 12px;">The keywords checked every single day — these drive your visibility score, movement and drop alerts. Your full list lives under <b>All Keywords</b>.</p>
+          ${promoCard ? `<div style="max-width:520px;margin-bottom:14px;">${promoCard}</div>` : ''}
           ${moversCard ? `<div style="max-width:520px;margin-bottom:14px;">${moversCard}</div>` : ''}
           <div class="no-print">${discoverHtml(app)}</div>
           ${table}
           <div class="no-print" style="margin-top:14px;">${asoSummaryHtml(app)}</div>`;
 
         const sectionCoverage = `
-          <div class="section-head"><h2>All Keywords Snapshot</h2>
+          <div class="section-head"><h2>All Keywords</h2>
             <div class="row no-print"><button class="ghost" data-act="check-coverage">Check all keyword rankings</button></div>
           </div>
           ${(app.coverageKeywords || []).length
@@ -2684,6 +2828,24 @@ ai photo enhancer"></textarea>
           return;
         }
         if (act === 'dismiss-discover') { delete DISCOVER[key]; render(); return; }
+        if (act === 'promote-kw') {
+          const selected = [...card.querySelectorAll('[data-role="promo-kw"]:checked')].map((el) => el.value);
+          if (!selected.length) { showErr('Tick at least one keyword to track daily.'); return; }
+          const beforeCount = (state.apps.find((a) => a.key === key) || {}).keywords?.length || 0;
+          withBusy(btn, 'Adding to daily…', async () => {
+            const data = await api({ action: 'add-keywords', key, keywords: selected.join('\n') });
+            const afterCount = (data.apps.find((a) => a.key === key) || {}).keywords?.length || 0;
+            const added = afterCount - beforeCount;
+            if (added < selected.length) {
+              showInfo(`Added ${added} of ${selected.length} — your plan's daily keyword limit is reached. Remove a low-value daily keyword to make room, or upgrade.`);
+            } else {
+              showInfo(`${added} keyword${added === 1 ? '' : 's'} now tracked daily — they'll get a position, movement and drop alerts from the next check.`);
+            }
+            return data;
+          });
+          return;
+        }
+
         if (act === 'track-selected') {
           const selected = [...card.querySelectorAll('[data-role="disc-kw"]:checked')].map((el) => el.value);
           if (!selected.length) { showErr('Tick at least one keyword to track.'); return; }
