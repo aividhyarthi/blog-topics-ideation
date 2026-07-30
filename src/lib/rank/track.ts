@@ -66,8 +66,16 @@ export function isWithinCheckWindow(app: TrackedApp, now = new Date()): boolean 
  */
 export function keywordTrends(app: TrackedApp, snapshots: RankSnapshot[], historyDays = 30, keywordList: string[] = app.keywords): KeywordTrend[] {
   const perSnap = snapshots.map((s) => s.apps.find((a) => a.key === app.key) || null);
-  const latest = perSnap.length ? perSnap[perSnap.length - 1] : null;
-  const prev = perSnap.length > 1 ? perSnap[perSnap.length - 2] : null;
+  // "Latest" means the newest day THIS APP was actually checked — not simply
+  // the newest snapshot file. Apps run in staggered windows, so a snapshot
+  // written at 06:00 for the app whose window just closed holds no row for an
+  // app whose window opens at 07:00. Taking the last file therefore reported
+  // that app as having no data at all, while overviewSeries (which skips days
+  // an app has no row) still showed its real numbers — two different days on
+  // one card, the empty half looking like a total ranking collapse.
+  const checkedDays = perSnap.filter((r): r is AppRankResult => r !== null);
+  const latest = checkedDays.length ? checkedDays[checkedDays.length - 1] : null;
+  const prev = checkedDays.length > 1 ? checkedDays[checkedDays.length - 2] : null;
 
   return keywordList.map((kw) => {
     const find = (r: AppRankResult | null) => r?.keywords.find((k) => k.keyword === kw) || null;
@@ -100,8 +108,16 @@ export function chartTrend(app: TrackedApp, snapshots: RankSnapshot[], historyDa
   chart: string | null; position: number | null; delta: number | null; history: (number | null)[]; dateKeys: string[]; error?: string; depth: number | null;
 } {
   const perSnap = snapshots.map((s) => s.apps.find((a) => a.key === app.key) || null);
-  const latest = perSnap.length ? perSnap[perSnap.length - 1] : null;
-  const prev = perSnap.length > 1 ? perSnap[perSnap.length - 2] : null;
+  // "Latest" means the newest day THIS APP was actually checked — not simply
+  // the newest snapshot file. Apps run in staggered windows, so a snapshot
+  // written at 06:00 for the app whose window just closed holds no row for an
+  // app whose window opens at 07:00. Taking the last file therefore reported
+  // that app as having no data at all, while overviewSeries (which skips days
+  // an app has no row) still showed its real numbers — two different days on
+  // one card, the empty half looking like a total ranking collapse.
+  const checkedDays = perSnap.filter((r): r is AppRankResult => r !== null);
+  const latest = checkedDays.length ? checkedDays[checkedDays.length - 1] : null;
+  const prev = checkedDays.length > 1 ? checkedDays[checkedDays.length - 2] : null;
   const cur = latest?.topChart?.position ?? null;
   const before = prev?.topChart?.position ?? null;
   return {

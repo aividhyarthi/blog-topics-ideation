@@ -603,5 +603,47 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
   eq('a new day starts clean', newDay.apps[0].keywords.length, 1);
 }
 
+// --- staggered windows: one app's snapshot must not blank another's card ----
+// Reproduces the reported screenshot: Kuvera runs at 06:00 and writes today's
+// snapshot; CRED's window opens at 07:00 so it has no row in that file yet.
+// Reading "latest" as the last snapshot FILE reported every CRED keyword as
+// unranked ("0 of 649") while the tiles beside it still showed CRED's real
+// visibility from yesterday — two different days on one card.
+{
+  const CRED = ['credit card bill', 'personal loan'];
+  const cred: any = { key: 'play:cred', keywords: CRED };
+  const mk = (key: string, kws: any[], chart: number | null) => ({
+    key, store: 'play' as const, appId: key, country: 'in', keywords: kws,
+    topChart: chart == null ? null : { position: chart, chart: 'FINANCE', depth: 200 },
+    score: null, ratings: null,
+  });
+  const kw = (k: string, p: number | null) => ({ keyword: k, position: p, depth: 200, top: [] });
+
+  const yesterday = { dateKey: '2026-07-29', checkedAt: 'x',
+    apps: [mk('play:cred', [kw(CRED[0], 3), kw(CRED[1], 8)], 12), mk('play:kuvera', [kw('sip', 2)], 40)] };
+  // Today, 06:00: only Kuvera has run.
+  const today = { dateKey: '2026-07-30', checkedAt: 'y', apps: [mk('play:kuvera', [kw('sip', 3)], 38)] };
+  const snaps = [yesterday, today] as any[];
+
+  const t = keywordTrends(cred, snaps, 30, CRED);
+  eq('an app not yet checked today keeps its last real positions',
+    t.map((r) => r.position), [3, 8]);
+  eq('...and is not reported as unchecked', t.every((r) => r.checked), true);
+  eq('chart position survives the same way', chartTrend(cred, snaps, 30).position, 12);
+
+  // The tiles (overviewSeries) already skipped days with no row — the point is
+  // that the table now agrees with them instead of contradicting.
+  const ov = overviewSeries(cred, snaps, 30, CRED);
+  eq('tiles and table now describe the same day',
+    ov[ov.length - 1].tracked, t.filter((r) => r.position != null).length);
+
+  // Once it does run, today's numbers take over.
+  const afterCred = [yesterday, { ...today, apps: [...today.apps, mk('play:cred', [kw(CRED[0], 1), kw(CRED[1], 9)], 11)] }] as any[];
+  eq('today\'s check supersedes yesterday once it runs',
+    keywordTrends(cred, afterCred, 30, CRED).map((r) => r.position), [1, 9]);
+  eq('and the delta compares against yesterday',
+    keywordTrends(cred, afterCred, 30, CRED)[0].delta, 2);
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');
