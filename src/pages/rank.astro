@@ -319,6 +319,9 @@ const limitsText = product && plan
       .dangerzone h4 { margin: 0 0 6px; font-size: 13px; color: var(--bad); }
       .settings-block { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; background: var(--card); }
       .settings-block h4 { margin: 0 0 4px; font-size: 13.5px; }
+      .complist { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+      .complist-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; font-size: 13px; }
+      .complist-row + .complist-row { border-top: 1px solid var(--line); }
       @media (max-width: 900px) {
         .shell { grid-template-columns: 1fr; }
         .sidebar { position: static; max-height: none; }
@@ -2310,6 +2313,26 @@ ai photo enhancer"></textarea>
             </div>
           </div>
           <div class="settings-block no-print">
+            <h4>Competitors</h4>
+            <p class="hint" style="margin:0 0 8px;">Rival apps tracked against this one — they show up in this app's Compare tab. Add one by pasting its Google Play / App Store URL or id; remove one to stop tracking it entirely.</p>
+            ${(() => {
+              const comps = state.apps.filter((a) => a.competitorOf === app.key);
+              if (!comps.length) return '<p class="hint" style="margin:0 0 8px;">No competitors tracked yet.</p>';
+              return `<div class="complist">${comps.map((c) => `
+                <div class="complist-row" data-key="${escAttr(c.key)}">
+                  <span>${esc(c.title)} <span class="hint">(${c.store === 'play' ? 'Google Play' : 'App Store'} · ${esc(c.country.toUpperCase())})</span></span>
+                  <button class="ghost danger small" data-act="remove-competitor" data-key="${escAttr(c.key)}">Remove</button>
+                </div>`).join('')}</div>`;
+            })()}
+            <div style="display:grid;grid-template-columns:2.2fr 110px;gap:10px;margin-top:10px;">
+              <input type="text" data-role="add-competitor-input" placeholder="Play/App Store URL, package id, or id123456789" />
+              <input type="text" data-role="add-competitor-country" placeholder="Country (${esc(app.country)})" maxlength="2" />
+            </div>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="add-competitor">Add competitor</button>
+            </div>
+          </div>
+          <div class="settings-block no-print">
             <h4>Competitor relationship</h4>
             <p class="hint" style="margin:0 0 8px;">If this app is a rival you're tracking rather than your own, pick which of your apps it's a competitor for — that's what scopes it into that app's Compare tab instead of showing up everywhere.</p>
             <select data-role="competitor-of-select">
@@ -2790,6 +2813,35 @@ ai photo enhancer"></textarea>
             showToast(competitorOf ? 'Linked as a competitor' : 'Unlinked — now shown as your own app');
             return data;
           });
+          return;
+        }
+        if (act === 'add-competitor') {
+          const input = card.querySelector('[data-role="add-competitor-input"]');
+          const countryInput = card.querySelector('[data-role="add-competitor-country"]');
+          const value = input.value.trim();
+          if (!value) { showErr('Paste an app URL or id first.'); return; }
+          withBusy(btn, 'Adding…', async () => {
+            const data = await api({
+              action: 'add-app', app: value,
+              country: countryInput.value.trim(),
+              likeApp: key,
+            });
+            const notes = [];
+            if (data.metaError) notes.push('App added, but its listing could not be read right now: ' + data.metaError);
+            if (!data.metaError && data.checkError) notes.push(data.checkError);
+            if (data.discoveryQueued) notes.push('Also looking for more of this rival’s own keywords in the background — check the All Keywords Snapshot tab in a minute.');
+            if (notes.length) showInfo(notes.join(' '));
+            else showToast('Competitor added');
+            input.value = ''; countryInput.value = '';
+            return data;
+          });
+          return;
+        }
+        if (act === 'remove-competitor') {
+          const compKey = btn.getAttribute('data-key');
+          const comp = state.apps.find((a) => a.key === compKey);
+          if (!confirm(`Stop tracking "${comp ? comp.title : 'this competitor'}"? Its saved history stays on disk but will no longer be shown.`)) return;
+          withBusy(btn, 'Removing…', () => api({ action: 'remove-app', key: compKey }));
           return;
         }
         if (act === 'save-annotation') {
