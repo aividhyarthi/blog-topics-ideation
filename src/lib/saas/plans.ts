@@ -54,7 +54,7 @@ export const SITE_URL = (process.env.SITE_URL || 'https://apprankr.in').replace(
  * the old preview until the URL itself changes. Bump this string whenever
  * the og images are regenerated with a real visual change.
  */
-export const OG_IMAGE_VERSION = 'v4';
+export const OG_IMAGE_VERSION = 'v5';
 
 /**
  * Daily rank-report emails (src/lib/rank/email.ts), sent via Resend
@@ -111,7 +111,7 @@ export const PLANS: Record<PlanId, Plan> = {
   },
   pro: {
     id: 'pro', name: 'Pro', priceMonthly: 6499,
-    maxApps: 5, maxCompetitorsPerApp: 3, maxKeywordsPerApp: 60,
+    maxApps: 7, maxCompetitorsPerApp: 3, maxKeywordsPerApp: 60,
     blurb: 'For studios and agencies tracking a portfolio',
   },
 };

@@ -277,7 +277,7 @@ function card({ theme, accent, bg, takeaway, artSvg }) {
     .inner{flex:1;display:flex;flex-direction:column;padding:34px 54px 30px;min-height:0}
     .head{display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
     .brand{display:flex;align-items:center;gap:11px}
-    .mark{width:38px;height:38px;border-radius:11px;background:${accent};color:#fff;display:grid;place-items:center;font-size:18px;font-weight:800}
+    .mark{width:38px;height:38px;border-radius:11px;background:${accent};color:#fff;display:grid;place-items:center;font-size:15px;font-weight:800;letter-spacing:-.03em}
     .wordmark{font-weight:800;font-size:22px;letter-spacing:-.02em;color:#16181d}
     .theme{font-size:14px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:${accent};background:${bg};padding:7px 14px;border-radius:999px}
     .art{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:16px 0 6px}
@@ -288,7 +288,7 @@ function card({ theme, accent, bg, takeaway, artSvg }) {
   </style></head><body>
     <div class="card"><div class="stripe"></div><div class="inner">
       <div class="head">
-        <div class="brand"><div class="mark">&#9650;</div><div class="wordmark">AppRankr</div></div>
+        <div class="brand"><div class="mark">AR</div><div class="wordmark">AppRankr</div></div>
         <div class="theme">${esc(theme)}</div>
       </div>
       <div class="art"><svg viewBox="0 0 ${VB.w} ${VB.h}" xmlns="http://www.w3.org/2000/svg">${artSvg}</svg></div>

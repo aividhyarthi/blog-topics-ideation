@@ -28,7 +28,7 @@ if (!Astro.locals.productMode || !user || !isAdminEmail(user.email)) {
       .wrap { max-width: 1100px; margin: 0 auto; padding: 0 22px 60px; }
       header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; flex-wrap: wrap; gap: 10px; }
       .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; color: var(--ink); text-decoration: none; }
-      .logo .mark { width: 28px; height: 28px; border-radius: 8px; background: #16181d; color: #fff; display: grid; place-items: center; font-size: 14px; }
+      .logo .mark { width: 28px; height: 28px; border-radius: 8px; background: #16181d; color: #fff; display: grid; place-items: center; font-size: 11.5px; font-weight: 800; letter-spacing: -0.03em; }
       .logo .admintag { font-size: 10px; font-weight: 800; color: var(--muted); background: #f3f4f6; border: 1px solid var(--line); padding: 2px 7px; border-radius: 999px; }
       .navlinks a { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600; margin-left: 14px; }
       .navlinks a:hover { color: var(--ink); }
@@ -62,7 +62,7 @@ if (!Astro.locals.productMode || !user || !isAdminEmail(user.email)) {
   <body>
     <div class="wrap">
       <header class="top">
-        <a class="logo" href="/rank"><span class="mark">▲</span>{BRAND}<span class="admintag">ADMIN</span></a>
+        <a class="logo" href="/rank"><span class="mark">AR</span>{BRAND}<span class="admintag">ADMIN</span></a>
         <nav class="navlinks">
           <a href="/rank">Rank Tracker</a>
           <a href="/aso">ASO Inspector</a>

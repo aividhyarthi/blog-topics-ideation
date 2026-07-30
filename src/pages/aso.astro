@@ -36,7 +36,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
       header h1 { margin: 0 0 4px; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
       header p { margin: 0; color: var(--muted); font-size: 13px; max-width: 760px; }
       .brandbar { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap; }
-      .brandbar .logo { width: 22px; height: 22px; border-radius: 6px; background: var(--pink); color: #fff; display: grid; place-items: center; font-size: 11px; }
+      .brandbar .logo { width: 22px; height: 22px; border-radius: 6px; background: var(--pink); color: #fff; display: grid; place-items: center; font-size: 9.5px; font-weight: 800; letter-spacing: -0.03em; }
       .brandbar .wordmark { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
       .brandbar .betatag { font-size: 10px; font-weight: 700; color: var(--muted); background: var(--bg); border: 1px solid var(--line); padding: 2px 6px; border-radius: 4px; letter-spacing: 0.02em; }
       .brandbar .by { font-size: 11.5px; font-weight: 600; color: var(--muted); }
@@ -264,7 +264,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         {product ? (
           <>
             <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
-              <span class="logo">▲</span>
+              <span class="logo">AR</span>
               <span class="wordmark">{BRAND}</span>
               <span class="betatag">Beta 1.0</span>
             </a>

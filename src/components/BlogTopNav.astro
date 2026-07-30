@@ -12,7 +12,7 @@ interface Props { active?: 'blog' | 'about' }
 const { active } = Astro.props as Props;
 ---
 <header class="top">
-  <a class="logo" href="/"><span class="mark">▲</span>{BRAND}<span class="betatag">Beta 1.0</span></a>
+  <a class="logo" href="/"><span class="mark">AR</span>{BRAND}<span class="betatag">Beta 1.0</span></a>
   <div class="navlinks" id="site-navlinks">
     <a class="plain" class:list={[active === 'blog' && 'active']} href="/blog">Blog</a>
     <a class="plain" class:list={[active === 'about' && 'active']} href="/about">About</a>
@@ -31,7 +31,7 @@ const { active } = Astro.props as Props;
   }
   .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; text-decoration: none; color: #16181d; }
   .logo .betatag { font-size: 10px; font-weight: 800; color: #372aa8; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.25); padding: 2px 7px; border-radius: 999px; letter-spacing: 0.02em; }
-  .logo .mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(120deg, #6366f1, #8b5cf6); color: #fff; display: grid; place-items: center; font-size: 14px; }
+  .logo .mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(120deg, #6366f1, #8b5cf6); color: #fff; display: grid; place-items: center; font-size: 11.5px; font-weight: 800; letter-spacing: -0.03em; }
   .navlinks { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   .navlinks a.plain { color: #6b7280; text-decoration: none; font-size: 14px; font-weight: 600; }
   .navlinks a.plain:hover { color: #16181d; }
