@@ -9,6 +9,7 @@ import { getUser } from '../../lib/auth';
 import { saveAudit } from '../../lib/audits';
 import { consumeAccess, refundAccess } from '../../lib/billing';
 import { dbEnabled } from '../../lib/db';
+import { runChecklist, type ChecklistResult } from '../../lib/checklists';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -267,6 +268,14 @@ export const POST: APIRoute = async (ctx) => {
 
   const auto = deterministicSignals(facts);
 
+  // The checklist engine detects what this page actually IS (kind + vertical)
+  // from the HTML and runs the matching domain checklist — rather than grading
+  // every page against one generic list weighted by a dropdown nobody changes.
+  let checklist: ChecklistResult | null = null;
+  try {
+    checklist = runChecklist(html, facts.text || '', facts);
+  } catch { /* never let the checklist take down the audit */ }
+
   let llmScores: LlmScores = {};
   let aiError: string | undefined;
   let judge: string | undefined;
@@ -306,6 +315,15 @@ export const POST: APIRoute = async (ctx) => {
     wordCount: facts.wordCount, schemaTypes: facts.schemaTypes,
     detectedIntent: llmScores.detectedIntent || null, suggestedCategory: llmScores.suggestedCategory || null,
     judge: judge || null,
+    // Auto-detected page kind + vertical, with the evidence behind each call so
+    // the report can justify which checklist it used.
+    checklist: checklist && {
+      kind: checklist.kind, kindLabel: checklist.kindLabel,
+      vertical: checklist.vertical, verticalLabel: checklist.verticalLabel,
+      detection: checklist.detection,
+      score: checklist.score, passed: checklist.passed, applicable: checklist.applicable,
+      items: checklist.items,
+    },
     // Fallback prompt set for Verify when the AI judge produced none (no key).
     fallbackPrompts: prompts.length ? [] : deterministicPrompts(facts, target, topic),
     fetchNote, aiError,

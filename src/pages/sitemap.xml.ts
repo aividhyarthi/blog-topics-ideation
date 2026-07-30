@@ -6,6 +6,7 @@ import { siteOrigin } from '../lib/mail';
 const ROUTES: { path: string; priority: string; changefreq: string }[] = [
   { path: '/', priority: '1.0', changefreq: 'weekly' },
   { path: '/pricing', priority: '0.9', changefreq: 'monthly' },
+  { path: '/checklist', priority: '0.9', changefreq: 'monthly' },
   { path: '/glossary', priority: '0.8', changefreq: 'monthly' },
   { path: '/terms', priority: '0.3', changefreq: 'yearly' },
   { path: '/privacy', priority: '0.3', changefreq: 'yearly' },

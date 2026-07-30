@@ -1,0 +1,140 @@
+---
+// The published AEO checklist. Two jobs: it lets a client see exactly what
+// they're being graded against before they pay, and it gives the owner one
+// place to review and challenge the rules rather than reading TypeScript.
+import Site from '../layouts/Site.astro';
+import { UNIVERSAL, BY_KIND, BY_VERTICAL, KIND_LABEL, VERTICAL_LABEL, type PageKind, type Vertical } from '../lib/checklists';
+
+const kinds = (Object.keys(BY_KIND) as PageKind[]).filter((k) => BY_KIND[k].length);
+const verticals = (Object.keys(BY_VERTICAL) as Vertical[]).filter((v) => BY_VERTICAL[v].length);
+
+const total = UNIVERSAL.length
+  + kinds.reduce((n, k) => n + BY_KIND[k].length, 0)
+  + verticals.reduce((n, v) => n + BY_VERTICAL[v].length, 0);
+
+const WEIGHT_LABEL: Record<number, string> = { 3: 'Decisive', 2: 'Important', 1: 'Worth having' };
+
+const sections = [
+  { id: 'universal', title: 'Every page', blurb: 'Run against every page regardless of what it is.', checks: UNIVERSAL },
+  ...kinds.map((k) => ({ id: `kind-${k}`, title: KIND_LABEL[k], blurb: 'Added when the page is detected as this shape.', checks: BY_KIND[k] })),
+  ...verticals.map((v) => ({ id: `vertical-${v}`, title: VERTICAL_LABEL[v], blurb: 'Added when the page is detected as this subject.', checks: BY_VERTICAL[v] })),
+];
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: 'The AI Page Audit AEO checklist',
+  numberOfItems: total,
+  itemListElement: sections.flatMap((s, si) =>
+    s.checks.map((c, ci) => ({
+      '@type': 'ListItem',
+      position: si * 100 + ci + 1,
+      name: `${s.title}: ${c.label}`,
+      description: c.why,
+    })),
+  ),
+};
+---
+<Site
+  schema={schema}
+  title="The AEO checklist — AI Page Audit"
+  description="Every check we run, why it affects whether an AI answer cites you, and which page types and verticals it applies to."
+>
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Our methodology</span>
+      <h1>The AEO checklist</h1>
+      <p>
+        Every check we run, and why each one changes whether an answer engine
+        cites you. We detect what a page actually is — its shape and its subject —
+        then run the checklists that apply. A cyclone report and a lipstick page
+        are not graded the same way.
+      </p>
+    </div>
+  </section>
+
+  <main>
+    <div class="wrap clwrap">
+      <div class="clsum">
+        <div class="cs-item"><span class="cs-n">{total}</span><span class="cs-l">checks</span></div>
+        <div class="cs-item"><span class="cs-n">{kinds.length}</span><span class="cs-l">page shapes</span></div>
+        <div class="cs-item"><span class="cs-n">{verticals.length}</span><span class="cs-l">verticals</span></div>
+        <div class="cs-note">
+          Detection reads the page's schema.org markup first, then falls back to
+          structure and vocabulary. Every audit reports which checklist it chose
+          and the evidence behind that call, so you can disagree with it.
+        </div>
+      </div>
+
+      <nav class="cljump" aria-label="Jump to a checklist">
+        {sections.map((s) => <a href={`#${s.id}`}>{s.title}</a>)}
+      </nav>
+
+      {sections.map((s) => (
+        <section class="clsec" id={s.id}>
+          <div class="cl-head">
+            <h2>{s.title}</h2>
+            <span class="cl-count">{s.checks.length} {s.checks.length === 1 ? 'check' : 'checks'}</span>
+          </div>
+          <p class="cl-blurb">{s.blurb}</p>
+          <div class="cl-list">
+            {s.checks.map((c) => (
+              <article class="cl-item">
+                <div class="ci-top">
+                  <h3>{c.label}</h3>
+                  <span class={`ci-w w${c.weight}`}>{WEIGHT_LABEL[c.weight]}</span>
+                </div>
+                <p class="ci-why">{c.why}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ))}
+
+      <div class="clcta">
+        <h3>See where a page of yours stands</h3>
+        <p>Run one against this checklist. The first check is on us.</p>
+        <a href="/check" class="btn-primary">Run a check</a>
+      </div>
+    </div>
+  </main>
+
+  <style>
+    .clwrap { max-width: 860px; }
+
+    .clsum { display: grid; grid-template-columns: repeat(3, auto) 1fr; gap: 26px; align-items: center;
+      border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 22px 26px; box-shadow: var(--shadow); }
+    .cs-item { display: grid; }
+    .cs-n { font-size: 30px; font-weight: 800; letter-spacing: -.03em; color: var(--accent); line-height: 1.05; font-variant-numeric: tabular-nums; }
+    .cs-l { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+    .cs-note { font-size: 13.5px; color: var(--muted); line-height: 1.6; border-left: 2px solid var(--line); padding-left: 20px; }
+    @media (max-width: 760px) { .clsum { grid-template-columns: repeat(3, 1fr); } .cs-note { grid-column: 1 / -1; border-left: 0; padding-left: 0; } }
+
+    .cljump { display: flex; flex-wrap: wrap; gap: 8px; margin: 26px 0 8px; }
+    .cljump a { font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px;
+      border: 1px solid var(--line-2); color: var(--ink-2); text-decoration: none; background: #fff; }
+    .cljump a:hover { border-color: var(--accent); color: var(--accent); }
+
+    .clsec { margin-top: 40px; scroll-margin-top: 90px; }
+    .cl-head { display: flex; align-items: baseline; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 9px; }
+    .cl-head h2 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -.025em; }
+    .cl-count { margin-left: auto; font-size: 12.5px; color: var(--faint); font-weight: 600; }
+    .cl-blurb { margin: 10px 0 16px; font-size: 14px; color: var(--muted); }
+
+    .cl-list { display: grid; gap: 10px; }
+    .cl-item { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: #fff; }
+    .ci-top { display: flex; align-items: baseline; gap: 12px; }
+    .ci-top h3 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -.015em; }
+    .ci-w { margin-left: auto; flex: none; font-size: 10.5px; font-weight: 800; letter-spacing: .04em;
+      text-transform: uppercase; padding: 3px 9px; border-radius: 999px; }
+    .ci-w.w3 { background: var(--bad-bg); color: var(--bad); }
+    .ci-w.w2 { background: var(--warn-bg); color: var(--warn); }
+    .ci-w.w1 { background: #f1f5f9; color: var(--muted); }
+    .ci-why { margin: 7px 0 0; font-size: 14px; color: var(--ink-2); line-height: 1.65; }
+
+    .clcta { margin-top: 48px; padding: 28px 30px; border: 1px solid var(--line);
+      border-radius: 16px; background: var(--accent-soft); }
+    .clcta h3 { margin: 0 0 7px; font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+    .clcta p { margin: 0 0 18px; font-size: 14.5px; color: var(--ink-2); }
+  </style>
+</Site>
