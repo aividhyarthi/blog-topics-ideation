@@ -1430,6 +1430,28 @@ ai photo enhancer"></textarea>
       // plan-capped daily list — a client with 400-600+ tracked keywords
       // wants to see how much of that whole universe is ranking, not just
       // whatever fits in the daily-tracked subset.
+      /**
+       * Why the Report Card has no rows. "No keyword data yet" was the same
+       * message whether the app had no keywords at all, had them but hadn't
+       * been checked, or had been checked and genuinely ranked nowhere —
+       * three completely different situations needing three different
+       * actions. Say which one it is.
+       */
+      function snapshotEmptyReason(app, allTrends) {
+        if (!allTrends.length) {
+          return `No keywords added for <b>${esc(app.title)}</b> yet — add them under <b>Settings</b>, then they appear here after the next check.`;
+        }
+        const unchecked = allTrends.filter((t) => !t.checked).length;
+        const failed = allTrends.filter((t) => t.error).length;
+        if (unchecked === allTrends.length) {
+          return `${allTrends.length} keywords tracked, none checked yet — the next scheduled check fills this in. Nothing is wrong with your rankings.`;
+        }
+        if (failed) {
+          return `${failed} of ${allTrends.length} keyword checks failed (store rate-limit or a temporary block, not a real result) — they retry on the next check.`;
+        }
+        return `${allTrends.length} keywords checked, none currently ranking in the top 200.`;
+      }
+
       function mergedKeywordTrends(app) {
         const map = new Map();
         for (const t of (app.coverageTrends || [])) map.set(t.keyword.toLowerCase(), t);
@@ -1562,10 +1584,11 @@ ai photo enhancer"></textarea>
               <div class="hint" style="margin:6px 0 0;">${ratingSub}</div>
             </div>
           </div>
+          ${allTrends.length && allTrends.every((t) => !t.checked) ? `<div class="alert info" style="display:block;margin:14px 0 0;">Today's check hasn't reached this app yet, so the figures above are blank — this is not a ranking loss. They fill in automatically once its scheduled check runs.</div>` : ''}
           <h4 style="margin:18px 0 8px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.03em;">Keyword rankings — ${rankingNow.length.toLocaleString()} of ${allTrends.length.toLocaleString()} tracked keywords ranking</h4>
           <div class="table-wrap snaptable"><table>
             <thead><tr><th>Keyword</th>${snapTh('pos', 'Rank')}${snapTh('delta', 'Δ vs last')}${snapTh('volume', 'Volume')}${snapTh('difficulty', 'Difficulty')}</tr></thead>
-            <tbody>${kwRows || '<tr><td colspan="5" class="hint">No keyword data yet.</td></tr>'}</tbody>
+            <tbody>${kwRows || `<tr><td colspan="5" class="hint">${snapshotEmptyReason(app, allTrends)}</td></tr>`}</tbody>
           </table></div>
           <p class="hint no-print" style="margin-top:14px;">Short list? Screenshot the card above. Long list (400+ keywords)? Use <b>Export as PDF</b> — it paginates cleanly and shares as a file in WhatsApp/Slack.</p>
         </div>`;
