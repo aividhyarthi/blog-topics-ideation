@@ -76,23 +76,28 @@ import App from '../layouts/App.astro';
 
             <div class="three">
               <div>
-                <label class="fld" for="pagetype">Page type <span class="opt">(what is this page?)</span></label>
+                <label class="fld" for="pagetype">Page type <span class="opt">(auto-detected — override if wrong)</span></label>
                 <select id="pagetype">
                   <option value="auto">Auto-detect</option>
-                  <option value="article">Article / Blog</option>
+                  <option value="article">Article</option>
                   <option value="product">Product page</option>
                   <option value="listing">Category / Listing page</option>
+                  <option value="review">Review</option>
+                  <option value="howto">How-to / Guide</option>
                 </select>
               </div>
               <div>
-                <label class="fld" for="category">Category <span class="opt">(sets the weighting)</span></label>
+                <label class="fld" for="category">Vertical <span class="opt">(auto-detected — sets the checklist)</span></label>
                 <select id="category">
-                  <option value="general">General</option>
+                  <option value="auto">Auto-detect</option>
+                  <option value="news">News</option>
+                  <option value="health">Health &amp; Medical</option>
+                  <option value="beauty">Beauty &amp; Personal Care</option>
+                  <option value="ecommerce">E-commerce</option>
                   <option value="entertainment">Entertainment</option>
-                  <option value="health">Health</option>
-                  <option value="news">Breaking News</option>
-                  <option value="lifestyle">Lifestyle</option>
-                  <option value="commerce">Beauty / Commerce</option>
+                  <option value="lifestyle">Lifestyle &amp; How-to</option>
+                  <option value="reviews">Product Review</option>
+                  <option value="general">General</option>
                 </select>
               </div>
               <div>
@@ -216,6 +221,38 @@ import App from '../layouts/App.astro';
             </div>
             ${r.summary ? `<div class="summary"><span class="sicon">${IC.sparkle}</span><div class="sbody"><b>What this means</b><p>${esc(r.summary)}</p></div></div>` : ''}
           </div>`;
+
+        // ---- Our AEO checklist (detected page type + vertical) ----
+        const cl = m.checklist;
+        let checklistPanel = '';
+        if (cl) {
+          const kindConf = cl.detection.kind.confidence, vertConf = cl.detection.vertical.confidence;
+          const confBadge = (c) => `<span class="clconf ${c}">${c} confidence</span>`;
+          const evidence = [...cl.detection.kind.evidence, ...cl.detection.vertical.evidence];
+          const groupLabel = { universal: 'Every page', kind: cl.kindLabel, vertical: cl.verticalLabel };
+          const items = (cl.items || []).filter((i) => i.status !== 'na');
+          const naItems = (cl.items || []).filter((i) => i.status === 'na');
+          const rows = items.map((i) => `
+            <div class="clrow ${i.status}">
+              <span class="clbadge ${i.status}">${STATUS_IC[i.status]}</span>
+              <div class="clbody">
+                <div class="cltop"><b>${esc(i.label)}</b><span class="clgroup">${esc(groupLabel[i.group])}</span></div>
+                <div class="cldetail">${esc(i.detail)}</div>
+                <div class="clwhy"><b>Why it matters</b>${esc(i.why)}</div>
+                ${i.fix ? `<div class="clfix">${esc(i.fix)}</div>` : ''}
+              </div>
+            </div>`).join('');
+          checklistPanel = sec(IC.layers, 'Our AEO checklist', 'detected page type and the domain-specific checks we ran') + `
+            <div class="cldetect">
+              <div class="cld-row"><span class="cld-label">Page type</span><b>${esc(cl.kindLabel)}</b>${confBadge(kindConf)}</div>
+              <div class="cld-row"><span class="cld-label">Vertical</span><b>${esc(cl.verticalLabel)}</b>${confBadge(vertConf)}</div>
+              ${evidence.length ? `<div class="cld-evidence">Based on: ${evidence.map(esc).join(' · ')}</div>` : ''}
+              <div class="cld-note">Not what this page is? Set <b>Page type</b> and <b>Vertical</b> above and re-run.</div>
+            </div>
+            <div class="clscore"><span>${cl.score}<small>%</small></span> of applicable checks passed or partially passed — ${cl.passed} of ${cl.applicable} fully passed${naItems.length ? `, ${naItems.length} not applicable to this page` : ''}.</div>
+            <div class="cllist">${rows}</div>
+            <div class="clfoot">See the full list of what we check and why at <a href="/checklist" target="_blank" rel="noopener">/checklist</a>.</div>`;
+        }
 
         // ---- AI crawlability (robots.txt + llms.txt) ----
         function crawlBadge(s) {
@@ -351,6 +388,7 @@ import App from '../layouts/App.astro';
           ${hero}
           ${crawlBanner}
           <div class="resbar">${m.savedId ? `<span class="savednote" style="margin-right:auto">${IC.check} Saved to your history</span>` : (ACCOUNTS && !USER ? `<span class="savednote" style="margin-right:auto;color:var(--muted)"><a id="savesignin" style="color:var(--accent-dark);font-weight:700;cursor:pointer">Sign in</a> to save this audit to your history</span>` : '')}<button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
+          ${checklistPanel}
           ${visibilityPanel}
           ${enginesPanel}
           ${verifyPanel}
@@ -806,6 +844,39 @@ button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; bo
 .cbadge.fail { background: var(--bad-bg); color: var(--bad); }
 .cc-detail { font-size: 12px; color: var(--muted); margin-top: 7px; line-height: 1.5; }
 .cc-fix { font-size: 12.5px; color: #6b5410; margin-top: 8px; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 7px 11px; border-radius: 0 8px 8px 0; line-height: 1.5; }
+/* ---- Our AEO checklist ---- */
+.cldetect { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 14px 16px; margin-bottom: 14px; display: grid; gap: 8px; }
+.cld-row { display: flex; align-items: center; gap: 9px; font-size: 13.5px; flex-wrap: wrap; }
+.cld-label { color: var(--muted); min-width: 72px; }
+.clconf { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; }
+.clconf.high { background: var(--ok-bg); color: var(--ok); }
+.clconf.medium { background: var(--warn-bg); color: var(--warn); }
+.clconf.low { background: #f1f5f9; color: var(--muted); }
+.cld-evidence { font-size: 12px; color: var(--faint); padding-top: 4px; border-top: 1px solid var(--line); }
+.cld-note { font-size: 12px; color: var(--faint); }
+.clscore { font-size: 13.5px; color: var(--ink-2); margin-bottom: 14px; }
+.clscore span { font-weight: 800; font-size: 18px; color: var(--ink); }
+.clscore small { font-size: 12px; font-weight: 700; }
+.cllist { display: grid; gap: 10px; }
+.clrow { display: flex; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; background: #fff; border-left: 3px solid var(--line-2); }
+.clrow.pass { border-left-color: var(--ok); }
+.clrow.warn { border-left-color: var(--warn); }
+.clrow.fail { border-left-color: var(--bad); }
+.clbadge { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; }
+.clbadge svg { width: 12px; height: 12px; }
+.clbadge.pass { background: var(--ok-bg); color: var(--ok); }
+.clbadge.warn { background: var(--warn-bg); color: var(--warn); }
+.clbadge.fail { background: var(--bad-bg); color: var(--bad); }
+.clbadge.na { background: #f1f5f9; color: var(--faint); }
+.clbody { flex: 1; min-width: 0; }
+.cltop { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.cltop b { font-size: 13.5px; }
+.clgroup { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--faint); background: #f1f5f9; padding: 2px 7px; border-radius: 999px; }
+.cldetail { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+.clwhy { font-size: 12px; color: var(--ink-2); margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--line-2); line-height: 1.5; }
+.clwhy b { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); margin-bottom: 2px; }
+.clfix { font-size: 12.5px; color: #6b5410; margin-top: 8px; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 7px 11px; border-radius: 0 8px 8px 0; line-height: 1.5; }
+.clfoot { font-size: 12px; color: var(--faint); margin-top: 12px; }
 /* ---- Can LLMs access this page? (visibility) ---- */
       .viscard { border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: #fff; box-shadow: var(--shadow); border-top: 3px solid var(--line-2); }
 .viscard.vis-yes { border-top-color: var(--ok); }

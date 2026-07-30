@@ -776,9 +776,16 @@ export interface ChecklistResult {
   applicable: number;
 }
 
-export function runChecklist(html: string, text: string, facts: PageFacts): ChecklistResult {
-  const kindDet = detectPageKind(html, facts);
-  const vertDet = detectVertical(html, facts, kindDet.value);
+export function runChecklist(
+  html: string, text: string, facts: PageFacts,
+  override?: { kind?: PageKind; vertical?: Vertical },
+): ChecklistResult {
+  const kindDet = override?.kind
+    ? { value: override.kind, confidence: 'high' as const, evidence: ['set manually'] }
+    : detectPageKind(html, facts);
+  const vertDet = override?.vertical
+    ? { value: override.vertical, confidence: 'high' as const, evidence: ['set manually'] }
+    : detectVertical(html, facts, kindDet.value);
   const ctx: Ctx = {
     html, h: html.toLowerCase(), text, t: text.toLowerCase(),
     facts, kind: kindDet.value, vertical: vertDet.value,

@@ -163,7 +163,6 @@ function deterministicPrompts(f: PageFacts, target: string, topic: string): stri
   }).slice(0, 6);
 }
 
-const PAGE_TYPES = ['auto', 'article', 'product', 'listing'] as const;
 const OPENAI_MODEL = (import.meta as any).env?.OPENAI_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4o';
 
 // ---- LLM judge: provider-agnostic, returns raw JSON text ----
@@ -221,8 +220,30 @@ export const POST: APIRoute = async (ctx) => {
   const brand = (body.brand || '').trim();
   const topic = (body.topic || '').trim();
   const target = (body.target || '').trim();
-  const category = (CATEGORIES.includes(body.category as Category) ? body.category : 'general') as Category;
-  const pageTypeChoice = (PAGE_TYPES.includes(body.pageType as any) ? body.pageType : 'auto') as 'auto' | PageType;
+  // The page-type/vertical dropdown now speaks the checklist engine's
+  // taxonomy (article/product/listing/review/howto, and eight verticals),
+  // not the older category-weighting one, since that's what a user is
+  // actually choosing when they override auto-detect. Map it down to the
+  // legacy category (for pillar weighting) and legacy pageType (for the AI
+  // judge's prompt guidance) so both scoring paths still get a sensible
+  // value instead of silently falling back to "general".
+  const rawVertical = (body.category || 'auto').trim();
+  const rawKind = (body.pageType || 'auto').trim();
+  const VERTICAL_TO_CATEGORY: Record<string, Category> = {
+    news: 'news', health: 'health', beauty: 'commerce', ecommerce: 'commerce',
+    entertainment: 'entertainment', lifestyle: 'lifestyle', reviews: 'general', general: 'general',
+  };
+  const KIND_TO_PAGE_TYPE: Record<string, PageType> = {
+    article: 'article', product: 'product', listing: 'listing', review: 'article', howto: 'article',
+  };
+  const category = VERTICAL_TO_CATEGORY[rawVertical] || 'general';
+  const pageTypeChoice = (rawKind === 'auto' ? 'auto' : (KIND_TO_PAGE_TYPE[rawKind] || 'auto')) as 'auto' | PageType;
+  // Only pass an override into the checklist engine when the user actually
+  // picked something — otherwise it auto-detects, which is the whole point.
+  const checklistOverride = {
+    kind: rawKind !== 'auto' && (['article', 'product', 'listing', 'review', 'howto'] as const).includes(rawKind as any) ? (rawKind as any) : undefined,
+    vertical: rawVertical !== 'auto' && (['news', 'health', 'beauty', 'ecommerce', 'entertainment', 'lifestyle', 'reviews', 'general'] as const).includes(rawVertical as any) ? (rawVertical as any) : undefined,
+  };
 
   let html = '', host = '', isUrl = false, robotsTxt: string | null = null, llmsTxt: string | null = null, fetchNote: string | undefined;
 
@@ -273,7 +294,7 @@ export const POST: APIRoute = async (ctx) => {
   // every page against one generic list weighted by a dropdown nobody changes.
   let checklist: ChecklistResult | null = null;
   try {
-    checklist = runChecklist(html, facts.text || '', facts);
+    checklist = runChecklist(html, facts.text || '', facts, checklistOverride);
   } catch { /* never let the checklist take down the audit */ }
 
   let llmScores: LlmScores = {};
