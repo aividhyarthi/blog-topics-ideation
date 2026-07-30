@@ -56,6 +56,14 @@ export const SITE_URL = (process.env.SITE_URL || 'https://apprankr.in').replace(
  */
 export const OG_IMAGE_VERSION = 'v5';
 
+/** Founder credit — shown in the site footer and the About page, and used
+ * as the Person/Organization JSON-LD `sameAs` link on both. */
+export const FOUNDER_NAME = 'Rudra Kasturi';
+export const FOUNDER_LINKEDIN = 'https://www.linkedin.com/in/rudrakasturi';
+/** "An initiative by AI Vidhyarthi" — the parent initiative behind the
+ * product, credited alongside the founder wherever the brand appears. */
+export const INITIATIVE_NAME = 'AI Vidhyarthi';
+
 /**
  * Daily rank-report emails (src/lib/rank/email.ts), sent via Resend
  * (resend.com) — a plain HTTP API, no SDK dependency needed. Unset

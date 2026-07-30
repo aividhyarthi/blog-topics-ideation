@@ -1,5 +1,5 @@
 ---
-import { BRAND, TRIAL_DAYS } from '../lib/saas/plans';
+import { BRAND, TRIAL_DAYS, SITE_URL } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 if (Astro.locals.user) return Astro.redirect('/rank');
 ---
@@ -12,6 +12,8 @@ if (Astro.locals.user) return Astro.redirect('/rank');
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{BRAND} — Create your account</title>
+    <meta name="description" content={`Start a free ${TRIAL_DAYS}-day trial of ${BRAND} — track your app's keyword rankings on Google Play and the App Store. No card required.`} />
+    <link rel="canonical" href={`${SITE_URL}/signup`} />
     <style>
       :root { --pink: #16181d; --pink-dark: #000000; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }
       * { box-sizing: border-box; }

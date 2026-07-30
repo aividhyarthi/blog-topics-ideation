@@ -1,5 +1,5 @@
 ---
-import { BRAND } from '../lib/saas/plans';
+import { BRAND, SITE_URL } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 if (Astro.locals.user) return Astro.redirect('/rank');
 const next = Astro.url.searchParams.get('next') || '/rank';
@@ -13,6 +13,9 @@ const next = Astro.url.searchParams.get('next') || '/rank';
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{BRAND} — Log in</title>
+    <meta name="description" content={`Log in to ${BRAND} to check your app's keyword rankings on Google Play and the App Store.`} />
+    <link rel="canonical" href={`${SITE_URL}/login`} />
+    <meta name="robots" content="noindex, follow" />
     <style>
       :root { --pink: #16181d; --pink-dark: #000000; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }
       * { box-sizing: border-box; }

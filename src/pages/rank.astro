@@ -3,7 +3,7 @@
 // Serves two audiences from one page: the internal (Nykaa) toolset, and the
 // AppRankr product dashboard (product mode: branded header, trial banner,
 // plan-based limits).
-import { BRAND, planOf, checkAccess } from '../lib/saas/plans';
+import { BRAND, planOf, checkAccess, INITIATIVE_NAME, SITE_URL } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import { isGuest } from '../lib/saas/grants';
 const product = Boolean(Astro.locals.productMode);
@@ -26,6 +26,8 @@ const limitsText = product && plan
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{product ? `${BRAND} — Rank Tracker` : 'CiteRank — Rank Tracker'}</title>
     <meta name="description" content="Track where your apps rank in Google Play and App Store search for your keywords, with daily history and trends." />
+    {product && <meta name="robots" content="noindex, nofollow" />}
+    {product && <link rel="canonical" href={`${SITE_URL}/rank`} />}
     <style is:global>
       /* Console layout (card-based, KPI chips, dense tables) on a light
          ground — every surface/border/text color is a token, so this is
@@ -445,7 +447,7 @@ const limitsText = product && plan
       </div>
     </main>
 
-    <footer>{product ? <><b>{BRAND}</b> · App keyword rank tracking</> : <><b>CiteRank</b> · By Rudra Kasturi Inc · App keyword rank tracking</>}</footer>
+    <footer>{product ? <><b>{BRAND}</b> · App keyword rank tracking · An initiative by {INITIATIVE_NAME}</> : <><b>CiteRank</b> · By Rudra Kasturi Inc · App keyword rank tracking</>}</footer>
     <div class="toast" id="toast"></div>
     <div class="viztip" id="viztip"></div>
     <div class="kwmodal-backdrop no-print" id="kwmodal-backdrop">

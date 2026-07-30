@@ -6,7 +6,7 @@
 // self-serve checkout that doesn't exist. The page sells the product and the
 // free trial; the number gets discussed in the conversation that follows.
 import { getCollection } from 'astro:content';
-import { BRAND, TRIAL_DAYS, SITE_URL } from '../lib/saas/plans';
+import { BRAND, TRIAL_DAYS, SITE_URL, OG_IMAGE_VERSION } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../components/AdSenseMeta.astro';
 import Icon from '../components/Icon.astro';
@@ -20,6 +20,7 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
 
 const pageTitle = `${BRAND} — App Rank Tracker & ASO Tool for Google Play + App Store`;
 const pageDescription = `${BRAND} is an ASO tool that tracks your app's keyword rank on Google Play and the App Store, finds every keyword you already rank for, and audits your store listing. ${TRIAL_DAYS}-day free trial, no card required.`;
+const ogImageUrl = `${SITE_URL}/og-home.png?${OG_IMAGE_VERSION}`;
 
 const softwareAppJsonLd = {
   '@context': 'https://schema.org',
@@ -29,6 +30,10 @@ const softwareAppJsonLd = {
   operatingSystem: 'Web',
   description: pageDescription,
   url: SITE_URL,
+  image: ogImageUrl,
+  // "An initiative by AI Vidhyarthi" — see SiteFooter and about.astro for the
+  // human-readable version of the same credit.
+  publisher: { '@type': 'Organization', name: 'AI Vidhyarthi' },
 };
 ---
 
@@ -48,9 +53,14 @@ const softwareAppJsonLd = {
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={pageDescription} />
     <meta property="og:url" content={SITE_URL} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="675" />
+    <meta property="og:image:alt" content={pageTitle} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={pageDescription} />
+    <meta name="twitter:image" content={ogImageUrl} />
     <script type="application/ld+json" set:html={JSON.stringify(softwareAppJsonLd)} />
     <style>
       /* Indigo accent matches the blog, the nav and the post artwork, so the

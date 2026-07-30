@@ -3,7 +3,7 @@
 // the single-line "© AppRankr · About" footer that was on every page. Only
 // links to real, existing routes (no placeholder Terms/Privacy pages that
 // would just 404).
-import { BRAND } from '../lib/saas/plans';
+import { BRAND, FOUNDER_NAME, FOUNDER_LINKEDIN, INITIATIVE_NAME } from '../lib/saas/plans';
 ---
 <footer class="site-footer">
   <div class="sf-wrap sf-grid">
@@ -24,7 +24,9 @@ import { BRAND } from '../lib/saas/plans';
       <a href="mailto:talktoapprankr@gmail.com">Contact</a>
     </div>
   </div>
-  <div class="sf-wrap sf-bottom">© {new Date().getFullYear()} {BRAND} · Built by Rudra Kasturi</div>
+  <div class="sf-wrap sf-bottom">
+    © {new Date().getFullYear()} {BRAND} · An initiative by {INITIATIVE_NAME} · Built by <a href={FOUNDER_LINKEDIN} target="_blank" rel="noopener">{FOUNDER_NAME}</a>
+  </div>
 </footer>
 
 <style>
@@ -40,4 +42,6 @@ import { BRAND } from '../lib/saas/plans';
   .sf-col a { color: #4b5160; text-decoration: none; font-size: 13.5px; font-weight: 500; }
   .sf-col a:hover { color: #16181d; text-decoration: underline; }
   .sf-bottom { border-top: 1px solid #e5e7eb; padding: 18px 0; text-align: center; color: #9ca3af; font-size: 12px; }
+  .sf-bottom a { color: #9ca3af; text-decoration: underline; text-decoration-color: #d1d5db; }
+  .sf-bottom a:hover { color: #4b5160; }
 </style>

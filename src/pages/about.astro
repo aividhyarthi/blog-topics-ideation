@@ -1,9 +1,33 @@
 ---
-import { BRAND } from '../lib/saas/plans';
+import { BRAND, SITE_URL, OG_IMAGE_VERSION, FOUNDER_NAME, FOUNDER_LINKEDIN, INITIATIVE_NAME } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../components/AdSenseMeta.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 const user = Astro.locals.user;
+
+const pageTitle = `${BRAND} — About`;
+const pageDescription = `${BRAND} makes App Store Optimization measurable and accessible — simple, actionable keyword ranking intelligence for every app business. An initiative by ${INITIATIVE_NAME}, built by ${FOUNDER_NAME}.`;
+const canonicalUrl = `${SITE_URL}/about`;
+const ogImageUrl = `${SITE_URL}/og-home.png?${OG_IMAGE_VERSION}`;
+
+const personJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: FOUNDER_NAME,
+  url: FOUNDER_LINKEDIN,
+  sameAs: [FOUNDER_LINKEDIN],
+  jobTitle: `Founder, ${BRAND}`,
+  worksFor: { '@type': 'Organization', name: INITIATIVE_NAME },
+};
+const orgJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: BRAND,
+  url: SITE_URL,
+  logo: `${SITE_URL}/favicon.svg`,
+  founder: { '@type': 'Person', name: FOUNDER_NAME, sameAs: [FOUNDER_LINKEDIN] },
+  parentOrganization: { '@type': 'Organization', name: INITIATIVE_NAME },
+};
 ---
 
 <!doctype html>
@@ -14,8 +38,22 @@ const user = Astro.locals.user;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <AdSenseMeta />
-    <title>{BRAND} — About</title>
-    <meta name="description" content={`${BRAND} makes App Store Optimization measurable and accessible — simple, actionable keyword ranking intelligence for every app business.`} />
+    <title>{pageTitle}</title>
+    <meta name="description" content={pageDescription} />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:type" content="profile" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="675" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={pageDescription} />
+    <meta name="twitter:image" content={ogImageUrl} />
+    <script type="application/ld+json" set:html={JSON.stringify(orgJsonLd)} />
+    <script type="application/ld+json" set:html={JSON.stringify(personJsonLd)} />
     <style>
       :root { --pink: #16181d; --pink-dark: #000000; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }
       * { box-sizing: border-box; }
@@ -112,8 +150,15 @@ const user = Astro.locals.user;
           intelligence instead of overwhelming dashboards.
         </p>
 
+        <h2>Who's behind it</h2>
+        <p>
+          {BRAND} is an initiative by <b>{INITIATIVE_NAME}</b>, built and run by
+          <b> <a href={FOUNDER_LINKEDIN} target="_blank" rel="noopener">{FOUNDER_NAME}</a></b>.
+        </p>
+
         <div class="contact">
-          Talk to us — <a href="mailto:talktoapprankr@gmail.com">talktoapprankr@gmail.com</a>
+          Talk to us — <a href="mailto:talktoapprankr@gmail.com">talktoapprankr@gmail.com</a><br />
+          Connect on LinkedIn — <a href={FOUNDER_LINKEDIN} target="_blank" rel="noopener">{FOUNDER_NAME}</a>
         </div>
       </div>
     </main>

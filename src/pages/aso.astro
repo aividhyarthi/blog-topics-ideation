@@ -4,7 +4,7 @@
 // compares competitors, and proposes AI-rewritten title/short/long copy.
 // Serves two audiences from one page: the internal (Nykaa) toolset, and the
 // AppRankr product (product mode: branded header, trial banner).
-import { BRAND, planOf, checkAccess } from '../lib/saas/plans';
+import { BRAND, planOf, checkAccess, INITIATIVE_NAME, SITE_URL } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 const product = Boolean(Astro.locals.productMode);
 const user = Astro.locals.user || null;
@@ -21,6 +21,8 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{product ? `${BRAND} — ASO Inspector` : 'CiteRank — ASO Inspector for Google Play'}</title>
     <meta name="description" content="Audit any Google Play (Android) app's store listing: ASO score, keyword analysis, competitor comparison and AI-rewritten title, short and long descriptions." />
+    {product && <meta name="robots" content="noindex, nofollow" />}
+    {product && <link rel="canonical" href={`${SITE_URL}/aso`} />}
     <!-- is:global so styles also apply to the results DOM injected at runtime. -->
     <style is:global>
       :root {
@@ -355,7 +357,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
     </main>
 
     <footer>{product
-      ? <><b>{BRAND} · ASO Inspector</b> · live Google Play data · the score grades owner-editable listing fields; ratings &amp; installs are shown as market context</>
+      ? <><b>{BRAND} · ASO Inspector</b> · live Google Play data · the score grades owner-editable listing fields; ratings &amp; installs are shown as market context · An initiative by {INITIATIVE_NAME}</>
       : <><b>CiteRank · ASO Inspector</b> · By Rudra Kasturi Inc · live Google Play data · the score grades owner-editable listing fields; ratings &amp; installs are shown as market context</>}</footer>
     <div class="toast" id="toast"></div>
 
