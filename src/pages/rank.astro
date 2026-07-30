@@ -676,10 +676,25 @@ ai photo enhancer"></textarea>
         const brandPart = title.split(/[:\-–|,]/)[0];
         return brandPart.toLowerCase().split(/\s+/).filter((w) => w.length > 2 && !GENERIC_TITLE_WORDS.has(w));
       }
-      /** Brand tokens for this app and its known competitors. */
+      /**
+       * Brand tokens for this app and its known competitors.
+       *
+       * A hand-maintained stop-list can't keep up here: competitor titles are
+       * keyword-stuffed ("Credit Card Bill Payment App"), so their words leak
+       * in as "brand" and tag ordinary category keywords — "credit card"
+       * landing in Brand + Comp. Rather than keep guessing words, drop any
+       * candidate that shows up across a chunk of the owner's OWN keyword
+       * list: a real brand name appears in a handful of branded searches, a
+       * category word appears everywhere. Self-correcting, and it works the
+       * same for a news or health app as for a fintech one.
+       */
       function brandTokensFor(app) {
         const compTitles = ((app.asoCache && app.asoCache.data && app.asoCache.data.competitors) || []).map((c) => c.title || '');
-        return [...brandTokensFromTitle(app.title), ...compTitles.flatMap(brandTokensFromTitle)];
+        const candidates = [...new Set([...brandTokensFromTitle(app.title), ...compTitles.flatMap(brandTokensFromTitle)])];
+        const keys = [...new Set([...(app.keywords || []), ...(app.coverageKeywords || [])].map((k) => k.toLowerCase()))];
+        if (keys.length < 10) return candidates; // too few to judge frequency
+        const share = (tok) => keys.filter((k) => wordMatch(k, tok)).length / keys.length;
+        return candidates.filter((t) => share(t) <= 0.15);
       }
 
       /**

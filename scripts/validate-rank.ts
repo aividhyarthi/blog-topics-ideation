@@ -558,5 +558,50 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
     isDoneToday(app, { keywords: [{ keyword: 'a' }, { keyword: 'b' }, { keyword: 'c' }] }), true);
 }
 
+// --- a partial re-check must never destroy the day's earlier results --------
+// Regression guard. Runs stop early (hourly cap, time budget, throttle) and
+// return only the keywords they reached; replacing the app's row with that
+// fragment wiped a completed morning check and made the dashboard read
+// "not checked yet" hours after it had really been checked.
+{
+  const row = (keywords: any[], extra: any = {}) => ({
+    key: 'play:k', store: 'play' as const, appId: 'com.k', country: 'in',
+    keywords, topChart: null, score: null, ratings: null, ...extra,
+  });
+  const kw = (keyword: string, position: number | null, error?: string) =>
+    ({ keyword, position, depth: 200, top: [], ...(error ? { error } : {}) });
+
+  const morning = { dateKey: '2026-07-29', checkedAt: 'x', apps: [row([kw('a', 1), kw('b', 2), kw('c', 3)])] };
+
+  // A later run that only got to one keyword.
+  const afternoon = mergeIntoSnapshot(morning, '2026-07-29', [row([kw('a', 4)])]);
+  const got = afternoon.apps[0].keywords;
+  eq('a partial re-check keeps every earlier keyword', got.length, 3);
+  eq('the re-checked keyword is updated', got.find((k) => k.keyword === 'a')!.position, 4);
+  eq('untouched keywords keep their positions',
+    [got.find((k) => k.keyword === 'b')!.position, got.find((k) => k.keyword === 'c')!.position], [2, 3]);
+
+  // A failed re-check is not evidence the app stopped ranking.
+  const throttled = mergeIntoSnapshot(morning, '2026-07-29', [row([kw('b', null, 'rate limited')])]);
+  eq('an errored re-check does NOT erase a good position',
+    throttled.apps[0].keywords.find((k) => k.keyword === 'b')!.position, 2);
+  eq('...and does not mark it errored', !throttled.apps[0].keywords.find((k) => k.keyword === 'b')!.error, true);
+
+  // Chart/rating are fetched only on the first batch of the day.
+  const withChart = { dateKey: '2026-07-29', checkedAt: 'x',
+    apps: [row([kw('a', 1)], { topChart: { position: 9, chart: 'FINANCE', depth: 200 }, score: 4.5, ratings: 100 })] };
+  const later = mergeIntoSnapshot(withChart, '2026-07-29', [row([kw('a', 2)])]);
+  eq('chart position survives a follow-up batch', later.apps[0].topChart?.position, 9);
+  eq('rating survives a follow-up batch', [later.apps[0].score, later.apps[0].ratings], [4.5, 100]);
+
+  // Other apps and other days are untouched.
+  const twoApps = { dateKey: '2026-07-29', checkedAt: 'x', apps: [row([kw('a', 1)]), { ...row([kw('z', 5)]), key: 'play:other' }] };
+  const one = mergeIntoSnapshot(twoApps, '2026-07-29', [row([kw('a', 2)])]);
+  eq('a check for one app leaves the other alone',
+    one.apps.find((a) => a.key === 'play:other')!.keywords[0].position, 5);
+  const newDay = mergeIntoSnapshot(morning, '2026-07-30', [row([kw('a', 7)])]);
+  eq('a new day starts clean', newDay.apps[0].keywords.length, 1);
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('\nAll rank-engine checks passed.');

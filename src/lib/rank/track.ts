@@ -383,10 +383,49 @@ export function annotationImpact(days: OverviewDay[], annotationDate: string, wi
   };
 }
 
-/** Merge a fresh check into the day's snapshot (a re-check the same day replaces that app's rows). */
+/**
+ * Merge a fresh check into the day's snapshot, PER KEYWORD.
+ *
+ * This used to replace the app's whole row, which was safe only while a
+ * check was all-or-nothing. It no longer is: a run stops early when it hits
+ * the app's hourly request cap, the time budget, or a store throttle, and
+ * returns just the keywords it got to. Replacing the row with that fragment
+ * destroyed everything an earlier run had already collected — a full morning
+ * check would read as "not checked yet" a few hours later, and each
+ * subsequent partial run overwrote the last.
+ *
+ * So: keep every keyword already recorded today, let a fresh result update
+ * the ones it actually re-checked, and never let a missing or errored row
+ * displace a good one. A partial run can then only ever ADD to the day.
+ */
 export function mergeIntoSnapshot(existing: RankSnapshot | null, dateKey: string, results: AppRankResult[]): RankSnapshot {
-  const kept = (existing?.dateKey === dateKey ? existing.apps : []).filter(
-    (a) => !results.some((r) => r.key === a.key),
-  );
-  return { dateKey, checkedAt: new Date().toISOString(), apps: [...kept, ...results] };
+  const sameDay = existing?.dateKey === dateKey ? existing.apps : [];
+  const untouched = sameDay.filter((a) => !results.some((r) => r.key === a.key));
+
+  const merged = results.map((fresh) => {
+    const prior = sameDay.find((a) => a.key === fresh.key);
+    if (!prior) return fresh;
+
+    const byKeyword = new Map<string, KeywordRank>();
+    for (const k of prior.keywords) byKeyword.set(k.keyword, k);
+    for (const k of fresh.keywords) {
+      const old = byKeyword.get(k.keyword);
+      // A failed re-check (rate limit, block) must not erase the position we
+      // already have — it isn't evidence the app stopped ranking.
+      if (k.error && old && !old.error) continue;
+      byKeyword.set(k.keyword, k);
+    }
+    return {
+      ...fresh,
+      keywords: [...byKeyword.values()],
+      // Chart/rating come from single calls that are skipped on follow-up
+      // batches; fall back rather than blanking what we already had.
+      topChart: fresh.topChart ?? prior.topChart ?? null,
+      score: fresh.score ?? prior.score ?? null,
+      ratings: fresh.ratings ?? prior.ratings ?? null,
+      listSize: fresh.listSize ?? prior.listSize,
+    };
+  });
+
+  return { dateKey, checkedAt: new Date().toISOString(), apps: [...untouched, ...merged] };
 }
