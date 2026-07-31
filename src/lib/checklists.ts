@@ -281,6 +281,95 @@ export const UNIVERSAL: Check[] = [
       return pass(c.facts.dateModified ? 'Published and modified dates present.' : 'Published date present.');
     },
   },
+  {
+    id: 'u_structured_data',
+    label: 'Structured data describing the page',
+    why: 'Roughly two-thirds of the pages Google AI Mode cites, and about seven in ten of the pages ChatGPT cites, carry schema markup. It is the clearest signal in the whole checklist: it tells the engine what the page is instead of making it guess.',
+    pillar: 'structure', weight: 3,
+    run: (c) => {
+      const types = c.facts.schemaTypes || [];
+      // Organization/WebSite are site furniture — nearly every CMS emits them,
+      // and on their own they say nothing about this page.
+      const generic = new Set(['organization', 'website', 'webpage', 'breadcrumblist', 'sitenavigationelement']);
+      const meaningful = types.filter((t) => !generic.has(t.toLowerCase()));
+      if (!types.length) return fail('No schema.org markup at all.', 'Add JSON-LD describing this page — Article, Product, Recipe, Review or FAQPage, whichever fits.');
+      if (!meaningful.length) return warn(`Only site-level markup (${types.join(', ')}).`, 'Add markup for the page itself, not just the site. Organization and WebSite tell an engine nothing about this page.');
+      return pass(`Describes itself as ${meaningful.join(', ')}.`);
+    },
+  },
+  {
+    id: 'u_self_contained_sections',
+    label: 'Sections short enough to be quoted whole',
+    why: 'Engines retrieve a passage of roughly 100–300 words, not the page. One long undivided block gets split mid-thought and usually discarded; a page of tight, self-contained sections gives the engine something it can lift intact.',
+    pillar: 'structure', weight: 2,
+    run: (c) => {
+      const sub = (c.facts.headings || []).filter((h) => h.level >= 2).length;
+      const words = c.facts.wordCount;
+      if (words < 200) return na('Too short for section structure to matter.');
+      if (!sub) return fail('No subheadings — the page is one undivided block.', 'Break the page into sections with H2s every 150–300 words so each one can be retrieved on its own.');
+      const per = Math.round(words / (sub + 1));
+      if (per > 450) return fail(`About ${per} words per section — too long to be retrieved whole.`, 'Add more subheadings. Aim for roughly 150–300 words between them.');
+      if (per > 320) return warn(`About ${per} words per section.`, 'Slightly long. More frequent subheadings make each section easier to quote.');
+      return pass(`About ${per} words per section across ${sub} subheadings.`);
+    },
+  },
+  {
+    id: 'u_original_data',
+    label: 'Original data or first-hand evidence',
+    why: 'Pages carrying original figures — your own testing, survey or internal data — are measurably more likely to be quoted, because they are the only source for that number. Content that only restates what other sites already say gives an engine no reason to pick it over them.',
+    pillar: 'attribution', weight: 2,
+    run: (c) => {
+      const t = c.t;
+      const firstHand = /\b(we tested|we measured|our (test|research|survey|analysis|data|study)|in our testing|we surveyed|we spoke to|according to our|internal data|we analysed|we analyzed)\b/.test(t);
+      const stats = c.facts.statistics;
+      if (firstHand) return pass('States first-hand testing, research or data.');
+      if (stats >= 8) return warn(`${stats} figures, but none presented as your own.`, 'Where a number is yours — your testing, your sample, your sales data — say so explicitly. "We tested 12 units over 3 weeks" is citable in a way a borrowed statistic is not.');
+      return warn('No original data or first-hand evidence.', 'Add at least one thing only you can report: your own test result, sample, or internal figure.');
+    },
+  },
+  {
+    id: 'u_heading_hierarchy',
+    label: 'One H1 and a clean heading order',
+    why: 'The heading tree is how a parser works out which text belongs to which topic. Several H1s, or an H2 that jumps straight to H4, produce sections attached to the wrong heading — so the right answer gets filed under the wrong question.',
+    pillar: 'structure', weight: 1,
+    run: (c) => {
+      const hs = c.facts.headings || [];
+      if (!hs.length) return fail('No headings at all.', 'Add a single H1 and H2s for each section.');
+      if (c.facts.h1Count === 0) return fail('No H1 on the page.', 'Add exactly one H1 stating what the page is about.');
+      if (c.facts.h1Count > 1) return warn(`${c.facts.h1Count} H1s — the main topic is ambiguous.`, 'Keep one H1 and demote the rest to H2.');
+      let skipped = 0;
+      for (let i = 1; i < hs.length; i++) if (hs[i].level - hs[i - 1].level > 1) skipped++;
+      if (skipped > 2) return warn(`${skipped} places where a heading level is skipped.`, 'Go down one level at a time — H2 then H3, never H2 straight to H4.');
+      return pass('One H1 with a consistent heading order.');
+    },
+  },
+  {
+    id: 'u_alt_text',
+    label: 'Images described in text',
+    why: 'The crawlers behind ChatGPT, Claude and Perplexity read HTML, not pictures. Anything that exists only inside an image — a spec table, a chart, a comparison — is simply absent unless the alt text says what it shows.',
+    pillar: 'structure', weight: 1,
+    run: (c) => {
+      const imgs = c.facts.images;
+      if (!imgs) return na('No images on the page.');
+      const pct = Math.round((c.facts.imagesWithAlt / imgs) * 100);
+      if (pct < 40) return fail(`Only ${pct}% of ${imgs} images have alt text.`, 'Describe what each image shows. If a chart or table is an image, put its numbers in the page as text too.');
+      if (pct < 80) return warn(`${pct}% of ${imgs} images have alt text.`, 'Fill in the rest, and make the descriptions specific rather than a repeat of the filename.');
+      return pass(`${pct}% of ${imgs} images carry alt text.`);
+    },
+  },
+  {
+    id: 'u_payload_weight',
+    label: 'Page light enough for AI crawlers',
+    why: 'AI crawlers are far less patient than Googlebot — many give up after one to five seconds. A very heavy document risks being abandoned before the content is read, which costs the citation regardless of how good the writing is.',
+    pillar: 'structure', weight: 1,
+    run: (c) => {
+      const kb = Math.round(c.html.length / 1024);
+      if (!kb) return na('No HTML to measure.');
+      if (kb > 1500) return fail(`The HTML alone is about ${kb} KB.`, 'Cut the page weight. AI crawlers time out in seconds and this risks being abandoned before your content is read.');
+      if (kb > 700) return warn(`The HTML is about ${kb} KB — heavier than most.`, 'Trim inline scripts and styles so the content arrives quickly.');
+      return pass(`HTML is about ${kb} KB.`);
+    },
+  },
 ];
 
 // =============================================================================

@@ -186,44 +186,75 @@ import App from '../layouts/App.astro';
         const r = data.report, m = data.meta || {}, root = $('results');
         const vc = hexFor(r.overall);
 
-        const chips = [
-          m.pageTypeLabel ? `<span class="chip intent">${esc(m.pageTypeLabel)}${m.pageTypeAuto ? ' (auto)' : ''}</span>` : '',
-          `<span class="chip band-${r.citationBand}">${r.citationBand} citation likelihood</span>`,
-          r.benchmark ? `<span class="chip">${esc(r.benchmark)}</span>` : '',
-          `<span class="chip">${m.wordCount} words</span>`,
-          m.detectedIntent ? `<span class="chip intent">${esc(m.detectedIntent)}</span>` : '',
-          m.brand ? `<span class="chip">brand: ${esc(m.brand)}</span>` : (m.host ? `<span class="chip">site: ${esc(m.host)}</span>` : ''),
-        ].filter(Boolean).join('');
+        // Declared up here because the verdict headline names the detected page
+        // type and vertical — the checklist detection is the authoritative one,
+        // so the hero must not contradict it by showing the legacy category.
+        const cl = m.checklist;
 
         let suggest = '';
         if (m.suggestedCategory && m.suggestedCategory !== m.category) {
           suggest = `<div class="suggest">This reads more like <b>${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)}</b> than ${esc(m.categoryLabel)}. <a id="recat" data-cat="${esc(m.suggestedCategory)}">Re-audit as ${esc(CAT_LABEL[m.suggestedCategory] || m.suggestedCategory)} →</a></div>`;
         }
 
-        const bandLine = r.citationBand === 'High' ? 'Likely to be cited by AI'
-          : r.citationBand === 'Medium' ? 'Some chance of being cited — needs work'
-          : 'Unlikely to be cited as it stands';
+        // ---- One verdict, in the words a business reader uses ----
+        // Deliberately a single answer: no grade letter, gate label, band chip and
+        // benchmark line all competing to be the summary the way they used to.
+        const VERDICT = {
+          High: { head: 'Ready to be cited', line: 'This page is in good shape. AI answer engines can read it and are likely to quote it.' },
+          Medium: { head: 'Not ready yet', line: 'AI answer engines can read this page, but it is missing things they look for before quoting a source.' },
+          Low: { head: 'Will not get cited as it stands', line: 'As written, AI answer engines are unlikely to quote this page. The essentials are missing, not just the polish.' },
+        }[r.citationBand];
+
+        const nFix = (r.topFixes || []).length;
+        const actionLine = nFix
+          ? `${nFix === 1 ? 'One change' : (nFix <= 3 ? nFix + ' changes' : 'The ' + Math.min(3, nFix) + ' changes below')} will move it the most.`
+          : 'Nothing significant is blocking it.';
+
+        const cov = r.coverage;
+        const covNote = (cov && !cov.complete)
+          ? `<div class="covnote">${IC.alert}<div>We could not check everything on this page, so this score covers ${Math.round((cov.measuredWeight / cov.totalWeight) * 100)}% of what we normally grade. Not checked: ${cov.unmeasured.map(esc).join(', ')}. Everything shown below was measured.</div></div>`
+          : '';
+
         const hero = `
-          <div class="card">
+          <div class="card verdictcard">
             <div class="hero-res">
               <div class="donut" style="--val:${r.overall};--ring:${vc}">
-                <div class="inner"><div class="num" style="color:${vc}">${r.overall}<span class="pct">%</span></div><div class="grd">AEO · ${esc(r.grade)}</div></div>
+                <div class="inner"><div class="num" style="color:${vc}">${r.overall}<span class="pct">%</span></div><div class="grd">AEO score</div></div>
               </div>
               <div class="verdict">
-                <span class="gate ${r.gate.level}">${GATE_IC[r.gate.level] || IC.shieldA} ${esc(r.gate.label)}</span>
-                <div class="vtitle" style="color:${vc}">${bandLine}</div>
-                <div class="vsub">${esc(m.mode === 'url' ? (m.url || 'Audited URL') : 'Pasted content')}${m.pageTypeLabel ? ` · ${esc(m.pageTypeLabel)}` : ''} · weighted for <b>${esc(m.categoryLabel)}</b></div>
-                <div class="chips">${chips}</div>
+                <div class="vtitle" style="color:${vc}">${VERDICT.head}</div>
+                <p class="vline">${VERDICT.line} ${actionLine}</p>
+                <div class="vsub">${esc(m.mode === 'url' ? (m.url || 'Audited URL') : 'Pasted content')} · ${m.wordCount} word${m.wordCount === 1 ? '' : 's'} · graded as <b>${esc(cl ? cl.kindLabel : (m.pageTypeLabel || 'Page'))}</b>${cl ? ` in <b>${esc(cl.verticalLabel)}</b>` : ''}</div>
                 ${suggest}
                 ${m.fetchNote ? `<div class="note-warn">${IC.alert}<span>${esc(m.fetchNote)}</span></div>` : ''}
-                ${m.aiError ? `<div class="note-bad">${IC.alert}<span>AI-judged signals unavailable — they default to 50. Add a funded API key to the service. (${esc(m.aiError)})</span></div>` : ''}
               </div>
             </div>
-            ${r.summary ? `<div class="summary"><span class="sicon">${IC.sparkle}</span><div class="sbody"><b>What this means</b><p>${esc(r.summary)}</p></div></div>` : ''}
+            ${covNote}
           </div>`;
 
+        // ---- Do this first: the short, plain-English action list ----
+        // The old report opened with 8 ranked fixes carrying "+4.4 pts" labels,
+        // which read as a spreadsheet rather than an instruction. Three items,
+        // no arithmetic.
+        const PRIORITY = ['Do this first', 'Then this', 'Then this'];
+        const topThree = (r.topFixes || []).slice(0, 3).map((fx, i) => `
+          <div class="actrow ${fx.severity}">
+            <div class="actnum">${i + 1}</div>
+            <div class="actbody">
+              <div class="actlabel">${esc(PRIORITY[i] || 'Then this')}</div>
+              <b>${esc(fx.label)}</b>
+              <p>${esc(fx.fix)}</p>
+            </div>
+          </div>`).join('');
+        const rest = (r.topFixes || []).slice(3);
+        const actionPanel = topThree ? `
+          <div class="card actioncard">
+            ${sec(IC.wrench, 'What to fix', 'in the order that will make the biggest difference')}
+            <div class="actlist">${topThree}</div>
+            ${rest.length ? `<details class="moreacts"><summary>${rest.length} smaller improvement${rest.length > 1 ? 's' : ''} after those</summary><div class="actlist">${rest.map((fx) => `<div class="actrow small ${fx.severity}"><div class="actbody"><b>${esc(fx.label)}</b><p>${esc(fx.fix)}</p></div></div>`).join('')}</div></details>` : ''}
+          </div>` : '';
+
         // ---- Our AEO checklist (detected page type + vertical) ----
-        const cl = m.checklist;
         let checklistPanel = '';
         if (cl) {
           const kindConf = cl.detection.kind.confidence, vertConf = cl.detection.vertical.confidence;
@@ -249,7 +280,7 @@ import App from '../layouts/App.astro';
               ${evidence.length ? `<div class="cld-evidence">Based on: ${evidence.map(esc).join(' · ')}</div>` : ''}
               <div class="cld-note">Not what this page is? Set <b>Page type</b> and <b>Vertical</b> above and re-run.</div>
             </div>
-            <div class="clscore"><span>${cl.score}<small>%</small></span> of applicable checks passed or partially passed — ${cl.passed} of ${cl.applicable} fully passed${naItems.length ? `, ${naItems.length} not applicable to this page` : ''}.</div>
+            <div class="clscore"><b>${cl.passed} of ${cl.applicable} checks passed.</b> ${cl.applicable - cl.passed > 0 ? `${cl.applicable - cl.passed} need${cl.applicable - cl.passed === 1 ? 's' : ''} attention` : 'Nothing outstanding'}${naItems.length ? `, and ${naItems.length} ${naItems.length === 1 ? "doesn't" : "don't"} apply to this kind of page` : ''}.</div>
             <div class="cllist">${rows}</div>
             <div class="clfoot">See the full list of what we check and why at <a href="/checklist" target="_blank" rel="noopener">/checklist</a>.</div>`;
         }
@@ -320,9 +351,21 @@ import App from '../layouts/App.astro';
           </div>`;
 
         const gauges = r.pillars.map((p) => {
-          const col = hexFor(p.score);
+          const measured = p.measured !== false;
+          const col = measured ? hexFor(p.score) : '#9aa0ad';
           const counts = p.signals.reduce((a, s) => { const st = s.score == null ? 'na' : statusOf(s.score); a[st] = (a[st] || 0) + 1; return a; }, {});
           const issues = (counts.warn || 0) + (counts.fail || 0);
+          if (!measured) {
+            return `
+              <div class="gauge unmeasured" style="--g:${col}">
+                <div class="gtop">
+                  <div><div class="gname">${esc(p.label)}</div><div class="gpurpose">${esc(p.purpose)}</div></div>
+                  <div class="gpts na">—</div>
+                </div>
+                <div class="gbar"><i style="width:0%"></i></div>
+                <div class="gmore na">Not checked in this audit</div>
+              </div>`;
+          }
           return `
             <div class="gauge" style="--g:${col}" data-pill="${p.id}" role="button" tabindex="0" title="Click to see the issues in ${esc(p.label)}">
               <div class="gtop">
@@ -354,13 +397,6 @@ import App from '../layouts/App.astro';
           <div class="covbar"><i style="width:${covPct}%"></i></div>
           <div class="prompts">${pc.map((p) => `<div class="prow"><span class="pmark ${p.covered ? 'yes' : 'no'}">${p.covered ? IC.check : IC.x}</span><div>${esc(p.q)}</div></div>`).join('')}</div>` : '';
 
-        const TAGLBL = { high: 'High impact', quick: 'Quick win', offpage: 'Off-page' };
-        const fixesHtml = (r.topFixes || []).map((fx, i) => {
-          const col = fx.severity === 'fail' ? '#d23c3c' : '#b07900';
-          const gain = fx.gain >= 0.5 ? `<span class="gain">+${fx.gain} pts</span>` : '';
-          return `<div class="fixrow" style="--fc:${col}"><span class="fnum">${i + 1}</span><div class="ftext"><b>${esc(fx.label)}</b>${esc(fx.fix)}</div><div class="fmeta">${gain}<span class="ftag ${fx.tag}">${TAGLBL[fx.tag] || fx.tag}</span></div></div>`;
-        }).join('');
-
         const statusRank = { fail: 0, warn: 1, na: 2, pass: 3 };
         const breakdown = r.pillars.map((p) => {
           const col = hexFor(p.score);
@@ -375,9 +411,13 @@ import App from '../layouts/App.astro';
             const tag = s.source === 'ai' ? '<span class="tag">AI</span>' : '';
             return `<div class="signal"><span class="schip ${st}">${STATUS_IC[st]}</span><div class="sbody"><div class="sname">${esc(s.label)}${tag}</div><div class="sdetail">${esc(s.detail)}</div>${s.fix ? `<div class="sfix">${esc(s.fix)}</div>` : ''}</div><span class="sscore" style="${tintFor(s.score)}">${s.score == null ? 'n/a' : s.score}</span></div>`;
           }).join('');
-          const open = p.score < 70 ? ' open' : '';
-          const issueLbl = issues ? `<span class="pissues">${issues} issue${issues > 1 ? 's' : ''} to fix</span>` : '<span class="pclean">no issues</span>';
-          return `<details class="pillar" id="pill-${p.id}" style="--p:${col}"${open}><summary><span class="caret">${IC.caret}</span><span class="pdot"></span><span class="pname">${esc(p.label)}</span>${issueLbl}<span class="pbar"><i style="width:${p.score}%"></i></span><span class="pscore">${p.score}</span></summary><div class="signals">${sigs}</div></details>`;
+          const measured = p.measured !== false;
+          // Everything in the breakdown is collapsed now — the report opens with
+          // the verdict and the fix list, and this is the evidence you go to only
+          // if you're the person doing the work.
+          const issueLbl = !measured ? '<span class="pna">not checked</span>'
+            : issues ? `<span class="pissues">${issues} issue${issues > 1 ? 's' : ''} to fix</span>` : '<span class="pclean">no issues</span>';
+          return `<details class="pillar" id="pill-${p.id}" style="--p:${measured ? col : '#9aa0ad'}"><summary><span class="caret">${IC.caret}</span><span class="pdot"></span><span class="pname">${esc(p.label)}</span>${issueLbl}<span class="pbar"><i style="width:${measured ? p.score : 0}%"></i></span><span class="pscore">${measured ? p.score : '—'}</span></summary><div class="signals">${sigs}</div></details>`;
         }).join('');
 
         root.innerHTML = `
@@ -388,26 +428,60 @@ import App from '../layouts/App.astro';
           ${hero}
           ${crawlBanner}
           <div class="resbar">${m.savedId ? `<span class="savednote" style="margin-right:auto">${IC.check} Saved to your history</span>` : (ACCOUNTS && !USER ? `<span class="savednote" style="margin-right:auto;color:var(--muted)"><a id="savesignin" style="color:var(--accent-dark);font-weight:700;cursor:pointer">Sign in</a> to save this audit to your history</span>` : '')}<button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
-          ${checklistPanel}
-          ${visibilityPanel}
-          ${enginesPanel}
-          ${verifyPanel}
-          ${crawlPanel}
-          ${sec(IC.bars, 'Pillar scores', 'points shown out of each pillar\'s category weight')}
-          <div class="gauges">${gauges}</div>
-          ${promptPanel}
-          ${fixesHtml ? sec(IC.wrench, 'Top fixes, ranked by impact', '') + `<div class="fixlist">${fixesHtml}</div>` : ''}
-          ${domainPanel}
-          ${sec(IC.layers, 'Full breakdown', '')}
-          ${breakdown}
-          <div class="caveat"><b>How to read this:</b> the score grades only what an editor can change before publishing. Off-page brand authority is the strongest real driver of citation but is shown separately as <b>domain context</b> because it's the same for every article on your site. Signals marked <b>AI</b> are the model's judgement / estimate. Citation behaviour varies between engines (ChatGPT favours Wikipedia, Perplexity favours Reddit), so treat this as one composite signal, not a guarantee.</div>`;
+          ${actionPanel}
+
+          <div class="evidence">
+            <div class="evhead">
+              <b>The detail behind this</b>
+              <span>Open a section to see exactly what we checked and what we found. You don't need any of this to act on the summary above.</span>
+            </div>
+
+            <details class="evsec" open>
+              <summary><span class="caret">${IC.caret}</span><span class="evname">Checks for this page type</span><span class="evsub">${cl ? esc(cl.passed + ' of ' + cl.applicable + ' passed') : ''}</span></summary>
+              <div class="evbody">${checklistPanel}</div>
+            </details>
+
+            ${visibilityPanel ? `<details class="evsec"><summary><span class="caret">${IC.caret}</span><span class="evname">Can AI actually read this page?</span><span class="evsub">${vis && vis.verdict ? esc(vis.verdict.label) : ''}</span></summary><div class="evbody">${visibilityPanel}</div></details>` : ''}
+
+            <details class="evsec">
+              <summary><span class="caret">${IC.caret}</span><span class="evname">Score breakdown</span><span class="evsub">how the ${r.overall}% is made up</span></summary>
+              <div class="evbody">
+                <div class="gauges">${gauges}</div>
+                ${breakdown}
+              </div>
+            </details>
+
+            ${enginesPanel || promptPanel ? `<details class="evsec"><summary><span class="caret">${IC.caret}</span><span class="evname">Engine-by-engine estimate</span><span class="evsub">and the questions this page should win</span></summary><div class="evbody">${enginesPanel}${promptPanel}</div></details>` : ''}
+
+            ${crawlPanel ? `<details class="evsec"><summary><span class="caret">${IC.caret}</span><span class="evname">Crawler access</span><span class="evsub">site-wide — not in the score</span></summary><div class="evbody">${crawlPanel}</div></details>` : ''}
+
+            ${domainPanel ? `<details class="evsec"><summary><span class="caret">${IC.caret}</span><span class="evname">Domain authority context</span><span class="evsub">off-page — not in the score</span></summary><div class="evbody">${domainPanel}</div></details>` : ''}
+
+            <details class="evsec">
+              <summary><span class="caret">${IC.caret}</span><span class="evname">Check it against live engines</span><span class="evsub">prediction vs. what really happens</span></summary>
+              <div class="evbody">${verifyPanel}</div>
+            </details>
+          </div>
+
+          <div class="caveat"><b>How to read this:</b> the score covers what an editor can change on the page before publishing. Your site's overall brand authority matters more than any single page, but it's the same for every page on the site, so we show it separately rather than in the score. Items marked <b>AI</b> are a model's judgement rather than a measurement. Engines differ in what they favour, so treat the score as a strong indicator, not a guarantee.</div>`;
 
         const recat = $('recat');
         if (recat) recat.addEventListener('click', () => { $('category').value = recat.dataset.cat; run(); });
         const copyBtn = $('copyreport');
         if (copyBtn) copyBtn.addEventListener('click', () => copyReport(r, m));
+        // A closed <details> prints nothing, so the PDF would silently drop most
+        // of the evidence. Open everything for the print, then put it back so the
+        // on-screen report is still the short version.
         const pdfBtn = $('pdfbtn');
-        if (pdfBtn) pdfBtn.addEventListener('click', () => window.print());
+        if (pdfBtn) pdfBtn.addEventListener('click', () => {
+          const shut = [...root.querySelectorAll('details:not([open])')];
+          shut.forEach((d) => { d.open = true; });
+          const restore = () => { shut.forEach((d) => { d.open = false; }); window.removeEventListener('afterprint', restore); };
+          window.addEventListener('afterprint', restore);
+          window.print();
+          // Safari fires afterprint unreliably; make sure we always restore.
+          setTimeout(restore, 3000);
+        });
         const ssi = $('savesignin');
         if (ssi) ssi.addEventListener('click', () => openAuth('login'));
 
@@ -417,7 +491,13 @@ import App from '../layouts/App.astro';
         root.querySelectorAll('.gauge[data-pill]').forEach((g) => {
           const openPill = () => {
             const d = document.getElementById('pill-' + g.dataset.pill);
-            if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+            if (!d) return;
+            // The breakdown now lives inside a collapsed <details>; opening the
+            // pillar alone would scroll to something still hidden.
+            let p = d.parentElement;
+            while (p) { if (p.tagName === 'DETAILS') p.open = true; p = p.parentElement; }
+            d.open = true;
+            d.scrollIntoView({ behavior: 'smooth', block: 'start' });
           };
           g.addEventListener('click', openPill);
           g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPill(); } });
@@ -506,8 +586,11 @@ import App from '../layouts/App.astro';
         L.push('AI Page Audit — AEO audit · By Rudra Kasturi Inc');
         L.push(m.mode === 'url' ? (m.url || '') : 'Pasted article');
         L.push(`Category: ${m.categoryLabel}`);
-        L.push(`Score: ${r.overall}/100 (Grade ${r.grade}) — ${r.citationBand} citation likelihood — ${r.gate.label}`);
-        if (r.benchmark) L.push(r.benchmark);
+        const VHEAD = { High: 'Ready to be cited', Medium: 'Not ready yet', Low: 'Will not get cited as it stands' };
+        L.push(`AEO score: ${r.overall}/100 — ${VHEAD[r.citationBand]}`);
+        if (r.coverage && !r.coverage.complete) {
+          L.push(`Note: covers ${Math.round((r.coverage.measuredWeight / r.coverage.totalWeight) * 100)}% of what we normally grade. Not checked: ${r.coverage.unmeasured.join(', ')}.`);
+        }
         if (r.engines) { L.push(''); L.push(`Likelihood by engine: ChatGPT ${r.engines.chatgpt}% · Gemini ${r.engines.gemini}% · Perplexity ${r.engines.perplexity}% · AI Overviews ${r.engines.aiOverviews}%`); }
         if (r.crawlability && r.crawlability.length) {
           L.push(''); L.push('AI crawlability:');
@@ -518,15 +601,15 @@ import App from '../layouts/App.astro';
         L.push(`AI verdict: ${r.summary}`);
         L.push('');
         L.push('Pillar scores:');
-        r.pillars.forEach((p) => L.push(`  - ${p.label}: ${p.points}/${p.weight}`));
+        r.pillars.forEach((p) => L.push(`  - ${p.label}: ${p.measured === false ? 'not checked' : `${p.points}/${p.weight}`}`));
         if (r.promptCoverage && r.promptCoverage.length) {
           const cov = r.promptCoverage.filter((p) => p.covered).length;
           L.push(''); L.push(`Prompt coverage: ${cov}/${r.promptCoverage.length}`);
           r.promptCoverage.forEach((p) => L.push(`  [${p.covered ? 'x' : ' '}] ${p.q}`));
         }
         if (r.topFixes && r.topFixes.length) {
-          L.push(''); L.push('Top fixes (ranked by impact):');
-          r.topFixes.forEach((f, i) => L.push(`  ${i + 1}. ${f.label}${f.gain >= 0.5 ? ` (+${f.gain} pts)` : ''} — ${f.fix}`));
+          L.push(''); L.push('What to fix, in order:');
+          r.topFixes.forEach((f, i) => L.push(`  ${i + 1}. ${f.label} — ${f.fix}`));
         }
         L.push(''); L.push('Generated by AI Page Audit · By Rudra Kasturi Inc');
         try { await navigator.clipboard.writeText(L.join('\n')); showToast('Report copied to clipboard'); }
@@ -758,7 +841,10 @@ button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; bo
 .alert svg { width: 16px; height: 16px; flex-shrink: 0; }
 .alert.err { background: var(--bad-bg); color: #b3261e; border: 1px solid #f6c9c6; }
 .alert.info { background: var(--accent-soft); color: var(--accent-dark); border: 1px solid #c7ddff; }
-#results { margin-top: 28px; display: none; }
+/* The app header and tab bar are sticky, so a plain scrollIntoView() parks the
+   verdict — the one thing the reader needs — underneath them. Reserve their
+   height so the report lands with the score and verdict actually on screen. */
+#results { margin-top: 28px; display: none; scroll-margin-top: 172px; }
 /* ---- hero score card ---- */
       .hero-res { display: flex; gap: 30px; align-items: center; flex-wrap: wrap; }
 .donut { --val: 0; --ring: var(--ok); width: 158px; height: 158px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--ring) calc(var(--val) * 1%), #ececf3 0); flex-shrink: 0; }
@@ -767,7 +853,61 @@ button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; bo
 .donut .num .pct { font-size: 20px; font-weight: 700; opacity: .6; margin-left: 1px; }
 .donut .grd { font-size: 11px; color: var(--muted); font-weight: 700; margin-top: 5px; letter-spacing: .08em; text-transform: uppercase; }
 .verdict { flex: 1; min-width: 280px; }
-.verdict .vtitle { font-size: 23px; font-weight: 800; margin: 0 0 9px; letter-spacing: -.02em; line-height: 1.2; }
+.verdict .vtitle { font-size: 30px; font-weight: 800; margin: 0 0 9px; letter-spacing: -.025em; line-height: 1.15; }
+.verdict .vline { font-size: 16px; line-height: 1.55; color: var(--ink-2); margin: 0 0 14px; max-width: 62ch; }
+
+/* Coverage caveat — shown only when part of the model could not run, so the
+   reader is never handed a score that quietly covers less than it claims. */
+.covnote { display: flex; gap: 11px; align-items: flex-start; margin-top: 18px; padding: 13px 15px; border-radius: 12px;
+  background: var(--warn-bg); border: 1px solid #f0dcae; color: #6d5100; font-size: 13px; line-height: 1.55; }
+.covnote svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+
+/* ---- What to fix: the short action list that replaces the ranked point table ---- */
+.actioncard { margin-top: 18px; }
+.actlist { display: grid; gap: 12px; }
+.actrow { display: flex; gap: 15px; align-items: flex-start; padding: 16px 18px; border-radius: 14px;
+  background: #fbfbfd; border: 1px solid var(--line); border-left: 4px solid var(--ok); }
+.actrow.fail { border-left-color: var(--bad); }
+.actrow.warn { border-left-color: var(--warn); }
+.actnum { width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 800;
+  font-size: 14px; display: grid; place-items: center; flex-shrink: 0; }
+.actbody { flex: 1; min-width: 0; }
+.actlabel { font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+.actbody b { display: block; font-size: 16px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 5px; }
+.actbody p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+.actrow.small { padding: 12px 16px; background: #fff; }
+.actrow.small .actbody b { font-size: 14px; }
+.actrow.small .actbody p { font-size: 13px; }
+.moreacts { margin-top: 12px; }
+.moreacts > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent-dark); padding: 8px 2px; list-style: none; }
+.moreacts > summary::-webkit-details-marker { display: none; }
+.moreacts > summary::before { content: '+ '; font-weight: 800; }
+.moreacts[open] > summary::before { content: '– '; }
+
+/* ---- Evidence: everything that used to be nine stacked full-width sections ---- */
+.evidence { margin-top: 30px; }
+.evhead { margin-bottom: 14px; }
+.evhead b { display: block; font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+.evhead span { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; max-width: 68ch; line-height: 1.5; }
+.evsec { border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 10px; overflow: hidden; }
+.evsec > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 11px;
+  padding: 15px 18px; font-weight: 700; font-size: 15px; }
+.evsec > summary::-webkit-details-marker { display: none; }
+.evsec > summary:hover { background: #fafafc; }
+.evsec .caret { display: inline-flex; transition: transform .15s; color: var(--muted); }
+.evsec .caret svg { width: 15px; height: 15px; }
+.evsec[open] > summary .caret { transform: rotate(90deg); }
+.evsec .evname { flex: 1; min-width: 0; }
+.evsec .evsub { font-size: 12.5px; font-weight: 500; color: var(--muted); text-align: right; }
+.evbody { padding: 4px 18px 20px; border-top: 1px solid var(--line); }
+.evbody > .sectitle:first-child { margin-top: 16px; }
+
+/* A pillar we could not measure is greyed out and reads "not checked" — it is
+   never shown as a zero, which would look like a failure we never tested for. */
+.gauge.unmeasured { opacity: .6; cursor: default; }
+.gpts.na { font-size: 22px; font-weight: 800; color: var(--na); }
+.gmore.na { color: var(--muted); font-style: italic; }
+.pna { font-size: 11.5px; font-weight: 600; color: var(--na); }
 .gate { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; margin-bottom: 11px; letter-spacing: .01em; }
 .gate svg { width: 13px; height: 13px; }
 .gate.block { background: var(--bad-bg); color: var(--bad); }
@@ -1050,10 +1190,27 @@ footer b { color: var(--ink-2); }
         .printhead { display: block !important; margin-bottom: 14px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
         .printhead .pt-brand { font-size: 18px; font-weight: 800; color: var(--accent-dark); letter-spacing: -.02em; }
         .printhead .pt-sub { font-size: 11px; color: var(--muted); }
-        .card, .gauge, .engcard, .pillar, .fixrow, .prow, .domain { box-shadow: none !important; border: 1px solid var(--line) !important; break-inside: avoid; }
+        .card, .gauge, .engcard, .pillar, .prow, .domain, .actrow, .evsec { box-shadow: none !important; border: 1px solid var(--line) !important; break-inside: avoid; }
         .pillar .signals { display: block !important; }
         .gauges { break-inside: avoid; }
         a[href]:after { content: ""; }
+
+        /* The verdict and the fix list are the whole point of the printed
+           report, so they get page one to themselves and the evidence starts
+           after the break. Collapsed sections still have to print in full — a
+           PDF that silently omits content is worse than a long one. */
+        .evidence { break-before: page; }
+        .evsec > summary .caret, .moreacts > summary { display: none !important; }
+        .verdict .vtitle { font-size: 26px; }
+        .verdict .vline { font-size: 14px; }
+        .actioncard { break-inside: avoid; }
+
+        /* Inline chips sit directly after a bold label in the flow, so without an
+           explicit margin the PDF renders them welded on ("…in markupEVERY PAGE",
+           "Headline answer clarityAI"). Print drops the flex gaps that hide this
+           on screen, so state the spacing outright. */
+        .cltop b, .sname { margin-right: 8px; }
+        .clgroup, .sname .tag, .eltag, .vw-js { margin-left: 6px !important; }
       }
   </style>
 </App>

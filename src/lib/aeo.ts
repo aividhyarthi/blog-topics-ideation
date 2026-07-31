@@ -47,8 +47,12 @@ export interface PillarResult {
   label: string;
   purpose: string;
   weight: number; // category weight, out of 100
-  score: number; // 0-100
+  score: number; // 0-100 (0 when `measured` is false — don't display it)
   points: number; // score scaled to weight (e.g. 18 of 25)
+  // False when nothing in this pillar could actually be scored (e.g. every
+  // signal in it is AI-judged and the judge was unavailable). Such a pillar is
+  // dropped from the overall and must be shown as "not measured", never as 0.
+  measured: boolean;
   signals: Signal[];
 }
 
@@ -70,6 +74,9 @@ export interface AeoReport {
   promptCoverage: PromptCoverage[];
   topFixes: { label: string; severity: SignalStatus; fix: string; pillar: PillarId | 'domain'; gain: number; tag: 'quick' | 'high' | 'offpage' }[];
   engines: EngineScores | null; // per-engine estimated citation likelihood
+  // How much of the scoring model actually ran. Anything below 100 means part
+  // of the page was not assessed, and the report says so instead of pretending.
+  coverage: { measuredWeight: number; totalWeight: number; complete: boolean; unmeasured: string[] };
 }
 
 export const PILLAR_META: { id: PillarId; label: string; purpose: string }[] = [
@@ -585,11 +592,20 @@ export function deterministicSignals(f: PageFacts): Signal[] {
     score: c((avgPara === 0 ? 40 : Math.max(0, 110 - Math.max(0, avgPara - 40) * 3)) * 0.6 + Math.min(40, f.lists * 12 + f.tables * 16)),
     detail: `Avg paragraph ≈ ${Math.round(avgPara)} words; ${f.lists} list(s), ${f.tables} table(s).`,
     fix: avgPara > 60 || f.lists + f.tables === 0 ? 'Use short paragraphs, bullets and tables — AI dislikes walls of text.' : undefined }));
-  const flesch = f.wordCount ? 206.835 - 1.015 * (f.wordCount / f.sentences) - 84.6 * (f.syllables / Math.max(1, f.wordCount)) : 0;
+  // Flesch assumes running prose. On spec sheets and listings most "text" is
+  // table cells and fragments with no full stops, so words-per-sentence blows up
+  // and the formula returns a large negative number — which used to score 0 and
+  // drag the whole structure pillar down over a page that has no prose problem.
+  // Past ~45 words per sentence we're not looking at prose, so we don't score it.
+  const wps = f.sentences > 0 ? f.wordCount / f.sentences : Infinity;
+  const proseLike = f.wordCount >= 50 && wps <= 45;
+  const flesch = proseLike ? 206.835 - 1.015 * wps - 84.6 * (f.syllables / Math.max(1, f.wordCount)) : 0;
   out.push(sig({ id: 'reading_ease', label: 'Reading ease', pillar: 'structure', weight: 0.2,
-    score: f.wordCount < 50 ? null : c(Math.max(0, Math.min(100, flesch))),
-    detail: f.wordCount < 50 ? 'Not enough text.' : `Flesch reading ease ≈ ${Math.round(flesch)} (higher is easier).`,
-    fix: f.wordCount >= 50 && flesch < 50 ? 'Simplify: shorter sentences, plainer words (aim for 60+).' : undefined }));
+    score: proseLike ? c(Math.max(0, Math.min(100, flesch))) : null,
+    detail: f.wordCount < 50 ? 'Not enough text to judge.'
+      : proseLike ? `Reads at a Flesch score of ${Math.round(flesch)} out of 100 — higher is easier.`
+      : 'Mostly tables and fragments rather than prose, so a readability score would be misleading. Not scored.',
+    fix: proseLike && flesch < 50 ? 'Shorten sentences and use plainer words — aim for 60 out of 100 or better.' : undefined }));
 
   // FRESHNESS & METADATA (deterministic)
   const fresh = (() => {
@@ -643,10 +659,18 @@ export interface EngineScores { chatgpt: number; gemini: number; perplexity: num
 
 export function llmSignals(llm: LlmScores, hasTarget: boolean): Signal[] {
   const mk = (id: string, label: string, pillar: PillarId | 'domain', weight: number, score: number | undefined, fix: string): Signal => {
-    const sc = typeof score === 'number' ? c(score) : 50;
     const aiFix = llm.fixes?.[id];
+    // An unavailable judge must not become a score. Substituting 50 here used to
+    // fold a dozen invented numbers into the weighted average and then rank the
+    // never-measured signals as "top fixes" — the headline grade was mostly an
+    // artefact of a failed API call. null drops the signal from scoring entirely.
+    if (typeof score !== 'number') {
+      return sig({ id, label, pillar, weight, score: null,
+        detail: llm.notes?.[id] || 'Not measured in this audit.', source: 'ai' });
+    }
+    const sc = c(score);
     return sig({ id, label, pillar, weight, score: sc,
-      detail: llm.notes?.[id] || (typeof score === 'number' ? `Estimated ${sc}/100 by Claude.` : 'Not assessed.'),
+      detail: llm.notes?.[id] || `Estimated ${sc}/100 by Claude.`,
       // Prefer the AI's article-specific fix; fall back to the generic template.
       fix: sc < 70 ? (aiFix || fix) : undefined, source: 'ai' });
   };
@@ -674,14 +698,14 @@ export function llmSignals(llm: LlmScores, hasTarget: boolean): Signal[] {
   // prompt coverage as a query-pillar signal (weight from coverage score)
   const cov = typeof llm.promptCoverageScore === 'number'
     ? c(llm.promptCoverageScore)
-    : (llm.prompts && llm.prompts.length ? c((llm.prompts.filter((p) => p.covered).length / llm.prompts.length) * 100) : 50);
+    : (llm.prompts && llm.prompts.length ? c((llm.prompts.filter((p) => p.covered).length / llm.prompts.length) * 100) : null);
   out.push(sig({ id: 'prompt_coverage', label: 'Prompt coverage', pillar: 'query', weight: 0.5,
-    score: cov, detail: llm.notes?.prompt_coverage || (llm.prompts && llm.prompts.length ? `Answers ${llm.prompts.filter((p) => p.covered).length} of ${llm.prompts.length} likely AI prompts.` : 'Likely-prompt coverage estimated.'),
-    fix: cov < 70 ? (llm.fixes?.prompt_coverage || 'Add sections that directly answer the most likely AI prompts this story should win (see the prompt list).') : undefined, source: 'ai' }));
+    score: cov, detail: llm.notes?.prompt_coverage || (llm.prompts && llm.prompts.length ? `Answers ${llm.prompts.filter((p) => p.covered).length} of ${llm.prompts.length} likely AI prompts.` : 'Not measured in this audit.'),
+    fix: cov != null && cov < 70 ? (llm.fixes?.prompt_coverage || 'Add sections that directly answer the most likely AI prompts this story should win (see the prompt list).') : undefined, source: 'ai' }));
 
   out.push(sig({ id: 'answers_target', label: hasTarget ? 'Answers the target question' : 'Answer completeness', pillar: 'query', weight: hasTarget ? 0.25 : 0,
-    score: typeof llm.answersTarget === 'number' ? c(llm.answersTarget) : (hasTarget ? 50 : null),
-    detail: llm.notes?.answers_target || (typeof llm.answersTarget === 'number' ? `Scored ${c(llm.answersTarget)}/100.` : 'No target question provided.'),
+    score: typeof llm.answersTarget === 'number' ? c(llm.answersTarget) : null,
+    detail: llm.notes?.answers_target || (typeof llm.answersTarget === 'number' ? `Scored ${c(llm.answersTarget)}/100.` : hasTarget ? 'Not measured in this audit.' : 'No target question provided.'),
     fix: typeof llm.answersTarget === 'number' && c(llm.answersTarget) < 70 ? (llm.fixes?.answers_target || 'Answer the target question directly, completely and early.') : undefined, source: 'ai' }));
 
   return out;
@@ -722,12 +746,20 @@ export function buildReport(
     const scored = signals.filter((s) => s.score != null && s.weight > 0);
     const wsum = scored.reduce((a, s) => a + s.weight, 0) || 1;
     wsumByPillar[p.id] = wsum;
-    const score = Math.round(scored.reduce((a, s) => a + (s.score as number) * s.weight, 0) / wsum);
+    const measured = scored.length > 0;
+    const score = measured ? Math.round(scored.reduce((a, s) => a + (s.score as number) * s.weight, 0) / wsum) : 0;
     const weight = weights[p.id];
-    return { id: p.id, label: LABEL[p.id], purpose: PURPOSE[p.id], weight, score, points: Math.round((score / 100) * weight), signals };
+    return { id: p.id, label: LABEL[p.id], purpose: PURPOSE[p.id], weight, score, points: Math.round((score / 100) * weight), measured, signals };
   });
 
-  const overall = Math.round(pillars.reduce((a, p) => a + p.score * (p.weight / 100), 0));
+  // Renormalise over the pillars we could actually measure, so an unavailable
+  // AI judge lowers our confidence rather than silently scoring the page 0 on
+  // whole pillars it never looked at.
+  const live = pillars.filter((p) => p.measured);
+  const liveWeight = live.reduce((a, p) => a + p.weight, 0);
+  const overall = liveWeight > 0
+    ? Math.round(live.reduce((a, p) => a + p.score * p.weight, 0) / liveWeight)
+    : 0;
   const domainContext = all.filter((s) => s.pillar === 'domain');
 
   // Estimated point gain (on the 0-100 overall scale) if each signal were lifted to 100.
@@ -749,7 +781,7 @@ export function buildReport(
       tag: (s.pillar === 'domain' ? 'offpage' : gain >= 3 ? 'high' : 'quick') as 'quick' | 'high' | 'offpage',
     }));
 
-  const sortedP = [...pillars].sort((a, b) => a.score - b.score);
+  const sortedP = [...live].sort((a, b) => a.score - b.score);
   const weakest = sortedP[0], strongest = sortedP[sortedP.length - 1];
   const band = overall >= 70 ? 'High' : overall >= 45 ? 'Medium' : 'Low';
   // Plain-English verdict framed around the engines — NO scores/numbers.
@@ -759,10 +791,11 @@ export function buildReport(
     : band === 'Medium'
       ? `${ENGINES} might cite this page, but it needs work first.`
       : `${ENGINES} are unlikely to cite this page as it stands.`;
-  const fallbackSummary =
-    `${likely} ` +
-    `It's strongest on ${strongest.label.toLowerCase()} and weakest on ${weakest.label.toLowerCase()} — that's what's holding it back. ` +
-    (topFixes[0] ? `Fix "${topFixes[0].label}" first.` : '');
+  const fallbackSummary = weakest && strongest
+    ? `${likely} ` +
+      `It's strongest on ${strongest.label.toLowerCase()} and weakest on ${weakest.label.toLowerCase()} — that's what's holding it back. ` +
+      (topFixes[0] ? `Fix "${topFixes[0].label}" first.` : '')
+    : likely;
 
   // Per-engine scores: use the AI's estimate when present, else derive a sensible
   // spread from the overall + pillar mix so the breakdown is always shown.
@@ -796,5 +829,11 @@ export function buildReport(
     gate: gateFor(overall), pillars, domainContext, crawlability: crawl, crawlBlocked, visibility,
     promptCoverage: prompts, topFixes,
     engines,
+    coverage: {
+      measuredWeight: liveWeight,
+      totalWeight: pillars.reduce((a, p) => a + p.weight, 0),
+      complete: live.length === pillars.length,
+      unmeasured: pillars.filter((p) => !p.measured).map((p) => p.label),
+    },
   };
 }
