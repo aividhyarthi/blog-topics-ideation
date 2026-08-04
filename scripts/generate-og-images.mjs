@@ -113,6 +113,14 @@ const SPEC = {
     { art: 'split', takeaway: 'Niche and regional terms belong off your default listing',
       left: ['head terms', 'core audience'], right: ['regional language', 'campaign traffic', 'seasonal terms'],
       leftLabel: 'main listing', rightLabel: 'custom listing' },
+  'tracking-app-rankings-across-countries':
+    { art: 'split', takeaway: 'A #4 in one country can be invisible in the next',
+      left: ['one rank number', 'one keyword list', 'one rival set'], right: ['a rank per market', 'demand shifts locally', 'rivals differ locally'],
+      leftLabel: 'one country', rightLabel: 'every market' },
+  'setting-up-rank-drop-alerts':
+    { art: 'drop', takeaway: 'Know the moment it happens, not the week after', mark: 'alert fires' },
+  'aso-for-subscription-apps-trial-to-paid':
+    { art: 'funnel', takeaway: 'The algorithm sees retention, not your billing dashboard', steps: ['trial start', 'day-7 retained', 'converts to paid'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
