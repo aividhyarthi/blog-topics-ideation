@@ -7,7 +7,7 @@
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets } from '../../lib/rank/track';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, ConfigReadError } from '../../lib/rank/store';
 import { analyzeReviewThemes } from '../../lib/rank/themes';
 import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/rank/check';
@@ -226,7 +226,14 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
       const covPrev = covOverview.length > 1 ? covOverview[covOverview.length - 2] : null;
       return {
         ...app,
-        annotations: (app.annotations || []).map((a) => ({ ...a, impact: annotationImpact(widerOverview, a.date) })),
+        annotations: (app.annotations || []).map((a) => ({
+          ...a,
+          impact: annotationImpact(widerOverview, a.date),
+          // Only the keywords the annotation actually names get a targeted
+          // before/after — everything else keeps the whole-app average above.
+          ...(a.keywords && a.keywords.length
+            ? { keywordImpact: keywordAnnotationImpact(merged, app.key, a.keywords, a.date) } : {}),
+        })),
         trends: keywordTrends(app, merged),
         chart: chartTrend(app, snapshots),
         overview: {
@@ -274,6 +281,8 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
             rating: rh.length ? rh[rh.length - 1] : null,
             ratingHistory: rh,
             chart: { position: chart.position, chart: chart.chart, depth: chart.depth, error: chart.error },
+            todayVisibility: today?.visibility ?? null,
+            prevVisibility: prev?.visibility ?? null,
             annotations: (app.annotations || []).map((a) => ({ ...a, impact: annotationImpact(widerOverview, a.date) })),
             competitors: cfg.apps
               .filter((c) => c.competitorOf === app.key)
@@ -651,7 +660,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const type = body.type === 'paid' ? 'paid' : 'experiment';
     const label = String(body.label || '').trim().slice(0, 200);
     if (!label) return json({ error: 'Describe what you changed (or the paid push you ran).' }, 400);
-    const annotation: Annotation = { id: randomUUID(), date, type, label };
+    // Optional: the specific keywords this change targeted, so the impact
+    // read can be scoped to them (see keywordAnnotationImpact) instead of
+    // only the whole-app average, which a handful of keyword edits barely
+    // moves. Reuses the same parser as the keyword-list boxes elsewhere —
+    // comma/newline separated, lowercased, deduped.
+    const keywords = parseKeywordsWithVolumes(body.keywords, 40).keywords;
+    const annotation: Annotation = { id: randomUUID(), date, type, label, ...(keywords.length ? { keywords } : {}) };
     app.annotations = [...(app.annotations || []), annotation];
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });

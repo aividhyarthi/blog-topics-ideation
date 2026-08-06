@@ -200,6 +200,7 @@ const limitsText = product && plan
       .viztip .tt-d { font-weight: 700; margin-bottom: 4px; }
       .viztip .tt-r { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
       .viztip .tt-r b { color: var(--ink); font-variant-numeric: tabular-nums; }
+      .viztip .tt-warn { color: var(--bad); font-weight: 600; margin-top: 4px; max-width: 220px; }
       .scrollhint { display: none; font-size: 11px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; }
       @media (max-width: 760px) { .scrollhint { display: block; } }
       /* overflow-y: hidden + touch-action: pan-x make the scroll axis
@@ -249,6 +250,10 @@ const limitsText = product && plan
       .ann-delta.up { color: var(--ok); }
       .ann-delta.down { color: var(--bad); }
       .ann-delta.na, .ann-delta.flat { color: var(--muted); }
+      .annkw { margin-top: 6px; border-top: 1px dashed var(--line); padding-top: 6px; display: flex; flex-direction: column; gap: 3px; }
+      .annkw-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+      .annkw-name { color: var(--ink); font-weight: 600; }
+      .annkw-vals { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
       button.small { padding: 4px 9px; font-size: 12px; flex-shrink: 0; }
       .covov { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
       .covhead { margin: 0 0 12px; font-size: 13.5px; font-weight: 700; color: var(--ink); }
@@ -909,8 +914,23 @@ ai photo enhancer"></textarea>
         const labelEvery = Math.ceil(days.length / 6);
         days.forEach((day, i) => {
           const isLast = i === days.length - 1;
-          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="${isLast ? 4.5 : 2.6}" fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>`;
-          const tid = tipId(`<div class="tt-d">${esc(fmtDay(day.dateKey))}</div><div class="tt-r"><span>Visibility score</span><b>${vals[i].toFixed(1)}</b></div>`);
+          // A day where a big chunk of the list never got a confirmed result
+          // (store throttle, cron ran out of time, etc.) produces a visibility
+          // score averaged over only the sliver that DID check — a small,
+          // noisy sample that can look exactly like a real drop. Marking the
+          // point itself (hollow instead of filled) flags this at a glance,
+          // without having to hover every point to find the one day it applies to.
+          const nc = notCheckedOn(day);
+          const totalForDay = day.tracked + nc;
+          const lowConfidence = totalForDay > 0 && day.tracked / totalForDay < 0.7;
+          const fill = lowConfidence ? 'var(--card)' : 'var(--accent)';
+          const stroke = lowConfidence ? 'var(--accent)' : 'var(--card)';
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="${isLast ? 4.5 : 2.6}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+          const covRow = totalForDay
+            ? `<div class="tt-r"><span>Keywords checked</span><b>${day.tracked} of ${totalForDay}</b></div>`
+              + (lowConfidence ? '<div class="tt-warn">Low coverage — read this point as low-confidence, not a confirmed rank</div>' : '')
+            : '';
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(day.dateKey))}</div><div class="tt-r"><span>Visibility score</span><b>${vals[i].toFixed(1)}</b></div>${covRow}`);
           const cw = days.length === 1 ? plotW : plotW / (days.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(day.dateKey))}</text>`;
@@ -1641,9 +1661,24 @@ ai photo enhancer"></textarea>
           const detail = hasImpact
             ? `${im.before.avgVisibility} → ${im.after.avgVisibility} avg visibility (14d before → after)`
             : '';
+          // Per-keyword before/after, only for annotations that named specific
+          // keywords — a targeted change (a couple of keywords added/edited)
+          // barely moves the whole-app average above, so this is the read that
+          // actually shows whether it worked.
+          const kwRows = (a.keywordImpact || []).map((k) => {
+            const has = k.before.avgPosition != null && k.after.avgPosition != null;
+            const b = k.before.avgPosition != null ? '#' + k.before.avgPosition : 'unranked';
+            const af = k.after.avgPosition != null ? '#' + k.after.avgPosition : 'unranked';
+            const arrow = !has ? '<span class="ann-delta na">not enough data yet</span>'
+              : k.delta > 0 ? `<span class="ann-delta up">▲ ${k.delta}</span>`
+              : k.delta < 0 ? `<span class="ann-delta down">▼ ${-k.delta}</span>`
+              : '<span class="ann-delta flat">＝</span>';
+            return `<div class="annkw-row"><span class="annkw-name">${esc(k.keyword)}</span><span class="annkw-vals">${b} → ${af} ${arrow}</span></div>`;
+          }).join('');
+          const kwBlock = kwRows ? `<div class="annkw">${kwRows}</div>` : '';
           return `<div class="annrow">
             <span class="anntype ${a.type}">${ANN_TYPE_LABEL[a.type] || a.type}</span>
-            <div class="anntext"><b>${esc(fmtDay(a.date))}</b> — ${esc(a.label)}<div class="annimpact">${deltaHtml}${detail ? `<span>${esc(detail)}</span>` : ''}</div></div>
+            <div class="anntext"><b>${esc(fmtDay(a.date))}</b> — ${esc(a.label)}<div class="annimpact">${deltaHtml}${detail ? `<span>${esc(detail)}</span>` : ''}</div>${kwBlock}</div>
             <button class="ghost danger small" data-act="remove-annotation" data-id="${escAttr(a.id)}" title="Remove annotation">×</button>
           </div>`;
         }).join('');
@@ -2235,13 +2270,15 @@ ai photo enhancer"></textarea>
           ${reviewThemesHtml(app)}
           <div class="annedit open no-print" data-role="annedit" style="margin-top:16px;">
             <h4 style="margin:0 0 6px;font-size:13.5px;">Log an annotation</h4>
-            <p class="hint" style="margin:0 0 8px;">An ASO experiment (title/screenshot/keyword change) or a paid marketing push — we'll compare average visibility in the 14 days before vs after.</p>
+            <p class="hint" style="margin:0 0 8px;">An ASO experiment (title/screenshot/keyword change) or a paid marketing push — we'll compare average visibility in the 14 days before vs after. Name the specific keywords a change targeted below and we'll also show each one's own rank before vs after, not just the whole-app average.</p>
             <div class="row">
               <div><label>Date</label><input type="date" data-role="ann-date" value="${new Date().toISOString().slice(0, 10)}" max="${new Date().toISOString().slice(0, 10)}" /></div>
               <div><label>Type</label><select data-role="ann-type"><option value="experiment">ASO experiment</option><option value="paid">Paid marketing push</option></select></div>
             </div>
             <label>What did you change / run?</label>
             <textarea data-role="ann-label" placeholder="e.g. Rewrote title to include &quot;photo editor&quot;, or Started a ₹50k UAC campaign" rows="2"></textarea>
+            <label style="margin-top:8px;">Which keywords does this affect? <span class="hint" style="display:inline;">— optional, one per line or comma-separated</span></label>
+            <textarea data-role="ann-keywords" placeholder="Leave blank for a broad change (a redesign, a paid push). For a keyword-specific edit — added to the title, promoted to daily tracking — list them here, e.g. photo editor, collage maker, and we'll show each one's rank before vs after this date." rows="2"></textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-annotation">Save annotation</button>
             </div>
@@ -2849,9 +2886,11 @@ ai photo enhancer"></textarea>
             const date = card.querySelector('[data-role="ann-date"]').value;
             const type = card.querySelector('[data-role="ann-type"]').value;
             const label = card.querySelector('[data-role="ann-label"]').value.trim();
+            const keywords = card.querySelector('[data-role="ann-keywords"]').value.trim();
             if (!date || !label) { showErr('Add a date and describe what you changed.'); return null; }
-            const data = await api({ action: 'add-annotation', key, date, type, label });
-            showToast('Annotation saved');
+            const data = await api({ action: 'add-annotation', key, date, type, label, keywords });
+            showToast(keywords ? 'Annotation saved — tracking those keywords’ rank before/after' : 'Annotation saved');
+            card.querySelector('[data-role="ann-keywords"]').value = '';
             return data;
           });
           return;

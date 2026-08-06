@@ -378,6 +378,49 @@ export interface AnnotationImpact {
   delta: number | null; // after - before, null if either side has no data
 }
 
+export interface KeywordAnnotationImpact {
+  keyword: string;
+  before: { avgPosition: number | null; days: number };
+  after: { avgPosition: number | null; days: number };
+  delta: number | null; // before - after; positive = moved up (improved), null if either side has no data
+}
+
+/**
+ * Per-keyword position impact of a dated annotation, for the specific
+ * keywords the change actually targeted (see Annotation.keywords). A handful
+ * of keyword edits or additions rarely moves the app-wide average visibility
+ * score (annotationImpact) enough to read, since that average is diluted by
+ * every other tracked keyword that didn't change — this answers the same
+ * before/after question scoped to just the keywords the change touched.
+ */
+export function keywordAnnotationImpact(
+  snapshots: RankSnapshot[], appKey: string, keywords: string[], annotationDate: string, windowDays = 14,
+): KeywordAnnotationImpact[] {
+  const at = Date.parse(annotationDate);
+  const dayMs = 86400000;
+  const perDay = snapshots.map((s) => ({
+    t: Date.parse(s.dateKey),
+    row: s.apps.find((a) => a.key === appKey) || null,
+  }));
+  const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
+  return keywords.map((kw) => {
+    const lower = kw.toLowerCase();
+    const posOn = (d: (typeof perDay)[number]) => {
+      const k = d.row?.keywords.find((k) => k.keyword.toLowerCase() === lower);
+      return k && !k.error ? k.position ?? null : null;
+    };
+    const before = perDay.filter((d) => d.t < at && d.t >= at - windowDays * dayMs).map(posOn).filter((p): p is number => p != null);
+    const after = perDay.filter((d) => d.t >= at && d.t <= at + windowDays * dayMs).map(posOn).filter((p): p is number => p != null);
+    const b = avg(before), a = avg(after);
+    return {
+      keyword: kw,
+      before: { avgPosition: b, days: before.length },
+      after: { avgPosition: a, days: after.length },
+      delta: (b != null && a != null) ? b - a : null,
+    };
+  });
+}
+
 /**
  * Visibility-score impact of a dated annotation (ASO experiment or paid
  * marketing push): average visibility for the `windowDays` before the

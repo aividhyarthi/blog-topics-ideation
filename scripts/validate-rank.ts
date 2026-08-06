@@ -1,6 +1,6 @@
 // Fixture tests for the Rank Tracker's pure engine (src/lib/rank/track.ts) —
 // no network needed, so this runs anywhere: npx tsx scripts/validate-rank.ts
-import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordDifficulties, RANK_BUCKETS } from '../src/lib/rank/track';
+import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordAnnotationImpact, keywordDifficulties, RANK_BUCKETS } from '../src/lib/rank/track';
 import { parseAppInput } from '../src/lib/rank/fetch';
 import { parseKeywordsWithVolumes } from '../src/lib/rank/keywords';
 import type { RankSnapshot, TrackedApp } from '../src/lib/rank/types';
@@ -157,6 +157,32 @@ eq('annotation impact: no data after -> after days 0', impNoAfter.after.days, 0)
 eq('annotation impact: empty days -> all null/zero', annotationImpact([], '2024-01-15'), {
   before: { avgVisibility: null, days: 0 }, after: { avgVisibility: null, days: 0 }, delta: null,
 });
+
+// --- keywordAnnotationImpact: before/after RANK for the keywords a change named
+const kwAppKey = 'play:com.me:us';
+const kwRow = (position: number) => ({
+  key: kwAppKey, store: 'play' as const, appId: 'com.me', country: 'us',
+  keywords: [{ keyword: 'photo editor', position, depth: 200, top: [] }],
+  topChart: null, score: null, ratings: null,
+});
+const kwSnaps: RankSnapshot[] = [
+  { dateKey: '2024-01-01', checkedAt: '2024-01-01T00:00:00Z', apps: [kwRow(40)] },
+  { dateKey: '2024-01-08', checkedAt: '2024-01-08T00:00:00Z', apps: [kwRow(38)] }, // before avg (40+38+42)/3 = 40
+  { dateKey: '2024-01-14', checkedAt: '2024-01-14T00:00:00Z', apps: [kwRow(42)] },
+  { dateKey: '2024-01-15', checkedAt: '2024-01-15T00:00:00Z', apps: [kwRow(12)] },
+  { dateKey: '2024-01-20', checkedAt: '2024-01-20T00:00:00Z', apps: [kwRow(10)] }, // after avg (12+10)/2 = 11
+];
+const kwImp = keywordAnnotationImpact(kwSnaps, kwAppKey, ['photo editor'], '2024-01-15', 14);
+eq('keyword annotation impact: before avg position', kwImp[0].before.avgPosition, 40);
+eq('keyword annotation impact: after avg position', kwImp[0].after.avgPosition, 11);
+eq('keyword annotation impact: delta (positive = moved up)', kwImp[0].delta, 29);
+
+eq('keyword annotation impact: matches case-insensitively',
+  keywordAnnotationImpact(kwSnaps, kwAppKey, ['Photo Editor'], '2024-01-15', 14)[0].after.avgPosition, 11);
+
+eq('keyword annotation impact: unnamed keyword -> null both sides',
+  keywordAnnotationImpact(kwSnaps, kwAppKey, ['nonexistent'], '2024-01-15', 14)[0],
+  { keyword: 'nonexistent', before: { avgPosition: null, days: 0 }, after: { avgPosition: null, days: 0 }, delta: null });
 
 // --- keywordDifficulties: top-3 churn score ----------------------------------
 const diffApp: TrackedApp = {
@@ -411,6 +437,29 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
     rating: null, ratingHistory: [], annotations: [], competitors: [], chart: null,
   });
   eq('insight: data-quality caveat counts both cases', res4.some((r) => r.kind === 'coverage' && r.title.startsWith('2 keywords')), true);
+
+  // A big coverage gap (2 of 3 missing) lining up with an apparent drop must
+  // be named as low-confidence, NOT stated as a real drop — this is the "is
+  // it our tool or a genuine drop" distinction.
+  const res5 = buildInsights({
+    app: mkApp('me', 'My App'),
+    trends: [kw('a', 5), kw('b', null, { error: 'boom' }), kw('c', null, { checked: false })],
+    rating: null, ratingHistory: [], annotations: [], competitors: [], chart: null,
+    todayVisibility: 30, prevVisibility: 45,
+  });
+  eq('insight: big coverage gap + drop -> flagged low-confidence', res5.some((r) => r.kind === 'coverage' && r.title.startsWith('Visibility looks')), true);
+  eq('insight: does not ALSO claim a confirmed drop', res5.some((r) => r.kind === 'chart' && r.title.startsWith('Visibility dropped')), false);
+
+  // Full coverage (nothing missing) + the same size drop -> nothing left to
+  // blame on the check itself, so it must say so plainly, not stay silent.
+  const res6 = buildInsights({
+    app: mkApp('me', 'My App'),
+    trends: [kw('a', 5), kw('b', 10), kw('c', 15)],
+    rating: null, ratingHistory: [], annotations: [], competitors: [], chart: null,
+    todayVisibility: 30, prevVisibility: 45,
+  });
+  eq('insight: full coverage + real drop -> confirmed, not blamed on coverage', res6.some((r) => r.kind === 'chart' && r.title.startsWith('Visibility dropped')), true);
+  eq('insight: no coverage caveat when nothing is missing', res6.some((r) => r.kind === 'coverage'), false);
 }
 
 

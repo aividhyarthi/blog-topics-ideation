@@ -14,6 +14,14 @@ export interface Annotation {
   date: string; // YYYY-MM-DD
   type: 'experiment' | 'paid';
   label: string;
+  /** Specific keywords this change targeted (e.g. added to the title, or
+   * promoted into the daily-tracked list). When set, ranking impact is shown
+   * per keyword (position before vs after) alongside the app-wide average
+   * visibility delta — a handful of keyword edits rarely moves the whole-app
+   * average enough to read, so the targeted keywords need their own before/
+   * after. Optional: broad changes (a redesign, a paid push) have nothing
+   * specific to list here. */
+  keywords?: string[];
 }
 
 export interface TrackedApp {

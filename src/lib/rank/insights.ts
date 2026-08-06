@@ -41,6 +41,12 @@ export interface InsightsInput {
   ratingHistory: RatingHistoryPoint[];
   annotations: (Annotation & { impact?: { delta: number | null; before?: { avgVisibility: number | null }; after?: { avgVisibility: number | null } } })[];
   chart: { position: number | null; chart: string | null; depth: number | null; error?: string } | null;
+  /** Today's and yesterday's visibility score — lets the coverage caveat
+   * below distinguish "the score looks lower because a lot of today's
+   * keywords weren't checked yet" from "coverage was fine, this is a real
+   * drop", instead of just reporting the missing count on its own. */
+  todayVisibility?: number | null;
+  prevVisibility?: number | null;
 }
 
 const pct = (n: number) => `${Math.round(n * 10) / 10}%`;
@@ -62,7 +68,7 @@ function headToHead(mine: KeywordTrend[], theirs: KeywordTrend[]): { total: numb
 }
 
 export function buildInsights(input: InsightsInput): Insight[] {
-  const { app, trends, competitors, rating, ratingHistory, annotations, chart } = input;
+  const { app, trends, competitors, rating, ratingHistory, annotations, chart, todayVisibility, prevVisibility } = input;
   const out: Insight[] = [];
 
   /* ---- 1. Things you DID change: listing edits, measured ------------------ */
@@ -151,15 +157,51 @@ export function buildInsights(input: InsightsInput): Insight[] {
   }
 
   /* ---- 4. Data-quality caveats, so nothing above is over-read ------------ */
+  // The question this exists to answer: when the visibility chart shows a
+  // dip, is that a genuine ranking drop, or is today's number just a small,
+  // unrepresentative sample because a chunk of the list wasn't checked yet?
+  // Both read as "the line went down" with no other signal to tell them
+  // apart, so this makes the distinction explicit instead of leaving it to
+  // be inferred from a separate coverage count elsewhere on the page.
   const failed = trends.filter((t) => t.error).length;
   const unchecked = trends.filter((t) => t.checked === false).length;
-  if (failed || unchecked) {
+  const missing = failed + unchecked;
+  const totalKw = trends.length;
+  const missingShare = totalKw ? missing / totalKw : 0;
+  const visDrop = todayVisibility != null && prevVisibility != null
+    ? Math.round((todayVisibility - prevVisibility) * 10) / 10 : null;
+  // Coverage gap big enough, and the score down enough, that the drop is more
+  // plausibly explained by the missing keywords than by an actual rank move.
+  const suspectDrop = missingShare >= 0.3 && visDrop != null && visDrop <= -1;
+  // Coverage was essentially complete AND the score still fell — nothing left
+  // to blame on the check itself, so say so plainly instead of staying silent.
+  const confirmedDrop = !suspectDrop && missingShare < 0.3 && visDrop != null && visDrop <= -2;
+
+  if (suspectDrop) {
     out.push({
       kind: 'coverage',
       tone: 'watch',
-      title: `${failed + unchecked} keyword${failed + unchecked === 1 ? '' : 's'} without a confirmed result today`,
+      title: `Visibility looks ${Math.abs(visDrop!)} pt lower today, but only ${totalKw - missing} of ${totalKw} keywords were checked`,
+      detail: `${failed} failed to check and ${unchecked} were not searched yet (${Math.round(missingShare * 100)}% of your list). `
+        + 'With that much of today\'s list unconfirmed, today\'s score is a small, unrepresentative sample — treat this as low-confidence, '
+        + 'not a confirmed drop, until a fuller check comes back.',
+    });
+  } else if (missing) {
+    out.push({
+      kind: 'coverage',
+      tone: 'watch',
+      title: `${missing} keyword${missing === 1 ? '' : 's'} without a confirmed result today`,
       detail: `${failed} failed to check and ${unchecked} were not searched yet. These are excluded from the scores above `
         + 'rather than counted as "not ranking", so today\'s numbers are based only on keywords that actually returned a result.',
+    });
+  }
+  if (confirmedDrop) {
+    out.push({
+      kind: 'chart',
+      tone: 'bad',
+      title: `Visibility dropped ${Math.abs(visDrop!)} pt today`,
+      detail: `${totalKw - missing} of ${totalKw} keywords were checked today, a full read, so this isn't a coverage gap, `
+        + 'it\'s a real move in your keyword positions. Check Insights and Compare for what\'s likely driving it.',
     });
   }
   if (chart && chart.position == null && !chart.error && chart.depth != null && chart.depth < 150) {
