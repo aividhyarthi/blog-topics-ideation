@@ -121,6 +121,14 @@ const SPEC = {
     { art: 'drop', takeaway: 'Know the moment it happens, not the week after', mark: 'alert fires' },
   'aso-for-subscription-apps-trial-to-paid':
     { art: 'funnel', takeaway: 'The algorithm sees retention, not your billing dashboard', steps: ['trial start', 'day-7 retained', 'converts to paid'] },
+  'most-relevant-review-shows-a-1-star':
+    { art: 'diverge', takeaway: 'Relevant means useful to a shopper, not representative of your average', a: 'your rating', b: 'what shows first' },
+  'why-more-ratings-doesnt-move-your-average':
+    { art: 'bars', takeaway: 'The same 100 new ratings move a small pool and barely touch a huge one',
+      bars: [['500', 90], ['5,000', 40], ['50,000', 6]] },
+  'app-rating-shows-different-numbers-same-day':
+    { art: 'chips', takeaway: 'Four surfaces, four caches, four snapshots in time',
+      chips: ['4.5 search card', '3.8 listing page', '4.0 Play Console', '4.2 Search snippet'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
