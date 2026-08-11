@@ -23,7 +23,7 @@ import { randomUUID } from 'node:crypto';
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 
-import { planOf } from '../../lib/saas/plans';
+import { planOf, isAdminEmail } from '../../lib/saas/plans';
 import { resolveWorkspace, visibleApps } from '../../lib/saas/grants';
 import { deleteGrantsForApp } from '../../lib/saas/db';
 import type { APIContext } from 'astro';
@@ -613,7 +613,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       await analyzeReviewThemes(app, userId);
       return json({ ok: true, ...statePayload(userId) });
     } catch (e) {
-      return json({ error: e instanceof Error ? e.message : String(e) }, 502);
+      const raw = e instanceof Error ? e.message : String(e);
+      // A missing ANTHROPIC_API_KEY is a deployment-config problem, not
+      // anything a client user did or can fix — showing them the raw
+      // "missing API key" message leaks an internal detail they have no use
+      // for. Only the admin (who can actually go fix it) sees the real
+      // error; everyone else gets a plain, client-safe message.
+      const isConfigError = raw.includes('not configured on this deployment');
+      const message = isConfigError && !isAdminEmail(locals.user?.email)
+        ? 'Review analysis isn’t available right now — please try again later.'
+        : raw;
+      return json({ error: message }, 502);
     }
   }
 
