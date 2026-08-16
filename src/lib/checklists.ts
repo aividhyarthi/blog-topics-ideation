@@ -24,7 +24,8 @@ import type { PageFacts, PillarId, SignalStatus } from './aeo';
 /** Subject matter. Drives which domain checklist runs. */
 export type Vertical =
   | 'news' | 'health' | 'beauty' | 'ecommerce' | 'entertainment'
-  | 'lifestyle' | 'reviews' | 'general';
+  | 'lifestyle' | 'reviews' | 'general'
+  | 'fintech' | 'realestate' | 'automotive' | 'edtech' | 'saas' | 'music';
 
 /** Structural shape of the page. Independent of subject matter. */
 export type PageKind = 'article' | 'product' | 'listing' | 'review' | 'howto';
@@ -33,6 +34,8 @@ export const VERTICAL_LABEL: Record<Vertical, string> = {
   news: 'News', health: 'Health & Medical', beauty: 'Beauty & Personal Care',
   ecommerce: 'E-commerce', entertainment: 'Entertainment', lifestyle: 'Lifestyle & How-to',
   reviews: 'Product Review', general: 'General',
+  fintech: 'Fintech & Finance', realestate: 'Real Estate', automotive: 'Automotive',
+  edtech: 'Education & EdTech', saas: 'SaaS & Technology', music: 'Music & Audio',
 };
 
 export const KIND_LABEL: Record<PageKind, string> = {
@@ -140,6 +143,7 @@ export function detectVertical(html: string, f: PageFacts, kind?: PageKind): Det
   const h = (html + ' ' + f.title + ' ' + f.metaDescription).toLowerCase();
   const score: Record<Exclude<Vertical, 'general'>, number> = {
     news: 0, health: 0, beauty: 0, ecommerce: 0, entertainment: 0, lifestyle: 0, reviews: 0,
+    fintech: 0, realestate: 0, automotive: 0, edtech: 0, saas: 0, music: 0,
   };
   const why: Record<string, string[]> = {};
   const hit = (k: keyof typeof score, re: RegExp, n: number, label: string) => {
@@ -170,6 +174,29 @@ export function detectVertical(html: string, f: PageFacts, kind?: PageKind): Det
 
   hit('reviews', /\b(our verdict|pros and cons|we tested|hands[- ]on|rating:|out of 5|should you buy)\b/, 3, 'review vocabulary');
   hit('reviews', /"@type"\s*:\s*"review"/, 4, 'Review schema');
+
+  hit('fintech', /\b(interest rate|apr\b|emi\b|credit score|loan amount|repayment|mutual fund|expense ratio|premium|sum insured|brokerage|demat|nav\b|sip\b)/, 3, 'financial-product vocabulary');
+  hit('fintech', /\b(eligibility|kyc|rbi|sebi|irdai|regulated by|prospectus|terms and conditions apply)/, 2, 'financial regulatory language');
+  hit('fintech', /"@type"\s*:\s*"(financialproduct|loanorcredit|investmentorDeposit)"/i, 4, 'financial product schema');
+
+  hit('realestate', /\b(carpet area|built[- ]up area|price per sq ?ft|\bbhk\b|possession date|rera\b|under construction|ready to move)/, 3, 'property listing vocabulary');
+  hit('realestate', /\b(sq\.?\s?ft|sqft|square feet|floor plan|amenities|gated community)/, 2, 'property description terms');
+  hit('realestate', /"@type"\s*:\s*"(residence|apartment|realestatelisting|singlefamilyresidence)"/i, 4, 'property schema');
+
+  hit('automotive', /\b(mileage|ex[- ]showroom|on[- ]road price|variant|fuel type|transmission|ground clearance|bhp\b|torque|airbags?)/, 3, 'vehicle spec vocabulary');
+  hit('automotive', /\b(sedan|suv|hatchback|petrol|diesel|electric vehicle|\bev\b|manual|automatic transmission)/, 2, 'vehicle category terms');
+  hit('automotive', /"@type"\s*:\s*"(car|vehicle|automobile)"/i, 4, 'vehicle schema');
+
+  hit('edtech', /\b(syllabus|curriculum|semester|eligibility criteria|admission|enroll|course fee|placement|accredit|certification)/, 3, 'course/education vocabulary');
+  hit('edtech', /\b(instructor|faculty|lecture|module \d|learning outcome|batch starts)/, 2, 'instructional-programme terms');
+  hit('edtech', /"@type"\s*:\s*"course"/i, 4, 'Course schema');
+
+  hit('saas', /\b(api\b|integration|dashboard|free trial|pricing plan|per seat|per user\/month|uptime|sla\b|onboarding)/, 3, 'software-product vocabulary');
+  hit('saas', /\b(sign up free|book a demo|self[- ]serve|enterprise plan|soc 2|gdpr compliant)/, 2, 'SaaS commercial terms');
+  hit('saas', /"@type"\s*:\s*"softwareapplication"/i, 4, 'SoftwareApplication schema');
+
+  hit('music', /\b(album|single|track list|streaming on|spotify|apple music|record label|producer|songwriter|composer)\b/, 3, 'music-industry vocabulary');
+  hit('music', /"@type"\s*:\s*"(musicgroup|musicrecording|musicalbum|musicplaylist)"/i, 4, 'music schema');
 
   // On a page we already know is a product or listing, "this is commerce" is
   // not news — it is implied by the kind. Discount it so the actual subject
@@ -368,6 +395,37 @@ export const UNIVERSAL: Check[] = [
       if (kb > 1500) return fail(`The HTML alone is about ${kb} KB.`, 'Cut the page weight. AI crawlers time out in seconds and this risks being abandoned before your content is read.');
       if (kb > 700) return warn(`The HTML is about ${kb} KB — heavier than most.`, 'Trim inline scripts and styles so the content arrives quickly.');
       return pass(`HTML is about ${kb} KB.`);
+    },
+  },
+  {
+    id: 'u_snippet_controls',
+    label: 'Not blocking snippets or AI use',
+    why: 'nosnippet and max-snippet:0 tell search engines not to show any text preview of this page at all — which also removes it as a candidate for AI Overviews and AI Mode. This is usually set by mistake, in a template, not per page.',
+    pillar: 'crawl', weight: 0,
+    run: (c) => {
+      const meta = (c.facts.robotsMeta || '').toLowerCase();
+      if (/nosnippet/.test(meta)) return fail('meta robots contains "nosnippet" — no preview text, and no AI Overviews eligibility.', 'Remove nosnippet unless you specifically intend to opt this page out of snippets and AI answers.');
+      const maxSnippet = /max-snippet:\s*(-?\d+)/.exec(meta);
+      if (maxSnippet && maxSnippet[1] === '0') return fail('meta robots sets max-snippet:0 — equivalent to nosnippet.', 'Remove max-snippet:0, or raise the limit so enough text is available to quote.');
+      if (/\bdata-nosnippet\b/.test(c.h)) {
+        return warn('data-nosnippet is used somewhere in the page body.', 'Confirm it is only on boilerplate (nav, legal text) and not on the actual content — it excludes that HTML from snippets.');
+      }
+      return pass('No snippet-blocking directives found.');
+    },
+  },
+  {
+    id: 'u_video_described',
+    label: 'Video content described in text',
+    why: 'AI crawlers do not watch video. Anything said only on camera — a demo, an explanation, a verdict — is invisible unless the surrounding text or a transcript restates it.',
+    pillar: 'structure', weight: 1,
+    run: (c) => {
+      if (!c.facts.hasVideo) return na('No video on this page.');
+      const hasVideoSchema = hasSchema(c.facts, 'VideoObject');
+      const transcriptish = /\btranscript\b/i.test(c.t) || c.facts.wordCount > 300;
+      if (hasVideoSchema && transcriptish) return pass('Video is marked up and the page carries substantial accompanying text.');
+      if (!hasVideoSchema && !transcriptish) return fail('Video present with no VideoObject schema and almost no surrounding text.', 'Add VideoObject schema (name, description, transcript) and summarise the video’s key points as text on the page.');
+      if (!hasVideoSchema) return warn('Video present but no VideoObject schema.', 'Add VideoObject JSON-LD so engines get the title, description and transcript as data.');
+      return warn('VideoObject schema present but little supporting text on the page.', 'Add a text summary or transcript excerpt near the video — the schema alone is thin evidence.');
     },
   },
 ];
@@ -838,6 +896,256 @@ export const BY_VERTICAL: Record<Vertical, Check[]> = {
         ? pass('Reviewer and their experience are stated.')
         : c.facts.hasAuthor ? warn('Author named but no relevant experience stated.', 'Add one line on why this reviewer is qualified to judge this product.')
         : fail('No named reviewer.', 'Add a bylined reviewer with their relevant experience.')),
+    },
+  ],
+
+  fintech: [
+    {
+      id: 'f_fees_rates',
+      label: 'Fees, rates and charges stated as text',
+      why: '"How much does X cost" and "what is the interest rate" are the single most-asked fintech questions, and the numbers are usually rendered by a calculator widget rather than existing as text.',
+      pillar: 'answerability', weight: 3,
+      run: (c) => (/\b(interest rate|apr|expense ratio|annual fee|processing fee|brokerage|premium of|charges?:)\b/i.test(c.t)
+        ? pass('Fees or rates are stated as text.')
+        : fail('No fees or rates found as text.', 'State the actual rate, fee or premium as plain text — not only inside a calculator or PDF.')),
+    },
+    {
+      id: 'f_eligibility',
+      label: 'Eligibility criteria stated',
+      why: '"Who can apply" or "am I eligible" gates every financial-product decision. Without an explicit answer, an engine cannot tell a user whether the product even applies to them.',
+      pillar: 'query', weight: 2,
+      run: (c) => (/\b(eligibility|eligible if|you (must|need to) be|minimum age|minimum income|credit score of)\b/i.test(c.t)
+        ? pass('Eligibility criteria are stated.')
+        : warn('No eligibility criteria found.', 'State who qualifies — age, income, credit score or KYC requirements.')),
+    },
+    {
+      id: 'f_regulatory',
+      label: 'Regulatory / licensing disclosure',
+      why: 'Financial claims carry more scrutiny than most content. A named regulator or license number is what separates a credible source from marketing copy, for both readers and answer engines.',
+      pillar: 'attribution', weight: 3,
+      run: (c) => (/\b(regulated by|licen[cs]ed by|rbi|sebi|irdai|registration no\.?|cin:)/i.test(c.t)
+        ? pass('Names a regulator or licence.')
+        : fail('No regulatory disclosure found.', 'State who regulates this product or your registration/licence number.')),
+    },
+    {
+      id: 'f_risk',
+      label: 'Risks stated, not just benefits',
+      why: 'A page that only lists upside reads as an advertisement. Named, specific risk disclosure is a trust signal and is often a legal requirement.',
+      pillar: 'attribution', weight: 2,
+      run: (c) => (/\b(risk|may lose|not guaranteed|subject to market|past performance|no assurance)\b/i.test(c.t)
+        ? pass('States risk alongside the benefits.')
+        : warn('No risk disclosure found.', 'State the real risks or downside plainly, not only the benefits.')),
+    },
+  ],
+
+  realestate: [
+    {
+      id: 're_pricing',
+      label: 'Price and price-per-sq-ft stated',
+      why: '"What does it cost" and "what is the rate per square foot" are the two numbers every property question needs, and listings often bury them in a downloadable brochure.',
+      pillar: 'answerability', weight: 3,
+      run: (c) => {
+        const price = c.facts.priceCount > 0 || /\b(price|₹|\brs\.?\s?\d)/i.test(c.t);
+        const perSqft = /\b(per sq\.?\s?ft|\/sq ?ft|price per square foot)/i.test(c.t);
+        if (price && perSqft) return pass('Price and per-sq-ft rate both stated.');
+        if (price) return warn('Price stated, but no per-sq-ft rate.', 'Add the price per square foot — a common comparison metric.');
+        return fail('No price found as text.', 'State the price and price per square foot as text.');
+      },
+    },
+    {
+      id: 're_specifics',
+      label: 'Location, configuration and possession stated',
+      why: '"Is this in X locality", "what configuration is available" and "when can I move in" are asked of every property page. Vague location or a missing possession date makes the listing unusable for these queries.',
+      pillar: 'entity', weight: 3,
+      run: (c) => {
+        const config = /\b\d\s?bhk\b|\d\s?bed(room)?s?\b/i.test(c.t);
+        const possession = /\b(possession|ready to move|under construction|handover)\b/i.test(c.t);
+        if (config && possession) return pass('Configuration and possession status are both stated.');
+        if (!config && !possession) return fail('No configuration or possession status found.', 'State the configuration (e.g. "3 BHK") and possession status (ready / under construction, with a date).');
+        return warn('Only one of configuration / possession status is stated.', 'State both the configuration and the possession timeline.');
+      },
+    },
+    {
+      id: 're_rera',
+      label: 'RERA / regulatory registration where applicable',
+      why: 'In markets with a property regulator, a listed registration number is the clearest trust signal a listing can carry — and its absence is itself a question buyers ask.',
+      pillar: 'attribution', weight: 2,
+      run: (c) => (/\brera\b/i.test(c.t)
+        ? pass('RERA (or equivalent) registration referenced.')
+        : na('No RERA reference — may not be applicable to this market/listing type.')),
+    },
+    {
+      id: 're_nearby',
+      label: 'Nearby amenities named',
+      why: '"What is nearby" — schools, hospitals, transit — is a standard property question, and is only answerable if named rather than shown on an interactive map widget alone.',
+      pillar: 'query', weight: 2,
+      run: (c) => (/\b(school|hospital|metro|railway station|airport|mall)s?\b.{0,40}\b(nearby|minutes?|km|kilometers?)/i.test(c.t) || /\bnearby\b/i.test(c.t)
+        ? pass('Nearby amenities are named in text.')
+        : warn('Nearby amenities not named in text.', 'List the nearest schools, hospitals and transit options as text, not only as map pins.')),
+    },
+  ],
+
+  automotive: [
+    {
+      id: 'au_specs',
+      label: 'Core specifications as text',
+      why: '"What engine does it have", "what is the mileage" — these are answered from a spec sheet. If it renders as an image or a JS-built table, the numbers do not exist to a crawler.',
+      pillar: 'answerability', weight: 3,
+      run: (c) => {
+        const specs = ['mileage', 'bhp', 'torque', 'engine', 'transmission', 'fuel'].filter((k) => new RegExp(`\\b${k}\\b`, 'i').test(c.t)).length;
+        if (specs >= 4) return pass(`${specs} of the core specs (engine, mileage, transmission, fuel…) are stated as text.`);
+        if (specs >= 2) return warn(`Only ${specs} core specs found as text.`, 'State engine, power, mileage, fuel type and transmission as plain text.');
+        return fail('Core specifications are not present as text.', 'Publish the full spec sheet (engine, power, mileage, transmission, fuel) as HTML text, not an image.');
+      },
+    },
+    {
+      id: 'au_variant_price',
+      label: 'Variant and on-road price stated',
+      why: '"Which variant is this" and "what does the on-road price come to" cannot be answered from an ex-showroom figure alone — a very common gap.',
+      pillar: 'entity', weight: 2,
+      run: (c) => {
+        const variant = /\bvariant\b/i.test(c.t);
+        const onRoad = /\bon[- ]road price\b/i.test(c.t);
+        if (variant && onRoad) return pass('Variant name and on-road price both stated.');
+        if (variant || onRoad) return warn('Only one of variant / on-road price is stated.', 'State both the exact variant name and the on-road (not just ex-showroom) price.');
+        return fail('No variant name or on-road price found.', 'Name the exact variant and state the on-road price, not just ex-showroom.');
+      },
+    },
+    {
+      id: 'au_safety',
+      label: 'Safety rating or features named',
+      why: '"Is it safe", "how many airbags" are pre-purchase questions that specifically need a named rating or feature list — general "safety" copy does not answer them.',
+      pillar: 'attribution', weight: 2,
+      run: (c) => (/\b(\d\s?star|ncap|airbags?|abs\b|electronic stability)/i.test(c.t)
+        ? pass('Names a safety rating or specific safety features.')
+        : warn('No specific safety rating or features named.', 'State the NCAP star rating (if tested) and list named safety features like airbag count and ABS.')),
+    },
+    {
+      id: 'au_comparison',
+      label: 'Compared against named alternatives',
+      why: 'Automotive buying decisions are almost always comparative. A page naming no competing model cannot be retrieved for any "X vs Y" query.',
+      pillar: 'query', weight: 2,
+      run: (c) => (/\b(vs\.?|versus|compared (to|with)|rival|competitor)\b/i.test(c.t)
+        ? pass('Names comparison vehicles.')
+        : warn('No named comparison vehicles.', 'Compare explicitly against 1–2 named competing models.')),
+    },
+  ],
+
+  edtech: [
+    {
+      id: 'ed_outcomes',
+      label: 'Eligibility, fees and duration stated',
+      why: '"Can I apply", "what does it cost" and "how long does it take" are asked before anything else about a course, and are frequently split across a brochure PDF instead of the page itself.',
+      pillar: 'answerability', weight: 3,
+      run: (c) => {
+        const has = ['eligib', 'fee', 'duration|weeks?|months?'].filter((p) => new RegExp(p, 'i').test(c.t)).length;
+        if (has >= 3) return pass('Eligibility, fees and duration are all stated.');
+        if (has >= 1) return warn('Some of eligibility/fees/duration is missing.', 'State eligibility criteria, the fee, and the course duration together as text.');
+        return fail('None of eligibility, fees or duration found as text.', 'State eligibility, fee and duration as plain text on the page itself.');
+      },
+    },
+    {
+      id: 'ed_faculty',
+      label: 'Faculty or instructor credentials named',
+      why: 'Course quality is judged by who teaches it. An unnamed "expert faculty" claim carries no evidence an engine can repeat.',
+      pillar: 'attribution', weight: 2,
+      run: (c) => (/\b(instructor|faculty|taught by|professor|trainer)\b.{0,60}\b(phd|years? of experience|founder|ex[- ][a-z]+)/i.test(c.t)
+        ? pass('Names an instructor with a stated credential.')
+        : /\b(instructor|faculty|taught by)\b/i.test(c.t) ? warn('Instructor named but no credential stated.', 'State the instructor’s relevant credential or experience, not just their name.')
+        : fail('No named instructor or faculty.', 'Name who teaches the course and their relevant credentials.')),
+    },
+    {
+      id: 'ed_outcomes2',
+      label: 'Learning outcomes or placement data stated',
+      why: '"What will I be able to do after this" and "what are the outcomes" are the actual purchase questions — a syllabus list alone does not answer them.',
+      pillar: 'query', weight: 2,
+      run: (c) => (/\b(learning outcome|you will (be able to|learn)|placement (rate|assistance|record)|average salary|hired at)\b/i.test(c.t)
+        ? pass('States learning outcomes or placement information.')
+        : warn('No outcomes or placement information.', 'State what a learner will be able to do afterward, or cite placement/outcome data if available.')),
+    },
+    {
+      id: 'ed_schema',
+      label: 'Course schema present',
+      why: 'Course markup lets an engine read subject, level, instructor and duration as structured data instead of parsing marketing copy.',
+      pillar: 'structure', weight: 1,
+      run: (c) => (hasSchema(c.facts, 'Course')
+        ? pass('Course schema present.')
+        : warn('No Course schema.', 'Add Course JSON-LD with provider, instructor, and duration.')),
+    },
+  ],
+
+  saas: [
+    {
+      id: 'sa_whatfor',
+      label: 'What it does and who it is for, stated plainly',
+      why: '"What does this tool do" and "who is it for" are the first two questions any comparison or recommendation prompt needs answered — and are often buried under a hero tagline that says neither.',
+      pillar: 'answerability', weight: 3,
+      run: (c) => {
+        const forWhom = /\b(built for|designed for|for teams|for developers|for marketers|for small businesses)\b/i.test(c.t);
+        if (forWhom) return pass('States who the product is built for.');
+        return warn('Does not clearly state who the product is for.', 'Add a plain sentence: "[Product] is a [category] tool for [specific audience]."');
+      },
+    },
+    {
+      id: 'sa_pricing',
+      label: 'Pricing stated as text',
+      why: '"How much does it cost" is asked constantly in tool-comparison prompts, and pricing pages frequently render the actual numbers via JavaScript widgets that a crawler never sees.',
+      pillar: 'answerability', weight: 2,
+      run: (c) => (/\b(\$\d|₹\d|per month|per user|\/mo\b|free plan|free tier|starts at)\b/i.test(c.t)
+        ? pass('Pricing is present as text.')
+        : warn('No pricing found as text.', 'State at least the starting price and plan structure as plain text.')),
+    },
+    {
+      id: 'sa_alternatives',
+      label: 'Alternatives or competitors named',
+      why: '"X vs Y" and "alternatives to X" are extremely common SaaS-discovery prompts. A product page that never names a competitor cannot be surfaced for either.',
+      pillar: 'query', weight: 2,
+      run: (c) => (/\b(alternative to|vs\.?|versus|compared to|instead of)\b/i.test(c.t)
+        ? pass('Names alternatives or competitors.')
+        : warn('No named alternatives.', 'Add a comparison section naming 2–3 alternative tools and how this one differs.')),
+    },
+    {
+      id: 'sa_security',
+      label: 'Security / compliance stated where relevant',
+      why: 'B2B buying prompts frequently ask about compliance (SOC 2, GDPR). Its absence from the page is itself an answer an engine will report.',
+      pillar: 'attribution', weight: 1,
+      run: (c) => (/\b(soc ?2|gdpr|iso ?27001|hipaa|data encryption|compliance)\b/i.test(c.t)
+        ? pass('States a security or compliance credential.')
+        : na('No security/compliance claim — may not be relevant to this product.')),
+    },
+  ],
+
+  music: [
+    {
+      id: 'mu_credits',
+      label: 'Artist, album and release date named',
+      why: '"Who sings this", "what album is it from" and "when did it release" are the core entity questions for any music page, and are the first things an engine needs to ground an answer.',
+      pillar: 'entity', weight: 3,
+      run: (c) => {
+        const artist = /\b(by|artist:|performed by)\b/i.test(c.t);
+        const date = DATE_RE.test(c.html) || /\b(20\d{2}|19\d{2})\b/.test(c.t);
+        if (artist && date) return pass('Artist and release date are both stated.');
+        if (artist || date) return warn('Only one of artist / release date is clearly stated.', 'State the performing artist and the release date together.');
+        return fail('No artist or release date found.', 'Name the artist and state the release date explicitly.');
+      },
+    },
+    {
+      id: 'mu_streaming',
+      label: 'Official streaming links named',
+      why: '"Where can I listen to this" is a direct-action question. Naming the platforms (Spotify, Apple Music) is what makes the page useful to point to, rather than just descriptive.',
+      pillar: 'answerability', weight: 2,
+      run: (c) => (/\b(spotify|apple music|youtube music|jiosaavn|gaana|amazon music|soundcloud)\b/i.test(c.t)
+        ? pass('Names official streaming platforms.')
+        : warn('No streaming platforms named.', 'Link out to (and name in text) the official streaming platforms.')),
+    },
+    {
+      id: 'mu_schema',
+      label: 'Music schema present',
+      why: 'MusicRecording/MusicAlbum markup declares artist, album and duration as structured data an engine can read directly.',
+      pillar: 'structure', weight: 1,
+      run: (c) => (hasSchema(c.facts, 'MusicRecording', 'MusicAlbum', 'MusicGroup', 'MusicPlaylist')
+        ? pass('Music schema present.')
+        : warn('No music schema.', 'Add MusicRecording or MusicAlbum JSON-LD with byArtist, inAlbum and datePublished.')),
     },
   ],
 

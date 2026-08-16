@@ -232,6 +232,11 @@ export const POST: APIRoute = async (ctx) => {
   const VERTICAL_TO_CATEGORY: Record<string, Category> = {
     news: 'news', health: 'health', beauty: 'commerce', ecommerce: 'commerce',
     entertainment: 'entertainment', lifestyle: 'lifestyle', reviews: 'general', general: 'general',
+    // New verticals map onto the closest legacy weighting profile — fintech
+    // leans on the same trust-heavy weighting as health, real estate/automotive/
+    // saas on commerce (comparison + structure-driven), edtech on lifestyle
+    // (decision/query-driven), music on entertainment.
+    fintech: 'health', realestate: 'commerce', automotive: 'commerce', edtech: 'lifestyle', saas: 'commerce', music: 'entertainment',
   };
   const KIND_TO_PAGE_TYPE: Record<string, PageType> = {
     article: 'article', product: 'product', listing: 'listing', review: 'article', howto: 'article',
@@ -240,9 +245,10 @@ export const POST: APIRoute = async (ctx) => {
   const pageTypeChoice = (rawKind === 'auto' ? 'auto' : (KIND_TO_PAGE_TYPE[rawKind] || 'auto')) as 'auto' | PageType;
   // Only pass an override into the checklist engine when the user actually
   // picked something — otherwise it auto-detects, which is the whole point.
+  const VERTICAL_VALUES = ['news', 'health', 'beauty', 'ecommerce', 'entertainment', 'lifestyle', 'reviews', 'general', 'fintech', 'realestate', 'automotive', 'edtech', 'saas', 'music'] as const;
   const checklistOverride = {
     kind: rawKind !== 'auto' && (['article', 'product', 'listing', 'review', 'howto'] as const).includes(rawKind as any) ? (rawKind as any) : undefined,
-    vertical: rawVertical !== 'auto' && (['news', 'health', 'beauty', 'ecommerce', 'entertainment', 'lifestyle', 'reviews', 'general'] as const).includes(rawVertical as any) ? (rawVertical as any) : undefined,
+    vertical: rawVertical !== 'auto' && VERTICAL_VALUES.includes(rawVertical as any) ? (rawVertical as any) : undefined,
   };
 
   let html = '', host = '', isUrl = false, robotsTxt: string | null = null, llmsTxt: string | null = null, fetchNote: string | undefined;

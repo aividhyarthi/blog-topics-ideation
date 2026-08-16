@@ -247,6 +247,7 @@ const BOT_GROUPS: { id: string; label: string; engine: string; agents: string[];
   { id: 'bot_perplexity', label: 'Perplexity', engine: 'Perplexity', agents: ['PerplexityBot', 'Perplexity-User'], primary: ['PerplexityBot'] },
   { id: 'bot_google', label: 'Google AI (Gemini & AI Overviews)', engine: 'Google AI Overviews & Gemini', agents: ['Googlebot', 'Google-Extended'], primary: ['Googlebot'] },
   { id: 'bot_anthropic', label: 'Claude (Anthropic)', engine: 'Claude', agents: ['ClaudeBot', 'anthropic-ai', 'Claude-Web'], primary: ['ClaudeBot'] },
+  { id: 'bot_bing', label: 'Bing / Copilot', engine: 'Bing Chat & Microsoft Copilot', agents: ['Bingbot', 'BingPreview'], primary: ['Bingbot'] },
 ];
 
 export interface CrawlInput { isUrl: boolean; robotsTxt?: string | null; llmsTxt?: string | null }
