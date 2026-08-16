@@ -6,7 +6,7 @@ import {
   type LlmScores, type PageFacts, type Category, type PromptCoverage, type PageType,
 } from '../../lib/aeo';
 import { getUser } from '../../lib/auth';
-import { saveAudit } from '../../lib/audits';
+import { saveAudit, auditHistoryByUrl } from '../../lib/audits';
 import { consumeAccess, refundAccess } from '../../lib/billing';
 import { dbEnabled } from '../../lib/db';
 import { runChecklist, type ChecklistResult } from '../../lib/checklists';
@@ -359,9 +359,15 @@ export const POST: APIRoute = async (ctx) => {
   // Save to the user's history (best-effort — a save failure never blocks the
   // response; usage was already charged up front by consumeAccess above).
   let savedId: string | null = null;
+  let history: Awaited<ReturnType<typeof auditHistoryByUrl>> = [];
   if (gateUser) {
     try { savedId = await saveAudit(gateUser.id, report, meta); } catch { /* ignore */ }
+    // Fetched AFTER the save so this run's own score is the latest point —
+    // the trend chart should always include "right now", not just past runs.
+    if (isUrl && inputUrl) {
+      try { history = await auditHistoryByUrl(gateUser.id, inputUrl); } catch { /* ignore */ }
+    }
   }
 
-  return json({ report, meta: { ...meta, savedId } });
+  return json({ report, meta: { ...meta, savedId, history } });
 };

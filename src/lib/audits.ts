@@ -32,6 +32,23 @@ export async function listAudits(userId: string, limit = 25): Promise<AuditSumma
   }));
 }
 
+export interface HistoryPoint { createdAt: string; overall: number }
+
+// Score-over-time for one URL, for this user. Oldest first, so the trend chart
+// can read left-to-right without re-sorting. Only meaningful for URL-mode
+// audits — pasted content has no stable identity to group repeat runs by.
+export async function auditHistoryByUrl(userId: string, url: string, limit = 12): Promise<HistoryPoint[]> {
+  if (!dbEnabled || !url) return [];
+  try {
+    const { rows } = await query<any>(
+      `SELECT overall, created_at FROM audits
+       WHERE user_id = $1 AND url = $2 AND overall IS NOT NULL
+       ORDER BY created_at DESC LIMIT $3`, [userId, url, limit],
+    );
+    return rows.map((r) => ({ createdAt: r.created_at, overall: r.overall })).reverse();
+  } catch { return []; }
+}
+
 export async function getAudit(userId: string, id: string): Promise<{ report: any; meta: any } | null> {
   const { rows } = await query<any>(
     'SELECT report, meta FROM audits WHERE id = $1 AND user_id = $2', [id, userId],

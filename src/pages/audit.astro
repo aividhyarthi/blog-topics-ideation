@@ -188,6 +188,74 @@ import App from '../layouts/App.astro';
       function tintFor(s) { const st = statusOf(s); return st === 'pass' ? 'background:var(--ok-bg);color:var(--ok)' : st === 'warn' ? 'background:var(--warn-bg);color:var(--warn)' : st === 'fail' ? 'background:var(--bad-bg);color:var(--bad)' : 'background:#eef0f5;color:var(--na)'; }
       function sec(icon, title, sub) { return `<div class="sectitle"><span class="sicn">${icon}</span><div class="stx"><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}</div></div>`; }
 
+      // ---- Radar chart: 6 fixed axes in the same order as r.pillars ----
+      // Unmeasured pillars plot at the mid-radius, not zero — a flat radar spike
+      // there would misreport "not tested" as "failed".
+      const PILLAR_SHORT = { answerability: 'Answerability', entity: 'Entity', attribution: 'Attribution', structure: 'Structure', query: 'Query', freshness: 'Freshness' };
+      function buildRadar(pillars) {
+        // cy/R/viewBox height chosen so the top and bottom labels (the axes that
+        // reach furthest in y) stay inside the SVG's own box — an SVG clips to
+        // its viewBox by default, and the bottom "Structure" label previously
+        // landed a few px past it and was silently cut off.
+        const cx = 110, cy = 116, R = 82;
+        const angle = (i) => (-90 + i * 60) * Math.PI / 180;
+        const pt = (i, frac) => [cx + R * frac * Math.cos(angle(i)), cy + R * frac * Math.sin(angle(i))];
+        const ring = (frac) => pillars.map((_, i) => pt(i, frac).join(',')).join(' ');
+        const dataPts = pillars.map((p, i) => pt(i, p.measured === false ? 0.5 : Math.max(0.05, p.score / 100)));
+        const ANCHOR = ['middle', 'start', 'start', 'middle', 'end', 'end'];
+        const DY = [-8, 0, 0, 16, 0, 0];
+        const labels = pillars.map((p, i) => {
+          const [lx, ly] = pt(i, 1.22);
+          const short = (PILLAR_SHORT[p.id] || p.label) + (p.measured === false ? '*' : '');
+          return `<text x="${lx.toFixed(1)}" y="${(ly + DY[i]).toFixed(1)}" text-anchor="${ANCHOR[i]}">${esc(short)}</text>`;
+        }).join('');
+        const spokes = pillars.map((_, i) => { const [x, y] = pt(i, 1); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`; }).join('');
+        const dots = dataPts.map(([x, y], i) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="var(--accent)"${pillars[i].measured === false ? ' opacity=".4"' : ''}/>`).join('');
+        // Right-side labels use text-anchor="start" and grow rightward from
+        // their point, so the viewBox needs enough margin on the right for the
+        // longest label's full text width, not just its anchor point — "Entity"
+        // fit at 330 but "Attribution" (longer) still ran past the edge.
+        // Left-side labels (text-anchor="end") grow leftward and were already
+        // covered by the +48 translate below.
+        return `<svg width="370" height="248" viewBox="-40 0 370 248">
+          <g transform="translate(48,0)">
+            <g stroke="var(--line-2)" stroke-width="1" fill="none"><polygon points="${ring(1)}"/><polygon points="${ring(0.66)}"/><polygon points="${ring(0.33)}"/></g>
+            <g stroke="var(--line-2)" stroke-width="1">${spokes}</g>
+            <polygon points="${dataPts.map((p) => p.join(',')).join(' ')}" fill="var(--accent)" fill-opacity="0.16" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+            ${dots}
+            <g font-size="10.5" font-weight="700" fill="var(--muted)">${labels}</g>
+          </g>
+        </svg>`;
+      }
+
+      // ---- Score history sparkline for this URL (2+ saved audits required) ----
+      function buildTrend(history) {
+        if (!history || history.length < 2) {
+          return `<div class="trend-empty">${IC.bars}<div>Re-run this page after making changes to see the score move — this fills in once you have 2 or more saved audits for the same URL.</div></div>`;
+        }
+        const w = 150, h = 56, pad = 6;
+        const scores = history.map((hh) => hh.overall);
+        const min = Math.min(...scores), max = Math.max(...scores), span = Math.max(1, max - min);
+        const stepX = (w - pad * 2) / (history.length - 1);
+        const y = (v) => h - pad - ((v - min) / span) * (h - pad * 2);
+        const pts = scores.map((v, i) => [pad + i * stepX, y(v)]);
+        const delta = scores[scores.length - 1] - scores[0];
+        const col = delta >= 0 ? 'var(--ok)' : 'var(--bad)';
+        const last = pts[pts.length - 1];
+        const dots = pts.slice(0, -1).map(([x, yy]) => `<circle cx="${x.toFixed(1)}" cy="${yy.toFixed(1)}" r="3" fill="var(--card,#fff)" stroke="var(--muted)" stroke-width="2"/>`).join('');
+        const dateFmt = (iso) => { try { return new Date(iso).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }); } catch { return ''; } };
+        const ptLabels = history.map((hh, i) => `<div>${i === history.length - 1 ? 'Today' : esc(dateFmt(hh.createdAt))} <b>${hh.overall}%</b></div>`).join('');
+        return `<div class="trendrow">
+            <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+              <polyline points="${pts.map((p) => p.join(',')).join(' ')}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              ${dots}
+              <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="4" fill="${col}" stroke="#fff" stroke-width="2"/>
+            </svg>
+            <div class="trend-delta" style="color:${col}">${delta >= 0 ? '+' : ''}${delta}<small>pts since your first audit</small></div>
+          </div>
+          <div class="trend-pts">${ptLabels}</div>`;
+      }
+
       function render(data) {
         const r = data.report, m = data.meta || {}, root = $('results');
         const vc = hexFor(r.overall);
@@ -196,6 +264,7 @@ import App from '../layouts/App.astro';
         // type and vertical — the checklist detection is the authoritative one,
         // so the hero must not contradict it by showing the legacy category.
         const cl = m.checklist;
+        const history = m.history || [];
 
         let suggest = '';
         if (m.suggestedCategory && m.suggestedCategory !== m.category) {
@@ -238,56 +307,65 @@ import App from '../layouts/App.astro';
             ${covNote}
           </div>`;
 
-        // ---- Do this first: the short, plain-English action list ----
-        // The old report opened with 8 ranked fixes carrying "+4.4 pts" labels,
-        // which read as a spreadsheet rather than an instruction. Three items,
-        // no arithmetic.
+        // ---- Fix cards, shared markup for the Overview top-3 and full Priorities list ----
         const PRIORITY = ['Do this first', 'Then this', 'Then this'];
-        const topThree = (r.topFixes || []).slice(0, 3).map((fx, i) => `
+        const fixCard = (fx, i, labelled) => `
           <div class="actrow ${fx.severity}">
             <div class="actnum">${i + 1}</div>
             <div class="actbody">
-              <div class="actlabel">${esc(PRIORITY[i] || 'Then this')}</div>
+              ${labelled ? `<div class="actlabel">${esc(PRIORITY[i] || 'Then this')}</div>` : ''}
               <b>${esc(fx.label)}</b>
               <p>${esc(fx.fix)}</p>
             </div>
-          </div>`).join('');
-        const rest = (r.topFixes || []).slice(3);
-        const actionPanel = topThree ? `
-          <div class="card actioncard">
-            ${sec(IC.wrench, 'What to fix', 'in the order that will make the biggest difference')}
-            <div class="actlist">${topThree}</div>
-            ${rest.length ? `<details class="moreacts"><summary>${rest.length} smaller improvement${rest.length > 1 ? 's' : ''} after those</summary><div class="actlist">${rest.map((fx) => `<div class="actrow small ${fx.severity}"><div class="actbody"><b>${esc(fx.label)}</b><p>${esc(fx.fix)}</p></div></div>`).join('')}</div></details>` : ''}
-          </div>` : '';
+          </div>`;
+        const topThreeHtml = (r.topFixes || []).slice(0, 3).map((fx, i) => fixCard(fx, i, true)).join('');
+        const allFixesHtml = (r.topFixes || []).map((fx, i) => fixCard(fx, i, false)).join('');
 
-        // ---- Our AEO checklist (detected page type + vertical) ----
-        let checklistPanel = '';
+        // ---- Our AEO checklist, grouped into collapsible sections instead of one
+        // flat list — "every page" / "this page type" / "this subject". ----
+        let checklistTab = '';
         if (cl) {
           const kindConf = cl.detection.kind.confidence, vertConf = cl.detection.vertical.confidence;
           const confBadge = (c) => `<span class="clconf ${c}">${c} confidence</span>`;
           const evidence = [...cl.detection.kind.evidence, ...cl.detection.vertical.evidence];
-          const groupLabel = { universal: 'Every page', kind: cl.kindLabel, vertical: cl.verticalLabel };
-          const items = (cl.items || []).filter((i) => i.status !== 'na');
-          const naItems = (cl.items || []).filter((i) => i.status === 'na');
-          const rows = items.map((i) => `
-            <div class="clrow ${i.status}">
-              <span class="clbadge ${i.status}">${STATUS_IC[i.status]}</span>
-              <div class="clbody">
-                <div class="cltop"><b>${esc(i.label)}</b><span class="clgroup">${esc(groupLabel[i.group])}</span></div>
-                <div class="cldetail">${esc(i.detail)}</div>
-                <div class="clwhy"><b>Why it matters</b>${esc(i.why)}</div>
-                ${i.fix ? `<div class="clfix">${esc(i.fix)}</div>` : ''}
+          const GROUPS = [
+            { key: 'universal', label: 'Every page', sub: 'Universal checks — apply to any content' },
+            { key: 'kind', label: cl.kindLabel, sub: 'Checks for this page type' },
+            { key: 'vertical', label: cl.verticalLabel, sub: 'Checks specific to this subject' },
+          ];
+          const groupsHtml = GROUPS.map((g, gi) => {
+            const items = (cl.items || []).filter((i) => i.group === g.key);
+            if (!items.length) return '';
+            const applicable = items.filter((i) => i.status !== 'na');
+            const passN = items.filter((i) => i.status === 'pass').length;
+            const pct = applicable.length ? Math.round((passN / applicable.length) * 100) : 100;
+            const badgeCls = passN === applicable.length ? 'ok' : 'warn';
+            const rows = items.map((i) => `
+              <div class="clrow ${i.status}">
+                <span class="clbadge ${i.status}">${STATUS_IC[i.status]}</span>
+                <div class="clbody">
+                  <div class="cltop"><b>${esc(i.label)}</b></div>
+                  <div class="cldetail">${esc(i.detail)}</div>
+                  <div class="clwhy"><b>Why it matters</b>${esc(i.why)}</div>
+                  ${i.fix ? `<div class="clfix">${esc(i.fix)}</div>` : ''}
+                </div>
+              </div>`).join('');
+            return `<details class="acc"${gi === 0 ? ' open' : ''}>
+              <summary><span class="acc-plus"></span><div class="acc-title"><b>${esc(g.label)}</b><span>${esc(g.sub)}</span></div><span class="acc-bar"><i style="width:${pct}%;background:var(--${badgeCls})"></i></span><span class="acc-badge ${badgeCls}">${passN}/${applicable.length}</span></summary>
+              <div class="acc-body">${rows}</div>
+            </details>`;
+          }).join('');
+          checklistTab = `
+            <div class="card">
+              ${sec(IC.layers, 'Detected as', 'override the fields above and re-run if wrong')}
+              <div class="cld-cols">
+                <div><span class="cld-label">Page type</span><b>${esc(cl.kindLabel)}</b> ${confBadge(kindConf)}</div>
+                <div><span class="cld-label">Vertical</span><b>${esc(cl.verticalLabel)}</b> ${confBadge(vertConf)}</div>
+                <div><span class="cld-label">Result</span><b>${cl.passed} of ${cl.applicable} checks passed</b></div>
               </div>
-            </div>`).join('');
-          checklistPanel = sec(IC.layers, 'Our AEO checklist', 'detected page type and the domain-specific checks we ran') + `
-            <div class="cldetect">
-              <div class="cld-row"><span class="cld-label">Page type</span><b>${esc(cl.kindLabel)}</b>${confBadge(kindConf)}</div>
-              <div class="cld-row"><span class="cld-label">Vertical</span><b>${esc(cl.verticalLabel)}</b>${confBadge(vertConf)}</div>
               ${evidence.length ? `<div class="cld-evidence">Based on: ${evidence.map(esc).join(' · ')}</div>` : ''}
-              <div class="cld-note">Not what this page is? Set <b>Page type</b> and <b>Vertical</b> above and re-run.</div>
             </div>
-            <div class="clscore"><b>${cl.passed} of ${cl.applicable} checks passed.</b> ${cl.applicable - cl.passed > 0 ? `${cl.applicable - cl.passed} need${cl.applicable - cl.passed === 1 ? 's' : ''} attention` : 'Nothing outstanding'}${naItems.length ? `, and ${naItems.length} ${naItems.length === 1 ? "doesn't" : "don't"} apply to this kind of page` : ''}.</div>
-            <div class="cllist">${rows}</div>
+            ${groupsHtml}
             <div class="clfoot">See the full list of what we check and why at <a href="/checklist" target="_blank" rel="noopener">/checklist</a>.</div>`;
         }
 
@@ -332,6 +410,11 @@ import App from '../layouts/App.astro';
             const s = typeof r.engines[k] === 'number' ? r.engines[k] : 0; const col = hexFor(s);
             return `<div class="engcard" style="--e:${brand}"><div class="en"><span class="swatch"></span>${label}</div><div class="es" style="color:${col}">${s}<small>%</small></div><div class="ebar"><i style="width:${s}%;background:${col}"></i></div></div>`;
           }).join('')}</div>` : '';
+        // Compact version of the same data for the Overview tab.
+        const miniEngines = r.engines ? engineMeta.map(([k, label, brand]) => {
+          const s = typeof r.engines[k] === 'number' ? r.engines[k] : 0;
+          return `<div class="mineng"><span class="me-name">${label}</span><div class="me-track"><div class="me-fill" style="width:${s}%;background:${brand}"></div></div><span class="me-val" style="color:${brand}">${s}%</span></div>`;
+        }).join('') : '';
 
         // ---- Verify in real engines (predict -> measure) ----
         const aiPrompts = (r.promptCoverage || []).map((p) => p.q).filter(Boolean);
@@ -403,6 +486,11 @@ import App from '../layouts/App.astro';
           <div class="covbar"><i style="width:${covPct}%"></i></div>
           <div class="prompts">${pc.map((p) => `<div class="prow"><span class="pmark ${p.covered ? 'yes' : 'no'}">${p.covered ? IC.check : IC.x}</span><div>${esc(p.q)}</div></div>`).join('')}</div>` : '';
 
+        // Worst measured pillar starts open — the reader lands straight on the
+        // thing most worth their time instead of an arbitrary first item.
+        const measuredPillars = r.pillars.filter((p) => p.measured !== false);
+        const worstId = measuredPillars.length ? measuredPillars.reduce((a, b) => (b.score < a.score ? b : a)).id : null;
+
         const statusRank = { fail: 0, warn: 1, na: 2, pass: 3 };
         const breakdown = r.pillars.map((p) => {
           const col = hexFor(p.score);
@@ -418,13 +506,17 @@ import App from '../layouts/App.astro';
             return `<div class="signal"><span class="schip ${st}">${STATUS_IC[st]}</span><div class="sbody"><div class="sname">${esc(s.label)}${tag}</div><div class="sdetail">${esc(s.detail)}</div>${s.fix ? `<div class="sfix">${esc(s.fix)}</div>` : ''}</div><span class="sscore" style="${tintFor(s.score)}">${s.score == null ? 'n/a' : s.score}</span></div>`;
           }).join('');
           const measured = p.measured !== false;
-          // Everything in the breakdown is collapsed now — the report opens with
-          // the verdict and the fix list, and this is the evidence you go to only
-          // if you're the person doing the work.
           const issueLbl = !measured ? '<span class="pna">not checked</span>'
             : issues ? `<span class="pissues">${issues} issue${issues > 1 ? 's' : ''} to fix</span>` : '<span class="pclean">no issues</span>';
-          return `<details class="pillar" id="pill-${p.id}" style="--p:${measured ? col : '#9aa0ad'}"><summary><span class="caret">${IC.caret}</span><span class="pdot"></span><span class="pname">${esc(p.label)}</span>${issueLbl}<span class="pbar"><i style="width:${measured ? p.score : 0}%"></i></span><span class="pscore">${measured ? p.score : '—'}</span></summary><div class="signals">${sigs}</div></details>`;
+          const openAttr = p.id === worstId ? ' open' : '';
+          return `<details class="pillar" id="pill-${p.id}" style="--p:${measured ? col : '#9aa0ad'}"${openAttr}><summary><span class="pplus"></span><span class="pdot"></span><span class="pname">${esc(p.label)}</span>${issueLbl}<span class="pbar"><i style="width:${measured ? p.score : 0}%"></i></span><span class="pscore">${measured ? p.score : '—'}</span></summary><div class="signals">${sigs}</div></details>`;
         }).join('');
+
+        // ---- Radar + legend + trend for the Overview tab ----
+        const radarSvg = buildRadar(r.pillars);
+        const sortedPillars = [...r.pillars].sort((a, b) => (b.measured !== false ? b.score : -1) - (a.measured !== false ? a.score : -1));
+        const legendHtml = sortedPillars.map((p) => `<div class="rl-row${p.measured === false ? ' dim' : ''}"><span class="rl-dot"></span><span class="name">${esc(p.label)}</span><span class="val">${p.measured === false ? '—' : p.score}</span></div>`).join('');
+        const trendHtml = buildTrend(history);
 
         root.innerHTML = `
           <div class="printhead">
@@ -434,39 +526,69 @@ import App from '../layouts/App.astro';
           ${hero}
           ${crawlBanner}
           <div class="resbar">${m.savedId ? `<span class="savednote" style="margin-right:auto">${IC.check} Saved to your history</span>` : (ACCOUNTS && !USER ? `<span class="savednote" style="margin-right:auto;color:var(--muted)"><a id="savesignin" style="color:var(--accent-dark);font-weight:700;cursor:pointer">Sign in</a> to save this audit to your history</span>` : '')}<button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
-          ${actionPanel}
 
-          <div class="evidence">
-            <div class="evhead">
-              <b>The detail behind this</b>
-              <span>Open a section to see exactly what we checked and what we found. You don't need any of this to act on the summary above.</span>
+          <div class="reptabs" id="reptabs">
+            <div class="reptab active" data-tab="overview">Overview</div>
+            <div class="reptab" data-tab="priorities">Priorities${nFix ? ` <span class="repcnt">${nFix}</span>` : ''}</div>
+            ${cl ? `<div class="reptab" data-tab="checklist">Checklist <span class="repcnt">${cl.passed}/${cl.applicable}</span></div>` : ''}
+            <div class="reptab" data-tab="breakdown">Score breakdown</div>
+            <div class="reptab" data-tab="engines">Engines &amp; crawlers</div>
+            <div class="reptab" data-tab="verify">Verify</div>
+          </div>
+
+          <div class="tabbody">
+            <div class="tabpane" data-pane="overview">
+              <div class="ovgrid">
+                <div>
+                  <div class="card actioncard">
+                    ${sec(IC.wrench, 'Do these first', 'ranked by score impact')}
+                    <div class="actlist">${topThreeHtml || '<div class="hint">Nothing significant is blocking this page.</div>'}</div>
+                    ${nFix > 3 ? `<div class="seeallwrap"><a id="seeallfixes" href="#">See all ${nFix} fixes in the Priorities tab →</a></div>` : ''}
+                  </div>
+                  <div class="card" style="margin-top:14px;">
+                    ${sec(IC.bars, 'Score history for this page', 'from your saved audits')}
+                    ${trendHtml}
+                  </div>
+                </div>
+                <div>
+                  <div class="card">
+                    ${sec(IC.layers, 'Shape of the score', '6 pillars')}
+                    <div class="radarwrap">${radarSvg}<div class="radar-legend">${legendHtml}</div></div>
+                  </div>
+                  <div class="card" style="margin-top:14px;">
+                    ${sec(IC.engine, 'Likelihood by engine', 'estimated')}
+                    <div class="minieng-list">${miniEngines}</div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <details class="evsec" open>
-              <summary><span class="caret">${IC.caret}</span><span class="evname">Checks for this page type</span><span class="evsub">${cl ? esc(cl.passed + ' of ' + cl.applicable + ' passed') : ''}</span></summary>
-              <div class="evbody">${checklistPanel}</div>
-            </details>
-
-            ${visibilityPanel ? `<details class="evsec"><summary><span class="caret">${IC.caret}</span><span class="evname">Can AI actually read this page?</span><span class="evsub">${vis && vis.verdict ? esc(vis.verdict.label) : ''}</span></summary><div class="evbody">${visibilityPanel}</div></details>` : ''}
-
-            <details class="evsec">
-              <summary><span class="caret">${IC.caret}</span><span class="evname">Score breakdown</span><span class="evsub">how the ${r.overall}% is made up</span></summary>
-              <div class="evbody">
-                <div class="gauges">${gauges}</div>
-                ${breakdown}
+            <div class="tabpane" data-pane="priorities" hidden>
+              <div class="card">
+                ${sec(IC.wrench, 'What to fix, in order', 'ranked by how much score it would recover')}
+                <div class="actlist">${allFixesHtml || '<div class="hint">Nothing significant is blocking this page.</div>'}</div>
               </div>
-            </details>
+            </div>
 
-            ${enginesPanel || promptPanel ? `<details class="evsec"><summary><span class="caret">${IC.caret}</span><span class="evname">Engine-by-engine estimate</span><span class="evsub">and the questions this page should win</span></summary><div class="evbody">${enginesPanel}${promptPanel}</div></details>` : ''}
+            ${cl ? `<div class="tabpane" data-pane="checklist" hidden>${checklistTab}</div>` : ''}
 
-            ${crawlPanel ? `<details class="evsec"><summary><span class="caret">${IC.caret}</span><span class="evname">Crawler access</span><span class="evsub">site-wide — not in the score</span></summary><div class="evbody">${crawlPanel}</div></details>` : ''}
+            <div class="tabpane" data-pane="breakdown" hidden>
+              <div class="card">
+                ${sec(IC.bars, 'Pillar scores', `how the ${r.overall}% is made up`)}
+                <div class="gauges">${gauges}</div>
+              </div>
+              <div style="margin-top:14px;">${breakdown}</div>
+              ${domainPanel ? `<div style="margin-top:14px;">${domainPanel}</div>` : ''}
+            </div>
 
-            ${domainPanel ? `<details class="evsec"><summary><span class="caret">${IC.caret}</span><span class="evname">Domain authority context</span><span class="evsub">off-page — not in the score</span></summary><div class="evbody">${domainPanel}</div></details>` : ''}
+            <div class="tabpane" data-pane="engines" hidden>
+              ${enginesPanel}
+              ${promptPanel}
+              ${crawlPanel}
+              ${visibilityPanel}
+            </div>
 
-            <details class="evsec">
-              <summary><span class="caret">${IC.caret}</span><span class="evname">Check it against live engines</span><span class="evsub">prediction vs. what really happens</span></summary>
-              <div class="evbody">${verifyPanel}</div>
-            </details>
+            <div class="tabpane" data-pane="verify" hidden>${verifyPanel}</div>
           </div>
 
           <div class="caveat"><b>How to read this:</b> the score covers what an editor can change on the page before publishing. Your site's overall brand authority matters more than any single page, but it's the same for every page on the site, so we show it separately rather than in the score. Items marked <b>AI</b> are a model's judgement rather than a measurement. Engines differ in what they favour, so treat the score as a strong indicator, not a guarantee.</div>`;
@@ -475,9 +597,22 @@ import App from '../layouts/App.astro';
         if (recat) recat.addEventListener('click', () => { $('category').value = recat.dataset.cat; run(); });
         const copyBtn = $('copyreport');
         if (copyBtn) copyBtn.addEventListener('click', () => copyReport(r, m));
-        // A closed <details> prints nothing, so the PDF would silently drop most
-        // of the evidence. Open everything for the print, then put it back so the
-        // on-screen report is still the short version.
+
+        // ---- Report tabs ----
+        const tabsEl = $('reptabs');
+        function activateTab(name) {
+          if (!tabsEl) return;
+          tabsEl.querySelectorAll('.reptab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+          root.querySelectorAll('.tabpane').forEach((p) => { p.hidden = p.dataset.pane !== name; });
+        }
+        if (tabsEl) tabsEl.querySelectorAll('.reptab').forEach((t) => t.addEventListener('click', () => activateTab(t.dataset.tab)));
+        const seeAll = $('seeallfixes');
+        if (seeAll) seeAll.addEventListener('click', (e) => { e.preventDefault(); activateTab('priorities'); });
+
+        // A closed <details> prints nothing, and a hidden tabpane would too if we
+        // toggled it with inline styles — using the `hidden` attribute instead
+        // means the print stylesheet can force it back with one CSS rule, no JS
+        // needed for the panes. The <details> still need opening explicitly.
         const pdfBtn = $('pdfbtn');
         if (pdfBtn) pdfBtn.addEventListener('click', () => {
           const shut = [...root.querySelectorAll('details:not([open])')];
@@ -498,10 +633,6 @@ import App from '../layouts/App.astro';
           const openPill = () => {
             const d = document.getElementById('pill-' + g.dataset.pill);
             if (!d) return;
-            // The breakdown now lives inside a collapsed <details>; opening the
-            // pillar alone would scroll to something still hidden.
-            let p = d.parentElement;
-            while (p) { if (p.tagName === 'DETAILS') p.open = true; p = p.parentElement; }
             d.open = true;
             d.scrollIntoView({ behavior: 'smooth', block: 'start' });
           };
@@ -890,23 +1021,72 @@ button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; bo
 .moreacts > summary::before { content: '+ '; font-weight: 800; }
 .moreacts[open] > summary::before { content: '– '; }
 
-/* ---- Evidence: everything that used to be nine stacked full-width sections ---- */
-.evidence { margin-top: 30px; }
-.evhead { margin-bottom: 14px; }
-.evhead b { display: block; font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
-.evhead span { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; max-width: 68ch; line-height: 1.5; }
-.evsec { border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 10px; overflow: hidden; }
-.evsec > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 11px;
-  padding: 15px 18px; font-weight: 700; font-size: 15px; }
-.evsec > summary::-webkit-details-marker { display: none; }
-.evsec > summary:hover { background: #fafafc; }
-.evsec .caret { display: inline-flex; transition: transform .15s; color: var(--muted); }
-.evsec .caret svg { width: 15px; height: 15px; }
-.evsec[open] > summary .caret { transform: rotate(90deg); }
-.evsec .evname { flex: 1; min-width: 0; }
-.evsec .evsub { font-size: 12.5px; font-weight: 500; color: var(--muted); text-align: right; }
-.evbody { padding: 4px 18px 20px; border-top: 1px solid var(--line); }
-.evbody > .sectitle:first-child { margin-top: 16px; }
+/* ---- Report tabs: the six-way split that replaced one long scroll ---- */
+/* Distinct from .tabs/.tab above (the URL/Paste input toggle) so the two
+   components' styling never fights over the same class names. */
+.reptabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; margin: 18px 0 0; border-bottom: 1px solid var(--line); }
+.reptabs::-webkit-scrollbar { display: none; }
+.reptab { font-size: 13.5px; font-weight: 700; color: var(--muted); padding: 11px 15px; border-bottom: 2.5px solid transparent; white-space: nowrap; cursor: pointer; display: flex; align-items: center; gap: 7px; }
+.reptab:hover:not(.active) { color: var(--ink-2); }
+.reptab.active { color: var(--accent-dark); border-color: var(--accent); }
+.repcnt { font-size: 10.5px; font-weight: 800; background: #eef0f5; color: var(--muted); border-radius: 999px; padding: 1px 7px; }
+.reptab.active .repcnt { background: var(--accent-soft); color: var(--accent-dark); }
+.tabbody { padding-top: 20px; }
+.ovgrid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .ovgrid { grid-template-columns: 1fr; } }
+.seeallwrap { margin-top: 12px; }
+.seeallwrap a { font-size: 13px; font-weight: 600; color: var(--accent-dark); cursor: pointer; text-decoration: none; }
+.seeallwrap a:hover { text-decoration: underline; }
+
+/* ---- Accordions with a literal +/− marker (used for checklist groups and,
+   via .pplus, for the score-breakdown pillars) rather than a rotating caret. ---- */
+.acc { border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 10px; overflow: hidden; box-shadow: var(--shadow); }
+.acc > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.acc > summary::-webkit-details-marker { display: none; }
+.acc > summary:hover { background: #fafafc; }
+.acc-title { flex: 1; min-width: 0; }
+.acc-title b { font-size: 13.5px; font-weight: 700; }
+.acc-title span { display: block; font-size: 11.5px; color: var(--faint); margin-top: 1px; }
+.acc-bar { width: 60px; height: 6px; border-radius: 999px; background: #edeef4; overflow: hidden; flex-shrink: 0; }
+.acc-bar > i { display: block; height: 100%; border-radius: 999px; }
+.acc-badge { font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; flex-shrink: 0; }
+.acc-badge.ok { background: var(--ok-bg); color: var(--ok); }
+.acc-badge.warn { background: var(--warn-bg); color: var(--warn); }
+.acc-body { padding: 4px 16px 14px; border-top: 1px solid var(--line); }
+.pplus, .acc-plus { width: 22px; height: 22px; border-radius: 7px; background: #eef0f5; color: var(--ink-2); display: grid; place-items: center; flex-shrink: 0; font-size: 15px; font-weight: 800; line-height: 1; }
+.pplus::before, .acc-plus::before { content: '+'; }
+details[open] > summary .pplus, details[open] > summary .acc-plus { background: var(--accent-soft); color: var(--accent-dark); }
+details[open] > summary .pplus::before, details[open] > summary .acc-plus::before { content: '−'; }
+
+/* ---- Radar (shape of the score) + score-history trend, Overview tab ---- */
+.radarwrap { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.radarwrap svg { flex-shrink: 0; }
+.radar-legend { display: flex; flex-direction: column; gap: 8px; font-size: 12px; flex: 1; min-width: 170px; }
+.rl-row { display: flex; align-items: center; gap: 8px; }
+.rl-row.dim { opacity: .55; }
+.rl-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.rl-row .name { flex: 1; color: var(--ink-2); font-weight: 600; }
+.rl-row .val { font-weight: 800; font-variant-numeric: tabular-nums; }
+.trend-empty { display: flex; align-items: center; gap: 12px; padding: 6px 2px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.trend-empty svg { width: 30px; height: 30px; flex-shrink: 0; opacity: .5; }
+.trendrow { display: flex; align-items: center; gap: 16px; }
+.trend-delta { font-size: 22px; font-weight: 800; }
+.trend-delta small { font-size: 11.5px; font-weight: 700; color: var(--muted); display: block; margin-top: 1px; }
+.trend-pts { display: flex; gap: 14px; margin-top: 10px; font-size: 11px; color: var(--faint); font-weight: 600; flex-wrap: wrap; }
+.trend-pts b { color: var(--ink-2); font-size: 12px; }
+
+/* ---- Compact per-engine bars, Overview tab (full cards live in Engines tab) ---- */
+.minieng-list { display: flex; flex-direction: column; }
+.mineng { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.mineng + .mineng { border-top: 1px solid var(--line); }
+.me-name { width: 92px; font-size: 12.5px; font-weight: 700; flex-shrink: 0; }
+.me-track { flex: 1; height: 7px; border-radius: 99px; background: #edeef4; overflow: hidden; }
+.me-fill { display: block; height: 100%; border-radius: 99px; }
+.me-val { width: 34px; text-align: right; font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+/* ---- Checklist "Detected as" card, Checklist tab ---- */
+.cld-cols { display: flex; gap: 26px; flex-wrap: wrap; font-size: 13px; }
+.cld-cols > div { display: flex; flex-direction: column; gap: 4px; }
 
 /* A pillar we could not measure is greyed out and reads "not checked" — it is
    never shown as a zero, which would look like a failure we never tested for. */
@@ -1155,9 +1335,6 @@ button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; bo
 .pillar { border: 1px solid var(--line); border-radius: 15px; overflow: hidden; background: #fff; margin-bottom: 11px; box-shadow: var(--shadow); }
 .pillar > summary { list-style: none; cursor: pointer; padding: 15px 17px; display: flex; align-items: center; gap: 14px; }
 .pillar > summary::-webkit-details-marker { display: none; }
-.pillar .caret { color: var(--faint); transition: transform .15s; display: grid; place-items: center; }
-.pillar .caret svg { width: 13px; height: 13px; }
-.pillar[open] .caret { transform: rotate(90deg); }
 .pillar .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--p); flex-shrink: 0; }
 .pname { font-weight: 700; font-size: 14.5px; flex: 1; }
 .pillar .pissues { font-size: 11px; font-weight: 700; color: var(--bad); background: var(--bad-bg); padding: 3px 10px; border-radius: 999px; }
@@ -1192,21 +1369,25 @@ footer b { color: var(--ink-2); }
         body * { visibility: hidden; }
         #results, #results * { visibility: visible; }
         #results { position: absolute; left: 0; top: 0; width: 100%; margin: 0; }
-        .nav, .hero, footer, .toast, .resbar, .suggest a { display: none !important; }
+        .nav, .hero, footer, .toast, .resbar, .suggest a, .reptabs { display: none !important; }
         .printhead { display: block !important; margin-bottom: 14px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
         .printhead .pt-brand { font-size: 18px; font-weight: 800; color: var(--accent-dark); letter-spacing: -.02em; }
         .printhead .pt-sub { font-size: 11px; color: var(--muted); }
-        .card, .gauge, .engcard, .pillar, .prow, .domain, .actrow, .evsec { box-shadow: none !important; border: 1px solid var(--line) !important; break-inside: avoid; }
+        .card, .gauge, .engcard, .pillar, .prow, .domain, .actrow, .acc { box-shadow: none !important; border: 1px solid var(--line) !important; break-inside: avoid; }
         .pillar .signals { display: block !important; }
         .gauges { break-inside: avoid; }
         a[href]:after { content: ""; }
 
-        /* The verdict and the fix list are the whole point of the printed
-           report, so they get page one to themselves and the evidence starts
-           after the break. Collapsed sections still have to print in full — a
-           PDF that silently omits content is worse than a long one. */
-        .evidence { break-before: page; }
-        .evsec > summary .caret, .moreacts > summary { display: none !important; }
+        /* Tabs are a screen-only convenience — a PDF has no click, so every pane
+           has to print regardless of which one was on screen when Download PDF
+           was pressed. `hidden` beats the JS-set attribute here because it's a
+           plain boolean attribute the print stylesheet can override with one
+           rule; the <details> groups still need the "open all" pass in the click
+           handler, since a closed <details> renders nothing even when visible. */
+        .tabpane[hidden] { display: block !important; }
+        .tabpane + .tabpane { break-before: page; }
+        .ovgrid { grid-template-columns: 1fr !important; }
+        .acc-plus, .pplus { display: none !important; }
         .verdict .vtitle { font-size: 26px; }
         .verdict .vline { font-size: 14px; }
         .actioncard { break-inside: avoid; }
@@ -1216,7 +1397,7 @@ footer b { color: var(--ink-2); }
            "Headline answer clarityAI"). Print drops the flex gaps that hide this
            on screen, so state the spacing outright. */
         .cltop b, .sname { margin-right: 8px; }
-        .clgroup, .sname .tag, .eltag, .vw-js { margin-left: 6px !important; }
+        .sname .tag, .eltag, .vw-js { margin-left: 6px !important; }
       }
   </style>
 </App>
