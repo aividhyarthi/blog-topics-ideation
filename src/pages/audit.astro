@@ -192,6 +192,65 @@ import App from '../layouts/App.astro';
       // Unmeasured pillars plot at the mid-radius, not zero — a flat radar spike
       // there would misreport "not tested" as "failed".
       const PILLAR_SHORT = { answerability: 'Answerability', entity: 'Entity', attribution: 'Attribution', structure: 'Structure', query: 'Query', freshness: 'Freshness' };
+
+      // ---- Which real-world bucket each checklist item belongs to ----
+      // The checklist engine groups checks by WHERE they came from (every page /
+      // this page type / this vertical) — useful for us building the engine, not
+      // for someone reading the report. A first-time user thinks in three much
+      // older, simpler buckets: is the WRITING good, can a MACHINE actually reach
+      // and parse this page, and does it MATCH what people actually ask an AI.
+      // Anything not listed here defaults to 'content' — the largest and safest
+      // bucket — so a check added later never silently vanishes from the report.
+      const INDEXABILITY_CHECKS = new Set([
+        'u_js_dependent', 'u_snippet_controls', 'u_payload_weight', 'u_structured_data',
+        'u_heading_hierarchy', 'u_alt_text', 'u_video_described',
+        'p_schema', 'r_review_schema', 'h_schema', 'n_newsarticle', 'en_schema', 'ed_schema', 'mu_schema',
+      ]);
+      const KEYWORD_CHECKS = new Set(['u_question_headings', 'a_faq']);
+      function topicOf(id) {
+        if (INDEXABILITY_CHECKS.has(id)) return 'indexability';
+        if (KEYWORD_CHECKS.has(id)) return 'keywords';
+        return 'content';
+      }
+
+      // One cohesive card per issue: the fix is the loudest thing on it, because
+      // that's the one line a reader actually needs to act. "Why it matters" is
+      // still there for anyone who wants it, but small and last — not boxed and
+      // weighted the same as the instruction, which is what made three short
+      // facts read like unrelated fragments instead of one clear point.
+      function issueCard(i) {
+        return `<div class="issuecard ${i.status}">
+          <span class="clbadge ${i.status}">${STATUS_IC[i.status]}</span>
+          <div class="issuebody">
+            <b class="issuelabel">${esc(i.label)}</b>
+            <p class="issuedetail">${esc(i.detail)}</p>
+            ${i.fix ? `<p class="issuefix"><b>Fix:</b> ${esc(i.fix)}</p>` : ''}
+            <p class="issuewhy">${esc(i.why)}</p>
+          </div>
+        </div>`;
+      }
+
+      // A topic tab: one plain sentence saying what this bucket even means, the
+      // things wrong with it (worst first), and everything already fine folded
+      // into one line instead of repeating 8 green checkmarks nobody needs to
+      // read to know what to do next.
+      function topicTab(cl, topic, intro, extraHtml) {
+        if (!cl) return extraHtml || '<div class="card"><p class="hint">Nothing to check yet — run an audit.</p></div>';
+        const items = (cl.items || []).filter((i) => topicOf(i.id) === topic && i.status !== 'na');
+        const rank = { fail: 0, warn: 1, pass: 2 };
+        const issues = items.filter((i) => i.status !== 'pass').sort((a, b) => rank[a.status] - rank[b.status]);
+        const passes = items.filter((i) => i.status === 'pass');
+        const issuesHtml = issues.length
+          ? issues.map(issueCard).join('')
+          : `<div class="allgood">${IC.check}<span>Nothing wrong here — this part is in good shape.</span></div>`;
+        const passSummary = passes.length
+          ? `<details class="passfold"><summary>${IC.check} ${passes.length} more thing${passes.length > 1 ? 's' : ''} already look${passes.length > 1 ? '' : 's'} good — tap to see</summary><div class="passlist">${passes.map((i) => `<div class="passrow">${esc(i.label)} — ${esc(i.detail)}</div>`).join('')}</div></details>`
+          : '';
+        return `<div class="card topicintro"><p>${intro}</p></div>
+          <div class="issuelist">${issuesHtml}</div>
+          ${passSummary}
+          ${extraHtml || ''}`;
+      }
       function buildRadar(pillars) {
         // cy/R/viewBox height chosen so the top and bottom labels (the axes that
         // reach furthest in y) stay inside the SVG's own box — an SVG clips to
@@ -298,7 +357,7 @@ import App from '../layouts/App.astro';
               </div>
               <div class="verdict">
                 <div class="vtitle" style="color:${vc}">${VERDICT.head}</div>
-                <p class="vline">${VERDICT.line} ${actionLine}</p>
+                <p class="vline">${esc((r.summary && r.summary.trim()) || `${VERDICT.line} ${actionLine}`)}</p>
                 <div class="vsub">${esc(m.mode === 'url' ? (m.url || 'Audited URL') : 'Pasted content')} · ${m.wordCount} word${m.wordCount === 1 ? '' : 's'} · graded as <b>${esc(cl ? cl.kindLabel : (m.pageTypeLabel || 'Page'))}</b>${cl ? ` in <b>${esc(cl.verticalLabel)}</b>` : ''}</div>
                 ${suggest}
                 ${m.fetchNote ? `<div class="note-warn">${IC.alert}<span>${esc(m.fetchNote)}</span></div>` : ''}
@@ -321,53 +380,30 @@ import App from '../layouts/App.astro';
         const topThreeHtml = (r.topFixes || []).slice(0, 3).map((fx, i) => fixCard(fx, i, true)).join('');
         const allFixesHtml = (r.topFixes || []).map((fx, i) => fixCard(fx, i, false)).join('');
 
-        // ---- Our AEO checklist, grouped into collapsible sections instead of one
-        // flat list — "every page" / "this page type" / "this subject". ----
-        let checklistTab = '';
-        if (cl) {
+        // ---- How many real problems live in each topic bucket, for the tab badges ----
+        const countIssues = (topic) => cl ? (cl.items || []).filter((i) => topicOf(i.id) === topic && i.status !== 'na' && i.status !== 'pass').length : 0;
+        const contentIssueN = countIssues('content');
+        const indexIssueN = countIssues('indexability');
+        const kwIssueN = countIssues('keywords');
+
+        // "Detected as" — what we thought this page was and why, kept as a small
+        // note on the Details tab rather than its own destination now that the
+        // hero's "graded as X in Y" line already says the headline version.
+        const detectedAsCard = cl ? (() => {
           const kindConf = cl.detection.kind.confidence, vertConf = cl.detection.vertical.confidence;
           const confBadge = (c) => `<span class="clconf ${c}">${c} confidence</span>`;
           const evidence = [...cl.detection.kind.evidence, ...cl.detection.vertical.evidence];
-          const GROUPS = [
-            { key: 'universal', label: 'Every page', sub: 'Universal checks — apply to any content' },
-            { key: 'kind', label: cl.kindLabel, sub: 'Checks for this page type' },
-            { key: 'vertical', label: cl.verticalLabel, sub: 'Checks specific to this subject' },
-          ];
-          const groupsHtml = GROUPS.map((g, gi) => {
-            const items = (cl.items || []).filter((i) => i.group === g.key);
-            if (!items.length) return '';
-            const applicable = items.filter((i) => i.status !== 'na');
-            const passN = items.filter((i) => i.status === 'pass').length;
-            const pct = applicable.length ? Math.round((passN / applicable.length) * 100) : 100;
-            const badgeCls = passN === applicable.length ? 'ok' : 'warn';
-            const rows = items.map((i) => `
-              <div class="clrow ${i.status}">
-                <span class="clbadge ${i.status}">${STATUS_IC[i.status]}</span>
-                <div class="clbody">
-                  <div class="cltop"><b>${esc(i.label)}</b></div>
-                  <div class="cldetail">${esc(i.detail)}</div>
-                  <div class="clwhy"><b>Why it matters</b>${esc(i.why)}</div>
-                  ${i.fix ? `<div class="clfix">${esc(i.fix)}</div>` : ''}
-                </div>
-              </div>`).join('');
-            return `<details class="acc"${gi === 0 ? ' open' : ''}>
-              <summary><span class="acc-plus"></span><div class="acc-title"><b>${esc(g.label)}</b><span>${esc(g.sub)}</span></div><span class="acc-bar"><i style="width:${pct}%;background:var(--${badgeCls})"></i></span><span class="acc-badge ${badgeCls}">${passN}/${applicable.length}</span></summary>
-              <div class="acc-body">${rows}</div>
-            </details>`;
-          }).join('');
-          checklistTab = `
-            <div class="card">
-              ${sec(IC.layers, 'Detected as', 'override the fields above and re-run if wrong')}
-              <div class="cld-cols">
-                <div><span class="cld-label">Page type</span><b>${esc(cl.kindLabel)}</b> ${confBadge(kindConf)}</div>
-                <div><span class="cld-label">Vertical</span><b>${esc(cl.verticalLabel)}</b> ${confBadge(vertConf)}</div>
-                <div><span class="cld-label">Result</span><b>${cl.passed} of ${cl.applicable} checks passed</b></div>
-              </div>
-              ${evidence.length ? `<div class="cld-evidence">Based on: ${evidence.map(esc).join(' · ')}</div>` : ''}
+          return `<div class="card">
+            ${sec(IC.layers, 'Detected as', 'override Page type / Vertical above and re-run if wrong')}
+            <div class="cld-cols">
+              <div><span class="cld-label">Page type</span><b>${esc(cl.kindLabel)}</b> ${confBadge(kindConf)}</div>
+              <div><span class="cld-label">Vertical</span><b>${esc(cl.verticalLabel)}</b> ${confBadge(vertConf)}</div>
+              <div><span class="cld-label">Result</span><b>${cl.passed} of ${cl.applicable} checks passed</b></div>
             </div>
-            ${groupsHtml}
-            <div class="clfoot">See the full list of what we check and why at <a href="/checklist" target="_blank" rel="noopener">/checklist</a>.</div>`;
-        }
+            ${evidence.length ? `<div class="cld-evidence">Based on: ${evidence.map(esc).join(' · ')}</div>` : ''}
+            <div class="clfoot">See the full list of what we check and why at <a href="/checklist" target="_blank" rel="noopener">/checklist</a>.</div>
+          </div>`;
+        })() : '';
 
         // ---- AI crawlability (robots.txt + llms.txt) ----
         function crawlBadge(s) {
@@ -529,10 +565,10 @@ import App from '../layouts/App.astro';
 
           <div class="reptabs" id="reptabs">
             <div class="reptab active" data-tab="overview">Overview</div>
-            <div class="reptab" data-tab="priorities">Priorities${nFix ? ` <span class="repcnt">${nFix}</span>` : ''}</div>
-            ${cl ? `<div class="reptab" data-tab="checklist">Checklist <span class="repcnt">${cl.passed}/${cl.applicable}</span></div>` : ''}
-            <div class="reptab" data-tab="breakdown">Score breakdown</div>
-            <div class="reptab" data-tab="engines">Engines &amp; crawlers</div>
+            <div class="reptab" data-tab="content">Content${contentIssueN ? ` <span class="repcnt bad">${contentIssueN}</span>` : ''}</div>
+            <div class="reptab" data-tab="indexability">Indexability${indexIssueN ? ` <span class="repcnt bad">${indexIssueN}</span>` : ''}</div>
+            <div class="reptab" data-tab="keywords">Keywords${kwIssueN ? ` <span class="repcnt bad">${kwIssueN}</span>` : ''}</div>
+            <div class="reptab" data-tab="details">Details</div>
             <div class="reptab" data-tab="verify">Verify</div>
           </div>
 
@@ -543,7 +579,7 @@ import App from '../layouts/App.astro';
                   <div class="card actioncard">
                     ${sec(IC.wrench, 'Do these first', 'ranked by score impact')}
                     <div class="actlist">${topThreeHtml || '<div class="hint">Nothing significant is blocking this page.</div>'}</div>
-                    ${nFix > 3 ? `<div class="seeallwrap"><a id="seeallfixes" href="#">See all ${nFix} fixes in the Priorities tab →</a></div>` : ''}
+                    ${nFix > 3 ? `<details class="seeallwrap"><summary>See all ${nFix} fixes, ranked</summary><div class="actlist" style="margin-top:10px;">${allFixesHtml}</div></details>` : ''}
                   </div>
                   <div class="card" style="margin-top:14px;">
                     ${sec(IC.bars, 'Score history for this page', 'from your saved audits')}
@@ -563,29 +599,30 @@ import App from '../layouts/App.astro';
               </div>
             </div>
 
-            <div class="tabpane" data-pane="priorities" hidden>
-              <div class="card">
-                ${sec(IC.wrench, 'What to fix, in order', 'ranked by how much score it would recover')}
-                <div class="actlist">${allFixesHtml || '<div class="hint">Nothing significant is blocking this page.</div>'}</div>
-              </div>
+            <div class="tabpane" data-pane="content" hidden>
+              ${topicTab(cl, 'content', 'Is the writing itself good enough to quote — a clear answer stated up front, real named sources, specific numbers instead of vague claims, and dated so an engine knows it\'s current?')}
             </div>
 
-            ${cl ? `<div class="tabpane" data-pane="checklist" hidden>${checklistTab}</div>` : ''}
+            <div class="tabpane" data-pane="indexability" hidden>
+              ${topicTab(cl, 'indexability', 'Can an AI crawler even reach and understand this page in the first place? None of the writing quality matters if the page is blocked, hidden behind JavaScript, or missing the structured data that tells a machine what kind of page this is.', crawlPanel + visibilityPanel)}
+            </div>
 
-            <div class="tabpane" data-pane="breakdown" hidden>
+            <div class="tabpane" data-pane="keywords" hidden>
+              ${topicTab(cl, 'keywords', 'Does this page match how people actually type or speak questions to an AI — headings phrased as real questions, an FAQ block, and the specific prompts this page ought to win?', promptPanel)}
+            </div>
+
+            <div class="tabpane" data-pane="details" hidden>
               <div class="card">
+                <p class="hint" style="margin:0;">The technical scoring behind the summary above — useful if you want to see exactly how the ${r.overall}% was calculated, not necessary to fix anything.</p>
+              </div>
+              ${detectedAsCard ? `<div style="margin-top:14px;">${detectedAsCard}</div>` : ''}
+              <div class="card" style="margin-top:14px;">
                 ${sec(IC.bars, 'Pillar scores', `how the ${r.overall}% is made up`)}
                 <div class="gauges">${gauges}</div>
               </div>
               <div style="margin-top:14px;">${breakdown}</div>
+              ${enginesPanel ? `<div style="margin-top:14px;">${enginesPanel}</div>` : ''}
               ${domainPanel ? `<div style="margin-top:14px;">${domainPanel}</div>` : ''}
-            </div>
-
-            <div class="tabpane" data-pane="engines" hidden>
-              ${enginesPanel}
-              ${promptPanel}
-              ${crawlPanel}
-              ${visibilityPanel}
             </div>
 
             <div class="tabpane" data-pane="verify" hidden>${verifyPanel}</div>
@@ -606,8 +643,6 @@ import App from '../layouts/App.astro';
           root.querySelectorAll('.tabpane').forEach((p) => { p.hidden = p.dataset.pane !== name; });
         }
         if (tabsEl) tabsEl.querySelectorAll('.reptab').forEach((t) => t.addEventListener('click', () => activateTab(t.dataset.tab)));
-        const seeAll = $('seeallfixes');
-        if (seeAll) seeAll.addEventListener('click', (e) => { e.preventDefault(); activateTab('priorities'); });
 
         // A closed <details> prints nothing, and a hidden tabpane would too if we
         // toggled it with inline styles — using the `hidden` attribute instead
@@ -1034,9 +1069,6 @@ button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; bo
 .tabbody { padding-top: 20px; }
 .ovgrid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
 @media (max-width: 860px) { .ovgrid { grid-template-columns: 1fr; } }
-.seeallwrap { margin-top: 12px; }
-.seeallwrap a { font-size: 13px; font-weight: 600; color: var(--accent-dark); cursor: pointer; text-decoration: none; }
-.seeallwrap a:hover { text-decoration: underline; }
 
 /* ---- Accordions with a literal +/− marker (used for checklist groups and,
    via .pplus, for the score-breakdown pillars) rather than a rotating caret. ---- */
@@ -1203,6 +1235,36 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .clwhy b { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); margin-bottom: 2px; }
 .clfix { font-size: 12.5px; color: #6b5410; margin-top: 8px; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 7px 11px; border-radius: 0 8px 8px 0; line-height: 1.5; }
 .clfoot { font-size: 12px; color: var(--faint); margin-top: 12px; }
+
+/* ---- Content / Indexability / Keywords tabs: one plain sentence, then issues
+   ranked worst-first, with the fix as the loudest thing on each card and
+   "why it matters" shrunk to a footnote instead of a competing block. ---- */
+.repcnt.bad { background: var(--bad-bg); color: var(--bad); }
+.reptab.active .repcnt.bad { background: var(--bad-bg); color: var(--bad); }
+.topicintro { margin-bottom: 14px; }
+.topicintro p { margin: 0; font-size: 14.5px; color: var(--ink-2); line-height: 1.6; }
+.issuelist { display: grid; gap: 10px; }
+.issuecard { display: flex; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px; background: #fff; border-left: 4px solid var(--line-2); box-shadow: var(--shadow); }
+.issuecard.fail { border-left-color: var(--bad); }
+.issuecard.warn { border-left-color: var(--warn); }
+.issuebody { flex: 1; min-width: 0; }
+.issuelabel { display: block; font-size: 14.5px; font-weight: 700; letter-spacing: -.005em; }
+.issuedetail { margin: 4px 0 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.issuefix { margin: 10px 0 0; font-size: 13.5px; color: #0f172a; background: var(--ok-bg); border-radius: 9px; padding: 9px 12px; line-height: 1.5; }
+.issuefix b { color: var(--ok); }
+.issuewhy { margin: 8px 0 0; font-size: 11.5px; color: var(--faint); line-height: 1.5; }
+.allgood { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-radius: 12px; background: var(--ok-bg); color: var(--ok); font-size: 14px; font-weight: 600; }
+.allgood svg { width: 18px; height: 18px; flex-shrink: 0; }
+.passfold { margin-top: 12px; border: 1px dashed var(--line-2); border-radius: 10px; padding: 2px 14px; }
+.passfold > summary { cursor: pointer; list-style: none; padding: 10px 0; font-size: 12.5px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+.passfold > summary::-webkit-details-marker { display: none; }
+.passfold > summary svg { width: 13px; height: 13px; color: var(--ok); }
+.passlist { padding: 2px 0 12px; display: grid; gap: 6px; }
+.passrow { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.seeallwrap { margin-top: 12px; }
+.seeallwrap > summary { cursor: pointer; list-style: none; font-size: 13px; font-weight: 600; color: var(--accent-dark); }
+.seeallwrap > summary::-webkit-details-marker { display: none; }
+.seeallwrap > summary:hover { text-decoration: underline; }
 /* ---- Can LLMs access this page? (visibility) ---- */
       .viscard { border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: #fff; box-shadow: var(--shadow); border-top: 3px solid var(--line-2); }
 .viscard.vis-yes { border-top-color: var(--ok); }
