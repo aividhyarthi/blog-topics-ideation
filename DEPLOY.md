@@ -126,6 +126,16 @@ production database: back it up periodically. The entire database is one file
 at `/data/citerank.db` inside the container; Railway's volume backup/snapshot
 feature (if available on your plan) covers it automatically.
 
+**"Redeploy" is not "deploy latest."** Railway's build log shows every layer —
+`COPY . .` and `RUN npm run build` included — as `cached` when this happens: the
+**Redeploy** button on an existing deployment card reuses that deployment's
+original source snapshot, it does not re-fetch the branch from GitHub. Clicking
+it repeatedly rebuilds the same old commit forever, with no error anywhere,
+because nothing actually failed — it just never looked at the new code. If the
+site isn't reflecting a push that auto-deploy should have picked up, don't
+Redeploy the stale entry; trigger a fresh deployment (or push a new commit) so
+Railway is forced to fetch the branch again.
+
 ## Common questions
 
 - **"Accounts are temporarily unavailable."** No `DATA_DIR`/Volume yet. Step 2.
