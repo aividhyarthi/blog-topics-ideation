@@ -137,6 +137,15 @@ const SPEC = {
       leftLabel: 'readable', rightLabel: 'wasted' },
   'new-app-launch-first-two-weeks-ranking':
     { art: 'growth', takeaway: 'Volatility settles as real signal accumulates, not as time passes', label: 'first 14 days' },
+  'uninstall-rate-and-google-play-ranking':
+    { art: 'diverge', takeaway: 'Uninstalls move with the confirmed factors, not as one of their own', a: 'installs', b: 'uninstalls' },
+  'in-app-events-app-store-discovery':
+    { art: 'chips', takeaway: 'Extra visibility surface, not a confirmed ranking lever',
+      chips: ['product page card', 'search result card', 'Today tab', 'Events browse'] },
+  'do-search-ads-affect-organic-ranking':
+    { art: 'split', takeaway: 'Spend buys the paid slot; installs and retention feed the organic one',
+      left: ['bid + budget', 'immediate', 'stops with spend'], right: ['installs + retention', 'builds over weeks', 'persists after spend stops'],
+      leftLabel: 'paid', rightLabel: 'organic' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
