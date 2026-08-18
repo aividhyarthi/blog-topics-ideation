@@ -129,6 +129,14 @@ const SPEC = {
   'app-rating-shows-different-numbers-same-day':
     { art: 'chips', takeaway: 'Four surfaces, four caches, four snapshots in time',
       chips: ['4.5 search card', '3.8 listing page', '4.0 Play Console', '4.2 Search snippet'] },
+  'keyword-stuffing-where-the-line-is':
+    { art: 'threshold', takeaway: 'Repetition helps until a reader notices it, then it costs conversion', band: 'reads unnatural' },
+  'app-icon-ab-testing':
+    { art: 'split', takeaway: 'One structural change per test, or the win has no cause',
+      left: ['contrast', 'one variable', 'fixed window'], right: ['color + shape + badge', 'three at once', 'stopped at day 3'],
+      leftLabel: 'readable', rightLabel: 'wasted' },
+  'new-app-launch-first-two-weeks-ranking':
+    { art: 'growth', takeaway: 'Volatility settles as real signal accumulates, not as time passes', label: 'first 14 days' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
