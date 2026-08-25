@@ -529,13 +529,6 @@ ai photo enhancer"></textarea>
       // that doesn't match anything just never produces a tab, so this
       // doesn't do anything odd for apps outside that vertical — they just
       // end up with a "Brand + Comp" tab (if applicable) and "General".
-      // Check-window presets. Ranges are IST hours, end-exclusive. Kept wider
-      // than 4-hour blocks because a big keyword list under an hourly request
-      // cap needs enough hours to finish: see capPlanHint below.
-      const WINDOW_CHOICES = [
-        [0, 6], [0, 8], [4, 8], [6, 12], [7, 12], [8, 12],
-        [12, 18], [12, 20], [16, 20], [18, 24], [20, 24], [0, 24],
-      ];
       const hourLabel = (h) =>
         h === 0 || h === 24 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h - 12}pm`;
 
@@ -2395,14 +2388,21 @@ ai photo enhancer"></textarea>
           <div class="settings-block no-print">
             <h4>Daily check window <span class="hint" style="display:inline;">— IST</span></h4>
             <p class="hint" style="margin:0 0 8px;">Stagger your apps into separate slots so they don't all hit the stores at once — simultaneous bursts are the main cause of rate-limited checks that come back as "failed" or unchecked keywords. Weekends ignore this and use the whole day, so large keyword lists can catch up.</p>
-            <select data-role="window-select">
-              <option value="" ${!app.checkWindow ? 'selected' : ''}>Any time (no stagger)</option>
-              ${WINDOW_CHOICES.map(([s, e]) => {
-                const val = `${s}-${e}`;
-                const sel = app.checkWindow && app.checkWindow.startHour === s && app.checkWindow.endHour === e;
-                return `<option value="${val}" ${sel ? 'selected' : ''}>${hourLabel(s)} – ${hourLabel(e)}</option>`;
-              }).join('')}
-            </select>
+            <label style="display:flex;align-items:center;gap:6px;font-weight:600;">
+              <input type="checkbox" data-role="window-none" ${!app.checkWindow ? 'checked' : ''} style="margin:0;" /> Any time (no stagger)
+            </label>
+            <div class="row" style="gap:8px;align-items:center;margin-top:8px;">
+              <label style="margin:0;">From</label>
+              <select data-role="window-start">
+                ${Array.from({ length: 24 }, (_, h) => h).map((h) =>
+                  `<option value="${h}" ${app.checkWindow && app.checkWindow.startHour === h ? 'selected' : ''}>${hourLabel(h)}</option>`).join('')}
+              </select>
+              <label style="margin:0;">to</label>
+              <select data-role="window-end">
+                ${Array.from({ length: 24 }, (_, h) => h + 1).map((h) =>
+                  `<option value="${h}" ${app.checkWindow && app.checkWindow.endHour === h ? 'selected' : ''}>${hourLabel(h)}</option>`).join('')}
+              </select>
+            </div>
             <label style="margin-top:10px;">Searches per hour for this app</label>
             <p class="hint" style="margin:0 0 6px;">Caps how many keywords are searched at the store each hour, so a big list is spread out instead of hammering it in one go. Cached results (a competitor sharing this app's keywords) don't count. Blank = no cap.</p>
             <input type="number" min="10" max="2000" step="10" data-role="hourly-cap" placeholder="no cap"
@@ -2898,7 +2898,10 @@ ai photo enhancer"></textarea>
         }
         if (act === 'save-window') {
           withBusy(btn, 'Saving…', async () => {
-            const val = card.querySelector('[data-role="window-select"]').value;
+            const none = card.querySelector('[data-role="window-none"]').checked;
+            const startVal = card.querySelector('[data-role="window-start"]').value;
+            const endVal = card.querySelector('[data-role="window-end"]').value;
+            const val = none ? '' : `${startVal}-${endVal}`;
             const cap = card.querySelector('[data-role="hourly-cap"]').value.trim();
             const data = await api({ action: 'set-check-window', key, window: val, hourlyCap: cap });
             showToast(val ? 'Check window saved' : 'Stagger removed — checks any time');
