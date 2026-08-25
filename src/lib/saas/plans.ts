@@ -119,7 +119,7 @@ export const PLANS: Record<PlanId, Plan> = {
   },
   pro: {
     id: 'pro', name: 'Pro', priceMonthly: 6499,
-    maxApps: 10, maxCompetitorsPerApp: 3, maxKeywordsPerApp: 60,
+    maxApps: 10, maxCompetitorsPerApp: 3, maxKeywordsPerApp: 100,
     blurb: 'For studios and agencies tracking a portfolio',
   },
 };

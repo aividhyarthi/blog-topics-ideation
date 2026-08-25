@@ -1019,6 +1019,32 @@ ai photo enhancer"></textarea>
         return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
       }
 
+      // Raw 1★/2★/5★ counts for the most recent check — the % trend above
+      // answers "is this getting worse", this answers "how many actual
+      // people, out of how many" behind that %, which reads very differently
+      // at 12% of 34 reviews vs 12% of 3,400.
+      function ratingCountBars(history) {
+        const latest = (history || []).length ? history[history.length - 1] : null;
+        if (!latest || !latest.counts || !latest.counts.length) return '';
+        const rows = [1, 2, 5].map((star) => {
+          const c = latest.counts.find((x) => x.star === star);
+          return { star, count: c ? c.count : 0, pct: c ? c.pct : 0 };
+        });
+        const maxCount = Math.max(1, ...rows.map((r) => r.count));
+        const barsHtml = rows.map((r) => `
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <span style="width:20px;font-size:11.5px;font-weight:700;color:var(--muted);">${r.star}★</span>
+            <div style="flex:1;background:var(--bg);border-radius:4px;height:14px;overflow:hidden;">
+              <div style="width:${((r.count / maxCount) * 100).toFixed(1)}%;height:100%;background:${r.star <= 2 ? 'var(--bad)' : 'var(--ok)'};"></div>
+            </div>
+            <span style="font-size:11.5px;font-weight:700;min-width:76px;text-align:right;color:var(--ink);">${r.count} (${r.pct}%)</span>
+          </div>`).join('');
+        return `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line);">
+          <p class="hint" style="margin:0 0 2px;">1★ / 2★ / 5★ counts — most recent check, out of ${latest.total} reviews (${latest.windowDays}d window)</p>
+          ${barsHtml}
+        </div>`;
+      }
+
       // How big is the tracked keyword list on each day it was actually
       // checked — answers "is my keyword universe growing over time" with
       // real historical sizes (see universeSizeSeries server-side), not
@@ -1438,7 +1464,7 @@ ai photo enhancer"></textarea>
           : `<div class="chartbox"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : notRankedText}</p>${overallNote}${depthNote}</div>`;
         return `<div class="charts">
           ${catChartBox}
-          <div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}</div>
+          <div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}${ratingCountBars(app.ratingHistory)}</div>
         </div>`;
       }
 

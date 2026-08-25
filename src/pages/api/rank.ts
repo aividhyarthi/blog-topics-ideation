@@ -324,6 +324,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const action = String(body.action || '');
   const t = tenant(locals);
   const { userId, maxApps, maxCompetitors, maxKeywords } = t;
+  // The admin (owner) never has to wait for "tonight" — manual checks they
+  // trigger run immediately regardless of what already ran today. Everyone
+  // else keeps the once-a-day guard (see alreadyCheckedToday's own comment):
+  // it exists to protect the live store-search budget from repeated clicks,
+  // and the admin is the one person who can already run the nightly check
+  // on demand from /admin, so this just gives them that same freedom here.
+  const isAdmin = !locals.productMode || isAdminEmail(locals.user?.email);
   // Read-only guests get exactly one verb: GET. Every action below either
   // edits the owner's config or spends the owner's money (store fetches,
   // Anthropic calls), so there is no useful subset to allow through and a
@@ -643,7 +650,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
     if (!(app.coverageKeywords || []).length) return json({ error: 'Save a coverage keyword list first.' }, 400);
-    const already = coverageAlreadyCheckedToday(app, userId);
+    const already = isAdmin ? null : coverageAlreadyCheckedToday(app, userId);
     if (already) {
       return json({ ok: true, note: `Coverage was already checked today (${new Date(already).toLocaleString()}) — the next automatic check runs tonight.`, ...statePayload(userId) });
     }
@@ -709,7 +716,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (backfilled) saveConfig(cfg, userId);
 
     if (key) {
-      const already = alreadyCheckedToday(targets[0].key, userId);
+      const already = isAdmin ? null : alreadyCheckedToday(targets[0].key, userId);
       if (already) {
         return json({ ok: true, note: `Already checked today (${new Date(already).toLocaleString()}) — the next automatic check runs tonight.`, ...statePayload(userId) });
       }
@@ -730,7 +737,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // "Check all" only re-checks apps NOT already checked today; already-done
     // ones are silently skipped (not an error) so this button is always safe
     // to click without doubling up on live store hits for the whole day.
-    const due = targets.filter((a) => !alreadyCheckedToday(a.key, userId));
+    const due = isAdmin ? targets : targets.filter((a) => !alreadyCheckedToday(a.key, userId));
     if (!due.length) {
       return json({ ok: true, note: 'Every app was already checked today — the next automatic check runs tonight.', ...statePayload(userId) });
     }

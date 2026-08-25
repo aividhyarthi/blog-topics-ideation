@@ -357,5 +357,5 @@ export async function checkRating(app: TrackedApp, userId?: string): Promise<voi
   // breakdown, instead of silently defaulting to ratingDistribution's
   // hardcoded 28-day label regardless of the real span fetched.
   const rb = ratingDistribution(reviews, windowDays);
-  appendRatingHistory(app.key, { dateKey: todayKey(), total: rb.total, negativeShare: rb.negativeShare, tone: rb.tone, windowDays: rb.windowDays }, userId);
+  appendRatingHistory(app.key, { dateKey: todayKey(), total: rb.total, negativeShare: rb.negativeShare, tone: rb.tone, windowDays: rb.windowDays, counts: rb.counts }, userId);
 }

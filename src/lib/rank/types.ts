@@ -137,6 +137,11 @@ export interface RatingHistoryPoint {
   negativeShare: number; // % that are 1-2★
   tone: 'good' | 'mid' | 'bad' | 'na';
   windowDays: number; // the actual adaptive window this point was computed over (see fetchRecentReviews)
+  // Raw per-star counts (5★ down to 1★) for this same window — the % above
+  // is derived from these, but a raw "12 of 340" reads very differently from
+  // "12 of 34" at the same percentage, so both are kept rather than forcing
+  // the dashboard to reconstruct counts from a rounded percentage.
+  counts?: { star: 1 | 2 | 3 | 4 | 5; count: number; pct: number }[];
 }
 export type RatingHistory = Record<string, RatingHistoryPoint[]>; // keyed by TrackedApp.key
 
