@@ -193,14 +193,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const evalFocusList = report.focusKeywords;
   const evalFocus = evalFocusList[0] || '';
 
-  // 3) Competitors (best-effort; auto-discovers similar apps if none given).
-  // Keep the raw apps so we can score each rival's coverage of the focus keywords.
+  // 3) Competitors — ONLY the ids given (see fetchCompetitors: no more
+  // silent "similar apps" substitution). Keep the raw apps so we can score
+  // each rival's coverage of the focus keywords.
   let compApps: AsoAppData[] = [];
   let competitorErrors: string[] = [];
+  let noCompetitorsGiven = false;
   try {
-    const { apps, errors } = await fetchCompetitors(appId, competitorIds, lang, country, 4, app.developerId);
+    const { apps, errors, noCompetitorsGiven: none } = await fetchCompetitors(appId, competitorIds, lang, country, 4);
     compApps = apps;
     competitorErrors = errors;
+    noCompetitorsGiven = none;
   } catch (e) {
     competitorErrors = [e instanceof Error ? e.message : String(e)];
   }
@@ -251,7 +254,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     matrix,
     leader: leader ? { title: leader.title, appId: leader.appId, url: leader.url, score: leader.score, installs: leader.installs } : null,
     ai,
-    meta: { appId, lang, country, evalFocus, userGaveFocus: Boolean(focusKeyword), competitorErrors, aiError },
+    meta: { appId, lang, country, evalFocus, userGaveFocus: Boolean(focusKeyword), competitorErrors, noCompetitorsGiven, aiError },
     checkedAt,
   };
 

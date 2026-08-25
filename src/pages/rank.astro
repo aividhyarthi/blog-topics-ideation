@@ -1120,9 +1120,20 @@ ai photo enhancer"></textarea>
       // --- ASO Inspector integration -----------------------------------------
       // ASO Inspector is Play-only. Fires in the background after keywords are
       // saved so a recommendation is waiting without slowing down the save.
+      // Rivals already tracked as competitors of this app in Rank Tracker —
+      // the ONLY apps the ASO check should ever compare against. See
+      // fetchCompetitors (aso/fetch.ts): it no longer auto-substitutes
+      // Play's "similar apps" when this is empty, so an app with no tracked
+      // competitors here genuinely shows no comparison, not a wrong one.
+      function trackedCompetitorIds(app) {
+        return state.apps.filter((a) => a.competitorOf === app.key).map((a) => a.url || a.appId).filter(Boolean);
+      }
+
       function asoLinkParams(app, focusList) {
         const p = new URLSearchParams({ app: app.url || app.appId, country: app.country || 'us', lang: app.lang || 'en', key: app.key });
         if (focusList.length) p.set('focus', focusList.join(', '));
+        const comps = trackedCompetitorIds(app);
+        if (comps.length) p.set('competitors', comps.join(','));
         return p.toString();
       }
 
@@ -1153,7 +1164,10 @@ ai photo enhancer"></textarea>
         try {
           const res = await fetch('/api/aso', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: app.url || app.appId, focusKeyword: focusList.join(', '), country: app.country, lang: app.lang, key: app.key }),
+            body: JSON.stringify({
+              url: app.url || app.appId, focusKeyword: focusList.join(', '), country: app.country, lang: app.lang, key: app.key,
+              competitors: trackedCompetitorIds(app).join(','),
+            }),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'ASO check failed.');
@@ -1354,6 +1368,26 @@ ai photo enhancer"></textarea>
         return parts.join(' — ') + '.';
       }
 
+      // Flags a day whose score is based on a much smaller slice of the
+      // keyword list than usual — a bucket count or visibility score computed
+      // from 40 checked keywords is not comparable to one from 400, and
+      // without this callout that difference reads as the app's rank moving
+      // rather than the check simply not having reached most of the list yet
+      // (see overviewSeries in track.ts: unchecked/failed rows are excluded
+      // from the score rather than counted as "unranked", which is correct,
+      // but gives no visible signal that today's sample was much thinner).
+      function coverageCaption(day) {
+        if (!day) return '';
+        const listSize = day.tracked + day.failed + day.unchecked;
+        if (!listSize || !day.unchecked) return '';
+        const share = day.unchecked / listSize;
+        if (share < 0.15) return '';
+        return `<p class="hint" style="margin:6px 0 0;color:var(--warn);font-weight:600;">
+          ⚠︎ Only ${day.tracked + day.failed} of ${listSize} keywords were checked today (${day.unchecked} not reached yet) —
+          today's score isn't fully comparable to a day with full coverage. Usually means the check window / hourly
+          cap (Settings) isn't wide enough to get through this list in a day.</p>`;
+      }
+
       // The two full-keyword-universe charts. Rendered on BOTH Overview (the
       // tab that actually gets opened every day) and All Keywords, built from
       // one function so the two copies can never drift apart. Returns '' when
@@ -1363,8 +1397,9 @@ ai photo enhancer"></textarea>
         const cov = app.coverageOverview;
         if (!cov || !cov.total || !cov.days || !cov.days.length) return '';
         const legend = bucketLegend(cov.days);
+        const covToday = cov.days[cov.days.length - 1];
         return `<div class="chartbox"><h4>Keyword universe size over time</h4>${universeSizeChart(cov.universeTrend)}</div>
-          <div class="chartbox"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div></div>`;
+          <div class="chartbox"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div>${coverageCaption(covToday)}</div>`;
       }
 
       function overviewHtml(app) {
@@ -1385,11 +1420,13 @@ ai photo enhancer"></textarea>
           : vDelta < 0 ? `<span class="delta down">▼ ${-vDelta}</span> since last check — `
           : `<span class="delta flat">＝ unchanged</span> since last check — `;
         const covCharts = coverageChartsHtml(app);
+        const todayDay = ov.days[ov.days.length - 1];
         return `<div class="ov">
           <div class="headline">
             <div class="headline-eyebrow">Search visibility score</div>
             <div class="headline-num">${cur != null ? cur.toFixed(1) : '–'}</div>
             <div class="headline-sub">${vDeltaHtml}${visibilityNarrative(app)}</div>
+            ${coverageCaption(todayDay)}
             <div class="chartbox">${visChart(ov.days, app.annotations)}</div>
           </div>
           ${covCharts ? `<div class="ovcharts">${covCharts}</div>` : ''}

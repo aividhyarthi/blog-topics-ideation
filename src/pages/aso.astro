@@ -326,7 +326,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
             </div>
             <div>
               <label class="fld" for="competitors">Competitor apps <span style="font-weight:400">(optional)</span></label>
-              <input id="competitors" type="text" placeholder="package ids or URLs, comma-separated — blank = auto-discover" />
+              <input id="competitors" type="text" placeholder="package ids or URLs, comma-separated — blank = no comparison shown" />
             </div>
           </div>
 
@@ -696,6 +696,8 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         }).join('');
 
         const compErr = (m.competitorErrors || []).length ? `<div class="note-warn">⚠ Some competitors couldn't be read: ${esc((m.competitorErrors || []).join('; '))}</div>` : '';
+        const noComps = m.noCompetitorsGiven
+          ? `<div class="hint" style="padding:6px 0;">No competitors added — paste rival apps above, or track them as competitors in Rank Tracker, to see a comparison here.</div>` : '';
 
         root.innerHTML = `
           <div class="resbar"><button class="ghostbtn" id="pdfbtn">⬇️ Download PDF</button></div>
@@ -709,6 +711,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
           ${headToHead}
           ${leaderCard}
           ${compTable}
+          ${noComps}
           ${compErr}
           ${variantSection}
           ${listingSection}
@@ -785,6 +788,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         if (qs.get('focus')) $('focus').value = qs.get('focus');
         if (qs.get('country')) $('country').value = qs.get('country');
         if (qs.get('lang')) $('lang').value = qs.get('lang');
+        if (qs.get('competitors')) $('competitors').value = qs.get('competitors');
         const key = qs.get('key');
         if (key) {
           try {
