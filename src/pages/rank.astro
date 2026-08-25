@@ -161,10 +161,10 @@ const limitsText = product && plan
       .wn-line-title { font-size: 13px; color: var(--ink); }
       .charts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-top: 12px; }
       @media (max-width: 880px) { .charts { grid-template-columns: 1fr; } }
-      /* Same two charts on Overview, stacked full-width instead of side by
-         side — they sit directly under the visibility trend, where the
-         universe size is read against it rather than beside another chart. */
-      .ovcharts { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 18px; }
+      /* Overview's category-rank + rating-health glance cards, side by side
+         on desktop, stacked on narrow screens (see the media query below). */
+      .pulse-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+      @media (max-width: 700px) { .pulse-row { grid-template-columns: 1fr; } }
       .chartbox { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 8px; }
       .chartbox h4 { margin: 0 0 8px; font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
       .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--muted); }
@@ -1327,6 +1327,30 @@ ai photo enhancer"></textarea>
         return `<div class="wn-card">${head}${lines}</div>`;
       }
 
+      // Overview's glance at category chart rank — a number + direction, not
+      // the full trend chart (that stays Trends-tab-only, see
+      // trendChartsHtml), so a daily check of Overview surfaces "did my
+      // category rank move" without duplicating the chart itself.
+      function categoryPulseHtml(app) {
+        const chart = app.chart;
+        const head = wnCardHead(ICO_TREND, 'Category chart rank');
+        if (!chart || (!chart.chart && !chart.error)) {
+          return `<div class="wn-card">${head}<p class="wn-empty">No category chart data checked yet.</p></div>`;
+        }
+        if (chart.error) {
+          return `<div class="wn-card">${head}<p class="wn-empty">⚠︎ Chart check has been failing — not a confirmed miss, retrying automatically.</p></div>`;
+        }
+        const deltaHtml = chart.delta
+          ? (chart.delta > 0 ? ` <span class="delta up">▲${chart.delta}</span>` : ` <span class="delta down">▼${-chart.delta}</span>`)
+          : '';
+        const title = chart.position != null
+          ? `<span class="delta flat">#${chart.position}</span> in ${esc(chart.chart)}${deltaHtml}`
+          : `Not in the top ${chart.depth || '?'} of ${esc(chart.chart)}`;
+        return `<div class="wn-card">${head}
+          <button class="wn-linkline" data-goto-section="trends"><span class="wn-line-main"><span class="wn-line-title">${title}</span><span class="wn-empty">Where this app sits in the store's own category chart, not search</span></span><span class="wn-viewcta">Trend →</span></button>
+        </div>`;
+      }
+
       function ratingPulseHtml(app) {
         const rh = app.ratingHistory || [];
         const head = wnCardHead(ICO_STAR, 'Rating health');
@@ -1412,8 +1436,12 @@ ai photo enhancer"></textarea>
           : vDelta > 0 ? `<span class="delta up">▲ ${vDelta}</span> since last check — `
           : vDelta < 0 ? `<span class="delta down">▼ ${-vDelta}</span> since last check — `
           : `<span class="delta flat">＝ unchanged</span> since last check — `;
-        const covCharts = coverageChartsHtml(app);
         const todayDay = ov.days[ov.days.length - 1];
+        // A glance at category rank + rating health — the two signals that
+        // otherwise only live on Trends — as a number and direction each,
+        // not the full charts (those stay Trends-only; see
+        // trendChartsHtml). Overview stays the fast daily check; Trends
+        // stays the deep-dive, and neither duplicates the other's chart.
         return `<div class="ov">
           <div class="headline">
             <div class="headline-eyebrow">Search visibility score</div>
@@ -1422,7 +1450,10 @@ ai photo enhancer"></textarea>
             ${coverageCaption(todayDay)}
             <div class="chartbox">${visChart(ov.days, app.annotations)}</div>
           </div>
-          ${covCharts ? `<div class="ovcharts">${covCharts}</div>` : ''}
+          <div class="pulse-row">
+            ${categoryPulseHtml(app)}
+            ${ratingPulseHtml(app)}
+          </div>
           <div class="tiles">
             ${tileHtml('Top 1 rankings', c.top1, p && p.top1)}
             ${tileHtml('Top 10 rankings', c.top10, p && p.top10)}
@@ -2251,8 +2282,7 @@ ai photo enhancer"></textarea>
           ? `<div class="alert info" style="display:block;">⚠︎ ${errCount} of ${trends.length} keyword${trends.length === 1 ? '' : 's'} failed to check today (store rate-limit or a temporary block, not a real result) — hover the <b>⚠︎ err</b> tag in the table for details. These are <b>not</b> confirmed as "not ranking"; they're retried automatically on the next check.</div>`
           : '';
         const table = (app.keywords || []).length
-          ? `<div class="chartbox" style="margin-bottom:14px;"><h4>Search visibility score (0–100)</h4>${visChart(app.overview.days, app.annotations)}</div>
-            ${errBanner}
+          ? `${errBanner}
             <p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
               <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
               <tbody>${rows}</tbody>
