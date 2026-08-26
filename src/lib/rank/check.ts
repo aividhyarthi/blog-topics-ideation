@@ -284,6 +284,14 @@ export async function checkCoverageBatch(
   timeBudgetMs = 20000,
   searchCache: Map<string, SearchHit[]> = new Map(),
   meter?: RequestMeter,
+  // Which of the still-unchecked keywords to spend this batch's time budget
+  // on first, when the list is too big to finish in one run (see nightly.ts,
+  // which builds this from "already ranking" > volume > difficulty, so a
+  // list that never finishes in a day still protects the keywords that
+  // already prove out and matter most, rather than whatever order they
+  // happened to be pasted in). Keywords not present in this order keep
+  // their original relative order, appended after the ones that are.
+  priorityOrder?: string[],
 ): Promise<CoverageBatchResult> {
   const list = app.coverageKeywords || [];
   const dateKey = todayKey();
@@ -292,7 +300,14 @@ export async function checkCoverageBatch(
   // Rows that errored (usually store rate-limiting) do NOT count as done —
   // they get retried by the next batch/run, once the throttle has cleared.
   const doneSet = new Set((existingRow?.keywords || []).filter((k) => !k.error).map((k) => k.keyword));
-  const remaining = list.filter((kw) => !doneSet.has(kw));
+  let remaining = list.filter((kw) => !doneSet.has(kw));
+  if (priorityOrder) {
+    const rank = new Map(priorityOrder.map((kw, i) => [kw, i]));
+    remaining = remaining.slice().sort((a, b) => {
+      const ra = rank.has(a) ? rank.get(a)! : Infinity, rb = rank.has(b) ? rank.get(b)! : Infinity;
+      return ra - rb;
+    });
+  }
 
   if (!remaining.length) {
     return { checkedNow: 0, totalDone: list.length, total: list.length, done: true };

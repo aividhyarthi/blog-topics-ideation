@@ -18,7 +18,7 @@ import type { RequestMeter } from './check';
 import { analyzeReviewThemes } from './themes';
 import { backfillDeveloperId, backfillGenreId } from './fetch';
 import { withTenantLock } from './lock';
-import { keywordTrends, overviewSeries, countsFromBuckets, universeSizeSeries, todayKey, isWithinCheckWindow } from './track';
+import { keywordTrends, overviewSeries, countsFromBuckets, universeSizeSeries, todayKey, isWithinCheckWindow, keywordDifficulties } from './track';
 import { parseReportEmails, buildDailyReportEmail, buildRankAlertEmail, buildWeeklyDigestEmail, sendReportEmail } from './email';
 import { writeNightlyStatus } from './run-status';
 import { checkAccess } from '../saas/plans';
@@ -304,11 +304,36 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
         // because `remaining` is recomputed each iteration.
         const share = Math.max(30_000, Math.floor(remaining / (ordered.length - i)));
         try {
+          // When a list is too big to finish today, decide what gets left
+          // over deliberately rather than by whatever order it was pasted
+          // in: already-ranking keywords first (a list that never finishes
+          // still protects the report you already have), then by search
+          // volume (the highest-value terms get re-confirmed next), then by
+          // difficulty (the more winnable ones among equal-volume terms).
+          const recentCov = loadCoverageSnapshots(5, userId);
+          const lastPosition = (kw: string): number | null => {
+            for (let j = recentCov.length - 1; j >= 0; j--) {
+              const row = recentCov[j].apps.find((x) => x.key === app.key);
+              const k = row?.keywords.find((x) => x.keyword === kw);
+              if (k && !k.error && k.position != null) return k.position;
+            }
+            return null;
+          };
+          const volumes = app.keywordVolumes || {};
+          const diffMap = keywordDifficulties(app, recentCov, app.coverageKeywords || []);
+          const priorityOrder = (app.coverageKeywords || []).slice().sort((a, b) => {
+            const ra = lastPosition(a), rb = lastPosition(b);
+            if ((ra != null) !== (rb != null)) return ra != null ? -1 : 1;
+            const va = volumes[a] ?? -1, vb = volumes[b] ?? -1;
+            if (va !== vb) return vb - va;
+            const da = diffMap[a]?.score ?? 999, db = diffMap[b]?.score ?? 999;
+            return da - db;
+          });
           // `cache` is the run-wide search cache, shared with the daily check
           // above and across every app/tenant in this run — see the note in
           // checkCoverageBatch for why that is the difference between one
           // store request per keyword and one per keyword PER competitor.
-          const r = await checkCoverageBatch(app, userId, Math.min(share, remaining), cache, meters.get(app.key));
+          const r = await checkCoverageBatch(app, userId, Math.min(share, remaining), cache, meters.get(app.key), priorityOrder);
           lines.push(`  [${label}] ${app.key}: coverage ${r.done ? 'fully checked' : 'partially checked'} (${r.totalDone}/${r.total} keywords)`);
           if (r.checkedNow > 0) checkedCoverage++;
         } catch (e) {
