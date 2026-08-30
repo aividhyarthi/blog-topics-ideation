@@ -331,7 +331,7 @@ export const POST: APIRoute = async (ctx) => {
     : [];
   const ai = llmSignals(llmScores, Boolean(target));
   const crawl = crawlabilitySignals({ isUrl, robotsTxt, llmsTxt });
-  const visibility = buildVisibility(facts, crawl);
+  const visibility = buildVisibility(html, facts, crawl);
   const report = buildReport(auto, ai, category, prompts, llmScores.summary, llmScores.engines, crawl, visibility);
 
   const meta = {

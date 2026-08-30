@@ -298,7 +298,7 @@ export function crawlabilitySignals(input: CrawlInput): Signal[] {
 export interface VisibilityViewer { who: string; rendersJs: boolean; access: 'ok' | 'partial' | 'blocked'; sees: string }
 // Per-element read-out: for each kind of thing on the page, can an LLM crawler
 // actually read it from the static HTML?
-export interface VisibilityElement { label: string; status: 'read' | 'partial' | 'missed'; detail: string }
+export interface VisibilityElement { label: string; status: 'read' | 'partial' | 'missed'; detail: string; group: 'region' | 'content' }
 export interface Visibility {
   applicable: boolean;
   jsDependent: boolean;
@@ -309,7 +309,72 @@ export interface Visibility {
   verdict: { level: 'yes' | 'partial' | 'no'; label: string; reason: string };
 }
 
-export function buildVisibility(f: PageFacts, crawl: Signal[]): Visibility {
+// ---- Page regions: header / navigation / main content / footer ----------
+// The content-type list below (Headings, Images, ...) can say "all fine" while
+// one whole part of the page — a JS-rendered nav, a header that's actually just
+// an <iframe>, a body gated behind a login prompt — is invisible on its own.
+// Region-scoped so a client sees exactly WHERE the problem is, not just that
+// something somewhere is wrong.
+const REGION_TAGS: { label: string; tags: string[] }[] = [
+  { label: 'Header', tags: ['header'] },
+  { label: 'Navigation', tags: ['nav'] },
+  { label: 'Main content', tags: ['main', 'article'] },
+  { label: 'Footer', tags: ['footer'] },
+];
+// Common phrasing sites use to gate content behind sign-in or a subscription —
+// a crawler can't authenticate, so content behind this is invisible to it
+// regardless of whether it's technically present in the HTML.
+const GATE_RE = /\b(sign[\s-]?in to (read|continue|view)|log[\s-]?in to (read|continue|view)|subscribe to (read|continue|unlock)|subscribers? only|members? only|register to (read|continue)|create a (free )?account to (continue|read)|paywall)\b/i;
+
+function extractFirstTag(html: string, tag: string): string | null {
+  const m = html.match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  return m ? m[1] : null;
+}
+
+function buildRegionElements(html: string, f: PageFacts): VisibilityElement[] {
+  return REGION_TAGS.map((r) => {
+    let raw: string | null = null, tagFound = '';
+    for (const t of r.tags) { raw = extractFirstTag(html, t); if (raw != null) { tagFound = t; break; } }
+    if (raw == null) {
+      return { group: 'region' as const, label: r.label, status: 'missed' as const,
+        detail: `No <${r.tags[0]}> element found — this page doesn't mark up a distinct ${r.label.toLowerCase()} region in its HTML, so we can't check it separately from the rest of the page.` };
+    }
+    const text = stripTags(raw);
+    const hasIframe = /<iframe\b/i.test(raw);
+    const gated = GATE_RE.test(text);
+    const imgs = (raw.match(/<img\b/gi) || []).length;
+    const imgsWithAlt = (raw.match(/<img\b[^>]*\balt=["'][^"']+["']/gi) || []).length;
+
+    // Order matters: a page-wide "this whole page is thin/JS-rendered" signal
+    // is real but coarse, so it must not drown out a MORE SPECIFIC, region-scoped
+    // reason (this exact region is gated, or is literally just an <iframe>) when
+    // both are true at once — the specific cause is the one worth telling
+    // someone to go fix.
+    let status: 'read' | 'partial' | 'missed', detail: string;
+    if (gated && text.length < 200) {
+      status = 'missed';
+      detail = 'Gated behind a login or subscription prompt — LLM crawlers can\'t authenticate, so whatever is behind it doesn\'t exist to them.';
+    } else if (hasIframe && text.length < 40) {
+      status = 'missed';
+      detail = `This region is just an embedded <iframe> — a separate document. Crawlers fetching this page never load it.`;
+    } else if (f.jsDependent && text.length < 40) {
+      status = 'missed';
+      detail = `Rendered by JavaScript${f.framework ? ` (${f.framework})` : ''} — empty in the static HTML LLM crawlers actually fetch.`;
+    } else if (text.length < 20) {
+      status = 'missed';
+      detail = `Found a <${tagFound}> element, but it's essentially empty in the static HTML.`;
+    } else {
+      status = 'read';
+      detail = `Readable in the static HTML (about ${text.split(/\s+/).filter(Boolean).length} words).`;
+      if (gated) { status = 'partial'; detail += ' Part of it sits behind a login/subscription prompt a crawler can\'t get past.'; }
+      if (hasIframe) { status = 'partial'; detail += ' Contains an embedded <iframe> — that part is a separate document a crawler won\'t load, though the rest of this region is readable.'; }
+      if (imgs && imgsWithAlt < imgs) { status = 'partial'; detail += ` ${imgsWithAlt}/${imgs} image(s) here have alt text — the rest are invisible to LLMs.`; }
+    }
+    return { group: 'region' as const, label: r.label, status, detail };
+  });
+}
+
+export function buildVisibility(html: string, f: PageFacts, crawl: Signal[]): Visibility {
   const g = crawl.find((s) => s.id === 'bot_google');
   const llm = crawl.filter((s) => ['bot_openai', 'bot_anthropic', 'bot_perplexity'].includes(s.id));
   const googleBlocked = g?.score === 0;
@@ -344,28 +409,32 @@ export function buildVisibility(f: PageFacts, crawl: Signal[]): Visibility {
     verdict = { level: 'yes', label: 'Yes — LLMs can read this page', reason: 'The real content is in the static HTML and the crawlers are allowed, so ChatGPT, Claude and Perplexity can read — and cite — this page.' };
 
   // ---- element-by-element read-out (what an LLM gets from the static HTML) ----
-  const elements: VisibilityElement[] = [];
+  // Two groups: REGION (where on the page — header/nav/main/footer) and CONTENT
+  // (what kind of thing — headings/images/tables). A page can pass on content
+  // type overall while still hiding one whole region (e.g. a JS-rendered nav on
+  // an otherwise-static page), which the content-type list alone can't show.
+  const elements: VisibilityElement[] = buildRegionElements(html, f);
   const jsMissed = invisible; // when JS-dependent, text-bearing elements are absent from raw HTML
 
-  elements.push({ label: 'Title & meta', status: f.title ? 'read' : 'missed',
+  elements.push({ group: 'content', label: 'Title & meta', status: f.title ? 'read' : 'missed',
     detail: f.title ? `Title and meta description are in the HTML.` : 'No <title> found in the static HTML.' });
-  elements.push({ label: `Headings (${f.headings.length})`, status: f.headings.length ? (jsMissed ? 'missed' : 'read') : 'missed',
+  elements.push({ group: 'content', label: `Headings (${f.headings.length})`, status: f.headings.length ? (jsMissed ? 'missed' : 'read') : 'missed',
     detail: jsMissed ? 'Headings are injected by JavaScript — absent from the raw HTML LLMs receive.' : f.headings.length ? 'All headings are in the static HTML and readable.' : 'No headings in the static HTML.' });
-  elements.push({ label: `Body text (${f.wordCount} words)`, status: jsMissed ? 'missed' : f.wordCount < 150 ? 'partial' : 'read',
+  elements.push({ group: 'content', label: `Body text (${f.wordCount} words)`, status: jsMissed ? 'missed' : f.wordCount < 150 ? 'partial' : 'read',
     detail: jsMissed ? 'The body copy is rendered client-side — LLM crawlers get a near-empty shell.' : f.wordCount < 150 ? 'Very little body text in the static HTML.' : 'The body copy is in the static HTML and readable.' });
   if (f.images)
-    elements.push({ label: `Images (${f.images})`, status: f.imagesWithAlt >= f.images ? 'read' : f.imagesWithAlt ? 'partial' : 'missed',
+    elements.push({ group: 'content', label: `Images (${f.images})`, status: f.imagesWithAlt >= f.images ? 'read' : f.imagesWithAlt ? 'partial' : 'missed',
       detail: `LLMs read alt text, not pixels — ${f.imagesWithAlt}/${f.images} image(s) have alt text.${f.imagesWithAlt < f.images ? ' The rest are invisible to LLMs.' : ''}` });
-  elements.push({ label: 'Structured data (schema)', status: f.schemaTypes.length ? 'read' : 'missed',
+  elements.push({ group: 'content', label: 'Structured data (schema)', status: f.schemaTypes.length ? 'read' : 'missed',
     detail: f.schemaTypes.length ? `JSON-LD present: ${f.schemaTypes.join(', ')}.` : 'No JSON-LD schema — LLMs get no machine-readable summary.' });
   if (f.tables || f.lists)
-    elements.push({ label: `Tables & lists (${f.tables + f.lists})`, status: jsMissed ? 'missed' : 'read',
+    elements.push({ group: 'content', label: `Tables & lists (${f.tables + f.lists})`, status: jsMissed ? 'missed' : 'read',
       detail: jsMissed ? 'Injected by JavaScript — not in the raw HTML.' : 'Structured tables/lists are in the HTML — easy for LLMs to extract.' });
   if (f.hasVideo)
-    elements.push({ label: 'Video', status: 'missed',
+    elements.push({ group: 'content', label: 'Video', status: 'missed',
       detail: 'Video is not watched by crawlers — only a text transcript on the page would be read.' });
   if (f.iframes)
-    elements.push({ label: `Embedded frames (${f.iframes})`, status: 'missed',
+    elements.push({ group: 'content', label: `Embedded frames (${f.iframes})`, status: 'missed',
       detail: 'Content inside <iframe> embeds is not fetched — LLMs can’t read it.' });
 
   return { applicable: f.isUrl, jsDependent: f.jsDependent, framework: f.framework, staticWords: f.wordCount, viewers, elements, verdict };
