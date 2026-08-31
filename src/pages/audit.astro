@@ -6,9 +6,18 @@
 // visitors. Locks (never unlocks) if the DB is unreachable.
 import { getUser } from '../lib/auth';
 import { dbEnabled } from '../lib/db';
+import { isAdmin } from '../lib/billing';
+import { CLIENTS } from '../lib/clients';
 const user = await getUser(Astro as any);
 const locked = !user;
 const accountsDown = !dbEnabled;
+const admin = isAdmin(user);
+// Only what the client-side needs to build the dropdowns — never the Check
+// functions themselves, which only ever run server-side.
+const clientOptions = CLIENTS.map((c) => ({
+  id: c.id, name: c.name, vertical: c.vertical,
+  pageTypes: c.pageTypes.map((p) => ({ id: p.id, label: p.label })),
+}));
 import App from '../layouts/App.astro';
 ---
 <App tab="audit" title="Full AEO Audit — AI Page Audit" description="Score how likely a page is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews.">
@@ -73,6 +82,24 @@ import App from '../layouts/App.astro';
               <label class="fld" for="html">Page HTML or plain text</label>
               <textarea id="html" placeholder="Paste the page's HTML (best — keeps headings, schema, prices, links) or plain text. For JavaScript-heavy or e-commerce pages, open the page → right-click → Inspect → copy the &lt;html&gt; and paste it here for an accurate read."></textarea>
             </div>
+
+            {admin && (
+              <div class="three" id="client-row">
+                <div>
+                  <label class="fld" for="client">Client <span class="opt">(admin — scopes the whole audit)</span></label>
+                  <select id="client">
+                    <option value="none">None — general audit</option>
+                    {clientOptions.map((c) => <option value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div id="client-pagetype-wrap" style="display:none">
+                  <label class="fld" for="clientpagetype">Client page type</label>
+                  <select id="clientpagetype"></select>
+                  <p class="opt" id="client-pagetype-note" style="margin:6px 0 0"></p>
+                </div>
+              </div>
+              <script type="application/json" id="client-data" set:html={JSON.stringify(clientOptions)} />
+            )}
 
             <div class="three">
               <div>
@@ -179,6 +206,45 @@ import App from '../layouts/App.astro';
       $('tab-url').addEventListener('click', () => setMode('url'));
       $('tab-paste').addEventListener('click', () => setMode('paste'));
 
+      // Admin-only: choosing a client locks the Vertical dropdown to that
+      // client's vertical and swaps in their own page-type checklist (if we
+      // have one yet). Regular users never see any of this — the #client
+      // element only exists in the DOM at all when isAdmin(user) was true.
+      (function setupClientScope() {
+        const clientEl = $('client');
+        if (!clientEl) return;
+        const dataEl = $('client-data');
+        const clients = dataEl ? JSON.parse(dataEl.textContent || '[]') : [];
+        const pageTypeWrap = $('client-pagetype-wrap');
+        const pageTypeSelect = $('clientpagetype');
+        const pageTypeNote = $('client-pagetype-note');
+        const categorySelect = $('category');
+        let prevCategoryValue = categorySelect.value;
+
+        clientEl.addEventListener('change', () => {
+          const chosen = clients.find((c) => c.id === clientEl.value);
+          if (!chosen) {
+            pageTypeWrap.style.display = 'none';
+            categorySelect.disabled = false;
+            categorySelect.value = prevCategoryValue;
+            return;
+          }
+          prevCategoryValue = categorySelect.value;
+          categorySelect.value = chosen.vertical;
+          categorySelect.disabled = true;
+          pageTypeWrap.style.display = 'block';
+          if (chosen.pageTypes.length) {
+            pageTypeSelect.style.display = 'block';
+            pageTypeSelect.innerHTML = chosen.pageTypes.map((p) => `<option value="${p.id}">${esc(p.label)}</option>`).join('');
+            pageTypeNote.textContent = '';
+          } else {
+            pageTypeSelect.style.display = 'none';
+            pageTypeSelect.innerHTML = '';
+            pageTypeNote.textContent = `No custom page-type checklist for this client yet — running the general ${chosen.vertical} checklist.`;
+          }
+        });
+      })();
+
       function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
       function showErr(msg) { const e = $('err'); e.innerHTML = IC.alert + '<span>' + esc(msg) + '</span>'; e.style.display = 'flex'; }
       function hideAlerts() { $('err').style.display = 'none'; $('info').style.display = 'none'; }
@@ -205,6 +271,13 @@ import App from '../layouts/App.astro';
         'u_js_dependent', 'u_snippet_controls', 'u_payload_weight', 'u_structured_data',
         'u_heading_hierarchy', 'u_alt_text', 'u_video_described',
         'p_schema', 'r_review_schema', 'h_schema', 'n_newsarticle', 'en_schema', 'ed_schema', 'mu_schema',
+        // Client (agency) checklist additions — schema/canonical/noindex checks
+        // belong in Indexability the same way the built-in ones do.
+        'c24_hp_website_schema', 'c24_hp_org_schema', 'c24_hp_canonical', 'c24_hp_no_noindex', 'c24_hp_no_breadcrumb',
+        'c24_cat_breadcrumb', 'c24_cat_itemlist', 'c24_cat_clean_canonical',
+        'c24_cdp_vehicle_schema', 'c24_cdp_offer_schema', 'c24_cdp_breadcrumb',
+        'c24_city_localbusiness_schema', 'c24_city_breadcrumb',
+        'c24_blog_article_schema', 'c24_blog_faq_schema', 'c24_cmp_breadcrumb',
       ]);
       const KEYWORD_CHECKS = new Set(['u_question_headings', 'a_faq']);
       function topicOf(id) {
@@ -401,6 +474,7 @@ import App from '../layouts/App.astro';
               <div><span class="cld-label">Result</span><b>${cl.passed} of ${cl.applicable} checks passed</b></div>
             </div>
             ${evidence.length ? `<div class="cld-evidence">Based on: ${evidence.map(esc).join(' · ')}</div>` : ''}
+            ${m.client ? `<div class="cld-evidence"><b>${esc(m.client.name)}</b>${m.client.pageType ? ` — ${esc(m.client.pageType.label)} checklist` : ' — no client-specific checklist for this page type yet'} added on top of the checks above.</div>` : ''}
             <div class="clfoot">See the full list of what we check and why at <a href="/checklist" target="_blank" rel="noopener">/checklist</a>.</div>
           </div>`;
         })() : '';
@@ -805,6 +879,12 @@ import App from '../layouts/App.astro';
       async function run() {
         hideAlerts();
         const payload = { brand: $('brand').value.trim(), topic: $('topic').value.trim(), target: $('target').value.trim(), category: $('category').value, pageType: $('pagetype').value };
+        const clientEl = $('client');
+        if (clientEl && clientEl.value !== 'none') {
+          payload.clientId = clientEl.value;
+          const cpt = $('clientpagetype');
+          if (cpt && cpt.value) payload.clientPageType = cpt.value;
+        }
         if (mode === 'url') { payload.url = $('url').value.trim(); if (!payload.url) { showErr('Enter a page URL to audit.'); return; } }
         else { payload.html = $('html').value.trim(); if (!payload.html) { showErr('Paste the article HTML or text to audit.'); return; } }
 

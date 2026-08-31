@@ -7,9 +7,10 @@ import {
 } from '../../lib/aeo';
 import { getUser } from '../../lib/auth';
 import { saveAudit, auditHistoryByUrl } from '../../lib/audits';
-import { consumeAccess, refundAccess } from '../../lib/billing';
+import { consumeAccess, refundAccess, isAdmin } from '../../lib/billing';
 import { dbEnabled } from '../../lib/db';
 import { runChecklist, type ChecklistResult } from '../../lib/checklists';
+import { getClient, getClientPageType } from '../../lib/clients';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -189,7 +190,7 @@ async function judgeAnthropic(prompt: string, key: string): Promise<string> {
 
 export const POST: APIRoute = async (ctx) => {
   const { request } = ctx;
-  let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string; pageType?: string };
+  let body: { url?: string; html?: string; brand?: string; topic?: string; target?: string; category?: string; pageType?: string; clientId?: string; clientPageType?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
   // An account is ALWAYS required to run an audit. If the database isn't
@@ -202,6 +203,14 @@ export const POST: APIRoute = async (ctx) => {
   if (!gateUser) {
     return json({ error: 'Create a free account to run an audit — it takes 10 seconds.', requireAuth: true }, 401);
   }
+
+  // Client-scoped checklists (an agency client's own page-type checklist,
+  // e.g. Cars24) are an admin-only feature. Re-check server-side rather than
+  // trusting the request body — a non-admin hitting this endpoint directly
+  // with a clientId must never get client-specific checks.
+  const admin = isAdmin(gateUser);
+  const client = admin && body.clientId ? getClient(body.clientId) : undefined;
+  const clientPageType = client && body.clientPageType ? getClientPageType(client.id, body.clientPageType) : undefined;
   // Charged up front, refunded below if the page turns out to be unreachable.
   let chargedVia: 'plan' | 'free' | 'credit' | undefined;
   {
@@ -248,7 +257,10 @@ export const POST: APIRoute = async (ctx) => {
   const VERTICAL_VALUES = ['news', 'health', 'beauty', 'ecommerce', 'entertainment', 'lifestyle', 'reviews', 'general', 'fintech', 'realestate', 'automotive', 'edtech', 'saas', 'music'] as const;
   const checklistOverride = {
     kind: rawKind !== 'auto' && (['article', 'product', 'listing', 'review', 'howto'] as const).includes(rawKind as any) ? (rawKind as any) : undefined,
-    vertical: rawVertical !== 'auto' && VERTICAL_VALUES.includes(rawVertical as any) ? (rawVertical as any) : undefined,
+    // A selected client locks the vertical to what that client actually is
+    // (e.g. Cars24 = automotive) — the dropdown's own value is ignored in
+    // that case, since it wouldn't make sense to audit Cars24 as "beauty".
+    vertical: client ? client.vertical : (rawVertical !== 'auto' && VERTICAL_VALUES.includes(rawVertical as any) ? (rawVertical as any) : undefined),
   };
 
   let html = '', host = '', isUrl = false, robotsTxt: string | null = null, llmsTxt: string | null = null, fetchNote: string | undefined;
@@ -300,7 +312,7 @@ export const POST: APIRoute = async (ctx) => {
   // every page against one generic list weighted by a dropdown nobody changes.
   let checklist: ChecklistResult | null = null;
   try {
-    checklist = runChecklist(html, facts.text || '', facts, checklistOverride);
+    checklist = runChecklist(html, facts.text || '', facts, checklistOverride, clientPageType?.checks);
   } catch { /* never let the checklist take down the audit */ }
 
   let llmScores: LlmScores = {};
@@ -342,6 +354,7 @@ export const POST: APIRoute = async (ctx) => {
     wordCount: facts.wordCount, schemaTypes: facts.schemaTypes,
     detectedIntent: llmScores.detectedIntent || null, suggestedCategory: llmScores.suggestedCategory || null,
     judge: judge || null,
+    client: client ? { id: client.id, name: client.name, pageType: clientPageType ? { id: clientPageType.id, label: clientPageType.label } : null } : null,
     // Auto-detected page kind + vertical, with the evidence behind each call so
     // the report can justify which checklist it used.
     checklist: checklist && {

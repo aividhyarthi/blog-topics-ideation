@@ -1165,7 +1165,7 @@ export interface ChecklistResult {
   items: {
     id: string; label: string; why: string; pillar: PillarId; weight: number;
     status: SignalStatus; detail: string; fix?: string;
-    group: 'universal' | 'kind' | 'vertical';
+    group: 'universal' | 'kind' | 'vertical' | 'client';
   }[];
   /** 0–100 across everything that applied. */
   score: number;
@@ -1176,6 +1176,10 @@ export interface ChecklistResult {
 export function runChecklist(
   html: string, text: string, facts: PageFacts,
   override?: { kind?: PageKind; vertical?: Vertical },
+  /** Extra, client-specific checks (e.g. an agency client's own page-type
+   *  checklist) layered on top of universal + kind + vertical. Never replaces
+   *  them — see clients.ts for why. */
+  clientChecks?: Check[],
 ): ChecklistResult {
   const kindDet = override?.kind
     ? { value: override.kind, confidence: 'high' as const, evidence: ['set manually'] }
@@ -1188,10 +1192,11 @@ export function runChecklist(
     facts, kind: kindDet.value, vertical: vertDet.value,
   };
 
-  const groups: [Check[], 'universal' | 'kind' | 'vertical'][] = [
+  const groups: [Check[], 'universal' | 'kind' | 'vertical' | 'client'][] = [
     [UNIVERSAL, 'universal'],
     [BY_KIND[kindDet.value] || [], 'kind'],
     [BY_VERTICAL[vertDet.value] || [], 'vertical'],
+    [clientChecks || [], 'client'],
   ];
 
   const items: ChecklistResult['items'] = [];
