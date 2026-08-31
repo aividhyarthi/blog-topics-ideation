@@ -871,36 +871,70 @@ import App from '../layouts/App.astro';
       }
 
       function showToast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1900); }
+      // Everything visible in the web report, as one plain-text document — this
+      // is the version people paste into WhatsApp/Slack/email, so it has to
+      // stand on its own: the client checklist, the region-by-region "can an
+      // LLM actually see this" breakdown, and every issue's fix, not just a
+      // top-5 summary. (It used to be a thin 6-line dump built before those
+      // features existed — that's what made it read as vague.)
       async function copyReport(r, m) {
+        const cl = m.checklist;
+        const vis = r.visibility;
         const L = [];
         L.push('AI Page Audit — AEO audit · By Rudra Kasturi Inc');
-        L.push(m.mode === 'url' ? (m.url || '') : 'Pasted article');
-        L.push(`Category: ${m.categoryLabel}`);
+        L.push(m.mode === 'url' ? (m.url || '') : 'Pasted content');
+        if (m.client) L.push(`Client: ${m.client.name}${m.client.pageType ? ` — ${m.client.pageType.label} checklist` : ''}`);
+        L.push(`Graded as: ${cl ? cl.kindLabel : (m.pageTypeLabel || 'Page')}${cl ? ` in ${cl.verticalLabel}` : ''}`);
         const VHEAD = { High: 'Ready to be cited', Medium: 'Not ready yet', Low: 'Will not get cited as it stands' };
         L.push(`AEO score: ${r.overall}/100 — ${VHEAD[r.citationBand]}`);
         if (r.coverage && !r.coverage.complete) {
           L.push(`Note: covers ${Math.round((r.coverage.measuredWeight / r.coverage.totalWeight) * 100)}% of what we normally grade. Not checked: ${r.coverage.unmeasured.join(', ')}.`);
         }
         if (r.engines) { L.push(''); L.push(`Likelihood by engine: ChatGPT ${r.engines.chatgpt}% · Gemini ${r.engines.gemini}% · Perplexity ${r.engines.perplexity}% · AI Overviews ${r.engines.aiOverviews}%`); }
+
+        if (vis && vis.applicable) {
+          L.push(''); L.push(`CAN LLMS ACCESS THIS PAGE? ${vis.verdict.label}`);
+          L.push(`  ${vis.verdict.reason}`);
+          const els = vis.elements || [];
+          const regions = els.filter((e) => e.group === 'region');
+          const content = els.filter((e) => e.group !== 'region');
+          const tag = (e) => e.status === 'read' ? 'LLMs read this' : e.status === 'partial' ? 'partly read' : 'LLMs miss this';
+          if (regions.length) { L.push(''); L.push('  By page region — where on the page:'); regions.forEach((e) => L.push(`    - ${e.label} [${tag(e)}]: ${e.detail}`)); }
+          if (content.length) { L.push(''); L.push('  By content type — what kind of thing:'); content.forEach((e) => L.push(`    - ${e.label} [${tag(e)}]: ${e.detail}`)); }
+        }
+
         if (r.crawlability && r.crawlability.length) {
-          L.push(''); L.push('AI crawlability:');
+          L.push(''); L.push('AI crawlability (can each engine\'s bot even fetch this page):');
           r.crawlability.forEach((s) => L.push(`  - ${s.label}: ${s.detail}`));
           if (r.crawlBlocked) L.push('  ⚠ A primary answer-engine crawler is BLOCKED — fix robots.txt first.');
         }
-        L.push('');
-        L.push(`AI verdict: ${r.summary}`);
-        L.push('');
-        L.push('Pillar scores:');
-        r.pillars.forEach((p) => L.push(`  - ${p.label}: ${p.measured === false ? 'not checked' : `${p.points}/${p.weight}`}`));
+
+        if (cl && m.client) {
+          const items = (cl.items || []).filter((i) => i.group === 'client');
+          if (items.length) {
+            const passN = items.filter((i) => i.status === 'pass').length;
+            L.push(''); L.push(`${m.client.name.toUpperCase()} CHECKLIST — ${passN} of ${items.length} passed:`);
+            items.forEach((i) => L.push(`  [${i.status.toUpperCase()}] ${i.label} — ${i.detail}${i.fix ? ` (Fix: ${i.fix})` : ''}`));
+          }
+        }
+
+        if (cl) {
+          const TOPIC_HEAD = { content: 'CONTENT issues to fix', indexability: 'INDEXABILITY issues to fix', keywords: 'KEYWORD/QUERY-MATCH issues to fix' };
+          ['content', 'indexability', 'keywords'].forEach((topic) => {
+            const issues = (cl.items || []).filter((i) => topicOf(i.id) === topic && i.status !== 'na' && i.status !== 'pass');
+            if (!issues.length) return;
+            L.push(''); L.push(`${TOPIC_HEAD[topic]}:`);
+            issues.forEach((i) => L.push(`  - [${i.status.toUpperCase()}] ${i.label} — ${i.detail}${i.fix ? ` Fix: ${i.fix}` : ''}`));
+          });
+        }
+
         if (r.promptCoverage && r.promptCoverage.length) {
           const cov = r.promptCoverage.filter((p) => p.covered).length;
           L.push(''); L.push(`Prompt coverage: ${cov}/${r.promptCoverage.length}`);
           r.promptCoverage.forEach((p) => L.push(`  [${p.covered ? 'x' : ' '}] ${p.q}`));
         }
-        if (r.topFixes && r.topFixes.length) {
-          L.push(''); L.push('What to fix, in order:');
-          r.topFixes.forEach((f, i) => L.push(`  ${i + 1}. ${f.label} — ${f.fix}`));
-        }
+
+        L.push(''); L.push(`AI verdict: ${r.summary}`);
         L.push(''); L.push('Generated by AI Page Audit · By Rudra Kasturi Inc');
         try { await navigator.clipboard.writeText(L.join('\n')); showToast('Report copied to clipboard'); }
         catch { showToast('Copy failed — select & copy manually'); }

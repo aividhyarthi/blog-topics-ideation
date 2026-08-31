@@ -427,6 +427,16 @@ export function buildVisibility(html: string, f: PageFacts, crawl: Signal[]): Vi
       detail: `LLMs read alt text, not pixels — ${f.imagesWithAlt}/${f.images} image(s) have alt text.${f.imagesWithAlt < f.images ? ' The rest are invisible to LLMs.' : ''}` });
   elements.push({ group: 'content', label: 'Structured data (schema)', status: f.schemaTypes.length ? 'read' : 'missed',
     detail: f.schemaTypes.length ? `JSON-LD present: ${f.schemaTypes.join(', ')}.` : 'No JSON-LD schema — LLMs get no machine-readable summary.' });
+  {
+    const hasBreadcrumbSchema = f.schemaTypes.some((t) => t.toLowerCase() === 'breadcrumblist');
+    const hasBreadcrumbMarkup = /class=["'][^"']*breadcrumb|aria-label=["'][^"']*breadcrumb|<nav[^>]*breadcrumb/i.test(html);
+    let bStatus: VisibilityElement['status'], bDetail: string;
+    if (hasBreadcrumbSchema) { bStatus = 'read'; bDetail = 'BreadcrumbList schema declares this page’s position in your site (Home > Category > …) as machine-readable data.'; }
+    else if (hasBreadcrumbMarkup && !jsMissed) { bStatus = 'partial'; bDetail = 'A breadcrumb trail is visible in the HTML, but with no BreadcrumbList schema — an LLM has to infer the hierarchy from text instead of reading it as data.'; }
+    else if (hasBreadcrumbMarkup && jsMissed) { bStatus = 'missed'; bDetail = 'A breadcrumb looks present on the page but is JavaScript-rendered — invisible in the static HTML LLM crawlers fetch.'; }
+    else { bStatus = 'missed'; bDetail = 'No breadcrumb trail or BreadcrumbList schema found on this page.'; }
+    elements.push({ group: 'content', label: 'Breadcrumb trail', status: bStatus, detail: bDetail });
+  }
   if (f.tables || f.lists)
     elements.push({ group: 'content', label: `Tables & lists (${f.tables + f.lists})`, status: jsMissed ? 'missed' : 'read',
       detail: jsMissed ? 'Injected by JavaScript — not in the raw HTML.' : 'Structured tables/lists are in the HTML — easy for LLMs to extract.' });
