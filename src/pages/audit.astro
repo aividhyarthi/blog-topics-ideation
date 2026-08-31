@@ -324,6 +324,27 @@ import App from '../layouts/App.astro';
           ${passSummary}
           ${extraHtml || ''}`;
       }
+
+      // The client (agency) checklist gets its own dedicated tab rather than
+      // being folded invisibly into Content/Indexability/Keywords — the whole
+      // point of scoping an audit to a client is being able to see, and count,
+      // every one of that client's own checks in one place. Shows every item,
+      // not just the issues, so "are all N checks actually running" is a
+      // glance, not a hunt.
+      function clientChecklistTab(cl, client) {
+        if (!client) return '';
+        const items = cl ? (cl.items || []).filter((i) => i.group === 'client') : [];
+        const label = client.pageType ? `${client.name} — ${client.pageType.label}` : client.name;
+        if (!items.length) {
+          return `<div class="card"><p class="hint">${esc(client.name)} has no page-specific checklist for ${client.pageType ? esc(client.pageType.label) : 'this page type'} yet — this audit ran the general ${esc((cl && cl.verticalLabel) || '')} checklist instead (see the other tabs).</p></div>`;
+        }
+        const rank = { fail: 0, warn: 1, pass: 2 };
+        const sorted = [...items].sort((a, b) => rank[a.status] - rank[b.status]);
+        const passN = items.filter((i) => i.status === 'pass').length;
+        const issueN = items.length - passN;
+        return `<div class="card topicintro"><p><b>${esc(label)}</b> checklist — ${passN} of ${items.length} checks passed${issueN ? `, ${issueN} to fix` : ', nothing to fix'}.</p></div>
+          <div class="issuelist">${sorted.map(issueCard).join('')}</div>`;
+      }
       function buildRadar(pillars) {
         // cy/R/viewBox height chosen so the top and bottom labels (the axes that
         // reach furthest in y) stay inside the SVG's own box — an SVG clips to
@@ -439,6 +460,11 @@ import App from '../layouts/App.astro';
             ${covNote}
           </div>`;
 
+        // Unmistakably a client-scoped audit, not the generic tool — shown
+        // right under the score so it can't be missed the way a note buried
+        // in the Details tab could be.
+        const clientBanner = m.client ? `<div class="clientbanner">${IC.layers}<div><b>${esc(m.client.name)}</b> — this audit ran ${m.client.pageType ? `the <b>${esc(m.client.pageType.label)}</b> checklist` : 'the general checklist for this client (no page-specific checklist yet)'}. See the “${esc(m.client.name.split('.')[0].split(' ')[0])} checklist” tab for every check.</div></div>` : '';
+
         // ---- Fix cards, shared markup for the Overview top-3 and full Priorities list ----
         const PRIORITY = ['Do this first', 'Then this', 'Then this'];
         const fixCard = (fx, i, labelled) => `
@@ -458,6 +484,7 @@ import App from '../layouts/App.astro';
         const contentIssueN = countIssues('content');
         const indexIssueN = countIssues('indexability');
         const kwIssueN = countIssues('keywords');
+        const clientIssueN = cl ? (cl.items || []).filter((i) => i.group === 'client' && i.status !== 'na' && i.status !== 'pass').length : 0;
 
         // "Detected as" — what we thought this page was and why, kept as a small
         // note on the Details tab rather than its own destination now that the
@@ -648,11 +675,13 @@ import App from '../layouts/App.astro';
             <div class="pt-sub">${esc(m.mode === 'url' ? (m.url || 'Audited page') : 'Pasted content')}${m.pageTypeLabel ? ` · ${esc(m.pageTypeLabel)}` : ''} · ${esc(new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }))}</div>
           </div>
           ${hero}
+          ${clientBanner}
           ${crawlBanner}
           <div class="resbar">${m.savedId ? `<span class="savednote" style="margin-right:auto">${IC.check} Saved to your history</span>` : (ACCOUNTS && !USER ? `<span class="savednote" style="margin-right:auto;color:var(--muted)"><a id="savesignin" style="color:var(--accent-dark);font-weight:700;cursor:pointer">Sign in</a> to save this audit to your history</span>` : '')}<button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
 
           <div class="reptabs" id="reptabs">
-            <div class="reptab active" data-tab="overview">Overview</div>
+            ${m.client ? `<div class="reptab active" data-tab="client">${esc(m.client.name.split('.')[0].split(' ')[0])} checklist${clientIssueN ? ` <span class="repcnt bad">${clientIssueN}</span>` : ''}</div>` : ''}
+            <div class="reptab${m.client ? '' : ' active'}" data-tab="overview">Overview</div>
             <div class="reptab" data-tab="content">Content${contentIssueN ? ` <span class="repcnt bad">${contentIssueN}</span>` : ''}</div>
             <div class="reptab" data-tab="indexability">Indexability${indexIssueN ? ` <span class="repcnt bad">${indexIssueN}</span>` : ''}</div>
             <div class="reptab" data-tab="keywords">Keywords${kwIssueN ? ` <span class="repcnt bad">${kwIssueN}</span>` : ''}</div>
@@ -661,7 +690,8 @@ import App from '../layouts/App.astro';
           </div>
 
           <div class="tabbody">
-            <div class="tabpane" data-pane="overview">
+            ${m.client ? `<div class="tabpane" data-pane="client">${clientChecklistTab(cl, m.client)}</div>` : ''}
+            <div class="tabpane" data-pane="overview"${m.client ? ' hidden' : ''}>
               <div class="ovgrid">
                 <div>
                   <div class="card actioncard">
@@ -1277,6 +1307,10 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .engcard .es small { font-size: 15px; font-weight: 700; opacity: .55; }
 .engcard .ebar { height: 6px; border-radius: 999px; background: #edeef4; overflow: hidden; }
 .engcard .ebar > i { display: block; height: 100%; border-radius: 999px; }
+/* ---- Client (agency) checklist banner ---- */
+      .clientbanner { display: flex; gap: 12px; align-items: flex-start; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 14px; padding: 14px 16px; margin-bottom: 4px; font-size: 13px; color: #3730a3; line-height: 1.55; }
+.clientbanner svg { width: 20px; height: 20px; flex-shrink: 0; color: #4338ca; margin-top: 1px; }
+.clientbanner b { color: #312e81; }
 /* ---- AI crawlability ---- */
       .crawlbanner { display: flex; gap: 12px; align-items: flex-start; background: var(--bad-bg); border: 1px solid #f4cfcf; border-radius: 14px; padding: 14px 16px; margin-bottom: 4px; font-size: 13px; color: #8f2020; line-height: 1.55; }
 .crawlbanner svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--bad); margin-top: 1px; }
