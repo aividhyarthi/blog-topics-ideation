@@ -4,13 +4,14 @@
    both layouts now import this instead. */
 
 :root {
-  /* Deep cyan. Deliberately not indigo/violet — that palette now reads as
-     "generic AI product", which is the wrong signal for a tool being sold to
-     clients as a serious audit instrument. Also not the default SaaS blue. */
-  --accent: #0891b2;
-  --accent-dark: #0e7490;
-  --accent-soft: #ecfeff;
-  --accent-line: #a5f3fc;
+  /* Near-black. Deliberately not indigo/violet/cyan — every one of those now
+     reads as "generic AI product", which is the wrong signal for a tool
+     being sold to clients as a serious audit instrument. Monochrome reads
+     as a professional analytics/ops tool instead (the register we want). */
+  --accent: #18181b;
+  --accent-dark: #000000;
+  --accent-soft: #f4f4f5;
+  --accent-line: #d4d4d8;
 
   /* Slate neutrals, very slightly cool, so they sit under the cyan without
      fighting it. */
@@ -35,7 +36,7 @@
   /* Used by the two tools: --na marks a signal that doesn't apply to this page
      type, --indigo is their in-report accent (kept as a name for compatibility). */
   --na: #94a3b8;
-  --indigo: #0891b2;
+  --indigo: #18181b;
 
   /* Categorical series for charts, assigned in this fixed order and never
      cycled. Validated for colour-vision deficiency separation rather than
@@ -90,7 +91,7 @@ h1, h2, h3 { text-wrap: balance; }
   width: 28px; height: 28px; border-radius: 8px; flex: none;
   background: linear-gradient(140deg, var(--accent), var(--accent-dark));
   display: grid; place-items: center;
-  box-shadow: 0 4px 12px -4px rgba(14, 116, 144, .5);
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, .35);
 }
 .brand .mark svg { width: 15px; height: 15px; color: #fff; }
 .navmenu { margin-left: 28px; display: flex; gap: 22px; }
@@ -100,6 +101,22 @@ h1, h2, h3 { text-wrap: balance; }
 /* The auth widget injects its markup here, so this element needs to lay its own
    children out — otherwise a long email collides with the buttons beside it. */
 #cr-navauth { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+/* Dark nav for the public marketing pages (Site.astro) — the signed-in app
+   shell (App.astro) keeps the light nav unchanged; this is scoped to
+   marketing pages only via the .nav-dark modifier class. */
+.nav-dark { background: var(--ink-900); border-bottom-color: rgba(255,255,255,.08); }
+.nav-dark .brand { color: #fff; }
+.nav-dark .brand .mark { background: #fff; box-shadow: none; }
+.nav-dark .brand .mark svg { color: var(--ink-900); }
+.nav-dark .navmenu a { color: #cbd5e1; }
+.nav-dark .navmenu a:hover { color: #fff; }
+.nav-dark .btn-ghost { background: transparent; border-color: rgba(255,255,255,.22); color: #fff; }
+.nav-dark .btn-ghost:hover { border-color: #fff; color: #fff; }
+/* The near-black --accent button would nearly disappear against this dark
+   nav, so invert it here specifically: white pill, dark text. */
+.nav-dark .btn-primary { background: #fff; color: var(--ink-900); box-shadow: none; }
+.nav-dark .btn-primary:hover { background: #e4e4e7; }
 @media (max-width: 900px) { .navmenu { display: none; } }
 
 /* ---- buttons ---- */
@@ -108,7 +125,7 @@ h1, h2, h3 { text-wrap: balance; }
   background: var(--accent); color: #fff; border: none; border-radius: 10px;
   padding: 11px 20px; font-size: 14px; font-weight: 700; font-family: inherit;
   cursor: pointer; text-decoration: none;
-  box-shadow: 0 6px 18px -8px rgba(8, 145, 178, .6);
+  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, .35);
   transition: background .15s, transform .15s;
 }
 .btn-primary:hover { background: var(--accent-dark); transform: translateY(-1px); }
@@ -126,7 +143,7 @@ h1, h2, h3 { text-wrap: balance; }
 /* ---- page header used by content pages ---- */
 .pagehead {
   border-bottom: 1px solid var(--line);
-  background: radial-gradient(800px 320px at 80% -10%, rgba(8, 145, 178, .10), transparent 60%);
+  background: radial-gradient(800px 320px at 80% -10%, rgba(0, 0, 0, .05), transparent 60%);
 }
 .pagehead .wrap { padding: 54px 24px 44px; }
 .eyebrow {

@@ -47,7 +47,7 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
         ) : isPro ? (
           <div class="dcard">
             <div class="usage-top"><b>Usage this month</b><span>{planUsed} / {planLimit} checks</span></div>
-            <div class="usage-bar"><i style={`width:${pct}%; background:${pct >= 90 ? '#d43a3a' : pct >= 70 ? '#b7791f' : '#0891b2'}`}></i></div>
+            <div class="usage-bar"><i style={`width:${pct}%; background:${pct >= 90 ? '#d43a3a' : pct >= 70 ? '#b7791f' : '#18181b'}`}></i></div>
             {pct >= 80 && <div class="usage-warn">You’re close to your monthly limit — it resets on your renewal date.</div>}
           </div>
         ) : (
