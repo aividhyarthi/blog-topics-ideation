@@ -12,7 +12,7 @@ interface Props { active?: 'blog' | 'about' }
 const { active } = Astro.props as Props;
 ---
 <header class="top">
-  <a class="logo" href="/"><span class="mark">AR</span>{BRAND}<span class="betatag">Beta 1.0</span></a>
+  <a class="logo" href="/"><span class="mark">AR</span>{BRAND}</a>
   <div class="navlinks" id="site-navlinks">
     <a class="plain" class:list={[active === 'blog' && 'active']} href="/blog">Blog</a>
     <a class="plain" class:list={[active === 'about' && 'active']} href="/about">About</a>

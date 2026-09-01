@@ -146,6 +146,14 @@ const SPEC = {
     { art: 'split', takeaway: 'Spend buys the paid slot; installs and retention feed the organic one',
       left: ['bid + budget', 'immediate', 'stops with spend'], right: ['installs + retention', 'builds over weeks', 'persists after spend stops'],
       leftLabel: 'paid', rightLabel: 'organic' },
+  'why-does-google-play-remove-my-app-ratings':
+    { art: 'diverge', takeaway: 'Count can drop while your average holds steady or improves', a: 'average', b: 'count' },
+  'app-disappeared-from-search-delisted-or-not-ranking':
+    { art: 'split', takeaway: 'One direct URL check tells you which problem you actually have',
+      left: ['listing loads', 'search-visibility issue', 'ASO checklist applies'], right: ['not found / policy notice', 'real takedown', 'needs a policy appeal'],
+      leftLabel: 'still live', rightLabel: 'removed' },
+  'sudden-drop-in-play-store-visitors':
+    { art: 'diverge', takeaway: 'Visitors can fall while your actual rank hasn’t moved at all', a: 'rank', b: 'visitors' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
