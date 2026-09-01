@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  analyzeHtml, deterministicSignals, llmSignals, buildReport, crawlabilitySignals, buildVisibility,
+  analyzeHtml, llmSignals, buildReportFromChecklist, crawlabilitySignals, buildVisibility,
   CATEGORY_WEIGHTS, CATEGORY_LABEL, PAGE_TYPE_LABEL,
   type LlmScores, type PageFacts, type Category, type PromptCoverage, type PageType,
 } from '../../lib/aeo';
@@ -305,8 +305,6 @@ export const POST: APIRoute = async (ctx) => {
     fetchNote = 'This URL returned very little readable text — it looks JavaScript-rendered, so the score is based on a near-empty page. For an accurate audit, open the page, View Source or Inspect → copy the rendered HTML, and use the “Paste HTML” tab.';
   }
 
-  const auto = deterministicSignals(facts);
-
   // The checklist engine detects what this page actually IS (kind + vertical)
   // from the HTML and runs the matching domain checklist — rather than grading
   // every page against one generic list weighted by a dropdown nobody changes.
@@ -341,10 +339,21 @@ export const POST: APIRoute = async (ctx) => {
   const prompts: PromptCoverage[] = Array.isArray(llmScores.prompts)
     ? llmScores.prompts.filter((p) => p && typeof p.q === 'string').slice(0, 16).map((p) => ({ q: p.q, covered: Boolean(p.covered) }))
     : [];
+  // llmSignals is still used, but only for the off-page "domain context"
+  // estimate (brand authority / off-domain corroboration) — those can't be
+  // read from the page's own HTML, unlike everything the checklist covers.
   const ai = llmSignals(llmScores, Boolean(target));
+  const domainContext = ai.filter((s) => s.pillar === 'domain');
   const crawl = crawlabilitySignals({ isUrl, robotsTxt, llmsTxt });
   const visibility = buildVisibility(html, facts, crawl);
-  const report = buildReport(auto, ai, category, prompts, llmScores.summary, llmScores.engines, crawl, visibility);
+  // The checklist can (rarely) fail to run — an empty stand-in keeps the
+  // report buildable rather than taking the whole audit down with it.
+  const checklistForScoring: ChecklistResult = checklist || {
+    kind: 'article', vertical: 'general', kindLabel: 'Page', verticalLabel: 'General',
+    detection: { kind: { value: 'article', confidence: 'low', evidence: [] }, vertical: { value: 'general', confidence: 'low', evidence: [] } },
+    items: [], score: 0, passed: 0, applicable: 0,
+  };
+  const report = buildReportFromChecklist(checklistForScoring, category, prompts, llmScores.summary, llmScores.engines, crawl, visibility, domainContext);
 
   const meta = {
     mode: isUrl ? 'url' : 'pasted', url: inputUrl || null, host: host || null, brand: brand || null,

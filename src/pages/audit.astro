@@ -474,6 +474,7 @@ import App from '../layouts/App.astro';
               ${labelled ? `<div class="actlabel">${esc(PRIORITY[i] || 'Then this')}</div>` : ''}
               <b>${esc(fx.label)}</b>
               <p>${esc(fx.fix)}</p>
+              ${fx.why ? `<p class="issuewhy">${esc(fx.why)}</p>` : ''}
             </div>
           </div>`;
         const topThreeHtml = (r.topFixes || []).slice(0, 3).map((fx, i) => fixCard(fx, i, true)).join('');

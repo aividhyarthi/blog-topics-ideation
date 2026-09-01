@@ -401,7 +401,7 @@ export const UNIVERSAL: Check[] = [
     id: 'u_snippet_controls',
     label: 'Not blocking snippets or AI use',
     why: 'nosnippet and max-snippet:0 tell search engines not to show any text preview of this page at all — which also removes it as a candidate for AI Overviews and AI Mode. This is usually set by mistake, in a template, not per page.',
-    pillar: 'crawl', weight: 0,
+    pillar: 'structure', weight: 1,
     run: (c) => {
       const meta = (c.facts.robotsMeta || '').toLowerCase();
       if (/nosnippet/.test(meta)) return fail('meta robots contains "nosnippet" — no preview text, and no AI Overviews eligibility.', 'Remove nosnippet unless you specifically intend to opt this page out of snippets and AI answers.');

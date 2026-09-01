@@ -17,6 +17,10 @@
 // calls (answer quality, entity consistency, attribution, prompt coverage,
 // off-page estimate) are scored by Claude in the API route and merged in.
 
+// Type-only — erased at compile time, so this isn't a real runtime circular
+// dependency even though checklists.ts imports types from this file too.
+import type { ChecklistResult } from './checklists';
+
 // ---- types ------------------------------------------------------------------
 
 export type SignalStatus = 'pass' | 'warn' | 'fail' | 'na';
@@ -72,7 +76,7 @@ export interface AeoReport {
   crawlBlocked: boolean; // true if a primary answer-engine crawler is blocked
   visibility: Visibility | null; // User vs Googlebot vs LLM: can LLMs read this page?
   promptCoverage: PromptCoverage[];
-  topFixes: { label: string; severity: SignalStatus; fix: string; pillar: PillarId | 'domain'; gain: number; tag: 'quick' | 'high' | 'offpage' }[];
+  topFixes: { label: string; severity: SignalStatus; why?: string; fix: string; pillar: PillarId | 'domain'; gain: number; tag: 'quick' | 'high' | 'offpage' }[];
   engines: EngineScores | null; // per-engine estimated citation likelihood
   // How much of the scoring model actually ran. Anything below 100 means part
   // of the page was not assessed, and the report says so instead of pretending.
@@ -599,123 +603,6 @@ function sig(s: Omit<Signal, 'status' | 'source'> & { source?: 'auto' | 'ai' }):
   return { ...s, status: statusFor(s.score), source: s.source ?? 'auto' };
 }
 
-// ---- deterministic signals --------------------------------------------------
-
-export function deterministicSignals(f: PageFacts): Signal[] {
-  const out: Signal[] = [];
-  const sub = f.headings.filter((h) => h.level >= 2);
-  const qShare = sub.length ? sub.filter((h) => QUESTION_RE.test(h.text) || h.text.includes('?')).length / sub.length : 0;
-  const avgPara = f.paragraphs.length ? f.paragraphs.reduce((a, b) => a + b, 0) / f.paragraphs.length : 0;
-  const pageType = f.pageType || 'article';
-  const isArticle = pageType === 'article';
-  const isCommerce = pageType === 'product' || pageType === 'listing';
-
-  // ANSWERABILITY (deterministic part: conciseness)
-  out.push(sig({
-    id: 'conciseness', label: 'Conciseness (answer efficiency)', pillar: 'answerability', weight: 0.1,
-    score: (() => { const w = f.wordCount; if (isCommerce) return w < 30 ? 55 : 100; if (w < 150) return 35; if (w < 300) return 70; if (w <= 1800) return 100; if (w <= 3000) return 80; return 60; })(),
-    detail: `${f.wordCount} words.`,
-    fix: f.wordCount > 3000 ? 'Tighten or split — most AI citations are under 1,000 words. Lead with the answer.' : (!isCommerce && f.wordCount < 150) ? 'Too thin to be cited — add substantive coverage.' : undefined,
-  }));
-
-  // ENTITY CLARITY (deterministic part: pronoun dependency)
-  const pShare = f.wordCount ? f.pronouns / f.wordCount : 0;
-  out.push(sig({
-    id: 'pronoun_dependency', label: 'Low pronoun dependency', pillar: 'entity', weight: 0.3,
-    score: f.wordCount < 80 ? null : c(100 - Math.max(0, pShare * 100 - 4) * 14),
-    detail: f.wordCount < 80 ? 'Not enough text to assess.' : `Pronouns are ${(pShare * 100).toFixed(1)}% of words.`,
-    fix: pShare > 0.06 ? 'Replace vague pronouns (he/she/they/this) with the named entity — AI dislikes unresolved references.' : undefined,
-  }));
-
-  // ATTRIBUTION & TRUST (deterministic: citations, statistics, quotations, author)
-  out.push(sig({ id: 'citations', label: 'Outbound citations to sources', pillar: 'attribution', weight: 0.16,
-    score: c(Math.min(100, f.externalLinks * 25)), detail: `${f.externalLinks} outbound link(s) to other domains.`,
-    fix: f.externalLinks < 2 ? 'Link out to authoritative sources (studies, official docs) — the highest-uplift GEO method.' : undefined }));
-  out.push(sig({ id: 'statistics', label: 'Statistics & data points', pillar: 'attribution', weight: 0.14,
-    score: c(Math.min(100, f.statistics * 18)), detail: `${f.statistics} statistic/number/data mention(s).`,
-    fix: f.statistics < 3 ? 'Add concrete statistics and figures — a proven causal lever for LLM citation (Princeton GEO).' : undefined }));
-  if (isArticle) {
-    // Article-only trust signals (don't penalise product/listing pages for these).
-    out.push(sig({ id: 'quotations', label: 'Expert quotations', pillar: 'attribution', weight: 0.1,
-      score: c(Math.min(100, f.blockquotes * 40 + Math.min(f.quotedPhrases, 4) * 15)), detail: `${f.blockquotes} blockquote(s), ${f.quotedPhrases} attributed quote(s).`,
-      fix: f.blockquotes + f.quotedPhrases < 1 ? 'Add named expert/source quotations — a top-three GEO lever.' : undefined }));
-    out.push(sig({ id: 'author_named', label: 'Named author / byline', pillar: 'attribution', weight: 0.2,
-      score: f.hasAuthor ? 90 : 20, detail: f.hasAuthor ? 'An author / byline was detected.' : 'No author / byline detected.',
-      fix: f.hasAuthor ? undefined : 'Add a named author with a credentialed bio (and Person/author schema).' }));
-  }
-  if (isCommerce) {
-    // Product/listing trust signals: clear pricing + ratings build buyer + AI trust.
-    out.push(sig({ id: 'price_present', label: 'Clear pricing', pillar: 'attribution', weight: 0.2,
-      score: f.priceCount >= 1 ? 95 : 20, detail: f.priceCount >= 1 ? `${f.priceCount} price/offer signal(s) detected.` : 'No price detected on the page.',
-      fix: f.priceCount >= 1 ? undefined : 'Show clear prices (and Offer/“price” schema) — AI shopping answers lead with price.' }));
-    out.push(sig({ id: 'ratings_reviews', label: 'Ratings & reviews', pillar: 'attribution', weight: 0.12,
-      score: f.hasAggregateRating ? 90 : 25, detail: f.hasAggregateRating ? 'Ratings / review signals detected.' : 'No ratings or review counts detected.',
-      fix: f.hasAggregateRating ? undefined : 'Add star ratings + review counts (AggregateRating schema) — strong trust signal for AI product picks.' }));
-    // Structured specs / comparison — AI lifts structured product details readily.
-    out.push(sig({ id: 'specs_structured', label: pageType === 'listing' ? 'Comparison / spec structure' : 'Structured specs', pillar: 'structure', weight: 0.25,
-      score: c(Math.min(100, f.tables * 45 + f.lists * 12 + (f.hasFaqHeading ? 15 : 0))),
-      detail: `${f.tables} table(s), ${f.lists} list(s)${f.hasFaqHeading ? ', FAQ present' : ''}.`,
-      fix: (f.tables + f.lists) < 1 ? (pageType === 'listing'
-        ? 'Add a comparison table of the listed products (name, price, key specs) — AI lifts structured comparisons.'
-        : 'Add a spec/attribute table (or bulleted key specs) so AI can extract the product details.') : undefined }));
-  }
-
-  // STRUCTURAL READABILITY (deterministic)
-  out.push(sig({ id: 'summary_block', label: 'Summary / key-points block', pillar: 'structure', weight: 0.25,
-    score: f.hasTldr ? 100 : 25, detail: f.hasTldr ? 'A summary / key-points block was detected.' : 'No summary / key-points block.',
-    fix: f.hasTldr ? undefined : 'Add a "Key points" / "What happened" summary block near the top for AI to lift.' }));
-  out.push(sig({ id: 'qa_structure', label: 'Question–answer structure', pillar: 'structure', weight: 0.25,
-    score: c((sub.length ? qShare * 70 : 0) + (f.hasFaqHeading ? 30 : 0) + 10),
-    detail: `${Math.round(qShare * 100)}% of subheads are questions${f.hasFaqHeading ? ', FAQ present' : ', no FAQ'}.`,
-    fix: qShare < 0.3 && !f.hasFaqHeading ? 'Phrase subheads as the questions users ask, and add an FAQ block.' : undefined }));
-  out.push(sig({ id: 'scannability', label: 'Scannability', pillar: 'structure', weight: 0.3,
-    score: c((avgPara === 0 ? 40 : Math.max(0, 110 - Math.max(0, avgPara - 40) * 3)) * 0.6 + Math.min(40, f.lists * 12 + f.tables * 16)),
-    detail: `Avg paragraph ≈ ${Math.round(avgPara)} words; ${f.lists} list(s), ${f.tables} table(s).`,
-    fix: avgPara > 60 || f.lists + f.tables === 0 ? 'Use short paragraphs, bullets and tables — AI dislikes walls of text.' : undefined }));
-  // Flesch assumes running prose. On spec sheets and listings most "text" is
-  // table cells and fragments with no full stops, so words-per-sentence blows up
-  // and the formula returns a large negative number — which used to score 0 and
-  // drag the whole structure pillar down over a page that has no prose problem.
-  // Past ~45 words per sentence we're not looking at prose, so we don't score it.
-  const wps = f.sentences > 0 ? f.wordCount / f.sentences : Infinity;
-  const proseLike = f.wordCount >= 50 && wps <= 45;
-  const flesch = proseLike ? 206.835 - 1.015 * wps - 84.6 * (f.syllables / Math.max(1, f.wordCount)) : 0;
-  out.push(sig({ id: 'reading_ease', label: 'Reading ease', pillar: 'structure', weight: 0.2,
-    score: proseLike ? c(Math.max(0, Math.min(100, flesch))) : null,
-    detail: f.wordCount < 50 ? 'Not enough text to judge.'
-      : proseLike ? `Reads at a Flesch score of ${Math.round(flesch)} out of 100 — higher is easier.`
-      : 'Mostly tables and fragments rather than prose, so a readability score would be misleading. Not scored.',
-    fix: proseLike && flesch < 50 ? 'Shorten sentences and use plainer words — aim for 60 out of 100 or better.' : undefined }));
-
-  // FRESHNESS & METADATA (deterministic)
-  const fresh = (() => {
-    const d = f.dateModified || f.datePublished;
-    if (!d) return { score: 25, note: 'No publish/updated date found.' };
-    const t = Date.parse(d); if (isNaN(t)) return { score: 50, note: `Date present but unparseable (${d}).` };
-    const months = (Date.now() - t) / (1000 * 60 * 60 * 24 * 30);
-    return { score: months <= 6 ? 100 : months <= 12 ? 85 : months <= 24 ? 55 : 30, note: `Last dated ${Math.round(months)} month(s) ago.` };
-  })();
-  out.push(sig({ id: 'updated_date', label: 'Updated timestamp & recency', pillar: 'freshness', weight: 0.45,
-    score: fresh.score, detail: fresh.note, fix: fresh.score < 60 ? 'Show a visible published/updated timestamp and refresh stale content.' : undefined }));
-  // The schema we most want depends on page type first, then topic category.
-  const wanted: string[] | undefined = pageType === 'product' ? ['Product']
-    : pageType === 'listing' ? ['ItemList']
-    : ({ news: ['NewsArticle'], health: ['MedicalWebPage', 'MedicalWebpage'], commerce: ['Product'] } as Partial<Record<Category, string[]>>)[f.category];
-  const valuable = ['FAQPage', 'HowTo', 'Article', 'NewsArticle', 'BlogPosting', 'Product', 'ItemList', 'BreadcrumbList', 'Recipe', 'MedicalWebPage'];
-  const matched = f.schemaTypes.filter((t) => valuable.includes(t));
-  const hasWanted = wanted ? wanted.some((w) => f.schemaTypes.map((s) => s.toLowerCase()).includes(w.toLowerCase())) : true;
-  out.push(sig({ id: 'schema', label: 'Schema.org metadata', pillar: 'freshness', weight: 0.3,
-    score: matched.length === 0 ? 25 : c(50 + matched.length * 18 + (hasWanted ? 10 : 0)),
-    detail: f.schemaTypes.length ? `Detected: ${f.schemaTypes.join(', ')}.` : 'No JSON-LD schema found.',
-    fix: matched.length === 0 ? `Add JSON-LD schema${wanted ? ` (${wanted[0]} for this page)` : ' (Article + FAQPage/HowTo)'}.` : (!hasWanted && wanted ? `Add ${wanted[0]} schema for this ${PAGE_TYPE_LABEL[pageType].toLowerCase()}.` : undefined) }));
-  out.push(sig({ id: 'metadata', label: 'Title & meta description', pillar: 'freshness', weight: 0.25,
-    score: (() => { let s = 0; if (f.title) s += 50; if (f.title.length >= 20 && f.title.length <= 70) s += 10; if (f.metaDescription) s += 30; if (f.metaDescription.length >= 70 && f.metaDescription.length <= 165) s += 10; return c(s); })(),
-    detail: `Title ${f.title ? `${f.title.length} chars` : 'missing'}; meta description ${f.metaDescription ? `${f.metaDescription.length} chars` : 'missing'}.`,
-    fix: !f.title || !f.metaDescription ? 'Add a descriptive <title> (~55 chars) and meta description (~140 chars).' : undefined }));
-
-  return out;
-}
-
 // ---- LLM signals ------------------------------------------------------------
 
 export interface LlmScores {
@@ -813,58 +700,70 @@ function benchmarkFor(n: number): string {
   return 'Needs major work vs typical articles';
 }
 
-export function buildReport(
-  deterministic: Signal[], llm: Signal[], category: Category, prompts: PromptCoverage[], aiSummary?: string,
-  aiEngines?: LlmScores['engines'], crawl: Signal[] = [], visibility: Visibility | null = null,
+// ---- report, built from the checklist engine (single source of truth) ------
+//
+// The score, "Shape of the score" pillars and "Do these first" fixes used to
+// come from a separate AI-judged pillar system while the
+// Content/Indexability/Keywords/Details tabs came from the checklist engine —
+// two independently-computed systems that could and did disagree on the same
+// page (e.g. Overview says "Query Matchability: bad", Keywords tab says
+// "all good", because they were never the same measurement). This function
+// replaces that: every pillar score, the overall score, and every top fix are
+// derived directly from the checklist's own items — the exact same data the
+// other tabs render — so they cannot disagree with each other by construction.
+//
+// The AI judge call is still used, but only for what it's actually suited to:
+// the free-text verdict summary, prompt coverage, per-engine likelihood
+// estimates, and off-page domain context — never for the score itself.
+export function buildReportFromChecklist(
+  checklist: ChecklistResult, category: Category, prompts: PromptCoverage[],
+  aiSummary: string | undefined, aiEngines: LlmScores['engines'] | undefined,
+  crawl: Signal[], visibility: Visibility | null, domainContext: Signal[],
 ): AeoReport {
-  const all = [...deterministic, ...llm];
   const weights = CATEGORY_WEIGHTS[category] || CATEGORY_WEIGHTS.general;
+  const items = checklist.items;
   const wsumByPillar: Partial<Record<PillarId, number>> = {};
+  const itemScore = (status: SignalStatus) => status === 'pass' ? 100 : status === 'warn' ? 50 : 0;
 
   const pillars: PillarResult[] = PILLAR_META.map((p) => {
-    const signals = all.filter((s) => s.pillar === p.id);
-    const scored = signals.filter((s) => s.score != null && s.weight > 0);
-    const wsum = scored.reduce((a, s) => a + s.weight, 0) || 1;
-    wsumByPillar[p.id] = wsum;
-    const measured = scored.length > 0;
-    const score = measured ? Math.round(scored.reduce((a, s) => a + (s.score as number) * s.weight, 0) / wsum) : 0;
+    const inPillar = items.filter((i) => i.pillar === p.id && i.status !== 'na');
+    const wsum = inPillar.reduce((a, i) => a + i.weight, 0);
+    wsumByPillar[p.id] = wsum || 1;
+    const measured = wsum > 0;
+    const earned = inPillar.reduce((a, i) => a + i.weight * (i.status === 'pass' ? 1 : i.status === 'warn' ? 0.5 : 0), 0);
+    const score = measured ? Math.round((earned / wsum) * 100) : 0;
     const weight = weights[p.id];
+    const signals: Signal[] = inPillar.map((i) => ({
+      id: i.id, label: i.label, pillar: p.id, score: itemScore(i.status),
+      weight: i.weight, status: i.status, detail: i.detail, fix: i.fix, source: 'auto',
+    }));
     return { id: p.id, label: LABEL[p.id], purpose: PURPOSE[p.id], weight, score, points: Math.round((score / 100) * weight), measured, signals };
   });
 
-  // Renormalise over the pillars we could actually measure, so an unavailable
-  // AI judge lowers our confidence rather than silently scoring the page 0 on
-  // whole pillars it never looked at.
   const live = pillars.filter((p) => p.measured);
   const liveWeight = live.reduce((a, p) => a + p.weight, 0);
-  const overall = liveWeight > 0
-    ? Math.round(live.reduce((a, p) => a + p.score * p.weight, 0) / liveWeight)
-    : 0;
-  const domainContext = all.filter((s) => s.pillar === 'domain');
+  const overall = liveWeight > 0 ? Math.round(live.reduce((a, p) => a + p.score * p.weight, 0) / liveWeight) : 0;
 
-  // Estimated point gain (on the 0-100 overall scale) if each signal were lifted to 100.
-  const gainOf = (s: Signal): number => {
-    if (s.pillar === 'domain' || s.score == null) return 0;
-    const pw = weights[s.pillar as PillarId] ?? 0;
-    const wsum = wsumByPillar[s.pillar as PillarId] ?? 1;
-    return ((100 - s.score) / 100) * (s.weight / wsum) * pw;
+  const gainOf = (i: ChecklistResult['items'][number]): number => {
+    const pw = weights[i.pillar as PillarId] ?? 0;
+    const wsum = wsumByPillar[i.pillar as PillarId] ?? 1;
+    return ((100 - itemScore(i.status)) / 100) * (i.weight / wsum) * pw;
   };
 
-  const topFixes = all
-    .filter((s) => s.fix && s.score != null && (s.status === 'fail' || s.status === 'warn'))
-    .map((s) => ({ s, gain: gainOf(s) }))
+  const topFixes = items
+    .filter((i) => i.fix && (i.status === 'fail' || i.status === 'warn'))
+    .map((i) => ({ i, gain: gainOf(i) }))
     .sort((a, b) => b.gain - a.gain)
     .slice(0, 8)
-    .map(({ s, gain }) => ({
-      label: s.label, severity: s.status, fix: s.fix as string, pillar: s.pillar,
-      gain: Math.round(gain * 10) / 10,
-      tag: (s.pillar === 'domain' ? 'offpage' : gain >= 3 ? 'high' : 'quick') as 'quick' | 'high' | 'offpage',
+    .map(({ i, gain }) => ({
+      label: i.label, severity: i.status, why: i.why, fix: i.fix as string,
+      pillar: i.pillar, gain: Math.round(gain * 10) / 10,
+      tag: (gain >= 3 ? 'high' : 'quick') as 'quick' | 'high',
     }));
 
   const sortedP = [...live].sort((a, b) => a.score - b.score);
   const weakest = sortedP[0], strongest = sortedP[sortedP.length - 1];
   const band = overall >= 70 ? 'High' : overall >= 45 ? 'Medium' : 'Low';
-  // Plain-English verdict framed around the engines — NO scores/numbers.
   const ENGINES = 'ChatGPT, Gemini, Perplexity and Google AI Mode';
   const likely = band === 'High'
     ? `${ENGINES} are likely to cite this page.`
@@ -872,13 +771,9 @@ export function buildReport(
       ? `${ENGINES} might cite this page, but it needs work first.`
       : `${ENGINES} are unlikely to cite this page as it stands.`;
   const fallbackSummary = weakest && strongest
-    ? `${likely} ` +
-      `It's strongest on ${strongest.label.toLowerCase()} and weakest on ${weakest.label.toLowerCase()} — that's what's holding it back. ` +
-      (topFixes[0] ? `Fix "${topFixes[0].label}" first.` : '')
+    ? `${likely} It's strongest on ${strongest.label.toLowerCase()} and weakest on ${weakest.label.toLowerCase()} — that's what's holding it back. ${topFixes[0] ? `Fix "${topFixes[0].label}" first.` : ''}`
     : likely;
 
-  // Per-engine scores: use the AI's estimate when present, else derive a sensible
-  // spread from the overall + pillar mix so the breakdown is always shown.
   const engines: EngineScores | null = (() => {
     const e = aiEngines;
     const pill = (id: PillarId) => pillars.find((p) => p.id === id)?.score ?? overall;
@@ -889,16 +784,14 @@ export function buildReport(
         perplexity: clampn(e.perplexity ?? overall), aiOverviews: clampn(e.aiOverviews ?? overall),
       };
     }
-    // Heuristic fallback weighted by each engine's known biases.
     return {
-      chatgpt: clampn(overall * 0.6 + pill('attribution') * 0.4),       // authority/trust
-      gemini: clampn(overall * 0.6 + pill('entity') * 0.4),             // entities/structure
-      perplexity: clampn(overall * 0.6 + pill('freshness') * 0.4),      // freshness/citations
-      aiOverviews: clampn(overall * 0.6 + pill('structure') * 0.4),     // structured/snippet-ready
+      chatgpt: clampn(overall * 0.6 + pill('attribution') * 0.4),
+      gemini: clampn(overall * 0.6 + pill('entity') * 0.4),
+      perplexity: clampn(overall * 0.6 + pill('freshness') * 0.4),
+      aiOverviews: clampn(overall * 0.6 + pill('structure') * 0.4),
     };
   })();
 
-  // A blocked primary crawler is a hard, critical issue — flag it for the UI.
   const crawlBlocked = crawl.some((s) => s.id.startsWith('bot_') && s.score === 0);
 
   return {
