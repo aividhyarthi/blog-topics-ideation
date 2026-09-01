@@ -79,7 +79,7 @@ export const POST: APIRoute = async (ctx) => {
     const html = /<\w+[\s>]/.test(pasted) ? pasted : `<article><p>${pasted.replace(/</g, '&lt;')}</p></article>`;
     const facts = analyzeHtml(html, { isUrl: false });
     const crawl = crawlabilitySignals({ isUrl: false });
-    const vis = buildVisibility(facts, crawl);
+    const vis = buildVisibility(html, facts, crawl);
     const view = { render: renderInfo(html, facts), verdict: vis.verdict, access: [], groups: accessGroups(html, facts) };
     const pastedContent = extractContent(html);
     const pastedGaps: { label: string; detail: string }[] = [];
@@ -121,8 +121,8 @@ export const POST: APIRoute = async (ctx) => {
   const factsD = analyzeHtml(desktopHtml || mobileHtml, { isUrl: true, host, robotsTxt });
   const factsM = analyzeHtml(mobileHtml || desktopHtml, { isUrl: true, host, robotsTxt });
   const crawl = crawlabilitySignals({ isUrl: true, robotsTxt, llmsTxt });
-  const visD = buildVisibility(factsD, crawl);
-  const visM = buildVisibility(factsM, crawl);
+  const visD = buildVisibility(desktopHtml || mobileHtml, factsD, crawl);
+  const visM = buildVisibility(mobileHtml || desktopHtml, factsM, crawl);
 
   const desktop = {
     render: renderInfo(desktopHtml || mobileHtml, factsD), verdict: visD.verdict,

@@ -84,7 +84,7 @@ export const POST: APIRoute = async (ctx) => {
   if (f.ok) {
     const facts = analyzeHtml(f.body, { isUrl: true, host, robotsTxt });
     out.render = renderInfo(f.body, facts);
-    out.verdict = buildVisibility(facts, crawl).verdict;
+    out.verdict = buildVisibility(f.body, facts, crawl).verdict;
     out.groups = accessGroups(f.body, facts);
   }
   return json(out);
