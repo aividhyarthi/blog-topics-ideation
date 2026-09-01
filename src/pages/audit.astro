@@ -1039,7 +1039,7 @@ import App from '../layouts/App.astro';
           if (!res.ok) {
             if (data.requireAuth) { $('info').style.display = 'none'; pendingAction = run; openAuth('signup'); return; }
             showErr(data.error || 'Something went wrong. Please try again.');
-          } else render(data);
+          } else { render(data); saveAuditState(payload, data); }
         } catch (e) {
           showErr('Network error: ' + (e && e.message ? e.message : e));
         } finally {
@@ -1051,6 +1051,43 @@ import App from '../layouts/App.astro';
       // An account is required to run an audit — gate the button up front.
       function goClicked() { if (!ACCOUNTS || USER) run(); else { pendingAction = run; openAuth('signup'); } }
       $('go').addEventListener('click', goClicked);
+
+      // ---- Remember the last audit within this browser tab ----
+      // Same fix as LLM Access Check: hitting Back used to land on a blank
+      // form with the report gone, and switching over from LLM Access Check
+      // for the same URL meant retyping it. sessionStorage (one browsing
+      // session, not forever) restores the exact last report instantly with
+      // no new fetch or charge if you come back to THIS tool, and carries
+      // just the URL over if you arrive here from the OTHER one.
+      const SS_STATE = 'aipa:lastAudit';
+      const SS_URL = 'aipa:lastUrl';
+      function saveAuditState(payload, data) {
+        try {
+          sessionStorage.setItem(SS_STATE, JSON.stringify({ payload, data }));
+          if (payload.url) sessionStorage.setItem(SS_URL, payload.url);
+        } catch {}
+      }
+      (function restoreAuditState() {
+        try {
+          const saved = sessionStorage.getItem(SS_STATE);
+          if (saved) {
+            const { payload, data } = JSON.parse(saved);
+            if (payload.url) { setMode('url'); $('url').value = payload.url; }
+            else if (payload.html) { setMode('paste'); $('html').value = payload.html; }
+            if (payload.brand) $('brand').value = payload.brand;
+            if (payload.topic) $('topic').value = payload.topic;
+            if (payload.target) $('target').value = payload.target;
+            render(data);
+            return;
+          }
+        } catch {}
+        // No saved report for this tool — but if LLM Access Check ran one
+        // recently, prefill the URL so it's one click, not a retype.
+        try {
+          const lastUrl = sessionStorage.getItem(SS_URL);
+          if (lastUrl && $('url') && !$('url').value) $('url').value = lastUrl;
+        } catch {}
+      })();
 
       // ---- service capability probe (silent) — feeds SVC for internal gating
       // (e.g. whether to show the "Verify in real engines" button). No banner is

@@ -307,7 +307,7 @@ const accountsDown = !dbEnabled;
             // Session expired / never signed in — prompt to sign in and retry.
             if (d.requireAuth && window.CRAuth) { $('info').style.display = 'none'; window.CRAuth.requireAuth(run); return; }
             showErr(d.error || 'Something went wrong.');
-          } else renderResult(d);
+          } else { renderResult(d); saveCheckState(payload, d); }
         } catch (e) { showErr('Network error: ' + (e && e.message ? e.message : e)); }
         finally { $('info').style.display = 'none'; btn.disabled = false; btn.innerHTML = IC.eye + 'Check access'; }
       }
@@ -315,7 +315,48 @@ const accountsDown = !dbEnabled;
       function goClicked() { if (window.CRAuth) window.CRAuth.requireAuth(run); else run(); }
       $('go').addEventListener('click', goClicked);
       $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') goClicked(); });
-    
+
+      // ---- Remember the last check within this browser tab ----
+      // Two problems this fixes: (1) hitting the browser Back button after
+      // navigating away used to land on a blank form — the report was gone,
+      // even though nothing failed, just because nothing was ever saved
+      // anywhere. (2) switching to Full AEO Audit for the same URL meant
+      // retyping it. sessionStorage (not localStorage — this is meant to
+      // last one browsing session, not forever) fixes both: the full last
+      // report is restored instantly with no new fetch or charge if you
+      // come back to THIS tool, and just the URL is carried over if you
+      // switch to the OTHER one.
+      const SS_STATE = 'aipa:lastCheck';
+      const SS_URL = 'aipa:lastUrl';
+      function saveCheckState(payload, data) {
+        try {
+          sessionStorage.setItem(SS_STATE, JSON.stringify({ payload, data }));
+          if (payload.url) sessionStorage.setItem(SS_URL, payload.url);
+        } catch {}
+      }
+      (function restoreCheckState() {
+        try {
+          const saved = sessionStorage.getItem(SS_STATE);
+          if (saved) {
+            const { payload, data } = JSON.parse(saved);
+            if (payload.url) { $('url').value = payload.url; }
+            else if (payload.html) {
+              pasteMode = true;
+              $('pastewrap').style.display = 'block';
+              $('pastetoggle').textContent = 'use a URL instead';
+              $('html').value = payload.html;
+            }
+            renderResult(data);
+            return;
+          }
+        } catch {}
+        // No saved report for this tool — but if the OTHER tool ran a check
+        // recently, prefill the URL so it's one click, not a retype.
+        try {
+          const lastUrl = sessionStorage.getItem(SS_URL);
+          if (lastUrl && $('url') && !$('url').value) $('url').value = lastUrl;
+        } catch {}
+      })();
   </script>
 
   <style is:global>
