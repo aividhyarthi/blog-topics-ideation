@@ -1,7 +1,7 @@
 ---
 // Public marketing homepage. Deliberately NOT gated — the tool itself lives at
-// /check behind login, but a locked front door made the product look broken to
-// anyone arriving cold.
+// /check and /audit behind login, but a locked front door made the product
+// look broken to anyone arriving cold.
 import Site from '../layouts/Site.astro';
 
 const origin = new URL(Astro.request.url).origin;
@@ -13,7 +13,7 @@ const homeSchema = {
   operatingSystem: 'Web',
   url: origin,
   description:
-    'Fetches your pages as Googlebot, GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot, then reports exactly what each crawler can and cannot read.',
+    'Fetches your pages as Googlebot, GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot, then scores exactly what each crawler can and cannot read, with ranked fixes.',
   offers: {
     '@type': 'Offer',
     price: '0',
@@ -22,39 +22,38 @@ const homeSchema = {
   },
 };
 
-// An illustrative result, clearly labelled as one on the page. The shape is the
-// common real-world failure: Google renders the JavaScript and sees everything,
-// the answer engines fetch raw HTML and see a shell, and one is blocked outright
-// at the CDN.
-const crawlers = [
-  { name: 'Googlebot', note: 'renders JavaScript', pct: 100 },
-  { name: 'Bingbot', note: 'renders JavaScript', pct: 96 },
-  { name: 'OAI-SearchBot', note: 'raw HTML only', pct: 22 },
-  { name: 'GPTBot', note: 'raw HTML only', pct: 22 },
-  { name: 'ClaudeBot', note: 'raw HTML only', pct: 19 },
-  { name: 'PerplexityBot', note: 'blocked at the CDN', pct: 0 },
+// Illustrative example — clearly labelled as one on the page, not live data.
+// The pillar names and shape match the real checklist-driven score exactly.
+const pillars = [
+  { label: 'Answerability', score: 88 },
+  { label: 'Entity Clarity', score: 74 },
+  { label: 'Attribution & Trust', score: 61 },
+  { label: 'Structural Readability', score: 45 },
+];
+const checks = [
+  { label: 'Structured data (schema)', status: 'pass' },
+  { label: 'Headings phrased as real questions', status: 'warn' },
+  { label: 'Published and updated dates in markup', status: 'fail' },
+  { label: 'Navigation readable without JavaScript', status: 'pass' },
+];
+const STATUS_LABEL: Record<string, string> = { pass: 'Pass', warn: 'Fix', fail: 'Fix' };
+
+const tools = [
+  { icon: '🔎', h: 'LLM Access Check', p: 'Fetch any URL as Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI, desktop and mobile — see exactly what each one can and can’t read, element by element.', href: '/check' },
+  { icon: '📊', h: 'Full AEO Audit', p: 'A weighted score built from the same checklist across every tab — content, indexability, keyword match — with ranked, page-specific fixes, not a generic checklist.', href: '/audit' },
+  { icon: '📋', h: 'The AEO Checklist', p: 'Every check we run, and why it affects whether an AI engine cites the page — published openly so you know exactly what "the score" means.', href: '/checklist' },
 ];
 
-
-
-const features = [
-  { icon: '🔎', h: 'LLM Access Check', p: 'Fetch any URL as Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI — and see exactly what each crawler can and can’t read, from navigation to footer.' },
-  { icon: '🧩', h: 'Per-crawler tabs', p: 'A dedicated tab for every AI bot, run on demand with smart pacing so you get clean results without tripping the site’s rate-limiter.' },
-  { icon: '📄', h: 'Content extraction', p: 'Pulls the real data an LLM reads — title, rating, reviews, ingredients, specs, FAQs — and flags what’s declared vs actually in the HTML.' },
-  { icon: '🛒', h: 'Page-type aware', p: 'Detects article, product or listing — and the vertical (beauty, electronics, fashion, automotive) — then runs the right checks for that page.' },
-  { icon: '⚡', h: 'JavaScript & render analysis', p: 'Spots content injected by JavaScript, lazy-loaded media, tabs and “read more” that AI crawlers never see — the #1 hidden reason pages don’t get cited.' },
-  { icon: '🚧', h: 'Content-gap finder', p: 'Surfaces the missing pieces — no FAQ, no schema, thin sections, blocked crawlers — that competitors and AI answers exploit.' },
-  { icon: '📊', h: 'Full AEO audit', p: 'A weighted, category-specific score across six pillars with ranked, page-specific fixes and per-engine citation likelihood.' },
-  { icon: '📁', h: 'Reports & history', p: 'Save every audit to your account, export to PDF or copy as Markdown, and track how your AI visibility changes over time.' },
+const faqs = [
+  { q: 'Why would a page rank on Google but never get cited by ChatGPT?', a: 'Googlebot renders JavaScript. GPTBot, ClaudeBot and PerplexityBot mostly don’t — they read the raw HTML response. Content injected by JavaScript is invisible to them even though Google sees it fine.' },
+  { q: 'What does the AEO score actually measure?', a: 'Every pillar score is built from the same named checklist shown on the report’s Content, Indexability and Keywords tabs — not a separate black-box number. See the full checklist at /checklist.' },
+  { q: 'Do I need to install anything on my site?', a: 'No. Paste a URL and we fetch it the same way the crawlers do. Nothing to install, no tag, no waiting for a crawl.' },
 ];
-
-const tone = (p: number) => (p >= 80 ? 'ok' : p >= 40 ? 'warn' : 'bad');
-const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial' : p === 0 ? 'No access' : 'Near-empty');
 ---
 <Site
   schema={homeSchema}
   title="AI Page Audit — see your site the way AI answer engines see it"
-  description="Fetch any page as Googlebot, ChatGPT, Perplexity and Claude, and see exactly what each AI crawler can and cannot read. First check free."
+  description="Fetch any page as Googlebot, ChatGPT, Perplexity and Claude, and see exactly what each AI crawler can and cannot read — then get a ranked, checklist-backed score. First check free."
 >
   <!-- ── hero ───────────────────────────────────────────────── -->
   <section class="hero">
@@ -65,44 +64,135 @@ const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial'
         <p>
           Google renders your JavaScript. ChatGPT, Perplexity and Claude don’t —
           they read raw HTML. A page can rank beautifully and still be invisible
-          to every AI answer at the same time. We show you which, and why.
+          to every AI answer at the same time. We show you which, and why —
+          then exactly what to fix, ranked by impact.
         </p>
         <div class="herocta">
-          <button class="btn-primary lg" id="cta-signup">Sign up free</button>
+          <button class="btn-primary lg" id="cta-signup">Start free — no card required</button>
           <button class="btn-ghost lg" id="cta-login">Log in</button>
         </div>
-        <p class="herofine">Your first check is free · No card required</p>
+        <p class="herofine">Your first check is free · Results in ~20 seconds</p>
       </div>
 
-      <!-- Product-output preview. One measure (share of page content the
-           crawler actually received) across six named crawlers. -->
-      <figure class="chartcard">
-        <figcaption>
-          <b>What each crawler can read</b>
-          <span>Example result · share of page content received</span>
-        </figcaption>
-        <div class="bars">
-          {crawlers.map((c) => (
-            <div class="barrow">
-              <div class="b-head">
-                <span class="b-name">{c.name}</span>
-                <span class="b-note">{c.note}</span>
-              </div>
-              <div class="b-track">
-                <div class={`b-fill ${tone(c.pct)}`} style={`width:${Math.max(c.pct, 1.5)}%`}></div>
-              </div>
-              <div class="b-val">
-                <b>{c.pct}%</b>
-                <span class={`b-tag ${tone(c.pct)}`}>{verdict(c.pct)}</span>
-              </div>
+      <!-- Product-output preview. Clearly labelled illustrative example —
+           the pillar names and check labels are the real ones, the numbers
+           are not live data. -->
+      <div class="dashcard">
+        <div class="dashcard-head">
+          <span class="dashtag">Example report</span>
+          <span class="dashurl">yoursite.com/blog/your-article</span>
+        </div>
+        <div class="dashstats">
+          <div class="dashstat">
+            <span class="ds-n">83<small>%</small></span>
+            <span class="ds-l">AEO score</span>
+          </div>
+          <div class="dashstat">
+            <span class="ds-n">24<small>/31</small></span>
+            <span class="ds-l">Checks passed</span>
+          </div>
+          <div class="dashstat">
+            <span class="ds-n">3<small>/4</small></span>
+            <span class="ds-l">Engines likely to cite</span>
+          </div>
+        </div>
+        <div class="dashpillars">
+          {pillars.map((p) => (
+            <div class="dp-row">
+              <span class="dp-l">{p.label}</span>
+              <div class="dp-track"><i style={`width:${p.score}%`}></i></div>
+              <span class="dp-v">{p.score}</span>
             </div>
           ))}
         </div>
-      </figure>
+        <div class="dashchecks">
+          {checks.map((c) => (
+            <div class={`dc-row dc-${c.status}`}>
+              <span class="dc-dot"></span>
+              <span class="dc-l">{c.label}</span>
+              <span class="dc-tag">{STATUS_LABEL[c.status]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   </section>
 
-  <!-- ── how it works (our product, not someone else's research) ── -->
+  <!-- ── two tools, one subscription ───────────────────────── -->
+  <section class="tools" id="features">
+    <div class="wrap">
+      <div class="sec-eyebrow">One subscription</div>
+      <h2 class="sec-h2">Two tools that answer different questions</h2>
+      <p class="sec-sub">
+        "Can a crawler reach this page at all" and "how good is this page for an
+        AI answer" are different questions with different fixes. Both are one
+        login away.
+      </p>
+      <div class="tgrid">
+        {tools.map((t) => (
+          <a class="tcard" href={t.href}>
+            <div class="t-ico" aria-hidden="true">{t.icon}</div>
+            <h3>{t.h}</h3>
+            <p>{t.p}</p>
+            <span class="t-go">Open {t.h} →</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── element-by-element visibility ─────────────────────── -->
+  <section class="split">
+    <div class="wrap splitgrid">
+      <div>
+        <div class="sec-eyebrow">Not a black box</div>
+        <h2 class="sec-h2 left">See exactly what each crawler reads</h2>
+        <p class="sec-sub left">
+          Header, navigation, main content, footer, images, schema — each one
+          checked separately, by page region and by content type. If your nav
+          is JavaScript-rendered and invisible to GPTBot, that's the line that
+          tells you, not a vague overall score.
+        </p>
+        <ul class="checklist-mini">
+          <li>{'✓'} Region-by-region: header, nav, main content, footer</li>
+          <li>{'✓'} Content-type: title, headings, images, structured data</li>
+          <li>{'✓'} Desktop vs mobile, and a live check per named engine</li>
+        </ul>
+      </div>
+      <div class="visdemo">
+        <div class="vd-row vd-pass"><span class="vd-dot"></span><div><b>Main content</b><span>Readable in the static HTML (about 1,490 words).</span></div></div>
+        <div class="vd-row vd-fail"><span class="vd-dot"></span><div><b>Navigation</b><span>Rendered by JavaScript — empty in the static HTML LLM crawlers fetch.</span></div></div>
+        <div class="vd-row vd-pass"><span class="vd-dot"></span><div><b>Structured data (schema)</b><span>JSON-LD present: Organization, WebSite, Article.</span></div></div>
+        <div class="vd-row vd-warn"><span class="vd-dot"></span><div><b>Images (14)</b><span>9/14 images have alt text — the rest are invisible to LLMs.</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── explainable fixes ──────────────────────────────────── -->
+  <section class="split alt">
+    <div class="wrap splitgrid rev">
+      <div class="fixdemo">
+        <div class="fx-card">
+          <b>Published and updated dates in markup</b>
+          <p>No published or modified date in the markup.</p>
+          <div class="fx-fix"><b>Fix:</b> Add datePublished and dateModified to your Article/Product schema.</div>
+          <p class="fx-why">Answer engines prefer sources they can date, and heavily discount undated pages on anything time-sensitive.</p>
+        </div>
+      </div>
+      <div>
+        <div class="sec-eyebrow">Every check explains itself</div>
+        <h2 class="sec-h2 left">Know why a fix matters, not just that it's broken</h2>
+        <p class="sec-sub left">
+          Every failed check comes with a plain-English reason it affects AI
+          citation, and a concrete fix — not "structured data: 45/100" with no
+          idea what to actually change.
+        </p>
+        <a class="inline-link" href="/checklist">See the full checklist and why each check matters →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── how it works ───────────────────────────────────────── -->
   <section class="how">
     <div class="wrap">
       <div class="sec-eyebrow">How it works</div>
@@ -128,22 +218,37 @@ const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial'
     </div>
   </section>
 
-  <!-- ── features ───────────────────────────────────────────── -->
-  <section class="features" id="features">
+  <!-- ── go deeper (real resources, not fabricated posts) ──── -->
+  <section class="resources">
     <div class="wrap">
-      <div class="sec-eyebrow">Everything in one platform</div>
-      <h2 class="sec-h2">The complete AEO / GEO toolkit</h2>
-      <p class="sec-sub">
-        Traditional SEO tools tell you how Google sees your site. AI Page Audit
-        tells you how AI answer engines see it — the new front page of search.
-      </p>
-      <div class="fgrid">
-        {features.map((f) => (
-          <div class="fcard">
-            <div class="f-ico" aria-hidden="true">{f.icon}</div>
-            <h3>{f.h}</h3>
-            <p>{f.p}</p>
-          </div>
+      <div class="sec-eyebrow">Go deeper</div>
+      <h2 class="sec-h2">Understand the "why" before you run a check</h2>
+      <div class="rgrid">
+        <a class="rcard" href="/checklist">
+          <h3>The full AEO checklist</h3>
+          <p>Every check the tool runs, grouped by page type and vertical, with the reasoning behind each one.</p>
+          <span class="t-go">Browse the checklist →</span>
+        </a>
+        <a class="rcard" href="/glossary">
+          <h3>AEO / GEO glossary</h3>
+          <p>Plain-English definitions for the terms that come up in every report — answerability, entity clarity, citation likelihood and more.</p>
+          <span class="t-go">Read the glossary →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── faq ─────────────────────────────────────────────────── -->
+  <section class="faq">
+    <div class="wrap">
+      <div class="sec-eyebrow">Questions</div>
+      <h2 class="sec-h2">Before you run your first check</h2>
+      <div class="faqlist">
+        {faqs.map((f) => (
+          <details class="faqitem">
+            <summary>{f.q}</summary>
+            <p>{f.a}</p>
+          </details>
         ))}
       </div>
     </div>
@@ -155,7 +260,7 @@ const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial'
       <h2>Find out what AI can actually read on your site</h2>
       <p>One check takes about 20 seconds. The first one is on us.</p>
       <div class="herocta center">
-        <button class="btn-primary lg" id="cta-signup2">Sign up free</button>
+        <button class="btn-primary lg" id="cta-signup2">Start free — no card required</button>
         <a href="/pricing" class="btn-ghost lg">See pricing</a>
       </div>
     </div>
@@ -182,9 +287,7 @@ const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial'
     /* ---- hero ---- */
     .hero {
       border-bottom: 1px solid var(--line);
-      background:
-        radial-gradient(900px 400px at 12% -20%, rgba(8, 145, 178, .13), transparent 62%),
-        radial-gradient(700px 340px at 92% 0%, rgba(2, 132, 199, .10), transparent 60%);
+      background: #fafafa;
     }
     .herogrid {
       display: grid; grid-template-columns: 1.05fr .95fr; gap: 54px;
@@ -198,34 +301,77 @@ const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial'
     .btn-primary.lg, .btn-ghost.lg { padding: 14px 26px; font-size: 15px; border-radius: 11px; }
     .herofine { margin: 16px 0 0; font-size: 13px; color: var(--faint); }
 
-    /* ---- shared chart card ---- */
-    .chartcard {
-      margin: 0; background: var(--card); border: 1px solid var(--line);
-      border-radius: 16px; padding: 22px 24px 20px; box-shadow: var(--shadow-lg);
+    /* ---- hero dashboard mockup ---- */
+    .dashcard {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 16px; padding: 20px 22px 22px; box-shadow: var(--shadow-lg);
     }
-    .chartcard figcaption { display: grid; gap: 3px; margin-bottom: 20px; }
-    .chartcard figcaption b { font-size: 15px; font-weight: 800; letter-spacing: -.015em; }
-    .chartcard figcaption span { font-size: 12.5px; color: var(--faint); }
+    .dashcard-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+    .dashtag { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); background: #f4f4f5; border: 1px solid var(--line-2); padding: 3px 9px; border-radius: 999px; }
+    .dashurl { font-size: 11.5px; color: var(--faint); font-family: ui-monospace, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dashstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+    .dashstat { border: 1px solid var(--line); border-radius: 11px; padding: 10px 6px; text-align: center; background: #fafafa; }
+    .ds-n { display: block; font-size: 21px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+    .ds-n small { font-size: 12px; font-weight: 700; color: var(--faint); }
+    .ds-l { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+    .dashpillars { display: grid; gap: 8px; margin-bottom: 16px; }
+    .dp-row { display: grid; grid-template-columns: 1fr 2fr auto; align-items: center; gap: 8px; }
+    .dp-l { font-size: 11.5px; font-weight: 600; color: var(--ink-2); }
+    .dp-track { height: 6px; border-radius: 999px; background: #eef0f5; overflow: hidden; }
+    .dp-track i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+    .dp-v { font-size: 11px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .dashchecks { display: grid; gap: 7px; padding-top: 14px; border-top: 1px solid var(--line); }
+    .dc-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .dc-dot { width: 7px; height: 7px; border-radius: 999px; flex: none; }
+    .dc-pass .dc-dot { background: var(--ok); }
+    .dc-warn .dc-dot { background: var(--warn); }
+    .dc-fail .dc-dot { background: var(--bad); }
+    .dc-l { flex: 1; color: var(--ink-2); }
+    .dc-tag { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+    .dc-pass .dc-tag { background: var(--ok-bg); color: var(--ok); }
+    .dc-warn .dc-tag, .dc-fail .dc-tag { background: var(--bad-bg); color: var(--bad); }
 
-    .bars { display: grid; gap: 15px; }
-    .barrow { display: grid; grid-template-columns: 1fr; gap: 6px; }
-    .b-head { display: flex; align-items: baseline; gap: 8px; }
-    .b-name { font-size: 13.5px; font-weight: 700; color: var(--ink); }
-    .b-note { font-size: 11.5px; color: var(--faint); }
-    /* Recessive track; the fill carries the signal. */
-    .b-track { height: 9px; border-radius: 999px; background: #eef1f6; overflow: hidden; }
-    .b-fill { height: 100%; border-radius: 999px; min-width: 3px; }
-    .b-fill.ok { background: var(--ok); }
-    .b-fill.warn { background: var(--warn); }
-    .b-fill.bad { background: var(--bad); }
-    .b-fill.solo { background: var(--accent); }
-    .b-val { display: flex; align-items: center; gap: 9px; }
-    .b-val b { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); }
-    /* State is named in words, never colour alone. */
-    .b-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
-    .b-tag.ok { background: var(--ok-bg); color: var(--ok); }
-    .b-tag.warn { background: var(--warn-bg); color: var(--warn); }
-    .b-tag.bad { background: var(--bad-bg); color: var(--bad); }
+    /* ---- two tools ---- */
+    .tools { border-top: 1px solid var(--line); background: #fff; padding: 66px 0 74px; }
+    .sec-eyebrow { text-align: center; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
+    .sec-h2 { text-align: center; font-size: 31px; font-weight: 800; letter-spacing: -.03em; margin: 0 0 12px; }
+    .sec-h2.left { text-align: left; }
+    .sec-sub { text-align: center; font-size: 16px; color: var(--muted); max-width: 62ch; margin: 0 auto 42px; line-height: 1.6; }
+    .sec-sub.left { text-align: left; margin: 0 0 20px; }
+    .tgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .tcard { display: block; border: 1px solid var(--line); border-radius: 14px; padding: 24px 22px; background: var(--card); text-decoration: none; transition: border-color .15s, transform .15s, box-shadow .15s; }
+    .tcard:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
+    .t-ico { font-size: 23px; margin-bottom: 12px; }
+    .tcard h3 { margin: 0 0 8px; font-size: 16px; font-weight: 800; letter-spacing: -.015em; color: var(--ink); }
+    .tcard p { margin: 0 0 14px; font-size: 13.5px; color: var(--muted); line-height: 1.62; }
+    .t-go { font-size: 12.5px; font-weight: 700; color: var(--accent); }
+
+    /* ---- split sections (visibility demo / fix demo) ---- */
+    .split { border-top: 1px solid var(--line); background: #fff; padding: 66px 0; }
+    .split.alt { background: #fafafa; }
+    .splitgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 50px; align-items: center; }
+    .splitgrid.rev { grid-template-columns: 1fr 1fr; }
+    .splitgrid.rev > div:first-child { order: 2; }
+    .checklist-mini { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+    .checklist-mini li { font-size: 14px; color: var(--ink-2); }
+    .inline-link { display: inline-block; margin-top: 4px; font-size: 13.5px; font-weight: 700; color: var(--accent); text-decoration: none; }
+    .inline-link:hover { text-decoration: underline; }
+
+    .visdemo { border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow); padding: 8px; display: grid; gap: 2px; }
+    .vd-row { display: flex; gap: 10px; align-items: flex-start; padding: 12px 12px; border-radius: 10px; }
+    .vd-dot { width: 8px; height: 8px; border-radius: 999px; margin-top: 5px; flex: none; }
+    .vd-pass .vd-dot { background: var(--ok); }
+    .vd-warn .vd-dot { background: var(--warn); }
+    .vd-fail .vd-dot { background: var(--bad); }
+    .vd-row b { display: block; font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+    .vd-row span { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+    .fixdemo { display: flex; justify-content: center; }
+    .fx-card { max-width: 380px; border: 1px solid var(--line); border-left: 3px solid var(--bad); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 18px 20px; }
+    .fx-card > b { display: block; font-size: 14.5px; font-weight: 800; color: var(--ink); margin-bottom: 6px; }
+    .fx-card > p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+    .fx-fix { background: var(--ok-bg); color: var(--ok); border-radius: 9px; padding: 9px 12px; font-size: 12.5px; margin-bottom: 10px; }
+    .fx-why { margin: 0; font-size: 11.5px; color: var(--faint); line-height: 1.55; }
 
     /* ---- how it works ---- */
     .how { background: #fff; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 66px 0 72px; }
@@ -240,36 +386,47 @@ const verdict = (p: number) => (p >= 80 ? 'Reads the page' : p >= 40 ? 'Partial'
     .step h3 { margin: 8px 0 8px; font-size: 16.5px; font-weight: 800; letter-spacing: -.02em; }
     .step p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.65; }
 
-    /* ---- features ---- */
-    .features { border-top: 1px solid var(--line); background: #fff; padding: 66px 0 74px; }
-    .sec-eyebrow { text-align: center; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
-    .sec-h2 { text-align: center; font-size: 31px; font-weight: 800; letter-spacing: -.03em; margin: 0 0 12px; }
-    .sec-sub { text-align: center; font-size: 16px; color: var(--muted); max-width: 62ch; margin: 0 auto 42px; line-height: 1.6; }
-    .fgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
-    .fcard { border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; background: var(--card); transition: border-color .15s, transform .15s, box-shadow .15s; }
-    .fcard:hover { border-color: var(--accent-line); transform: translateY(-2px); box-shadow: var(--shadow); }
-    .f-ico { font-size: 21px; margin-bottom: 12px; }
-    .fcard h3 { margin: 0 0 7px; font-size: 15px; font-weight: 800; letter-spacing: -.015em; }
-    .fcard p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.62; }
+    /* ---- resources ---- */
+    .resources { border-top: 1px solid var(--line); background: #fafafa; padding: 66px 0 70px; }
+    .rgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; max-width: 760px; margin: 0 auto; }
+    .rcard { display: block; border: 1px solid var(--line); border-radius: 14px; padding: 22px 22px; background: var(--card); text-decoration: none; transition: border-color .15s, transform .15s; }
+    .rcard:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .rcard h3 { margin: 0 0 8px; font-size: 15.5px; font-weight: 800; color: var(--ink); }
+    .rcard p { margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ---- faq ---- */
+    .faq { border-top: 1px solid var(--line); background: #fff; padding: 66px 0 72px; }
+    .faqlist { max-width: 720px; margin: 0 auto; display: grid; gap: 10px; }
+    .faqitem { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: var(--card); }
+    .faqitem summary { cursor: pointer; font-size: 14.5px; font-weight: 700; color: var(--ink); list-style: none; }
+    .faqitem summary::-webkit-details-marker { display: none; }
+    .faqitem summary::before { content: '+'; display: inline-block; width: 16px; font-weight: 800; color: var(--accent); }
+    .faqitem[open] summary::before { content: '\2212'; }
+    .faqitem p { margin: 10px 0 0 16px; font-size: 13.5px; color: var(--muted); line-height: 1.65; }
 
     /* ---- closing CTA ---- */
-    .endcta { padding: 66px 0 78px; text-align: center; border-top: 1px solid var(--line); background: var(--accent-soft); }
-    .endcta h2 { margin: 0 0 10px; font-size: 29px; font-weight: 800; letter-spacing: -.03em; }
-    .endcta p { margin: 0 0 24px; font-size: 16px; color: var(--ink-2); }
+    .endcta { padding: 66px 0 78px; text-align: center; border-top: 1px solid var(--line); background: var(--ink-900); }
+    .endcta h2 { margin: 0 0 10px; font-size: 29px; font-weight: 800; letter-spacing: -.03em; color: #fff; }
+    .endcta p { margin: 0 0 24px; font-size: 16px; color: #cbd5e1; }
+    .endcta .btn-ghost.lg { background: transparent; border-color: rgba(255,255,255,.25); color: #fff; }
+    .endcta .btn-ghost.lg:hover { border-color: #fff; color: #fff; }
 
     /* ---- responsive ---- */
     @media (max-width: 980px) {
       .herogrid { grid-template-columns: 1fr; gap: 38px; }
       .steps { grid-template-columns: 1fr; gap: 26px; }
       .herocopy h1 { font-size: 38px; }
-      .fgrid { grid-template-columns: repeat(2, 1fr); }
+      .tgrid { grid-template-columns: 1fr; }
+      .splitgrid, .splitgrid.rev { grid-template-columns: 1fr; gap: 28px; }
+      .splitgrid.rev > div:first-child { order: 0; }
+      .rgrid { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
       .herogrid { padding: 44px 24px 50px; }
       .herocopy h1 { font-size: 31px; }
-      .fgrid { grid-template-columns: 1fr; }
       .sec-h2, .endcta h2 { font-size: 24px; }
-      .chartcard { padding: 18px 16px 16px; }
+      .dashcard { padding: 16px 16px 18px; }
+      .dashstats { gap: 7px; }
     }
   </style>
 </Site>
