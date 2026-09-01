@@ -364,7 +364,7 @@ import App from '../layouts/App.astro';
         const labels = pillars.map((p, i) => {
           const [lx, ly] = pt(i, 1.22);
           const short = (PILLAR_SHORT[p.id] || p.label) + (p.measured === false ? '*' : '');
-          return `<text x="${lx.toFixed(1)}" y="${(ly + DY[i]).toFixed(1)}" text-anchor="${ANCHOR[i]}">${esc(short)}</text>`;
+          return `<text x="${lx.toFixed(1)}" y="${(ly + DY[i]).toFixed(1)}" text-anchor="${ANCHOR[i]}">${esc(short)}${p.purpose ? `<title>${esc(p.label)} — ${esc(p.purpose)}</title>` : ''}</text>`;
         }).join('');
         const spokes = pillars.map((_, i) => { const [x, y] = pt(i, 1); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`; }).join('');
         const dots = dataPts.map(([x, y], i) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="var(--accent)"${pillars[i].measured === false ? ' opacity=".4"' : ''}/>`).join('');
@@ -590,12 +590,10 @@ import App from '../layouts/App.astro';
         </div>` : '';
 
         const engineMeta = [['chatgpt', 'ChatGPT', '#10a37f'], ['gemini', 'Gemini', '#4285f4'], ['perplexity', 'Perplexity', '#20808d'], ['aiOverviews', 'AI Overviews', '#a855f7']];
-        const enginesPanel = r.engines ? sec(IC.engine, 'Likelihood by engine', 'estimated chance each engine cites this page') + `
-          <div class="engcards">${engineMeta.map(([k, label, brand]) => {
-            const s = typeof r.engines[k] === 'number' ? r.engines[k] : 0; const col = hexFor(s);
-            return `<div class="engcard" style="--e:${brand}"><div class="en"><span class="swatch"></span>${label}</div><div class="es" style="color:${col}">${s}<small>%</small></div><div class="ebar"><i style="width:${s}%;background:${col}"></i></div></div>`;
-          }).join('')}</div>` : '';
-        // Compact version of the same data for the Overview tab.
+        // Shown once, on Overview — used to also have a second, bigger-card
+        // rendering here for the All-checks tab, which was the exact kind of
+        // "same info in two tabs" redundancy that made the report feel like
+        // disconnected views instead of one report.
         const miniEngines = r.engines ? engineMeta.map(([k, label, brand]) => {
           const s = typeof r.engines[k] === 'number' ? r.engines[k] : 0;
           return `<div class="mineng"><span class="me-name">${label}</span><div class="me-track"><div class="me-fill" style="width:${s}%;background:${brand}"></div></div><span class="me-val" style="color:${brand}">${s}%</span></div>`;
@@ -700,7 +698,7 @@ import App from '../layouts/App.astro';
         // ---- Radar + legend + trend for the Overview tab ----
         const radarSvg = buildRadar(r.pillars);
         const sortedPillars = [...r.pillars].sort((a, b) => (b.measured !== false ? b.score : -1) - (a.measured !== false ? a.score : -1));
-        const legendHtml = sortedPillars.map((p) => `<div class="rl-row${p.measured === false ? ' dim' : ''}"><span class="rl-dot"></span><span class="name">${esc(p.label)}</span><span class="val">${p.measured === false ? '—' : p.score}</span></div>`).join('');
+        const legendHtml = sortedPillars.map((p) => `<div class="rl-row${p.measured === false ? ' dim' : ''}" title="${esc(p.purpose || '')}"><span class="rl-dot"></span><span class="name">${esc(p.label)}</span><span class="val">${p.measured === false ? '—' : p.score}</span></div>`).join('');
         const trendHtml = buildTrend(history);
 
         root.innerHTML = `
@@ -719,8 +717,8 @@ import App from '../layouts/App.astro';
             <div class="reptab" data-tab="content">Content${contentIssueN ? ` <span class="repcnt bad">${contentIssueN}</span>` : ''}</div>
             <div class="reptab" data-tab="indexability">Indexability${indexIssueN ? ` <span class="repcnt bad">${indexIssueN}</span>` : ''}</div>
             <div class="reptab" data-tab="keywords">Keywords${kwIssueN ? ` <span class="repcnt bad">${kwIssueN}</span>` : ''}</div>
-            <div class="reptab" data-tab="details">Details</div>
-            <div class="reptab" data-tab="verify">Verify</div>
+            <div class="reptab" data-tab="details">All checks</div>
+            <div class="reptab" data-tab="verify">Verify live</div>
           </div>
 
           <div class="tabbody">
@@ -765,7 +763,7 @@ import App from '../layouts/App.astro';
 
             <div class="tabpane" data-pane="details" hidden>
               <div class="card">
-                <p class="hint" style="margin:0;">The technical scoring behind the summary above — useful if you want to see exactly how the ${r.overall}% was calculated, not necessary to fix anything.</p>
+                <p class="hint" style="margin:0;">Every check we ran, organized by scoring pillar (Answerability, Entity Clarity, …) instead of by Content/Indexability/Keywords — the same underlying checks, shown unfiltered and grouped by how the ${r.overall}% was actually calculated. For what to fix, use the Content/Indexability/Keywords tabs — they show the same checks as a ranked issue list instead.</p>
               </div>
               ${detectedAsCard ? `<div style="margin-top:14px;">${detectedAsCard}</div>` : ''}
               <div class="card" style="margin-top:14px;">
@@ -773,7 +771,6 @@ import App from '../layouts/App.astro';
                 <div class="gauges">${gauges}</div>
               </div>
               <div style="margin-top:14px;">${breakdown}</div>
-              ${enginesPanel ? `<div style="margin-top:14px;">${enginesPanel}</div>` : ''}
               ${domainPanel ? `<div style="margin-top:14px;">${domainPanel}</div>` : ''}
             </div>
 
@@ -1333,7 +1330,8 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .rl-row { display: flex; align-items: center; gap: 8px; }
 .rl-row.dim { opacity: .55; }
 .rl-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-.rl-row .name { flex: 1; color: var(--ink-2); font-weight: 600; }
+.rl-row { cursor: help; }
+.rl-row .name { flex: 1; color: var(--ink-2); font-weight: 600; border-bottom: 1px dotted var(--faint); }
 .rl-row .val { font-weight: 800; font-variant-numeric: tabular-nums; }
 .trend-empty { display: flex; align-items: center; gap: 12px; padding: 6px 2px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .trend-empty svg { width: 30px; height: 30px; flex-shrink: 0; opacity: .5; }
@@ -1408,17 +1406,6 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .sectitle .stx { display: flex; flex-direction: column; }
 .sectitle .stx b { font-size: 14.5px; font-weight: 700; letter-spacing: -.01em; }
 .sectitle .stx span { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 1px; }
-/* ---- per-engine cards ---- */
-      .engcards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; }
-@media (max-width: 680px) { .engcards { grid-template-columns: 1fr 1fr; } }
-.engcard { position: relative; border: 1px solid var(--line); border-radius: 15px; padding: 15px 16px 16px; background: #fff; box-shadow: var(--shadow); overflow: hidden; }
-.engcard::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--e); }
-.engcard .en { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
-.engcard .en .swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--e); }
-.engcard .es { font-size: 30px; font-weight: 800; letter-spacing: -.03em; margin: 8px 0 9px; line-height: 1; }
-.engcard .es small { font-size: 15px; font-weight: 700; opacity: .55; }
-.engcard .ebar { height: 6px; border-radius: 999px; background: #edeef4; overflow: hidden; }
-.engcard .ebar > i { display: block; height: 100%; border-radius: 999px; }
 /* ---- Client (agency) checklist banner ---- */
       .clientbanner { display: flex; gap: 12px; align-items: flex-start; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 14px; padding: 14px 16px; margin-bottom: 4px; font-size: 13px; color: #3730a3; line-height: 1.55; }
 .clientbanner svg { width: 20px; height: 20px; flex-shrink: 0; color: #4338ca; margin-top: 1px; }
