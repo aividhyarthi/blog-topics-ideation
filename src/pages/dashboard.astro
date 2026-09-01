@@ -68,13 +68,14 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
           ) : (
             <div class="alist">
               {audits.map((a) => (
-                <div class="arow">
+                <a class="arow" href={`/audit?view=${a.id}`} title="View this saved report — no new check, nothing charged">
                   <span class="ascore" style={`color:${hexFor(a.overall)}`}>{a.overall == null ? '–' : a.overall}</span>
                   <div class="abody">
                     <div class="ahost">{a.host || a.url || 'Pasted content'}</div>
                     <div class="ameta">{a.pageType || ''}{a.grade ? ` · ${a.grade}` : ''}{a.createdAt ? ` · ${new Date(a.createdAt).toLocaleDateString()}` : ''}</div>
                   </div>
-                </div>
+                  <span class="arow-go">View →</span>
+                </a>
               ))}
             </div>
           )}
@@ -130,10 +131,13 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
     .dcard-head a { font-size: 13px; font-weight: 700; }
     .empty { font-size: 13.5px; color: var(--muted); margin: 0; }
     .alist { display: grid; gap: 8px; }
-    .arow { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; }
+    .arow { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; text-decoration: none; color: inherit; transition: border-color .15s, background .15s; }
+    .arow:hover { border-color: var(--accent); background: #fafafa; }
+    .arow:hover .arow-go { color: var(--accent); text-decoration: underline; }
     .ascore { font-weight: 800; font-size: 16px; min-width: 34px; text-align: center; }
-    .ahost { font-size: 13.5px; font-weight: 600; }
+    .ahost { font-size: 13.5px; font-weight: 600; color: var(--ink); }
     .ameta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .arow-go { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
     .dash-side { display: grid; gap: 18px; }
     .side-head { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 12px; }
     .side-link { display: block; font-size: 13.5px; font-weight: 600; padding: 9px 0; border-top: 1px solid var(--line); }

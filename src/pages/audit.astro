@@ -1067,7 +1067,26 @@ import App from '../layouts/App.astro';
           if (payload.url) sessionStorage.setItem(SS_URL, payload.url);
         } catch {}
       }
-      (function restoreAuditState() {
+      // A "Reports" row links here as /audit?view=<id> — load that exact
+      // saved report (no new fetch against the target site, no new charge)
+      // instead of showing the empty form or whatever was last run in this
+      // tab. Takes priority over the sessionStorage restore below.
+      async function loadSavedAudit(id) {
+        try {
+          const res = await fetch('/api/audits/' + encodeURIComponent(id));
+          if (!res.ok) return false;
+          const data = await res.json();
+          if (!data || !data.report) return false;
+          if (data.meta && data.meta.mode === 'url' && data.meta.url) { setMode('url'); $('url').value = data.meta.url; }
+          else { setMode('paste'); }
+          render(data);
+          saveAuditState({ url: data.meta && data.meta.url }, data);
+          return true;
+        } catch { return false; }
+      }
+      (async function restoreAuditState() {
+        const viewId = new URLSearchParams(location.search).get('view');
+        if (viewId && await loadSavedAudit(viewId)) return;
         try {
           const saved = sessionStorage.getItem(SS_STATE);
           if (saved) {
