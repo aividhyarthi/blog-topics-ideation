@@ -11,6 +11,8 @@ import { consumeAccess, refundAccess, isAdmin } from '../../lib/billing';
 import { dbEnabled } from '../../lib/db';
 import { runChecklist, type ChecklistResult } from '../../lib/checklists';
 import { getClient, getClientPageType } from '../../lib/clients';
+import { cached } from '../../lib/fetchcache';
+import { UA } from '../../lib/useragents';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -33,28 +35,32 @@ function repairJson(raw: string): string {
   return result;
 }
 
-const DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const DESKTOP_UA = UA.desktop;
 // Googlebot Smartphone — mobile-first indexing means this is what Google
 // actually ranks from, and it's the second, cheap fetch behind the "Desktop
 // vs Mobile" comparison in the visibility panel (see buildVisibility calls
 // below). The PRIMARY fetch below stays on DESKTOP_UA unchanged, so the score
 // itself is not affected by adding this.
-const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+const MOBILE_UA = UA.googlebotMobile;
 
 async function fetchText(url: string, timeoutMs: number, ua: string = DESKTOP_UA): Promise<{ ok: boolean; status: number; body: string }> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal, redirect: 'follow',
-      headers: {
-        'User-Agent': ua,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9',
-      },
-    });
-    return { ok: res.ok, status: res.status, body: await res.text() };
-  } catch { return { ok: false, status: 0, body: '' }; }
-  finally { clearTimeout(timer); }
+  // Cached across tools/tabs — see fetchcache.ts. Never cache a failure, so a
+  // transient error doesn't get "stuck" for the full TTL.
+  return cached(`${ua}::${url}`, async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal, redirect: 'follow',
+        headers: {
+          'User-Agent': ua,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9',
+        },
+      });
+      return { ok: res.ok, status: res.status, body: await res.text() };
+    } catch { return { ok: false, status: 0, body: '' }; }
+    finally { clearTimeout(timer); }
+  }, (v) => v.ok);
 }
 
 const CATEGORIES: Category[] = ['general', 'entertainment', 'health', 'news', 'lifestyle', 'commerce'];

@@ -3,36 +3,33 @@ import { analyzeHtml, crawlabilitySignals, buildVisibility } from '../../lib/aeo
 import { accessGroups, renderInfo } from '../../lib/access';
 import { getUser } from '../../lib/auth';
 import { dbEnabled } from '../../lib/db';
+import { cached } from '../../lib/fetchcache';
+import { UA } from '../../lib/useragents';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
 
-const UA = {
-  gbot_d: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/124.0.0.0 Safari/537.36',
-  gptbot: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.1; +https://openai.com/gptbot)',
-  oai: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)',
-  perplexity: 'Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)',
-  claude: 'Mozilla/5.0 (compatible; ClaudeBot/1.0; +http://www.anthropic.com/claude-bot)',
-  bing: 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
-};
 // Each runnable crawler → its UA + the robots signal id used for reconciliation.
 const BOT: Record<string, { ua: string; label: string; engine: string; sig: string | null; google?: boolean }> = {
   gptbot: { ua: UA.gptbot, label: 'ChatGPT — GPTBot', engine: 'ChatGPT', sig: 'bot_openai' },
-  oai: { ua: UA.oai, label: 'ChatGPT Search — OAI-SearchBot', engine: 'ChatGPT Search', sig: 'bot_openai' },
-  perplexity: { ua: UA.perplexity, label: 'Perplexity — PerplexityBot', engine: 'Perplexity', sig: 'bot_perplexity' },
-  claude: { ua: UA.claude, label: 'Claude — ClaudeBot', engine: 'Claude', sig: 'bot_anthropic' },
-  bing: { ua: UA.bing, label: 'Copilot — Bingbot', engine: 'Copilot', sig: null },
-  googlebot: { ua: UA.gbot_d, label: 'Google AI — Gemini · AI Overviews · AI Mode', engine: 'Google AI', sig: 'bot_google', google: true },
+  oai: { ua: UA.oaiSearchBot, label: 'ChatGPT Search — OAI-SearchBot', engine: 'ChatGPT Search', sig: 'bot_openai' },
+  perplexity: { ua: UA.perplexityBot, label: 'Perplexity — PerplexityBot', engine: 'Perplexity', sig: 'bot_perplexity' },
+  claude: { ua: UA.claudeBot, label: 'Claude — ClaudeBot', engine: 'Claude', sig: 'bot_anthropic' },
+  bing: { ua: UA.bingbot, label: 'Copilot — Bingbot', engine: 'Copilot', sig: null },
+  googlebot: { ua: UA.googlebotDesktop, label: 'Google AI — Gemini · AI Overviews · AI Mode', engine: 'Google AI', sig: 'bot_google', google: true },
 };
 
 interface Fetched { ok: boolean; status: number; body: string }
 async function fetchAs(url: string, ua: string, timeoutMs: number): Promise<Fetched> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { signal: controller.signal, redirect: 'follow', headers: { 'User-Agent': ua, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9' } });
-    return { ok: res.ok, status: res.status, body: await res.text() };
-  } catch { return { ok: false, status: 0, body: '' }; }
-  finally { clearTimeout(timer); }
+  // Cached across tools/tabs — see fetchcache.ts.
+  return cached(`${ua}::${url}`, async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal, redirect: 'follow', headers: { 'User-Agent': ua, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9' } });
+      return { ok: res.ok, status: res.status, body: await res.text() };
+    } catch { return { ok: false, status: 0, body: '' }; }
+    finally { clearTimeout(timer); }
+  }, (v) => v.ok);
 }
 const wc = (html: string): number => { const t = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return t ? t.split(' ').length : 0; };
 
@@ -56,7 +53,7 @@ export const POST: APIRoute = async (ctx) => {
   let host = ''; try { host = new URL(url).host; } catch { return json({ error: 'Could not parse URL.' }, 400); }
   const origin = (() => { try { return new URL(url).origin; } catch { return ''; } })();
 
-  const robotsRes = origin ? await fetchAs(`${origin}/robots.txt`, UA.gbot_d, 6000) : { ok: false, status: 0, body: '' };
+  const robotsRes = origin ? await fetchAs(`${origin}/robots.txt`, UA.googlebotDesktop, 6000) : { ok: false, status: 0, body: '' };
   const robotsTxt = robotsRes.ok ? robotsRes.body : null;
 
   let f = await fetchAs(url, cfg.ua, 15000);

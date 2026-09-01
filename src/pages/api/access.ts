@@ -5,35 +5,28 @@ import { extractContent } from '../../lib/extract';
 import { getUser } from '../../lib/auth';
 import { consumeAccess, refundAccess } from '../../lib/billing';
 import { dbEnabled } from '../../lib/db';
+import { cached } from '../../lib/fetchcache';
+import { UA } from '../../lib/useragents';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
 
-// User agents we fetch the page as. Googlebot desktop/smartphone (mobile-first
-// indexing) + real devices + GPTBot (the LLM crawler, which some sites block).
-const UA = {
-  gbot_d: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/124.0.0.0 Safari/537.36',
-  gbot_m: 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-  chrome_d: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  chrome_m: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
-  gptbot: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.1; +https://openai.com/gptbot)',
-  oai_search: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)',
-  perplexity: 'Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)',
-  claude: 'Mozilla/5.0 (compatible; ClaudeBot/1.0; +http://www.anthropic.com/claude-bot)',
-  bing: 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
-};
-
 interface Fetched { ok: boolean; status: number; body: string; redirected?: boolean; finalUrl?: string }
 async function fetchAs(url: string, ua: string, timeoutMs: number): Promise<Fetched> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal, redirect: 'follow',
-      headers: { 'User-Agent': ua, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9' },
-    });
-    return { ok: res.ok, status: res.status, body: await res.text(), redirected: (res as any).redirected, finalUrl: res.url };
-  } catch { return { ok: false, status: 0, body: '' }; }
-  finally { clearTimeout(timer); }
+  // Cached across tools/tabs — see fetchcache.ts. Same (ua, url) pair a Full
+  // AEO Audit or a per-engine check already fetched reuses that result
+  // instead of hitting the target site again.
+  return cached(`${ua}::${url}`, async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal, redirect: 'follow',
+        headers: { 'User-Agent': ua, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9' },
+      });
+      return { ok: res.ok, status: res.status, body: await res.text(), redirected: (res as any).redirected, finalUrl: res.url };
+    } catch { return { ok: false, status: 0, body: '' }; }
+    finally { clearTimeout(timer); }
+  }, (v) => v.ok);
 }
 
 // Cheap word count for the device fetches (we don't need a full analysis there).
@@ -99,12 +92,12 @@ export const POST: APIRoute = async (ctx) => {
   // are run ON-DEMAND, one at a time, from their own tabs (with a cooldown) so we
   // never burst the host and trigger false rate-limit "blocks".
   const [gd, gm, cd, cm, robots, llms] = await Promise.all([
-    fetchAs(inputUrl, UA.gbot_d, 15000),
-    fetchAs(inputUrl, UA.gbot_m, 15000),
-    fetchAs(inputUrl, UA.chrome_d, 15000),
-    fetchAs(inputUrl, UA.chrome_m, 15000),
-    origin ? fetchAs(`${origin}/robots.txt`, UA.gbot_d, 6000) : Promise.resolve({ ok: false, status: 0, body: '' } as Fetched),
-    origin ? fetchAs(`${origin}/llms.txt`, UA.gbot_d, 6000) : Promise.resolve({ ok: false, status: 0, body: '' } as Fetched),
+    fetchAs(inputUrl, UA.googlebotDesktop, 15000),
+    fetchAs(inputUrl, UA.googlebotMobile, 15000),
+    fetchAs(inputUrl, UA.desktop, 15000),
+    fetchAs(inputUrl, UA.chromeMobile, 15000),
+    origin ? fetchAs(`${origin}/robots.txt`, UA.googlebotDesktop, 6000) : Promise.resolve({ ok: false, status: 0, body: '' } as Fetched),
+    origin ? fetchAs(`${origin}/llms.txt`, UA.googlebotDesktop, 6000) : Promise.resolve({ ok: false, status: 0, body: '' } as Fetched),
   ]);
 
   const desktopHtml = gd.ok ? gd.body : (cd.ok ? cd.body : '');
