@@ -117,6 +117,15 @@ h1, h2, h3 { text-wrap: balance; }
    nav, so invert it here specifically: white pill, dark text. */
 .nav-dark .btn-primary { background: #fff; color: var(--ink-900); box-shadow: none; }
 .nav-dark .btn-primary:hover { background: #e4e4e7; }
+/* The signed-in account widget (citerank-auth.js) injects its own markup
+   into #cr-navauth with a hardcoded var(--muted)/white styling meant for a
+   light nav — .cra-email in particular renders as dark-grey-on-dark and is
+   essentially unreadable there without this override. */
+.nav-dark .cra-email { color: #cbd5e1; }
+.nav-dark .cra-btn { background: transparent; border-color: rgba(255,255,255,.22); color: #fff; }
+.nav-dark .cra-btn:hover { border-color: #fff; color: #fff; }
+.nav-dark .cra-btn.solid { background: #fff; color: var(--ink-900); border-color: #fff; }
+.nav-dark .cra-btn.solid:hover { background: #e4e4e7; }
 @media (max-width: 900px) { .navmenu { display: none; } }
 
 /* ---- buttons ---- */

@@ -38,10 +38,16 @@ const checks = [
 ];
 const STATUS_LABEL: Record<string, string> = { pass: 'Pass', warn: 'Fix', fail: 'Fix' };
 
+// Monochrome line icons — matching the black/white palette. Emoji render
+// in whatever colour the OS picks (usually bright), which clashed with a
+// deliberately monochrome design.
+const ICO_SEARCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>';
+const ICO_CHART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg>';
+const ICO_CHECKLIST = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>';
 const tools = [
-  { icon: '🔎', h: 'LLM Access Check', p: 'Fetch any URL as Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI, desktop and mobile — see exactly what each one can and can’t read, element by element.', href: '/check' },
-  { icon: '📊', h: 'Full AEO Audit', p: 'A weighted score built from the same checklist across every tab — content, indexability, keyword match — with ranked, page-specific fixes, not a generic checklist.', href: '/audit' },
-  { icon: '📋', h: 'The AEO Checklist', p: 'Every check we run, and why it affects whether an AI engine cites the page — published openly so you know exactly what "the score" means.', href: '/checklist' },
+  { icon: ICO_SEARCH, h: 'LLM Access Check', p: 'Fetch any URL as Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI, desktop and mobile — see exactly what each one can and can’t read, element by element.', href: '/check' },
+  { icon: ICO_CHART, h: 'Full AEO Audit', p: 'A weighted score built from the same checklist across every tab — content, indexability, keyword match — with ranked, page-specific fixes, not a generic checklist.', href: '/audit' },
+  { icon: ICO_CHECKLIST, h: 'The AEO Checklist', p: 'Every check we run, and why it affects whether an AI engine cites the page — published openly so you know exactly what "the score" means.', href: '/checklist' },
 ];
 
 const faqs = [
@@ -131,7 +137,7 @@ const faqs = [
       <div class="tgrid">
         {tools.map((t) => (
           <a class="tcard" href={t.href}>
-            <div class="t-ico" aria-hidden="true">{t.icon}</div>
+            <div class="t-ico" aria-hidden="true" set:html={t.icon} />
             <h3>{t.h}</h3>
             <p>{t.p}</p>
             <span class="t-go">Open {t.h} →</span>
@@ -299,7 +305,7 @@ const faqs = [
     .herocta { display: flex; gap: 12px; flex-wrap: wrap; }
     .herocta.center { justify-content: center; }
     .btn-primary.lg, .btn-ghost.lg { padding: 14px 26px; font-size: 15px; border-radius: 11px; }
-    .herofine { margin: 16px 0 0; font-size: 13px; color: var(--faint); }
+    .herofine { margin: 10px 0 0; font-size: 13px; color: var(--faint); }
 
     /* ---- hero dashboard mockup ---- */
     .dashcard {
@@ -341,7 +347,8 @@ const faqs = [
     .tgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
     .tcard { display: block; border: 1px solid var(--line); border-radius: 14px; padding: 24px 22px; background: var(--card); text-decoration: none; transition: border-color .15s, transform .15s, box-shadow .15s; }
     .tcard:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
-    .t-ico { font-size: 23px; margin-bottom: 12px; }
+    .t-ico { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--ink); display: grid; place-items: center; margin-bottom: 14px; }
+    .t-ico svg { width: 17px; height: 17px; }
     .tcard h3 { margin: 0 0 8px; font-size: 16px; font-weight: 800; letter-spacing: -.015em; color: var(--ink); }
     .tcard p { margin: 0 0 14px; font-size: 13.5px; color: var(--muted); line-height: 1.62; }
     .t-go { font-size: 12.5px; font-weight: 700; color: var(--accent); }
