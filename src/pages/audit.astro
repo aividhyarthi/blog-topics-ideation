@@ -166,6 +166,9 @@ import App from '../layouts/App.astro';
     <script>
       const $ = (id) => document.getElementById(id);
       let mode = 'url';
+      // Shared across every "Check a specific engine" run (any bot) so we
+      // never burst a target site with rapid-fire requests under different UAs.
+      let botCooldownUntil = 0;
       let SVC = null; // server capability (set by checkHealth): { judge, verify, ... }
       const CAT_LABEL = { general: 'General', entertainment: 'Entertainment', health: 'Health', news: 'Breaking News', lifestyle: 'Lifestyle', commerce: 'Beauty / Commerce' };
 
@@ -523,38 +526,66 @@ import App from '../layouts/App.astro';
           }).join('')}</div>` : '';
         const crawlBanner = r.crawlBlocked ? `<div class="crawlbanner">${IC.shieldX}<div><b>An answer-engine crawler is blocked.</b> No matter how good this page is, the affected engines can't read it — so they can't cite it. Fix the robots.txt rules flagged in “AI crawlability” below first.</div></div>` : '';
 
-        // ---- Can LLMs access this page? (User vs Googlebot vs LLM) ----
+        // ---- Can LLMs access this page? (User vs Googlebot vs LLM, desktop vs mobile) ----
         const vis = r.visibility;
+        const visMobile = m.mobileVisibility;
         const ACCESS_IC = { ok: IC.check, partial: IC.alert, blocked: IC.x };
         const ACCESS_ST = { ok: 'pass', partial: 'warn', blocked: 'fail' };
         const EL_IC = { read: IC.check, partial: IC.alert, missed: IC.x };
+        // One device's verdict + viewers + region/content-type breakdown —
+        // reused for both Desktop and Mobile so they're rendered identically.
+        function deviceBlock(v) {
+          const els = v.elements || [];
+          const row = (e) => `<div class="elrow ${e.status}"><span class="elchip ${e.status === 'read' ? 'pass' : e.status === 'partial' ? 'warn' : 'fail'}">${EL_IC[e.status]}</span><div class="elbody"><div class="elname">${esc(e.label)} <span class="eltag ${e.status}">${e.status === 'read' ? 'LLMs read this' : e.status === 'partial' ? 'partly read' : 'LLMs miss this'}</span></div><div class="eldetail">${esc(e.detail)}</div></div></div>`;
+          const regions = els.filter((e) => e.group === 'region');
+          const content = els.filter((e) => e.group !== 'region');
+          return `
+            <div class="vis-verdicthead">
+              <span class="vis-badge ${v.verdict.level}">${v.verdict.level === 'yes' ? IC.check : v.verdict.level === 'no' ? IC.x : IC.alert} ${esc(v.verdict.label)}</span>
+              ${v.framework ? `<span class="vis-fw">${esc(v.framework)} detected</span>` : ''}
+            </div>
+            <div class="vis-reason">${esc(v.verdict.reason)}</div>
+            <div class="viewers">${v.viewers.map((vw) => {
+              const st = ACCESS_ST[vw.access];
+              return `<div class="viewer ${st}"><div class="vw-top"><span class="vw-who">${esc(vw.who)}</span><span class="vw-js ${vw.rendersJs ? 'yes' : 'no'}">${vw.rendersJs ? 'runs JS' : 'no JS'}</span></div><div class="vw-access ${st}">${ACCESS_IC[vw.access]} ${vw.access === 'ok' ? 'Can read it' : vw.access === 'partial' ? 'Partial' : 'Blocked'}</div><div class="vw-sees">${esc(vw.sees)}</div></div>`;
+            }).join('')}</div>
+            ${els.length ? `
+              ${regions.length ? `<div class="vis-elhead">By page region — where on the page</div><div class="ellist">${regions.map(row).join('')}</div>` : ''}
+              ${content.length ? `<div class="vis-elhead">By content type — what kind of thing</div><div class="ellist">${content.map(row).join('')}</div>` : ''}
+            ` : ''}`;
+        }
+        const parityBanner = (m.parity && !m.parity.same) ? `<div class="paritybanner">${IC.alert}<div>${esc(m.parity.note)}</div></div>` : '';
         const visibilityPanel = (vis && vis.applicable) ? sec(IC.eye, 'Can LLMs access this page?', 'what a human, Googlebot and the LLM crawlers each actually see') + `
           <div class="viscard vis-${vis.verdict.level}">
-            <div class="vis-verdicthead">
-              <span class="vis-badge ${vis.verdict.level}">${vis.verdict.level === 'yes' ? IC.check : vis.verdict.level === 'no' ? IC.x : IC.alert} ${esc(vis.verdict.label)}</span>
-              ${vis.framework ? `<span class="vis-fw">${esc(vis.framework)} detected</span>` : ''}
-            </div>
-            <div class="vis-reason">${esc(vis.verdict.reason)}</div>
-            <div class="viewers">${vis.viewers.map((v) => {
-              const st = ACCESS_ST[v.access];
-              return `<div class="viewer ${st}"><div class="vw-top"><span class="vw-who">${esc(v.who)}</span><span class="vw-js ${v.rendersJs ? 'yes' : 'no'}">${v.rendersJs ? 'runs JS' : 'no JS'}</span></div><div class="vw-access ${st}">${ACCESS_IC[v.access]} ${v.access === 'ok' ? 'Can read it' : v.access === 'partial' ? 'Partial' : 'Blocked'}</div><div class="vw-sees">${esc(v.sees)}</div></div>`;
-            }).join('')}</div>
-            ${(() => {
-              const els = vis.elements || [];
-              if (!els.length) return '';
-              // Split into the two groups: WHERE on the page (region) and WHAT
-              // kind of thing (content type) — kept visually distinct so
-              // "Header" (a region) is never confused with "Headings" (a
-              // content type) sitting in the same flat list.
-              const row = (e) => `<div class="elrow ${e.status}"><span class="elchip ${e.status === 'read' ? 'pass' : e.status === 'partial' ? 'warn' : 'fail'}">${EL_IC[e.status]}</span><div class="elbody"><div class="elname">${esc(e.label)} <span class="eltag ${e.status}">${e.status === 'read' ? 'LLMs read this' : e.status === 'partial' ? 'partly read' : 'LLMs miss this'}</span></div><div class="eldetail">${esc(e.detail)}</div></div></div>`;
-              const regions = els.filter((e) => e.group === 'region');
-              const content = els.filter((e) => e.group !== 'region');
-              return `
-                ${regions.length ? `<div class="vis-elhead">By page region — where on the page</div><div class="ellist">${regions.map(row).join('')}</div>` : ''}
-                ${content.length ? `<div class="vis-elhead">By content type — what kind of thing</div><div class="ellist">${content.map(row).join('')}</div>` : ''}
-              `;
-            })()}
+            ${visMobile ? `
+              <div class="devtoggle" id="devtoggle">
+                <button class="devbtn active" data-dev="desktop" type="button">${IC.desktop || ''} Desktop</button>
+                <button class="devbtn" data-dev="mobile" type="button">${IC.mobile || ''} Mobile</button>
+              </div>
+              ${parityBanner}
+              <div class="devpane" data-dev="desktop">${deviceBlock(vis)}</div>
+              <div class="devpane" data-dev="mobile" hidden>${deviceBlock(visMobile)}</div>
+            ` : deviceBlock(vis)}
           </div>` : '';
+
+        // ---- Check a specific engine (on-demand, one bot at a time) ----
+        // Reuses /api/access-bot — the same endpoint the standalone LLM
+        // Access Check tool uses — so "is my nav visible to Claude specifically"
+        // gets a real, live answer instead of a generic estimate.
+        function botGroupsHtml(groups) {
+          const CH = { read: 'pass', info: 'pass', partial: 'warn', warn: 'warn', missed: 'fail' };
+          const ICN = { read: IC.check, info: IC.check, partial: IC.alert, warn: IC.alert, missed: IC.x };
+          const TAG = { read: 'reads this', info: 'reads this', partial: 'partly reads', warn: 'caution', missed: 'misses this' };
+          return (groups || []).map((g) => `<div class="vis-elhead">${esc(g.title)}</div><div class="ellist">${g.items.map((i) => `<div class="elrow ${CH[i.status]}"><span class="elchip ${CH[i.status]}">${ICN[i.status]}</span><div class="elbody"><div class="elname">${esc(i.label)} <span class="eltag ${CH[i.status]}">${TAG[i.status]}</span></div><div class="eldetail">${esc(i.detail)}</div></div></div>`).join('')}</div>`).join('');
+        }
+        const botCheckerPanel = (m.mode === 'url' && m.botTabs && m.botTabs.length) ? `<div class="card" style="margin-top:14px" id="botcheckcard">
+          ${sec(IC.bot, 'Check a specific engine', 'run a real fetch as that engine’s crawler, element by element')}
+          <div class="botrow">
+            <select id="botselect">${m.botTabs.map((b) => `<option value="${b.id}">${esc(b.label)} — ${esc(b.sub)}</option>`).join('')}</select>
+            <button class="ghostbtn" id="botrunbtn" type="button">${IC.bot} Run check</button>
+          </div>
+          <div id="botresult"></div>
+        </div>` : '';
 
         const engineMeta = [['chatgpt', 'ChatGPT', '#10a37f'], ['gemini', 'Gemini', '#4285f4'], ['perplexity', 'Perplexity', '#20808d'], ['aiOverviews', 'AI Overviews', '#a855f7']];
         const enginesPanel = r.engines ? sec(IC.engine, 'Likelihood by engine', 'estimated chance each engine cites this page') + `
@@ -723,7 +754,7 @@ import App from '../layouts/App.astro';
             </div>
 
             <div class="tabpane" data-pane="indexability" hidden>
-              ${topicTab(cl, 'indexability', 'Can an AI crawler even reach and understand this page in the first place? None of the writing quality matters if the page is blocked, hidden behind JavaScript, or missing the structured data that tells a machine what kind of page this is.', crawlPanel + visibilityPanel)}
+              ${topicTab(cl, 'indexability', 'Can an AI crawler even reach and understand this page in the first place? None of the writing quality matters if the page is blocked, hidden behind JavaScript, or missing the structured data that tells a machine what kind of page this is.', crawlPanel + visibilityPanel + botCheckerPanel)}
             </div>
 
             <div class="tabpane" data-pane="keywords" hidden>
@@ -762,6 +793,42 @@ import App from '../layouts/App.astro';
           root.querySelectorAll('.tabpane').forEach((p) => { p.hidden = p.dataset.pane !== name; });
         }
         if (tabsEl) tabsEl.querySelectorAll('.reptab').forEach((t) => t.addEventListener('click', () => activateTab(t.dataset.tab)));
+
+        // ---- Desktop / Mobile toggle in the visibility panel ----
+        const devToggle = $('devtoggle');
+        if (devToggle) devToggle.querySelectorAll('.devbtn').forEach((b) => b.addEventListener('click', () => {
+          devToggle.querySelectorAll('.devbtn').forEach((x) => x.classList.toggle('active', x === b));
+          root.querySelectorAll('.devpane').forEach((p) => { p.hidden = p.dataset.dev !== b.dataset.dev; });
+        }));
+
+        // ---- Check a specific engine (on-demand per-bot fetch) ----
+        const botRunBtn = $('botrunbtn');
+        if (botRunBtn) botRunBtn.addEventListener('click', async () => {
+          const wait = Math.ceil((botCooldownUntil - Date.now()) / 1000);
+          if (wait > 0) { showToast(`Wait ${wait}s before running another engine check`); return; }
+          const bot = $('botselect').value;
+          const out = $('botresult');
+          botRunBtn.disabled = true;
+          botRunBtn.innerHTML = '<span class="spinner"></span>Running…';
+          out.innerHTML = '<p class="hint">Fetching this page as that engine’s crawler…</p>';
+          try {
+            const res = await fetch('/api/access-bot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: m.url, bot }) });
+            const d = await res.json();
+            if (!res.ok) { out.innerHTML = `<div class="alert err" style="display:flex">${IC.alert}<span>${esc(d.error || 'Failed to run this check.')}</span></div>`; }
+            else {
+              const lvl = d.status === 'ok' ? 'yes' : d.status === 'partial' ? 'partial' : 'no';
+              out.innerHTML = `<div class="viscard vis-${lvl}" style="margin-top:12px">
+                <div class="vis-verdicthead"><span class="vis-badge ${lvl}">${lvl === 'yes' ? IC.check : lvl === 'partial' ? IC.alert : IC.x} ${esc(d.note || d.status)}</span></div>
+                ${d.groups && d.groups.length ? botGroupsHtml(d.groups) : '<p class="hint">No detailed breakdown for this response.</p>'}
+              </div>`;
+            }
+          } catch (e) { out.innerHTML = '<p class="hint">Network error running this check.</p>'; }
+          finally {
+            botCooldownUntil = Date.now() + 60000;
+            botRunBtn.disabled = false;
+            botRunBtn.innerHTML = IC.bot + ' Run check';
+          }
+        });
 
         // A closed <details> prints nothing, and a hidden tabpane would too if we
         // toggled it with inline styles — using the `hidden` attribute instead
@@ -1429,6 +1496,14 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .seeallwrap > summary::-webkit-details-marker { display: none; }
 .seeallwrap > summary:hover { text-decoration: underline; }
 /* ---- Can LLMs access this page? (visibility) ---- */
+      .devtoggle { display: inline-flex; gap: 4px; background: #f1f1f6; border-radius: 10px; padding: 4px; margin-bottom: 14px; }
+.devbtn { border: none; background: transparent; padding: 7px 14px; border-radius: 7px; font-size: 12.5px; font-weight: 700; color: var(--muted); cursor: pointer; }
+.devbtn.active { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.paritybanner { display: flex; gap: 11px; align-items: flex-start; background: var(--warn-bg); border: 1px solid #f0dfa8; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 12.5px; color: #8a6a10; line-height: 1.55; }
+.paritybanner svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--warn); margin-top: 1px; }
+.botrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.botrow select { width: auto; flex: 1; min-width: 220px; }
+#botresult:empty { display: none; }
       .viscard { border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: #fff; box-shadow: var(--shadow); border-top: 3px solid var(--line-2); }
 .viscard.vis-yes { border-top-color: var(--ok); }
 .viscard.vis-partial { border-top-color: var(--warn); }

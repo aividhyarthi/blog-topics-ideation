@@ -33,14 +33,22 @@ function repairJson(raw: string): string {
   return result;
 }
 
-async function fetchText(url: string, timeoutMs: number): Promise<{ ok: boolean; status: number; body: string }> {
+const DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+// Googlebot Smartphone — mobile-first indexing means this is what Google
+// actually ranks from, and it's the second, cheap fetch behind the "Desktop
+// vs Mobile" comparison in the visibility panel (see buildVisibility calls
+// below). The PRIMARY fetch below stays on DESKTOP_UA unchanged, so the score
+// itself is not affected by adding this.
+const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+
+async function fetchText(url: string, timeoutMs: number, ua: string = DESKTOP_UA): Promise<{ ok: boolean; status: number; body: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       signal: controller.signal, redirect: 'follow',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'User-Agent': ua,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9',
       },
     });
@@ -263,7 +271,7 @@ export const POST: APIRoute = async (ctx) => {
     vertical: client ? client.vertical : (rawVertical !== 'auto' && VERTICAL_VALUES.includes(rawVertical as any) ? (rawVertical as any) : undefined),
   };
 
-  let html = '', host = '', isUrl = false, robotsTxt: string | null = null, llmsTxt: string | null = null, fetchNote: string | undefined;
+  let html = '', mobileHtml = '', host = '', isUrl = false, robotsTxt: string | null = null, llmsTxt: string | null = null, fetchNote: string | undefined;
 
   if (inputUrl) {
     if (!/^https?:\/\//i.test(inputUrl)) return json({ error: 'URL must start with http:// or https://' }, 400);
@@ -278,13 +286,17 @@ export const POST: APIRoute = async (ctx) => {
     html = page.body;
     const origin = (() => { try { return new URL(inputUrl).origin; } catch { return ''; } })();
     if (origin) {
-      // Probe robots.txt + llms.txt for AI-crawlability checks (best-effort, parallel).
-      const [robots, llms] = await Promise.all([
+      // Probe robots.txt + llms.txt for AI-crawlability checks, and a second
+      // fetch as Googlebot Smartphone for the desktop-vs-mobile comparison —
+      // all best-effort, in parallel with each other.
+      const [robots, llms, mobilePage] = await Promise.all([
         fetchText(`${origin}/robots.txt`, 6000),
         fetchText(`${origin}/llms.txt`, 6000),
+        fetchText(inputUrl, 15000, MOBILE_UA),
       ]);
       robotsTxt = robots.ok ? robots.body : null;
       llmsTxt = llms.ok && /\S/.test(llms.body) && !/<html/i.test(llms.body.slice(0, 400)) ? llms.body : null;
+      mobileHtml = mobilePage.ok ? mobilePage.body : '';
     }
   } else if (pasted) {
     if (/<\w+[\s>]/.test(pasted)) html = pasted;
@@ -346,6 +358,27 @@ export const POST: APIRoute = async (ctx) => {
   const domainContext = ai.filter((s) => s.pillar === 'domain');
   const crawl = crawlabilitySignals({ isUrl, robotsTxt, llmsTxt });
   const visibility = buildVisibility(html, facts, crawl);
+
+  // Desktop vs Mobile: a second, cheap visibility pass over the Googlebot
+  // Smartphone fetch. Purely additional context for the "Can LLMs access
+  // this page?" panel — never affects the score, which stays desktop-based.
+  let mobileVisibility: typeof visibility | null = null;
+  let parity: { same: boolean; note: string } | null = null;
+  if (isUrl && mobileHtml) {
+    const factsMobile = analyzeHtml(mobileHtml, { isUrl, host, brand, topic, category, robotsTxt, pageType: pageTypeChoice });
+    mobileVisibility = buildVisibility(mobileHtml, factsMobile, crawl);
+    const dW = facts.wordCount, mW = factsMobile.wordCount;
+    const ratio = dW > 0 ? mW / dW : 1;
+    parity = {
+      same: dW === 0 || (ratio >= 0.75 && ratio <= 1.33),
+      note: dW === 0 ? 'Could not compare desktop and mobile.' : (ratio < 0.75
+        ? `Mobile is served ~${Math.round((1 - ratio) * 100)}% less content than desktop (${mW} vs ${dW} words). With mobile-first indexing, Google ranks the mobile version — so this content gap hurts.`
+        : ratio > 1.33
+          ? `Mobile is served more content than desktop (${mW} vs ${dW} words).`
+          : `Mobile and desktop are served the same content (${mW} vs ${dW} words).`),
+    };
+  }
+
   // The checklist can (rarely) fail to run — an empty stand-in keeps the
   // report buildable rather than taking the whole audit down with it.
   const checklistForScoring: ChecklistResult = checklist || {
@@ -364,6 +397,20 @@ export const POST: APIRoute = async (ctx) => {
     detectedIntent: llmScores.detectedIntent || null, suggestedCategory: llmScores.suggestedCategory || null,
     judge: judge || null,
     client: client ? { id: client.id, name: client.name, pageType: clientPageType ? { id: clientPageType.id, label: clientPageType.label } : null } : null,
+    // Desktop-vs-mobile: null unless this was a live URL fetch (pasted HTML
+    // has no separate mobile fetch to compare against).
+    mobileVisibility, parity,
+    // Static metadata for the on-demand per-engine check (calls /api/access-bot
+    // directly from the client, one bot at a time — same endpoint the
+    // standalone LLM Access Check tool uses) — only meaningful in URL mode.
+    botTabs: isUrl ? [
+      { id: 'gptbot', label: 'ChatGPT', sub: 'GPTBot' },
+      { id: 'oai', label: 'ChatGPT Search', sub: 'OAI-SearchBot' },
+      { id: 'perplexity', label: 'Perplexity', sub: 'PerplexityBot' },
+      { id: 'claude', label: 'Claude', sub: 'ClaudeBot' },
+      { id: 'bing', label: 'Copilot', sub: 'Bingbot' },
+      { id: 'googlebot', label: 'Google AI', sub: 'Googlebot' },
+    ] : [],
     // Auto-detected page kind + vertical, with the evidence behind each call so
     // the report can justify which checklist it used.
     checklist: checklist && {
