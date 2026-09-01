@@ -310,8 +310,8 @@ import App from '../layouts/App.astro';
       // things wrong with it (worst first), and everything already fine folded
       // into one line instead of repeating 8 green checkmarks nobody needs to
       // read to know what to do next.
-      function topicTab(cl, topic, intro, extraHtml) {
-        if (!cl) return extraHtml || '<div class="card"><p class="hint">Nothing to check yet — run an audit.</p></div>';
+      function topicTab(cl, topic, intro, extraHtml, topExtraHtml) {
+        if (!cl) return (topExtraHtml || '') + (extraHtml || '') || '<div class="card"><p class="hint">Nothing to check yet — run an audit.</p></div>';
         const items = (cl.items || []).filter((i) => topicOf(i.id) === topic && i.status !== 'na');
         const rank = { fail: 0, warn: 1, pass: 2 };
         const issues = items.filter((i) => i.status !== 'pass').sort((a, b) => rank[a.status] - rank[b.status]);
@@ -322,7 +322,8 @@ import App from '../layouts/App.astro';
         const passSummary = passes.length
           ? `<details class="passfold"><summary>${IC.check} ${passes.length} more thing${passes.length > 1 ? 's' : ''} already look${passes.length > 1 ? '' : 's'} good — tap to see</summary><div class="passlist">${passes.map((i) => `<div class="passrow">${esc(i.label)} — ${esc(i.detail)}</div>`).join('')}</div></details>`
           : '';
-        return `<div class="card topicintro"><p>${intro}</p></div>
+        return `${topExtraHtml || ''}
+          <div class="card topicintro"><p>${intro}</p></div>
           <div class="issuelist">${issuesHtml}</div>
           ${passSummary}
           ${extraHtml || ''}`;
@@ -578,11 +579,12 @@ import App from '../layouts/App.astro';
           const TAG = { read: 'reads this', info: 'reads this', partial: 'partly reads', warn: 'caution', missed: 'misses this' };
           return (groups || []).map((g) => `<div class="vis-elhead">${esc(g.title)}</div><div class="ellist">${g.items.map((i) => `<div class="elrow ${CH[i.status]}"><span class="elchip ${CH[i.status]}">${ICN[i.status]}</span><div class="elbody"><div class="elname">${esc(i.label)} <span class="eltag ${CH[i.status]}">${TAG[i.status]}</span></div><div class="eldetail">${esc(i.detail)}</div></div></div>`).join('')}</div>`).join('');
         }
-        const botCheckerPanel = (m.mode === 'url' && m.botTabs && m.botTabs.length) ? `<div class="card" style="margin-top:14px" id="botcheckcard">
+        const botCheckerPanel = (m.mode === 'url' && m.botTabs && m.botTabs.length) ? `<div class="card" style="margin-bottom:14px" id="botcheckcard">
           ${sec(IC.bot, 'Check a specific engine', 'run a real fetch as that engine’s crawler, element by element')}
+          <div class="bottabs" id="bottabs">${m.botTabs.map((b, i) => `<button class="bottab${i === 0 ? ' active' : ''}" data-bot="${b.id}" type="button">${esc(b.label)} <small>${esc(b.sub)}</small></button>`).join('')}</div>
           <div class="botrow">
-            <select id="botselect">${m.botTabs.map((b) => `<option value="${b.id}">${esc(b.label)} — ${esc(b.sub)}</option>`).join('')}</select>
-            <button class="ghostbtn" id="botrunbtn" type="button">${IC.bot} Run check</button>
+            <p class="hint" style="margin:0;flex:1">We fetch the page live as that engine’s crawler and show exactly what it can read. Spaced 1 minute apart so we never burst the site.</p>
+            <button class="primary" id="botrunbtn" type="button">${IC.bot} Run check</button>
           </div>
           <div id="botresult"></div>
         </div>` : '';
@@ -754,7 +756,7 @@ import App from '../layouts/App.astro';
             </div>
 
             <div class="tabpane" data-pane="indexability" hidden>
-              ${topicTab(cl, 'indexability', 'Can an AI crawler even reach and understand this page in the first place? None of the writing quality matters if the page is blocked, hidden behind JavaScript, or missing the structured data that tells a machine what kind of page this is.', crawlPanel + visibilityPanel + botCheckerPanel)}
+              ${topicTab(cl, 'indexability', 'Can an AI crawler even reach and understand this page in the first place? None of the writing quality matters if the page is blocked, hidden behind JavaScript, or missing the structured data that tells a machine what kind of page this is.', crawlPanel + visibilityPanel, botCheckerPanel)}
             </div>
 
             <div class="tabpane" data-pane="keywords" hidden>
@@ -802,11 +804,19 @@ import App from '../layouts/App.astro';
         }));
 
         // ---- Check a specific engine (on-demand per-bot fetch) ----
+        const bottabsEl = $('bottabs');
+        const firstBotTab = bottabsEl ? bottabsEl.querySelector('.bottab') : null;
+        let selectedBot = firstBotTab ? firstBotTab.dataset.bot : null;
+        if (bottabsEl) bottabsEl.querySelectorAll('.bottab').forEach((t) => t.addEventListener('click', () => {
+          bottabsEl.querySelectorAll('.bottab').forEach((x) => x.classList.toggle('active', x === t));
+          selectedBot = t.dataset.bot;
+          const out = $('botresult'); if (out) out.innerHTML = '';
+        }));
         const botRunBtn = $('botrunbtn');
         if (botRunBtn) botRunBtn.addEventListener('click', async () => {
           const wait = Math.ceil((botCooldownUntil - Date.now()) / 1000);
           if (wait > 0) { showToast(`Wait ${wait}s before running another engine check`); return; }
-          const bot = $('botselect').value;
+          const bot = selectedBot;
           const out = $('botresult');
           botRunBtn.disabled = true;
           botRunBtn.innerHTML = '<span class="spinner"></span>Running…';
@@ -1501,9 +1511,13 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .devbtn.active { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
 .paritybanner { display: flex; gap: 11px; align-items: flex-start; background: var(--warn-bg); border: 1px solid #f0dfa8; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 12.5px; color: #8a6a10; line-height: 1.55; }
 .paritybanner svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--warn); margin-top: 1px; }
-.botrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.botrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 .botrow select { width: auto; flex: 1; min-width: 220px; }
 #botresult:empty { display: none; }
+.bottabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.bottab { border: 1px solid var(--line-2); background: #fff; padding: 8px 13px; border-radius: 10px; font-size: 12.5px; font-weight: 700; color: var(--ink-2); cursor: pointer; line-height: 1.4; }
+.bottab small { display: block; font-size: 10.5px; font-weight: 500; color: var(--faint); }
+.bottab.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
       .viscard { border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: #fff; box-shadow: var(--shadow); border-top: 3px solid var(--line-2); }
 .viscard.vis-yes { border-top-color: var(--ok); }
 .viscard.vis-partial { border-top-color: var(--warn); }
