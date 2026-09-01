@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import {
   analyzeHtml, llmSignals, buildReportFromChecklist, crawlabilitySignals, buildVisibility,
-  CATEGORY_WEIGHTS, CATEGORY_LABEL, PAGE_TYPE_LABEL,
+  CATEGORY_WEIGHTS, CATEGORY_LABEL, PAGE_TYPE_LABEL, SCORING_VERSION,
   type LlmScores, type PageFacts, type Category, type PromptCoverage, type PageType,
 } from '../../lib/aeo';
 import { getUser } from '../../lib/auth';
@@ -390,6 +390,7 @@ export const POST: APIRoute = async (ctx) => {
 
   const meta = {
     mode: isUrl ? 'url' : 'pasted', url: inputUrl || null, host: host || null, brand: brand || null,
+    scoringVersion: SCORING_VERSION,
     category, categoryLabel: CATEGORY_LABEL[category], categoryWeights: CATEGORY_WEIGHTS[category],
     pageType: facts.pageType, pageTypeLabel: PAGE_TYPE_LABEL[facts.pageType],
     detectedPageType: facts.detectedPageType, pageTypeAuto: pageTypeChoice === 'auto',
@@ -434,7 +435,7 @@ export const POST: APIRoute = async (ctx) => {
     // Fetched AFTER the save so this run's own score is the latest point —
     // the trend chart should always include "right now", not just past runs.
     if (isUrl && inputUrl) {
-      try { history = await auditHistoryByUrl(gateUser.id, inputUrl); } catch { /* ignore */ }
+      try { history = await auditHistoryByUrl(gateUser.id, inputUrl, SCORING_VERSION); } catch { /* ignore */ }
     }
   }
 

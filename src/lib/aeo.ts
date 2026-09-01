@@ -17,6 +17,14 @@
 // calls (answer quality, entity consistency, attribution, prompt coverage,
 // off-page estimate) are scored by Claude in the API route and merged in.
 
+// Bump this whenever the SCORING METHODOLOGY changes materially (a pillar's
+// formula, what counts toward the score, checklist weighting logic — not a
+// copy/detail-text tweak). The score-history trend chart only ever compares
+// points stamped with the same version, so an algorithm change can't get
+// plotted as if the page itself improved or got worse. See
+// buildReportFromChecklist below and auditHistoryByUrl in audits.ts.
+export const SCORING_VERSION = 2; // v2 = checklist-driven scoring (Phase A)
+
 // Type-only — erased at compile time, so this isn't a real runtime circular
 // dependency even though checklists.ts imports types from this file too.
 import type { ChecklistResult } from './checklists';

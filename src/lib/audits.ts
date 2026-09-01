@@ -37,15 +37,23 @@ export interface HistoryPoint { createdAt: string; overall: number }
 // Score-over-time for one URL, for this user. Oldest first, so the trend chart
 // can read left-to-right without re-sorting. Only meaningful for URL-mode
 // audits — pasted content has no stable identity to group repeat runs by.
-export async function auditHistoryByUrl(userId: string, url: string, limit = 12): Promise<HistoryPoint[]> {
+//
+// currentScoringVersion filters out any point scored under a different
+// methodology (see SCORING_VERSION in aeo.ts) — otherwise a scoring-formula
+// change gets plotted as if the page itself moved, which is exactly what
+// produced a bogus "+10 pts" jump the day this filter was added.
+export async function auditHistoryByUrl(userId: string, url: string, currentScoringVersion: number, limit = 12): Promise<HistoryPoint[]> {
   if (!dbEnabled || !url) return [];
   try {
     const { rows } = await query<any>(
-      `SELECT overall, created_at FROM audits
+      `SELECT overall, created_at, meta FROM audits
        WHERE user_id = $1 AND url = $2 AND overall IS NOT NULL
-       ORDER BY created_at DESC LIMIT $3`, [userId, url, limit],
+       ORDER BY created_at DESC LIMIT $3`, [userId, url, limit * 3],
     );
-    return rows.map((r) => ({ createdAt: r.created_at, overall: r.overall })).reverse();
+    const sameVersion = rows.filter((r) => {
+      try { return JSON.parse(r.meta)?.scoringVersion === currentScoringVersion; } catch { return false; }
+    });
+    return sameVersion.slice(0, limit).map((r) => ({ createdAt: r.created_at, overall: r.overall })).reverse();
   } catch { return []; }
 }
 
