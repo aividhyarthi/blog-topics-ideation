@@ -14,6 +14,7 @@
 // CORRELATIONS and orders of magnitude, never "X caused Y". Wording matters —
 // these go in front of clients.
 import type { Annotation, KeywordTrend, RatingHistoryPoint, TrackedApp } from './types';
+import { detectRatingSpikeDrop, type OverviewDay } from './track';
 
 export type InsightTone = 'good' | 'watch' | 'bad' | 'neutral';
 
@@ -24,6 +25,10 @@ export interface Insight {
   title: string;
   /** One or two sentences. Plain language — this is read by clients. */
   detail: string;
+  /** Set only for a detected rating-spike-then-drop pattern — the date of
+   * the spike, so the visibility chart can mark it directly instead of
+   * leaving the reader to line the two trends up by eye. */
+  markDate?: string;
 }
 
 export interface CompetitorInput {
@@ -39,6 +44,10 @@ export interface InsightsInput {
   rating: RatingHistoryPoint | null;
   /** Oldest→newest; used for the direction of travel, not just today's value. */
   ratingHistory: RatingHistoryPoint[];
+  /** Oldest→newest daily visibility — lets a rating spike be checked
+   * against what visibility actually did afterward, not just reported on
+   * its own (see detectRatingSpikeDrop). Optional: defaults to []. */
+  visibilityHistory?: OverviewDay[];
   annotations: (Annotation & { impact?: { delta: number | null; before?: { avgVisibility: number | null }; after?: { avgVisibility: number | null } } })[];
   chart: { position: number | null; chart: string | null; depth: number | null; error?: string } | null;
   /** Today's and yesterday's visibility score — lets the coverage caveat
@@ -69,6 +78,11 @@ function headToHead(mine: KeywordTrend[], theirs: KeywordTrend[]): { total: numb
 
 export function buildInsights(input: InsightsInput): Insight[] {
   const { app, trends, competitors, rating, ratingHistory, annotations, chart, todayVisibility, prevVisibility } = input;
+  // Defaults to [] rather than requiring every caller to supply it — an app
+  // can have rating history before it has any keyword-check history at all
+  // (e.g. rating checks ran before the first full check completed), and
+  // that's a real state to degrade out of gracefully, not a caller bug.
+  const visibilityHistory = input.visibilityHistory || [];
   const out: Insight[] = [];
 
   /* ---- 1. Things you DID change: listing edits, measured ------------------ */
@@ -117,6 +131,24 @@ export function buildInsights(input: InsightsInput): Insight[] {
           : rising
             ? 'The share is climbing. This tends to show up in rank later than it shows up here, so it is worth acting on before it does.'
             : 'Healthy. This is not currently holding your rankings back.'),
+    });
+  }
+
+  /* ---- 2b. A rating spike that visibility actually followed -------------- */
+  // The rule above reports rating health on its own; this connects it to
+  // what happened next, which is the question a client actually asks
+  // ("did the bad reviews cause the drop?"). Fires only when both a real
+  // spike and a real subsequent drop are present — see detectRatingSpikeDrop.
+  const spikeDrop = detectRatingSpikeDrop(ratingHistory, visibilityHistory);
+  if (spikeDrop) {
+    out.push({
+      kind: 'reviews',
+      tone: 'bad',
+      title: `1-2★ share jumped ${spikeDrop.spikeDelta}pt on ${spikeDrop.dateKey}, visibility fell ${Math.abs(spikeDrop.visDelta)} pt after`,
+      detail: `1-2★ share went from ${pct(spikeDrop.fromShare)} to ${pct(spikeDrop.toShare)} that day. Average visibility over the following 14 days `
+        + `(${spikeDrop.visAfter ?? '–'}) came in ${Math.abs(spikeDrop.visDelta)} pt below the 14 days before it (${spikeDrop.visBefore ?? '–'}). `
+        + 'Correlation, not confirmed causation — but it matches the pattern Google has described, and it\'s marked on the visibility chart below.',
+      markDate: spikeDrop.dateKey,
     });
   }
 

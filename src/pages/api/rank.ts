@@ -280,6 +280,7 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
             trends,
             rating: rh.length ? rh[rh.length - 1] : null,
             ratingHistory: rh,
+            visibilityHistory: widerOverview,
             chart: { position: chart.position, chart: chart.chart, depth: chart.depth, error: chart.error },
             todayVisibility: today?.visibility ?? null,
             prevVisibility: prev?.visibility ?? null,

@@ -180,12 +180,6 @@ const limitsText = product && plan
       .insight.neutral { border-left-color: var(--line2); }
       .insight-t { font-size: 13.5px; font-weight: 700; margin-bottom: 3px; }
       .insight-d { font-size: 13px; color: var(--muted); line-height: 1.55; }
-      .snap-frame { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 20px 22px; max-width: 760px; }
-      .snap-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
-      .snap-top img.icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
-      .snap-top .fallback-icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 18px; background: var(--card2); }
-      .snap-top .t { font-weight: 700; font-size: 15px; }
-      .snap-top .d { font-size: 12px; color: var(--muted); margin-top: 1px; }
       .viztip { position: fixed; z-index: 60; pointer-events: none; background: var(--card2); border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); padding: 8px 11px; font-size: 12px; display: none; min-width: 130px; }
       .kwmodal-backdrop { display: none; position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; padding: 20px; }
       .kwmodal-backdrop.open { display: flex; }
@@ -347,18 +341,6 @@ const limitsText = product && plan
         .table-wrap { border: 1px solid #ddd; }
         .print-only { display: block; font-size: 12px; color: var(--muted); margin: -6px 0 14px; }
       }
-      /* A Daily Snapshot card with a long (400-600+) keyword list is always
-         taller than one printed page — break-inside: avoid on .card above
-         is exactly right for a short card, but forces a TALLER-than-a-page
-         one entirely onto the next page, leaving the previous one almost
-         completely blank under just the marketing header. Hiding that
-         header and letting the card break normally fixes both: page 1
-         starts filling immediately, and the table paginates like any other
-         long content instead of jumping as one indivisible block. */
-      @media print {
-        body.print-snapshot-only header { display: none !important; }
-        body.print-snapshot-only .card { break-inside: auto; border: none; margin: 0; }
-      }
     </style>
   </head>
   <body>
@@ -499,13 +481,11 @@ ai photo enhancer"></textarea>
       const sortState = {};
       const covSortState = {};
       const compareSortState = {};
-      const snapSortState = {};
       // Which section of the app-shell is showing: one job per screen, like
       // the international ASO tools — switched from the left sidebar.
       const SECTIONS = [
         { id: 'overview', label: 'Overview' },
         { id: 'insights', label: 'Insights' },
-        { id: 'snapshot', label: 'Report Card' },
         { id: 'keywords', label: 'Daily Keywords' },
         { id: 'coverage', label: 'All Keywords' },
         { id: 'compare', label: 'Compare' },
@@ -882,7 +862,7 @@ ai photo enhancer"></textarea>
       // so the one number the dashboard leads with also gets the one chart
       // that visually stands apart from every other (neutral-colored) trend.
       let vizGradSeq = 0;
-      function visChart(days, annotations) {
+      function visChart(days, annotations, autoMarks) {
         const W = 400, H = 190, padL = 30, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
         const vals = days.map((d) => d.visibility);
@@ -935,6 +915,20 @@ ai photo enhancer"></textarea>
           out += `<line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,2"/>`;
           out += `<circle cx="${ax.toFixed(1)}" cy="${(padT - 2).toFixed(1)}" r="3.5" fill="${color}" stroke="var(--card)" stroke-width="1"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(a.date))} · ${esc(ANN_TYPE_LABEL[a.type] || a.type)}</div><div class="tt-r"><span>${esc(a.label)}</span></div>`);
+          out += `<rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${(padT - 8).toFixed(1)}" width="8" height="${(plotH + padB + 8).toFixed(1)}" fill="transparent"/>`;
+        });
+        // System-detected marks (currently: a rating spike that visibility
+        // actually dropped after — see detectRatingSpikeDrop). Deliberately
+        // NOT drawn the same as a manually logged annotation: a triangle
+        // marker in the "bad" color, so it reads at a glance as "the system
+        // flagged this", distinct from something you logged yourself.
+        (autoMarks || []).forEach((m) => {
+          const idx = days.findIndex((d) => d.dateKey === m.date);
+          if (idx === -1) return;
+          const ax = x(idx);
+          out += `<line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="1,2"/>`;
+          out += `<polygon points="${ax.toFixed(1)},${(padT - 5).toFixed(1)} ${(ax - 4).toFixed(1)},${(padT + 2).toFixed(1)} ${(ax + 4).toFixed(1)},${(padT + 2).toFixed(1)}" fill="var(--bad)" stroke="var(--card)" stroke-width="1"/>`;
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(m.date))} · Detected</div><div class="tt-r"><span>${esc(m.label)}</span></div>`);
           out += `<rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${(padT - 8).toFixed(1)}" width="8" height="${(plotH + padB + 8).toFixed(1)}" fill="transparent"/>`;
         });
         return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
@@ -1326,30 +1320,6 @@ ai photo enhancer"></textarea>
         return `<div class="wn-card">${head}${lines}</div>`;
       }
 
-      // Overview's glance at category chart rank — a number + direction, not
-      // the full trend chart (that stays Trends-tab-only, see
-      // trendChartsHtml), so a daily check of Overview surfaces "did my
-      // category rank move" without duplicating the chart itself.
-      function categoryPulseHtml(app) {
-        const chart = app.chart;
-        const head = wnCardHead(ICO_TREND, 'Category chart rank');
-        if (!chart || (!chart.chart && !chart.error)) {
-          return `<div class="wn-card">${head}<p class="wn-empty">No category chart data checked yet.</p></div>`;
-        }
-        if (chart.error) {
-          return `<div class="wn-card">${head}<p class="wn-empty">⚠︎ Chart check has been failing — not a confirmed miss, retrying automatically.</p></div>`;
-        }
-        const deltaHtml = chart.delta
-          ? (chart.delta > 0 ? ` <span class="delta up">▲${chart.delta}</span>` : ` <span class="delta down">▼${-chart.delta}</span>`)
-          : '';
-        const title = chart.position != null
-          ? `<span class="delta flat">#${chart.position}</span> in ${esc(chart.chart)}${deltaHtml}`
-          : `Not in the top ${chart.depth || '?'} of ${esc(chart.chart)}`;
-        return `<div class="wn-card">${head}
-          <button class="wn-linkline" data-goto-section="trends"><span class="wn-line-main"><span class="wn-line-title">${title}</span><span class="wn-empty">Where this app sits in the store's own category chart, not search</span></span><span class="wn-viewcta">Trend →</span></button>
-        </div>`;
-      }
-
       function ratingPulseHtml(app) {
         const rh = app.ratingHistory || [];
         const head = wnCardHead(ICO_STAR, 'Rating health');
@@ -1436,29 +1406,45 @@ ai photo enhancer"></textarea>
           : vDelta < 0 ? `<span class="delta down">▼ ${-vDelta}</span> since last check — `
           : `<span class="delta flat">＝ unchanged</span> since last check — `;
         const todayDay = ov.days[ov.days.length - 1];
-        // A glance at category rank + rating health — the two signals that
-        // otherwise only live on Trends — as a number and direction each,
-        // not the full charts (those stay Trends-only; see
-        // trendChartsHtml). Overview stays the fast daily check; Trends
-        // stays the deep-dive, and neither duplicates the other's chart.
+        // Everything a client asks for lives here now — this used to be
+        // split across Overview and a separate "Report Card" tab that
+        // mostly re-showed the same numbers in a different layout (see
+        // git history). One tab, no second copy to keep in sync.
+        const volumes = app.keywordVolumes || {};
+        const diffMap = app.difficulty || {};
+        const allTrends = mergedKeywordTrends(app).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
+        const rankingNow = allTrends.filter((t) => t.position != null && !t.error);
+        const newlyRanked = rankingNow.filter((t) => t.prevPosition == null).length;
+        const coverageSub = allTrends.length
+          ? `of ${allTrends.length.toLocaleString()} tracked${newlyRanked ? ` · <span class="delta up">+${newlyRanked}</span> new` : ''}`
+          : 'no keywords tracked yet';
+        // A detected rating-spike-then-drop (see detectRatingSpikeDrop,
+        // surfaced as an Insight with markDate) gets its own mark on this
+        // chart — same visual language as a manually logged annotation, but
+        // a distinct color/icon so it reads as "the system noticed this",
+        // not something you logged yourself.
+        const autoMarks = (app.insights || []).filter((i) => i.markDate).map((i) => ({ date: i.markDate, label: i.title }));
         return `<div class="ov">
           <div class="headline">
             <div class="headline-eyebrow">Search visibility score</div>
             <div class="headline-num">${cur != null ? cur.toFixed(1) : '–'}</div>
             <div class="headline-sub">${vDeltaHtml}${visibilityNarrative(app)}</div>
             ${coverageCaption(todayDay)}
-            <div class="chartbox">${visChart(ov.days, app.annotations)}</div>
+            <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks)}</div>
           </div>
-          <div class="pulse-row">
-            ${categoryPulseHtml(app)}
-            ${ratingPulseHtml(app)}
-          </div>
+          <div style="max-width:520px;margin-bottom:14px;">${ratingPulseHtml(app)}</div>
           <div class="tiles">
             ${tileHtml('Top 1 rankings', c.top1, p && p.top1)}
             ${tileHtml('Top 10 rankings', c.top10, p && p.top10)}
             ${tileHtml('Top 30 rankings', c.top30, p && p.top30)}
             ${tileHtml('Top 100 rankings', c.top100, p && p.top100)}
           </div>
+          <div class="tile" style="max-width:220px;margin-top:10px;">
+            <div class="lbl">Keywords ranking</div>
+            <div class="val">${rankingNow.length.toLocaleString()}</div>
+            <div class="hint" style="margin:6px 0 0;">${coverageSub}</div>
+          </div>
+          ${categoryChartTrendHtml(app)}
           <div class="chartbox" style="margin-top:12px;"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>
         </div>`;
       }
@@ -1478,7 +1464,13 @@ ai photo enhancer"></textarea>
         return `<p class="hint" style="margin-top:6px;">${bits.join(' · ')} — excluded from the bars and the visibility score above rather than counted as "Unranked", since neither is a confirmed result. Retried on the next check.</p>`;
       }
 
-      function trendChartsHtml(app) {
+      // Moved to the Overview tab (see overviewHtml) — a client checking
+      // rank day-to-day needs category standing on the same screen as
+      // search visibility, not a tab away. Kept as its own function since
+      // it's still the right home for all of the "why is this box empty"
+      // nuance (overall-chart fallback, a failing fetch vs a genuine miss,
+      // a short chart response) that a plain position number can't carry.
+      function categoryChartTrendHtml(app) {
         // Category chart trend only makes sense once the app has actually
         // ranked in a top chart at least once — otherwise it's an empty line.
         const chartHist = (app.chart && app.chart.history) || [];
@@ -1519,50 +1511,21 @@ ai photo enhancer"></textarea>
         const notRankedText = chartName
           ? `Not in the top ${depth || '?'} of ${esc(chartName)}.`
           : 'Not ranked in a top chart yet.';
-        const catChartBox = isChartRanking
-          ? `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}${overallNote}${depthNote}</div>`
-          : `<div class="chartbox"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : notRankedText}</p>${overallNote}${depthNote}</div>`;
-        return `<div class="charts">
-          ${catChartBox}
-          <div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}${ratingCountBars(app.ratingHistory)}</div>
-        </div>`;
+        return isChartRanking
+          ? `<div class="chartbox" style="margin-top:12px;"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}${overallNote}${depthNote}</div>`
+          : `<div class="chartbox" style="margin-top:12px;"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : notRankedText}</p>${overallNote}${depthNote}</div>`;
       }
 
-      // A single, self-contained card meant to be screenshotted and shared
-      // outside the tool (a WhatsApp/Slack report group) — everything a
-      // stakeholder asks for in one glance: visibility, category rank,
-      // rating health, keyword rankings. Pure re-presentation of data the
-      // other tabs already compute; no new fetch, no new stored state.
+      function trendChartsHtml(app) {
+        return `<div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}${ratingCountBars(app.ratingHistory)}</div>`;
+      }
+
       // Daily-tracked + coverage keywords, deduped (daily wins on overlap —
       // it's checked every day, so it's the fresher signal for a keyword
       // tracked in both lists; same precedence already used for `difficulty`
-      // in statePayload). This is what makes the snapshot show the FULL
-      // keyword universe (up to 2000 via coverage) instead of just the
-      // plan-capped daily list — a client with 400-600+ tracked keywords
-      // wants to see how much of that whole universe is ranking, not just
-      // whatever fits in the daily-tracked subset.
-      /**
-       * Why the Report Card has no rows. "No keyword data yet" was the same
-       * message whether the app had no keywords at all, had them but hadn't
-       * been checked, or had been checked and genuinely ranked nowhere —
-       * three completely different situations needing three different
-       * actions. Say which one it is.
-       */
-      function snapshotEmptyReason(app, allTrends) {
-        if (!allTrends.length) {
-          return `No keywords added for <b>${esc(app.title)}</b> yet — add them under <b>Settings</b>, then they appear here after the next check.`;
-        }
-        const unchecked = allTrends.filter((t) => !t.checked).length;
-        const failed = allTrends.filter((t) => t.error).length;
-        if (unchecked === allTrends.length) {
-          return `${allTrends.length} keywords tracked, none checked yet — the next scheduled check fills this in. Nothing is wrong with your rankings.`;
-        }
-        if (failed) {
-          return `${failed} of ${allTrends.length} keyword checks failed (store rate-limit or a temporary block, not a real result) — they retry on the next check.`;
-        }
-        return `${allTrends.length} keywords checked, none currently ranking in the top 200.`;
-      }
-
+      // in statePayload). Used by Overview's "Keywords ranking" tile to
+      // reflect the FULL keyword universe (up to 2000 via coverage), not
+      // just whatever fits in the daily-tracked subset.
       function mergedKeywordTrends(app) {
         const map = new Map();
         for (const t of (app.coverageTrends || [])) map.set(t.keyword.toLowerCase(), t);
@@ -1594,115 +1557,6 @@ ai photo enhancer"></textarea>
                 <div class="insight-d">${esc(i.detail)}</div>
               </div>`).join('')}
           </div>`).join('');
-      }
-
-      function snapshotHtml(app) {
-        const ov = app.overview || {};
-        const cur = ov.visibility, prev = ov.prevVisibility;
-        const vDelta = (cur != null && prev != null) ? Math.round((cur - prev) * 10) / 10 : null;
-        const vDeltaHtml = vDelta == null ? '<span class="delta flat">–</span> vs last check'
-          : vDelta > 0 ? `<span class="delta up">▲ ${vDelta}</span> vs last check`
-          : vDelta < 0 ? `<span class="delta down">▼ ${-vDelta}</span> vs last check`
-          : '<span class="delta flat">＝ unchanged</span> vs last check';
-
-        const chartName = (app.chart && app.chart.chart) || 'category chart';
-        const chartDelta = app.chart && app.chart.delta
-          ? (app.chart.delta > 0 ? ` <span class="delta up">▲${app.chart.delta}</span>` : ` <span class="delta down">▼${-app.chart.delta}</span>`)
-          : '';
-        // Same distinction as the Trends tab: a missing chart position can
-        // mean "checked, genuinely not in it" OR "the chart fetch has been
-        // failing" — those used to look identical (see track.ts's chartTrend).
-        const chartDepth = app.chart && app.chart.depth;
-        const chartSub = app.chart && app.chart.position != null
-          ? `in ${esc(chartName)}${chartDelta}`
-          : app.chart && app.chart.error
-            ? `chart check failing — not a confirmed miss, retrying`
-            : `not in the top ${chartDepth || '?'} of ${esc(chartName)}`;
-
-        const rh = app.ratingHistory || [];
-        const latestRating = rh.length ? rh[rh.length - 1] : null;
-        const lr = app.latestResult;
-        const scoreTxt = lr && lr.score != null ? `${lr.score.toFixed(1)}★ average${lr.ratings != null ? ` · ${lr.ratings.toLocaleString()} ratings` : ''}` : '';
-        const ratingSub = latestRating
-          ? `of last ${latestRating.total} reviews are 1-2★${scoreTxt ? ` · ${scoreTxt}` : ''}`
-          : (app.store === 'play' ? 'no rating data checked yet' : 'rating tracking is Google Play only');
-
-        const volumes = app.keywordVolumes || {};
-        const diffMap = app.difficulty || {};
-        const allTrends = mergedKeywordTrends(app).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
-        const rankingNow = allTrends.filter((t) => t.position != null && !t.error).sort((a, b) => a.position - b.position);
-        const newlyRanked = rankingNow.filter((t) => t.prevPosition == null).length;
-        const coverageSub = allTrends.length
-          ? `of ${allTrends.length.toLocaleString()} tracked keywords${newlyRanked ? ` · <span class="delta up">+${newlyRanked}</span> new` : ''}`
-          : 'no keywords tracked yet';
-
-        // Defaults to rank ascending (the sort already applied to rankingNow
-        // above) until a column header is clicked — reuses the same
-        // sortVal/sort-state pattern as the other keyword tables.
-        const snapSort = snapSortState[app.key] || {};
-        const sortedKw = rankingNow.slice();
-        if (snapSort.col) {
-          sortedKw.sort((a, b) => {
-            const av = sortVal(a, snapSort.col), bv = sortVal(b, snapSort.col);
-            if (av == null && bv == null) return 0;
-            if (av == null) return 1;
-            if (bv == null) return -1;
-            return (av - bv) * snapSort.dir;
-          });
-        }
-        const snapArrow = (col) => snapSort.col === col ? (snapSort.dir === 1 ? ' ▲' : ' ▼') : '';
-        const snapTh = (col, label) => `<th class="sortable" data-sort="${col}">${label}${snapArrow(col)}</th>`;
-
-        const kwRows = sortedKw
-          .map((t) => `<tr><td class="kw">${esc(t.keyword)}</td><td class="pos">${posCell(t)}</td><td>${deltaCell(t)}</td><td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td><td>${diffCell(t.difficulty)}</td></tr>`)
-          .join('');
-
-        const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-        const icon = app.icon
-          ? `<img class="icon" src="${escAttr(app.icon)}" alt="" />`
-          : `<div class="fallback-icon">${app.store === 'play' ? '🤖' : ''}</div>`;
-
-        return `
-        <div class="snap-frame">
-          <div class="snap-top">
-            ${icon}
-            <div>
-              <div class="t">${esc(app.title)}</div>
-              <div class="d">Daily Snapshot · ${dateStr}</div>
-            </div>
-            <button class="ghost no-print" data-act="pdf-snapshot" style="margin-left:auto;">Export as PDF</button>
-          </div>
-          <p class="headline-sub" style="margin-bottom:16px;">${visibilityNarrative(app)}</p>
-          <div class="tiles">
-            <div class="tile">
-              <div class="lbl">Keywords ranking</div>
-              <div class="val">${rankingNow.length.toLocaleString()}</div>
-              <div class="hint" style="margin:6px 0 0;">${coverageSub}</div>
-            </div>
-            <div class="tile">
-              <div class="lbl">Visibility score</div>
-              <div class="val">${cur != null ? cur.toFixed(1) : '–'}</div>
-              <div class="hint" style="margin:6px 0 0;">${vDeltaHtml}</div>
-            </div>
-            <div class="tile">
-              <div class="lbl">Category chart rank</div>
-              <div class="val">${app.chart && app.chart.position != null ? '#' + app.chart.position : '–'}</div>
-              <div class="hint" style="margin:6px 0 0;">${chartSub}</div>
-            </div>
-            <div class="tile">
-              <div class="lbl">Rating health</div>
-              <div class="val">${latestRating ? latestRating.negativeShare + '%' : '–'}</div>
-              <div class="hint" style="margin:6px 0 0;">${ratingSub}</div>
-            </div>
-          </div>
-          ${allTrends.length && allTrends.every((t) => !t.checked) ? `<div class="alert info" style="display:block;margin:14px 0 0;">Today's check hasn't reached this app yet, so the figures above are blank — this is not a ranking loss. They fill in automatically once its scheduled check runs.</div>` : ''}
-          <h4 style="margin:18px 0 8px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.03em;">Keyword rankings — ${rankingNow.length.toLocaleString()} of ${allTrends.length.toLocaleString()} tracked keywords ranking</h4>
-          <div class="table-wrap snaptable"><table>
-            <thead><tr><th>Keyword</th>${snapTh('pos', 'Rank')}${snapTh('delta', 'Δ vs last')}${snapTh('volume', 'Volume')}${snapTh('difficulty', 'Difficulty')}</tr></thead>
-            <tbody>${kwRows || `<tr><td colspan="5" class="hint">${snapshotEmptyReason(app, allTrends)}</td></tr>`}</tbody>
-          </table></div>
-          <p class="hint no-print" style="margin-top:14px;">Short list? Screenshot the card above. Long list (400+ keywords)? Use <b>Export as PDF</b> — it paginates cleanly and shares as a file in WhatsApp/Slack.</p>
-        </div>`;
       }
 
       // AI-extracted complaint themes from recent 1-3★ reviews — pairs with
@@ -2316,10 +2170,6 @@ ai photo enhancer"></textarea>
           <div class="section-head"><h2>Insights</h2><p class="hint">What's actually moving your rank — separating the listing changes you made from the things you didn't change (review health, competitor standing) that no copy rewrite will fix.</p></div>
           ${insightsHtml(app)}`;
 
-        const sectionSnapshot = `
-          <div class="section-head no-print"><h2>Report Card</h2><p class="hint">Visibility, category rank, rating health, and keyword rankings — screenshot the card, or export it as a PDF for a long keyword list.</p></div>
-          ${snapshotHtml(app)}`;
-
         const moversCard = moversHtml(app);
         const promoCard = promotableHtml(app);
         const sectionKeywords = `
@@ -2497,7 +2347,7 @@ ai photo enhancer"></textarea>
           </div>`;
 
         const bySection = {
-          overview: sectionOverview, insights: sectionInsights, snapshot: sectionSnapshot, keywords: sectionKeywords, coverage: sectionCoverage,
+          overview: sectionOverview, insights: sectionInsights, keywords: sectionKeywords, coverage: sectionCoverage,
           compare: sectionCompare, trends: sectionTrends, settings: sectionSettings,
         };
         const body = printAll
@@ -2607,7 +2457,7 @@ ai photo enhancer"></textarea>
       // allowlist of "safe" controls sprinkled through the render functions,
       // sweep the DOM after each render and drop anything that acts —
       // a new mutating button added later is then read-only by default.
-      const READONLY_SAFE_ACTS = new Set(['pdf', 'pdf-snapshot', 'close-addapp-modal', 'close-kwmodal', 'dismiss-discover']);
+      const READONLY_SAFE_ACTS = new Set(['pdf', 'close-addapp-modal', 'close-kwmodal', 'dismiss-discover']);
       function applyReadOnly() {
         if (!state.readOnly) return;
         document.querySelectorAll('[data-act]').forEach((el) => {
@@ -2847,7 +2697,6 @@ ai photo enhancer"></textarea>
           const col = sortTh.getAttribute('data-sort');
           const store = sortTh.closest('.comparetable') ? compareSortState
             : sortTh.closest('.covtable') ? covSortState
-            : sortTh.closest('.snaptable') ? snapSortState
             : sortState;
           const cur = store[key] || (store === covSortState ? { col: 'volume', dir: -1 } : {});
           store[key] = { col, dir: cur.col === col ? -cur.dir : 1 };
@@ -3042,19 +2891,6 @@ ai photo enhancer"></textarea>
           // Print every section stacked, not just the one currently open.
           printAll = true; render();
           setTimeout(() => { window.print(); printAll = false; render(); }, 60);
-          return;
-        }
-        if (act === 'pdf-snapshot') {
-          // currentSection is already 'snapshot' here (the button only exists
-          // on that tab), so no printAll toggle is needed — just this card
-          // prints. The print-snapshot-only class (see @media print CSS)
-          // hides the marketing header and lets the card's break-inside
-          // rule relax, so a long keyword list starts filling page 1
-          // immediately instead of leaving it almost entirely blank while
-          // the whole (page-height-exceeding) card gets pushed to page 2.
-          document.body.classList.add('print-snapshot-only');
-          window.print();
-          document.body.classList.remove('print-snapshot-only');
           return;
         }
         if (act === 'discover') {

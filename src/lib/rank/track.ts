@@ -2,7 +2,7 @@
 // everything here takes data in and returns data out, so it is unit-testable
 // (see scripts/validate-rank.ts) and independent of which store the data
 // came from.
-import type { AppRankResult, KeywordRank, KeywordTrend, RankSnapshot, TrackedApp } from './types';
+import type { AppRankResult, KeywordRank, KeywordTrend, RankSnapshot, RatingHistoryPoint, TrackedApp } from './types';
 import type { SearchHit } from './fetch';
 
 /** 1-based position of `appId` in an ordered result list; null = not present. */
@@ -490,6 +490,54 @@ export function annotationImpact(days: OverviewDay[], annotationDate: string, wi
     before: { avgVisibility: b, days: before.length },
     after: { avgVisibility: a, days: after.length },
     delta: (b != null && a != null) ? Math.round((a - b) * 10) / 10 : null,
+  };
+}
+
+export interface RatingSpikeDrop {
+  dateKey: string;
+  fromShare: number;
+  toShare: number;
+  spikeDelta: number;
+  visBefore: number | null;
+  visAfter: number | null;
+  visDelta: number;
+}
+
+/**
+ * Finds the single biggest single-day jump in 1-2★ share, then checks
+ * whether visibility fell in the ~14 days after it — the exact pattern a
+ * client asks about ("did the bad reviews cause the drop?") but that
+ * nothing on the dashboard connected before: the rating trend and the
+ * visibility trend were two separate charts, and reading a causal-looking
+ * pattern out of them meant eyeballing both and lining up the dates by
+ * hand. Both thresholds exist so a small, normal-noise wobble in either
+ * metric doesn't get flagged as a "pattern" — this only fires when BOTH a
+ * real spike AND a real subsequent drop are present.
+ */
+export function detectRatingSpikeDrop(
+  ratingHistory: RatingHistoryPoint[],
+  visibilityDays: OverviewDay[],
+  minSpikePt = 5,
+  minDropPt = 2,
+): RatingSpikeDrop | null {
+  let best: { i: number; delta: number } | null = null;
+  for (let i = 1; i < ratingHistory.length; i++) {
+    if (ratingHistory[i].tone === 'na' || ratingHistory[i - 1].tone === 'na') continue;
+    const delta = ratingHistory[i].negativeShare - ratingHistory[i - 1].negativeShare;
+    if (delta >= minSpikePt && (!best || delta > best.delta)) best = { i, delta };
+  }
+  if (!best) return null;
+  const point = ratingHistory[best.i];
+  const impact = annotationImpact(visibilityDays, point.dateKey, 14);
+  if (impact.delta == null || impact.delta > -minDropPt) return null;
+  return {
+    dateKey: point.dateKey,
+    fromShare: ratingHistory[best.i - 1].negativeShare,
+    toShare: point.negativeShare,
+    spikeDelta: Math.round(best.delta * 10) / 10,
+    visBefore: impact.before.avgVisibility,
+    visAfter: impact.after.avgVisibility,
+    visDelta: impact.delta,
   };
 }
 

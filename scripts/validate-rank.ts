@@ -1,6 +1,6 @@
 // Fixture tests for the Rank Tracker's pure engine (src/lib/rank/track.ts) —
 // no network needed, so this runs anywhere: npx tsx scripts/validate-rank.ts
-import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordAnnotationImpact, keywordDifficulties, curateTopKeywords, RANK_BUCKETS } from '../src/lib/rank/track';
+import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordAnnotationImpact, keywordDifficulties, curateTopKeywords, detectRatingSpikeDrop, RANK_BUCKETS } from '../src/lib/rank/track';
 import { parseAppInput } from '../src/lib/rank/fetch';
 import { parseKeywordsWithVolumes } from '../src/lib/rank/keywords';
 import type { RankSnapshot, TrackedApp } from '../src/lib/rank/types';
@@ -717,6 +717,27 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
   const all6 = curateTopKeywords(app, snaps, 6, 30);
   eq('a keyword with neither volume nor a good rank sorts last',
     all6.indexOf('no data at all'), all6.length - 1);
+}
+
+// --- detectRatingSpikeDrop: connect a rating spike to a visibility drop ----
+{
+  const day = (dateKey: string, visibility: number) =>
+    ({ dateKey, buckets: [], visibility, tracked: 5, failed: 0, unchecked: 0 }) as any;
+  const rh = (dateKey: string, negativeShare: number, tone = 'mid') =>
+    ({ dateKey, total: 100, negativeShare, tone, windowDays: 28 }) as any;
+
+  const ratingHistorySpike = [rh('2026-07-01', 8), rh('2026-07-04', 9), rh('2026-07-05', 21, 'bad'), rh('2026-07-10', 20, 'bad')];
+  const visDrop = [day('2026-06-25', 32), day('2026-06-30', 30), day('2026-07-05', 29), day('2026-07-08', 20), day('2026-07-12', 18)];
+  const hit = detectRatingSpikeDrop(ratingHistorySpike, visDrop);
+  eq('finds the spike date', hit && hit.dateKey, '2026-07-05');
+  eq('reports the spike size', hit && hit.spikeDelta, 12);
+  eq('reports a real visibility drop after it', hit != null && hit.visDelta <= -2, true);
+
+  const visFlat = [day('2026-06-25', 30), day('2026-06-30', 30), day('2026-07-05', 30), day('2026-07-08', 30), day('2026-07-12', 31)];
+  eq('a real rating spike with NO visibility drop after it does not fire', detectRatingSpikeDrop(ratingHistorySpike, visFlat), null);
+
+  const ratingHistoryFlat = [rh('2026-07-01', 8), rh('2026-07-04', 9), rh('2026-07-05', 10), rh('2026-07-10', 9)];
+  eq('a visibility drop with NO real rating spike does not fire', detectRatingSpikeDrop(ratingHistoryFlat, visDrop), null);
 }
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
