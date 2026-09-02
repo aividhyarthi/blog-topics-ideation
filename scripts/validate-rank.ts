@@ -752,6 +752,28 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
   eq('a gradual multi-day rise (no single day over threshold) still fires', gradualHit != null, true);
   eq('gradual rise reports the full window\'s size, not one day\'s move', gradualHit && gradualHit.spikeDelta, 6);
   eq('gradual rise dates span the whole climb, not just the last check', gradualHit && gradualHit.fromDateKey, '2026-07-01');
+
+  // A real rating history often has MORE than one rise: a big one with no
+  // consequence, and a smaller one — well outside the big one's 14-day
+  // impact window — that actually lines up with a real visibility drop.
+  // Picking only the single biggest rise in the whole history used to mean
+  // that once IT failed the drop check, the smaller, genuinely-correlating
+  // one — over a month later — was never even looked at.
+  const ratingHistoryTwoSpikes = [
+    rh('2026-07-01', 5), rh('2026-07-03', 45), rh('2026-07-05', 6),
+    rh('2026-07-25', 6), rh('2026-07-28', 6), rh('2026-08-01', 6), rh('2026-08-05', 6), rh('2026-08-09', 13),
+  ];
+  const visTwoSpikes = [
+    day('2026-06-20', 30), day('2026-06-25', 30), day('2026-06-30', 30), day('2026-07-05', 30),
+    day('2026-07-10', 30), day('2026-07-15', 30), day('2026-07-20', 30), day('2026-07-25', 30),
+    day('2026-07-30', 30), day('2026-08-01', 30), day('2026-08-05', 30), day('2026-08-09', 30),
+    day('2026-08-12', 18), day('2026-08-16', 16),
+  ];
+  const twoSpikeHit = detectRatingSpikeDrop(ratingHistoryTwoSpikes, visTwoSpikes);
+  eq('the big, unrelated spike (Jul 3, +40pt) is skipped since nothing dropped after it',
+    twoSpikeHit && twoSpikeHit.dateKey, '2026-08-09');
+  eq('the smaller spike over a month later, which actually precedes a real drop, is reported instead',
+    twoSpikeHit != null && twoSpikeHit.spikeDelta < 40, true);
 }
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }

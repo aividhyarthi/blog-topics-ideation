@@ -509,13 +509,12 @@ export interface RatingSpikeDrop {
 }
 
 /**
- * Finds the biggest rise in 1-2★ share within any `lookbackDays`-day window,
- * then checks whether visibility fell in the ~14 days after it completed —
- * the exact pattern a client asks about ("did the bad reviews cause the
- * drop?") but that nothing on the dashboard connected before: the rating
- * trend and the visibility trend were two separate charts, and reading a
- * causal-looking pattern out of them meant eyeballing both and lining up the
- * dates by hand.
+ * Finds a rise in 1-2★ share within any `lookbackDays`-day window that's
+ * followed by a real visibility drop in the ~14 days after — the exact
+ * pattern a client asks about ("did the bad reviews cause the drop?") but
+ * that nothing on the dashboard connected before: the rating trend and the
+ * visibility trend were two separate charts, and reading a causal-looking
+ * pattern out of them meant eyeballing both and lining up the dates by hand.
  *
  * A window, not just an adjacent-day delta: a real rating hit is often a
  * gradual creep (1★/2★ share climbing over a week or two as reviews trickle
@@ -524,9 +523,15 @@ export interface RatingSpikeDrop {
  * threshold even though the cumulative rise was large and real. Comparing
  * each day against its lowest point in the trailing window catches both.
  *
- * Both thresholds exist so a small, normal-noise wobble in either metric
- * doesn't get flagged as a "pattern" — this only fires when BOTH a real
- * spike AND a real subsequent drop are present.
+ * Checks EVERY day's own best rise against ITS OWN subsequent drop, rather
+ * than finding the single biggest rise anywhere in history and only ever
+ * checking that one. A real rating history often has more than one rise —
+ * a big one unrelated to any drop, and a smaller one that actually lines up
+ * with a real visibility fall — and only ever checking the biggest one used
+ * to mean the real, smaller, correlating spike was never even considered
+ * once the bigger, unrelated one failed its own drop check. Among every
+ * rise that DOES clear both bars, the biggest rise wins — same tiebreak as
+ * before, just no longer stopping at the first (biggest) candidate tried.
  */
 export function detectRatingSpikeDrop(
   ratingHistory: RatingHistoryPoint[],
@@ -535,28 +540,40 @@ export function detectRatingSpikeDrop(
   minDropPt = 2,
   lookbackDays = 14,
 ): RatingSpikeDrop | null {
-  let best: { i: number; j: number; delta: number } | null = null;
+  const dayMs = 86400000;
+  let best: { i: number; j: number; delta: number; impact: AnnotationImpact } | null = null;
   for (let j = 1; j < ratingHistory.length; j++) {
     if (ratingHistory[j].tone === 'na') continue;
-    for (let i = Math.max(0, j - lookbackDays); i < j; i++) {
+    const tj = Date.parse(ratingHistory[j].dateKey);
+    let localBest: { i: number; delta: number } | null = null;
+    // Walk backwards by actual calendar time, not array position — rating
+    // history isn't guaranteed one entry per day (a failed nightly check
+    // skips a day), so counting back `lookbackDays` ARRAY entries could
+    // silently cover a much wider or narrower span than 14 real days.
+    // Entries are chronological, so once one falls outside the window
+    // nothing earlier can be inside it either.
+    for (let i = j - 1; i >= 0; i--) {
+      if (tj - Date.parse(ratingHistory[i].dateKey) > lookbackDays * dayMs) break;
       if (ratingHistory[i].tone === 'na') continue;
       const delta = ratingHistory[j].negativeShare - ratingHistory[i].negativeShare;
-      if (delta >= minSpikePt && (!best || delta > best.delta)) best = { i, j, delta };
+      if (delta >= minSpikePt && (!localBest || delta > localBest.delta)) localBest = { i, delta };
     }
+    if (!localBest) continue;
+    const impact = annotationImpact(visibilityDays, ratingHistory[j].dateKey, 14);
+    if (impact.delta == null || impact.delta > -minDropPt) continue; // this rise has no real drop after it
+    if (!best || localBest.delta > best.delta) best = { i: localBest.i, j, delta: localBest.delta, impact };
   }
   if (!best) return null;
   const point = ratingHistory[best.j];
-  const impact = annotationImpact(visibilityDays, point.dateKey, 14);
-  if (impact.delta == null || impact.delta > -minDropPt) return null;
   return {
     dateKey: point.dateKey,
     fromDateKey: ratingHistory[best.i].dateKey,
     fromShare: ratingHistory[best.i].negativeShare,
     toShare: point.negativeShare,
     spikeDelta: Math.round(best.delta * 10) / 10,
-    visBefore: impact.before.avgVisibility,
-    visAfter: impact.after.avgVisibility,
-    visDelta: impact.delta,
+    visBefore: best.impact.before.avgVisibility,
+    visAfter: best.impact.after.avgVisibility,
+    visDelta: best.impact.delta,
   };
 }
 
