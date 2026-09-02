@@ -1433,6 +1433,7 @@ ai photo enhancer"></textarea>
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks)}</div>
           </div>
           <div style="max-width:520px;margin-bottom:14px;">${ratingPulseHtml(app)}</div>
+          ${trendChartsHtml(app)}
           <div class="tiles">
             ${tileHtml('Top 1 rankings', c.top1, p && p.top1)}
             ${tileHtml('Top 10 rankings', c.top10, p && p.top10)}
