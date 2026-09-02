@@ -2117,48 +2117,6 @@ ai photo enhancer"></textarea>
         const icon = app.icon
           ? `<img class="icon" src="${escAttr(app.icon)}" alt="" />`
           : `<div class="fallback-icon">${app.store === 'play' ? '🤖' : ''}</div>`;
-        const sort = sortState[app.key] || {};
-        const volumes = app.keywordVolumes || {};
-        const diffMap = app.difficulty || {};
-        const trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
-        if (sort.col) {
-          trends.sort((a, b) => {
-            const av = sortVal(a, sort.col), bv = sortVal(b, sort.col);
-            if (av == null && bv == null) return 0;
-            if (av == null) return 1;
-            if (bv == null) return -1;
-            return (av - bv) * sort.dir;
-          });
-        }
-        const arrow = (col) => sort.col === col ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
-        const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
-        const rows = trends.map((t) => `
-          <tr>
-            <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(t.keyword)}" data-list="daily">${esc(t.keyword)}</button></td>
-            <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
-            <td class="pos">${posCell(t)}</td>
-            <td>${deltaCell(t)}</td>
-            <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
-            <td>${diffCell(t.difficulty)}</td>
-            <td>${spark(t.history || [])}</td>
-            <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
-          </tr>`).join('');
-        const errCount = trends.filter((t) => t.error).length;
-        // A checked-but-failed row (store rate-limit/block) still reads as
-        // "not ranking" in the table (no numeric position either way) — call
-        // that out explicitly so it's never mistaken for a confirmed result.
-        const errBanner = errCount
-          ? `<div class="alert info" style="display:block;">⚠︎ ${errCount} of ${trends.length} keyword${trends.length === 1 ? '' : 's'} failed to check today (store rate-limit or a temporary block, not a real result) — hover the <b>⚠︎ err</b> tag in the table for details. These are <b>not</b> confirmed as "not ranking"; they're retried automatically on the next check.</div>`
-          : '';
-        const table = (app.keywords || []).length
-          ? `${errBanner}
-            <p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
-              <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
-              <tbody>${rows}</tbody>
-            </table></div>
-            <h4 class="covhead" style="margin-top:14px;">Daily-tracked keywords <span class="hint" style="display:inline;margin:0;">— ${app.keywords.length} keyword${app.keywords.length === 1 ? '' : 's'}, checked automatically every day</span></h4>
-            ${RANK_LEGEND}`
-          : '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>';
         const apphead = `
           <div class="apphead" style="margin-bottom:14px;">
             ${icon}
@@ -2178,17 +2136,69 @@ ai photo enhancer"></textarea>
         // ASO cross-sell) has its own home in a tab that's actually about
         // that thing, instead of all of it landing on the home screen at
         // once.
-        const sectionOverview = `
+        // Every section below is wrapped in a thunk instead of computed
+        // eagerly — only the ONE section actually being shown (or all of
+        // them for a print/PDF export) needs to be built. This used to
+        // compute all seven unconditionally on every render() call
+        // regardless of which tab was open, which was cheap when keyword
+        // lists were small but became a measured ~600ms+ of dead work per
+        // click (confirmed via profiling) once Compare's category rollup
+        // started scoring an app's full multi-hundred-keyword coverage list
+        // instead of just the plan-capped daily one.
+        const sectionOverviewFn = () => `
           <div class="section-head"><h2>Overview</h2><p class="hint">Where you rank today, your trend, and what changed since your last check.</p></div>
           ${overviewHtml(app)}`;
 
-        const sectionInsights = `
+        const sectionInsightsFn = () => `
           <div class="section-head"><h2>Insights</h2><p class="hint">What's actually moving your rank — separating the listing changes you made from the things you didn't change (review health, competitor standing) that no copy rewrite will fix.</p></div>
           ${insightsHtml(app)}`;
 
-        const moversCard = moversHtml(app);
-        const promoCard = promotableHtml(app);
-        const sectionKeywords = `
+        const sectionKeywordsFn = () => {
+          const sort = sortState[app.key] || {};
+          const volumes = app.keywordVolumes || {};
+          const diffMap = app.difficulty || {};
+          const trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
+          if (sort.col) {
+            trends.sort((a, b) => {
+              const av = sortVal(a, sort.col), bv = sortVal(b, sort.col);
+              if (av == null && bv == null) return 0;
+              if (av == null) return 1;
+              if (bv == null) return -1;
+              return (av - bv) * sort.dir;
+            });
+          }
+          const arrow = (col) => sort.col === col ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
+          const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
+          const rows = trends.map((t) => `
+            <tr>
+              <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(t.keyword)}" data-list="daily">${esc(t.keyword)}</button></td>
+              <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
+              <td class="pos">${posCell(t)}</td>
+              <td>${deltaCell(t)}</td>
+              <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
+              <td>${diffCell(t.difficulty)}</td>
+              <td>${spark(t.history || [])}</td>
+              <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
+            </tr>`).join('');
+          const errCount = trends.filter((t) => t.error).length;
+          // A checked-but-failed row (store rate-limit/block) still reads as
+          // "not ranking" in the table (no numeric position either way) — call
+          // that out explicitly so it's never mistaken for a confirmed result.
+          const errBanner = errCount
+            ? `<div class="alert info" style="display:block;">⚠︎ ${errCount} of ${trends.length} keyword${trends.length === 1 ? '' : 's'} failed to check today (store rate-limit or a temporary block, not a real result) — hover the <b>⚠︎ err</b> tag in the table for details. These are <b>not</b> confirmed as "not ranking"; they're retried automatically on the next check.</div>`
+            : '';
+          const table = (app.keywords || []).length
+            ? `${errBanner}
+              <p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
+                <thead><tr><th>Keyword</th>${th('volume', 'Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table></div>
+              <h4 class="covhead" style="margin-top:14px;">Daily-tracked keywords <span class="hint" style="display:inline;margin:0;">— ${app.keywords.length} keyword${app.keywords.length === 1 ? '' : 's'}, checked automatically every day</span></h4>
+              ${RANK_LEGEND}`
+            : '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>';
+          const moversCard = moversHtml(app);
+          const promoCard = promotableHtml(app);
+          return `
           <div class="section-head"><h2>Daily Keywords</h2>
             <div class="row no-print"><button class="ghost" data-act="discover">Discover keywords</button></div>
           </div>
@@ -2198,8 +2208,9 @@ ai photo enhancer"></textarea>
           <div class="no-print">${discoverHtml(app)}</div>
           ${table}
           <div class="no-print" style="margin-top:14px;">${asoSummaryHtml(app)}</div>`;
+        };
 
-        const sectionCoverage = `
+        const sectionCoverageFn = () => `
           <div class="section-head"><h2>All Keywords</h2>
             <div class="row no-print"><button class="ghost" data-act="check-coverage">Check all keyword rankings</button></div>
           </div>
@@ -2207,14 +2218,17 @@ ai photo enhancer"></textarea>
             ? coverageHtml(app)
             : '<p class="hint">No coverage list yet — paste your full keyword universe (up to ' + MAX_COVERAGE + ') under <b>Settings</b> to monitor every keyword you care about beyond the plan-capped daily list.</p>'}`;
 
-        const compPulseCard = competitorPulseHtml(app);
-        const sectionCompare = `
+        const sectionCompareFn = () => {
+          const compPulseCard = competitorPulseHtml(app);
+          return `
           <div class="section-head"><h2>Compare</h2><p class="hint">Your keywords, your rank vs your competitors' — side by side.</p></div>
           ${compPulseCard ? `<div style="max-width:520px;margin-bottom:14px;">${compPulseCard}</div>` : ''}
           ${compareHtml(app)}`;
+        };
 
-        const ratingCard = ratingPulseHtml(app);
-        const sectionTrends = `
+        const sectionTrendsFn = () => {
+          const ratingCard = ratingPulseHtml(app);
+          return `
           <div class="section-head"><h2>Trends</h2><p class="hint">Longer-horizon signals: category chart position, rating health, and your logged experiments.</p></div>
           ${ratingCard ? `<div style="max-width:520px;margin-bottom:14px;">${ratingCard}</div>` : ''}
           ${trendChartsHtml(app)}
@@ -2235,8 +2249,9 @@ ai photo enhancer"></textarea>
             </div>
           </div>
           ${annotationsHtml(app)}`;
+        };
 
-        const sectionSettings = `
+        const sectionSettingsFn = () => `
           <div class="section-head"><h2>Settings</h2><p class="hint">Everything you can edit for this app lives here.</p></div>
           <div class="settings-block no-print">
             <h4>Daily-tracked keywords</h4>
@@ -2379,12 +2394,12 @@ ai photo enhancer"></textarea>
           </div>`;
 
         const bySection = {
-          overview: sectionOverview, insights: sectionInsights, keywords: sectionKeywords, coverage: sectionCoverage,
-          compare: sectionCompare, trends: sectionTrends, settings: sectionSettings,
+          overview: sectionOverviewFn, insights: sectionInsightsFn, keywords: sectionKeywordsFn, coverage: sectionCoverageFn,
+          compare: sectionCompareFn, trends: sectionTrendsFn, settings: sectionSettingsFn,
         };
         const body = printAll
-          ? [sectionOverview, sectionKeywords, sectionCoverage, sectionCompare, sectionTrends].join('<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">')
-          : bySection[currentSection] || sectionOverview;
+          ? [sectionOverviewFn(), sectionKeywordsFn(), sectionCoverageFn(), sectionCompareFn(), sectionTrendsFn()].join('<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">')
+          : (bySection[currentSection] || sectionOverviewFn)();
 
         return `
         <div class="card appcard" data-key="${escAttr(app.key)}">
