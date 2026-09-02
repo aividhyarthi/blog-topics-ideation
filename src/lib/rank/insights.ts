@@ -141,11 +141,13 @@ export function buildInsights(input: InsightsInput): Insight[] {
   // spike and a real subsequent drop are present — see detectRatingSpikeDrop.
   const spikeDrop = detectRatingSpikeDrop(ratingHistory, visibilityHistory);
   if (spikeDrop) {
+    const sameDay = spikeDrop.fromDateKey === spikeDrop.dateKey;
+    const whenPhrase = sameDay ? `on ${spikeDrop.dateKey}` : `between ${spikeDrop.fromDateKey} and ${spikeDrop.dateKey}`;
     out.push({
       kind: 'reviews',
       tone: 'bad',
-      title: `1-2★ share jumped ${spikeDrop.spikeDelta}pt on ${spikeDrop.dateKey}, visibility fell ${Math.abs(spikeDrop.visDelta)} pt after`,
-      detail: `1-2★ share went from ${pct(spikeDrop.fromShare)} to ${pct(spikeDrop.toShare)} that day. Average visibility over the following 14 days `
+      title: `1-2★ share rose ${spikeDrop.spikeDelta}pt ${whenPhrase}, visibility fell ${Math.abs(spikeDrop.visDelta)} pt after`,
+      detail: `1-2★ share went from ${pct(spikeDrop.fromShare)} to ${pct(spikeDrop.toShare)} ${sameDay ? 'that day' : 'over that stretch'}. Average visibility over the following 14 days `
         + `(${spikeDrop.visAfter ?? '–'}) came in ${Math.abs(spikeDrop.visDelta)} pt below the 14 days before it (${spikeDrop.visBefore ?? '–'}). `
         + 'Correlation, not confirmed causation — but it matches the pattern Google has described, and it\'s marked on the visibility chart below.',
       markDate: spikeDrop.dateKey,

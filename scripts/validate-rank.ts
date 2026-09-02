@@ -730,7 +730,10 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
   const visDrop = [day('2026-06-25', 32), day('2026-06-30', 30), day('2026-07-05', 29), day('2026-07-08', 20), day('2026-07-12', 18)];
   const hit = detectRatingSpikeDrop(ratingHistorySpike, visDrop);
   eq('finds the spike date', hit && hit.dateKey, '2026-07-05');
-  eq('reports the spike size', hit && hit.spikeDelta, 12);
+  // The window search checks every earlier day, not just the adjacent one —
+  // 8% on Jul 1 to 21% on Jul 5 (13pt) is a bigger real rise than 9% to 21%
+  // (12pt, Jul 4 to Jul 5), so it wins even though Jul 4 is one day closer.
+  eq('reports the spike size (biggest window, not just adjacent day)', hit && hit.spikeDelta, 13);
   eq('reports a real visibility drop after it', hit != null && hit.visDelta <= -2, true);
 
   const visFlat = [day('2026-06-25', 30), day('2026-06-30', 30), day('2026-07-05', 30), day('2026-07-08', 30), day('2026-07-12', 31)];
@@ -738,6 +741,17 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
 
   const ratingHistoryFlat = [rh('2026-07-01', 8), rh('2026-07-04', 9), rh('2026-07-05', 10), rh('2026-07-10', 9)];
   eq('a visibility drop with NO real rating spike does not fire', detectRatingSpikeDrop(ratingHistoryFlat, visDrop), null);
+
+  // A gradual creep — 1-2★ share climbing a couple points per check, never
+  // hitting the threshold on any single adjacent-day comparison — used to be
+  // invisible to this detector entirely. Comparing against the trailing
+  // window's low point (not just yesterday) catches the real cumulative rise.
+  const ratingHistoryGradual = [rh('2026-07-01', 8), rh('2026-07-03', 10), rh('2026-07-05', 12), rh('2026-07-07', 14)];
+  const visDropGradual = [day('2026-06-25', 30), day('2026-06-30', 30), day('2026-07-07', 29), day('2026-07-10', 20), day('2026-07-14', 18)];
+  const gradualHit = detectRatingSpikeDrop(ratingHistoryGradual, visDropGradual);
+  eq('a gradual multi-day rise (no single day over threshold) still fires', gradualHit != null, true);
+  eq('gradual rise reports the full window\'s size, not one day\'s move', gradualHit && gradualHit.spikeDelta, 6);
+  eq('gradual rise dates span the whole climb, not just the last check', gradualHit && gradualHit.fromDateKey, '2026-07-01');
 }
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }

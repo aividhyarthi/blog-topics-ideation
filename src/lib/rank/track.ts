@@ -495,6 +495,11 @@ export function annotationImpact(days: OverviewDay[], annotationDate: string, wi
 
 export interface RatingSpikeDrop {
   dateKey: string;
+  /** Start of the rise window — same as the day before `dateKey` for a
+   * sharp single-day jump, but an earlier date for a gradual multi-day
+   * climb. Lets the insight say "over N days" instead of implying an
+   * overnight jump that may not have happened. */
+  fromDateKey: string;
   fromShare: number;
   toShare: number;
   spikeDelta: number;
@@ -504,35 +509,49 @@ export interface RatingSpikeDrop {
 }
 
 /**
- * Finds the single biggest single-day jump in 1-2★ share, then checks
- * whether visibility fell in the ~14 days after it — the exact pattern a
- * client asks about ("did the bad reviews cause the drop?") but that
- * nothing on the dashboard connected before: the rating trend and the
- * visibility trend were two separate charts, and reading a causal-looking
- * pattern out of them meant eyeballing both and lining up the dates by
- * hand. Both thresholds exist so a small, normal-noise wobble in either
- * metric doesn't get flagged as a "pattern" — this only fires when BOTH a
- * real spike AND a real subsequent drop are present.
+ * Finds the biggest rise in 1-2★ share within any `lookbackDays`-day window,
+ * then checks whether visibility fell in the ~14 days after it completed —
+ * the exact pattern a client asks about ("did the bad reviews cause the
+ * drop?") but that nothing on the dashboard connected before: the rating
+ * trend and the visibility trend were two separate charts, and reading a
+ * causal-looking pattern out of them meant eyeballing both and lining up the
+ * dates by hand.
+ *
+ * A window, not just an adjacent-day delta: a real rating hit is often a
+ * gradual creep (1★/2★ share climbing over a week or two as reviews trickle
+ * in) rather than one sharp overnight jump, and comparing only yesterday vs
+ * today missed that entirely — every single day's move stayed under the
+ * threshold even though the cumulative rise was large and real. Comparing
+ * each day against its lowest point in the trailing window catches both.
+ *
+ * Both thresholds exist so a small, normal-noise wobble in either metric
+ * doesn't get flagged as a "pattern" — this only fires when BOTH a real
+ * spike AND a real subsequent drop are present.
  */
 export function detectRatingSpikeDrop(
   ratingHistory: RatingHistoryPoint[],
   visibilityDays: OverviewDay[],
   minSpikePt = 5,
   minDropPt = 2,
+  lookbackDays = 14,
 ): RatingSpikeDrop | null {
-  let best: { i: number; delta: number } | null = null;
-  for (let i = 1; i < ratingHistory.length; i++) {
-    if (ratingHistory[i].tone === 'na' || ratingHistory[i - 1].tone === 'na') continue;
-    const delta = ratingHistory[i].negativeShare - ratingHistory[i - 1].negativeShare;
-    if (delta >= minSpikePt && (!best || delta > best.delta)) best = { i, delta };
+  let best: { i: number; j: number; delta: number } | null = null;
+  for (let j = 1; j < ratingHistory.length; j++) {
+    if (ratingHistory[j].tone === 'na') continue;
+    for (let i = Math.max(0, j - lookbackDays); i < j; i++) {
+      if (ratingHistory[i].tone === 'na') continue;
+      const delta = ratingHistory[j].negativeShare - ratingHistory[i].negativeShare;
+      if (delta >= minSpikePt && (!best || delta > best.delta)) best = { i, j, delta };
+    }
   }
   if (!best) return null;
-  const point = ratingHistory[best.i];
+  const point = ratingHistory[best.j];
   const impact = annotationImpact(visibilityDays, point.dateKey, 14);
   if (impact.delta == null || impact.delta > -minDropPt) return null;
   return {
     dateKey: point.dateKey,
-    fromShare: ratingHistory[best.i - 1].negativeShare,
+    fromDateKey: ratingHistory[best.i].dateKey,
+    fromShare: ratingHistory[best.i].negativeShare,
     toShare: point.negativeShare,
     spikeDelta: Math.round(best.delta * 10) / 10,
     visBefore: impact.before.avgVisibility,
