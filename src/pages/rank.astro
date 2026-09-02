@@ -2378,9 +2378,9 @@ ai photo enhancer"></textarea>
             <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
-              ${(app.coverageKeywords || []).length ? `<button class="ghost" data-act="curate-daily">Rebuild from top-ranked + highest-volume (30d)</button>` : ''}
+              ${(app.coverageKeywords || []).length ? `<button class="ghost" data-act="curate-daily">Preview: top-ranked + highest-volume (30d)</button>` : ''}
             </div>
-            ${(app.coverageKeywords || []).length ? `<p class="hint" style="margin-top:8px;">If your All Keywords list is too big to fully check every day, this replaces the list above (up to your plan's daily cap) with keywords picked from the last 30 days: every keyword that's ranked top 20 at any point (kept regardless of volume), then filled out by search volume. Your All Keywords list itself is untouched.</p>` : ''}
+            ${(app.coverageKeywords || []).length ? `<p class="hint" style="margin-top:8px;">If your All Keywords list is too big to fully check every day, this fills the box above (up to your plan's daily cap) with keywords picked from the last 30 days: every keyword that's ranked top 20 at any point (kept regardless of volume), then filled out by search volume — for you to review. Nothing is saved until you click "Save keywords &amp; check ranks" yourself. Your All Keywords list itself is untouched either way.</p>` : ''}
           </div>
           <div class="settings-block no-print">
             <h4>All keywords list <span class="hint" style="display:inline;">— your full keyword universe, up to ${MAX_COVERAGE}</span></h4>
@@ -2873,13 +2873,13 @@ ai photo enhancer"></textarea>
           return;
         }
         if (act === 'curate-daily') {
-          withBusy(btn, 'Rebuilding…', async () => {
-            const data = await api({ action: 'curate-daily-keywords', key });
-            const notes = [];
-            if (data.curated) notes.push(`Daily list rebuilt: ${data.curated.before} → ${data.curated.after} keywords, picked from the last 30 days.`);
-            if (data.checkError) notes.push(data.checkError);
-            showInfo(notes.join(' '));
-            return data;
+          withBusy(btn, 'Building list…', async () => {
+            const data = await api({ action: 'curate-daily-keywords', key, preview: true });
+            if (data.curated) {
+              card.querySelector('[data-role="kwtext"]').value = data.curated.list.join('\n');
+              showInfo(`Showing ${data.curated.list.length} keywords picked from the last 30 days — review the list above, then click "Save keywords & check ranks" to apply it (nothing has been saved yet).`);
+            }
+            return null;
           });
           return;
         }

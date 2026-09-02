@@ -560,6 +560,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const coverageSnaps = loadCoverageSnapshots(30, userId);
     const curated = curateTopKeywords(app, coverageSnaps, maxKeywords, 30);
     if (!curated.length) return json({ error: 'No check history yet for this coverage list — run "Check all keyword rankings" at least once first, then try again.' }, 400);
+    // Preview-only: hand back the list for review, touch nothing. The
+    // client fills the (still-editable) daily-keywords textarea with it —
+    // saving it for real is still the same explicit "Save keywords & check
+    // ranks" click as any other edit to that box, not a second silent write.
+    if (body.preview) return json({ ok: true, curated: { before: app.keywords.length, list: curated } });
     const before = app.keywords.length;
     app.keywords = curated;
     saveConfig(cfg, userId);
