@@ -112,13 +112,17 @@ const limitsText = product && plan
       .diffpill.med { background: var(--warn-tint); color: var(--accent); }
       .diffpill.hard { background: var(--bad-tint); color: var(--bad); }
       /* --- overview headline (Digest-style: one number + why it moved) --- */
-      .headline { margin-bottom: 18px; }
+      .headline { }
       .headline-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
       .headline-num { font-size: 46px; font-weight: 800; font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: -0.01em; line-height: 1; margin-bottom: 9px; font-variant-numeric: tabular-nums; }
       .headline-sub { font-size: 14px; color: var(--muted); line-height: 1.6; max-width: 70ch; margin-bottom: 16px; }
       .headline-sub b { color: var(--ink); font-weight: 600; }
       /* --- overview (KPI cards + charts) --- */
-      .ov { margin-top: 14px; }
+      /* One consistent gap between every block on the tab (headline, rating
+         card, charts, tiles) instead of each block carrying its own
+         inconsistent inline margin — those drifted out of sync as blocks
+         were added/reordered and left some pairs flush against each other. */
+      .ov { margin-top: 14px; display: flex; flex-direction: column; gap: 20px; }
       /* Console-style KPI cards: each stat is its own small elevated card
          with a tinted delta chip, not plain colored text — the chip's
          background carries the same up/down meaning even at a glance. */
@@ -1432,7 +1436,7 @@ ai photo enhancer"></textarea>
             ${coverageCaption(todayDay)}
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks)}</div>
           </div>
-          <div style="max-width:520px;margin-bottom:14px;">${ratingPulseHtml(app)}</div>
+          <div style="max-width:520px;">${ratingPulseHtml(app)}</div>
           ${trendChartsHtml(app)}
           <div class="tiles">
             ${tileHtml('Top 1 rankings', c.top1, p && p.top1)}
@@ -1440,13 +1444,13 @@ ai photo enhancer"></textarea>
             ${tileHtml('Top 30 rankings', c.top30, p && p.top30)}
             ${tileHtml('Top 100 rankings', c.top100, p && p.top100)}
           </div>
-          <div class="tile" style="max-width:220px;margin-top:10px;">
+          <div class="tile" style="max-width:220px;">
             <div class="lbl">Keywords ranking</div>
             <div class="val">${rankingNow.length.toLocaleString()}</div>
             <div class="hint" style="margin:6px 0 0;">${coverageSub}</div>
           </div>
           ${categoryChartTrendHtml(app)}
-          <div class="chartbox" style="margin-top:12px;"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>
+          <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>
         </div>`;
       }
 
@@ -1513,8 +1517,8 @@ ai photo enhancer"></textarea>
           ? `Not in the top ${depth || '?'} of ${esc(chartName)}.`
           : 'Not ranked in a top chart yet.';
         return isChartRanking
-          ? `<div class="chartbox" style="margin-top:12px;"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}${overallNote}${depthNote}</div>`
-          : `<div class="chartbox" style="margin-top:12px;"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : notRankedText}</p>${overallNote}${depthNote}</div>`;
+          ? `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}${overallNote}${depthNote}</div>`
+          : `<div class="chartbox"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : notRankedText}</p>${overallNote}${depthNote}</div>`;
       }
 
       function trendChartsHtml(app) {
