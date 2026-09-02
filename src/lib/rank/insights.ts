@@ -13,14 +13,14 @@
 // Honesty rule: neither store publishes its ranking formula, so this states
 // CORRELATIONS and orders of magnitude, never "X caused Y". Wording matters —
 // these go in front of clients.
-import type { Annotation, KeywordTrend, RatingHistoryPoint, TrackedApp } from './types';
-import { detectRatingSpikeDrop, type OverviewDay } from './track';
+import type { Annotation, KeywordTrend, QualityMetricPoint, RatingHistoryPoint, TrackedApp } from './types';
+import { detectQualityMetricSpikeDrop, detectRatingSpikeDrop, type OverviewDay } from './track';
 
 export type InsightTone = 'good' | 'watch' | 'bad' | 'neutral';
 
 export interface Insight {
   /** Grouping key for the UI. */
-  kind: 'listing' | 'reviews' | 'competitor' | 'coverage' | 'chart';
+  kind: 'listing' | 'reviews' | 'competitor' | 'coverage' | 'chart' | 'quality';
   tone: InsightTone;
   title: string;
   /** One or two sentences. Plain language — this is read by clients. */
@@ -48,6 +48,9 @@ export interface InsightsInput {
    * against what visibility actually did afterward, not just reported on
    * its own (see detectRatingSpikeDrop). Optional: defaults to []. */
   visibilityHistory?: OverviewDay[];
+  /** Manually-pasted Android vitals (crash/ANR/user-loss rate) — see
+   * detectQualityMetricSpikeDrop. Optional: defaults to []. */
+  qualityMetrics?: QualityMetricPoint[];
   annotations: (Annotation & { impact?: { delta: number | null; before?: { avgVisibility: number | null }; after?: { avgVisibility: number | null } } })[];
   chart: { position: number | null; chart: string | null; depth: number | null; error?: string } | null;
   /** Today's and yesterday's visibility score — lets the coverage caveat
@@ -59,6 +62,17 @@ export interface InsightsInput {
 }
 
 const pct = (n: number) => `${Math.round(n * 10) / 10}%`;
+
+/** Absolute-percentage-point thresholds a rise must clear before it's even
+ * considered — tuned per metric since crash rate/ANR rate typically sit in
+ * the hundredths of a percent while user loss rate runs tenths of a
+ * percent; a flat "5pt" threshold (right for 1-2★ share, which spans 0-100)
+ * would never fire for these much smaller-scale metrics. */
+const QUALITY_METRIC_DEFS: { field: 'crashRate' | 'anrRate' | 'userLossRate'; label: string; minSpikePt: number }[] = [
+  { field: 'crashRate', label: 'Crash rate', minSpikePt: 0.05 },
+  { field: 'anrRate', label: 'ANR rate', minSpikePt: 0.10 },
+  { field: 'userLossRate', label: 'User loss rate', minSpikePt: 0.15 },
+];
 
 /** Shared keywords where both apps have a real (non-errored) result today. */
 function headToHead(mine: KeywordTrend[], theirs: KeywordTrend[]): { total: number; theyWin: number } {
@@ -83,6 +97,7 @@ export function buildInsights(input: InsightsInput): Insight[] {
   // (e.g. rating checks ran before the first full check completed), and
   // that's a real state to degrade out of gracefully, not a caller bug.
   const visibilityHistory = input.visibilityHistory || [];
+  const qualityMetrics = input.qualityMetrics || [];
   const out: Insight[] = [];
 
   /* ---- 1. Things you DID change: listing edits, measured ------------------ */
@@ -151,6 +166,32 @@ export function buildInsights(input: InsightsInput): Insight[] {
         + `(${spikeDrop.visAfter ?? '–'}) came in ${Math.abs(spikeDrop.visDelta)} pt below the 14 days before it (${spikeDrop.visBefore ?? '–'}). `
         + 'Correlation, not confirmed causation — but it matches the pattern Google has described, and it\'s marked on the visibility chart below.',
       markDate: spikeDrop.dateKey,
+    });
+  }
+
+  /* ---- 2c. Android vitals (crash/ANR/user-loss rate) spike -> drop ------- */
+  // Same pattern as the rating spike above, applied to whatever Android
+  // vitals the client has pasted in (Play Console has no public API for
+  // these, so there's no automatic daily point the way rating/ranking data
+  // has). Each metric gets its own threshold since crash rate, ANR rate and
+  // user loss rate sit on very different natural scales (hundredths of a
+  // percent vs tenths of a percent) — see QUALITY_METRIC_DEFS.
+  for (const def of QUALITY_METRIC_DEFS) {
+    const points = qualityMetrics
+      .filter((p) => p[def.field] != null)
+      .map((p) => ({ dateKey: p.dateKey, value: p[def.field] as number }));
+    const hit = detectQualityMetricSpikeDrop(points, visibilityHistory, def.minSpikePt);
+    if (!hit) continue;
+    const sameDay = hit.fromDateKey === hit.dateKey;
+    const whenPhrase = sameDay ? `on ${hit.dateKey}` : `between ${hit.fromDateKey} and ${hit.dateKey}`;
+    out.push({
+      kind: 'quality',
+      tone: 'bad',
+      title: `${def.label} rose ${hit.delta}pt ${whenPhrase}, visibility fell ${Math.abs(hit.visDelta)} pt after`,
+      detail: `${def.label} went from ${hit.fromValue}% to ${hit.toValue}% ${sameDay ? 'that day' : 'over that stretch'}. Average visibility over the following 14 days `
+        + `(${hit.visAfter ?? '–'}) came in ${Math.abs(hit.visDelta)} pt below the 14 days before it (${hit.visBefore ?? '–'}). `
+        + 'Correlation, not confirmed causation — but it\'s marked on the visibility chart below.',
+      markDate: hit.dateKey,
     });
   }
 

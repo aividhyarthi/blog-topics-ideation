@@ -7,8 +7,8 @@
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets, curateTopKeywords } from '../../lib/rank/track';
-import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, ConfigReadError } from '../../lib/rank/store';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets, curateTopKeywords, parseQualityMetricsInput } from '../../lib/rank/track';
+import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, loadQualityMetrics, mergeQualityMetrics, ConfigReadError } from '../../lib/rank/store';
 import { analyzeReviewThemes } from '../../lib/rank/themes';
 import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/rank/check';
 import { withTenantLock } from '../../lib/rank/lock';
@@ -205,6 +205,7 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
   const covLatest = covSnapshots.length ? covSnapshots[covSnapshots.length - 1] : null;
   const asoCache = loadAsoCache(userId);
   const ratingHistory = loadRatingHistory(userId);
+  const qualityMetrics = loadQualityMetrics(userId);
   const reviewThemes = loadReviewThemes(userId);
   // Every keyword-scoped view reads from ONE merged series (see
   // mergeSnapshotSets) rather than only the daily or only the coverage
@@ -226,6 +227,11 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
       const covPrev = covOverview.length > 1 ? covOverview[covOverview.length - 2] : null;
       return {
         ...app,
+        // Pasted-in Android vitals (see quality-metrics.json/store.ts) — sent
+        // back so Settings can pre-fill the paste box with what's already
+        // saved, letting a client append new rows instead of retyping
+        // everything each time.
+        qualityMetrics: qualityMetrics[app.key] || [],
         annotations: (app.annotations || []).map((a) => ({
           ...a,
           impact: annotationImpact(widerOverview, a.date),
@@ -281,6 +287,7 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
             rating: rh.length ? rh[rh.length - 1] : null,
             ratingHistory: rh,
             visibilityHistory: widerOverview,
+            qualityMetrics: qualityMetrics[app.key] || [],
             chart: { position: chart.position, chart: chart.chart, depth: chart.depth, error: chart.error },
             todayVisibility: today?.visibility ?? null,
             prevVisibility: prev?.visibility ?? null,
@@ -495,6 +502,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });
+  }
+
+  if (action === 'save-quality-metrics') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    const { points, errors } = parseQualityMetricsInput(String(body.text || ''));
+    if (points.length) mergeQualityMetrics(app.key, points, userId);
+    return json({ ok: true, saved: points.length, errors, ...statePayload(userId) });
   }
 
   if (action === 'set-competitor-of') {

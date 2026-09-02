@@ -1539,7 +1539,7 @@ ai photo enhancer"></textarea>
       }
 
       const INSIGHT_KIND_LABEL = {
-        listing: 'Listing changes', reviews: 'Review health',
+        listing: 'Listing changes', reviews: 'Review health', quality: 'Android vitals',
         competitor: 'Competitors', coverage: 'Data quality', chart: 'Category chart',
       };
 
@@ -1549,7 +1549,7 @@ ai photo enhancer"></textarea>
       function insightsHtml(app) {
         const items = app.insights || [];
         if (!items.length) return '<p class="hint">Not enough data yet — run a check and log a listing change to start building this.</p>';
-        const order = ['listing', 'reviews', 'competitor', 'chart', 'coverage'];
+        const order = ['listing', 'reviews', 'quality', 'competitor', 'chart', 'coverage'];
         const groups = order
           .map((kind) => ({ kind, rows: items.filter((i) => i.kind === kind) }))
           .filter((g) => g.rows.length);
@@ -2305,6 +2305,16 @@ ai photo enhancer"></textarea>
             </div>
           </div>
           <div class="settings-block no-print">
+            <h4>Android vitals</h4>
+            <p class="hint" style="margin:0 0 8px;">Google Play Console has no public API for crash rate / ANR rate / user loss rate, so paste them in from the Console's own tables (Quality &gt; Android vitals). One line per date, in order: <code>date, crash rate, ANR rate, user loss rate</code> — comma or tab separated, either works if pasted straight out of a spreadsheet. Leave a value blank if you don't have it for that date; a "%" sign is fine, it's stripped automatically. Re-pasting a date you already saved updates it rather than duplicating it.</p>
+            <textarea data-role="quality-metrics-input" rows="6" style="width:100%;font-family:ui-monospace,monospace;font-size:12.5px;" placeholder="2026-08-25, 0.01, 0.13, 0.49
+2026-08-19, 0.01, 0.11,">${esc((app.qualityMetrics || []).map((p) => `${p.dateKey}, ${p.crashRate ?? ''}, ${p.anrRate ?? ''}, ${p.userLossRate ?? ''}`).join('\n'))}</textarea>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-quality-metrics">Save Android vitals</button>
+            </div>
+            <p class="hint" style="margin-top:6px;">A real rise here that's followed by a real visibility drop shows up automatically in the Insights tab and is marked on the visibility chart — same as a rating spike.</p>
+          </div>
+          <div class="settings-block no-print">
             <h4>Competitors</h4>
             <p class="hint" style="margin:0 0 8px;">Rival apps tracked against this one — they show up in this app's Compare tab. Add one by pasting its Google Play / App Store URL or id; remove one to stop tracking it entirely.</p>
             ${(() => {
@@ -2809,6 +2819,20 @@ ai photo enhancer"></textarea>
             const coverageWeekendsOnly = weekendsEl ? weekendsEl.checked : false;
             const data = await api({ action: 'set-check-window', key, window: val, hourlyCap: cap, coverageWeekendsOnly });
             showToast(val ? 'Check window saved' : 'Stagger removed — checks any time');
+            return data;
+          });
+          return;
+        }
+        if (act === 'save-quality-metrics') {
+          withBusy(btn, 'Saving…', async () => {
+            const text = card.querySelector('[data-role="quality-metrics-input"]').value;
+            const data = await api({ action: 'save-quality-metrics', key, text });
+            if (data.errors && data.errors.length) {
+              showToast(`Saved ${data.saved} row(s) — ${data.errors.length} line(s) skipped, see console`);
+              console.warn('Quality metrics parse errors:', data.errors);
+            } else {
+              showToast(`Saved ${data.saved} row(s)`);
+            }
             return data;
           });
           return;

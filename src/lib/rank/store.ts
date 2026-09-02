@@ -10,7 +10,7 @@
 // recoverable. See restoreConfigBackups()/listConfigBackups() below.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AsoCache, RankSnapshot, RatingHistory, ReviewThemesCache, TrackerConfig } from './types';
+import type { AsoCache, QualityMetrics, RankSnapshot, RatingHistory, ReviewThemesCache, TrackerConfig } from './types';
 
 /**
  * Data directory. With no `userId` (the internal single-tenant deployment)
@@ -29,6 +29,7 @@ const snapFile = (dateKey: string, userId?: string) => join(dataDir(userId), `sn
 const covSnapFile = (dateKey: string, userId?: string) => join(dataDir(userId), `covsnap__${safe(dateKey)}.json`);
 const asoCacheFile = (userId?: string) => join(dataDir(userId), 'aso-cache.json');
 const ratingHistoryFile = (userId?: string) => join(dataDir(userId), 'rating-history.json');
+const qualityMetricsFile = (userId?: string) => join(dataDir(userId), 'quality-metrics.json');
 const MAX_BACKUPS = 20;
 
 /**
@@ -175,6 +176,29 @@ export function appendRatingHistory(key: string, point: RatingHistory[string][nu
   const existing = (history[key] || []).filter((p) => p.dateKey !== point.dateKey);
   history[key] = [...existing, point].sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-keep);
   writeFileSync(ratingHistoryFile(userId), JSON.stringify(history));
+}
+
+// --- quality metrics — Android vitals (crash rate / ANR rate / user loss
+// rate) pasted in manually from Play Console, which has no public scrape-able
+// API. Merged by date so re-pasting an overlapping range updates existing
+// days rather than duplicating them.
+
+export function loadQualityMetrics(userId?: string): QualityMetrics {
+  const p = qualityMetricsFile(userId);
+  if (!existsSync(p)) return {};
+  try { return JSON.parse(readFileSync(p, 'utf8')) as QualityMetrics; } catch { return {}; }
+}
+
+/** Merges pasted points into `key`'s series — same date replaces (fields in
+ * the new point win, but a field the new point omits keeps its old value,
+ * since a client often pastes crash+ANR one day and user-loss-rate another
+ * day for the same date range) rather than duplicating rows. */
+export function mergeQualityMetrics(key: string, points: QualityMetrics[string], userId?: string, keep = 400): void {
+  const all = loadQualityMetrics(userId);
+  const byDate = new Map((all[key] || []).map((p) => [p.dateKey, p]));
+  for (const p of points) byDate.set(p.dateKey, { ...byDate.get(p.dateKey), ...p });
+  all[key] = [...byDate.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-keep);
+  writeFileSync(qualityMetricsFile(userId), JSON.stringify(all));
 }
 
 // --- review themes — AI-extracted complaint themes from recent negative

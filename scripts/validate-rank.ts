@@ -1,6 +1,6 @@
 // Fixture tests for the Rank Tracker's pure engine (src/lib/rank/track.ts) —
 // no network needed, so this runs anywhere: npx tsx scripts/validate-rank.ts
-import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordAnnotationImpact, keywordDifficulties, curateTopKeywords, detectRatingSpikeDrop, RANK_BUCKETS } from '../src/lib/rank/track';
+import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordAnnotationImpact, keywordDifficulties, curateTopKeywords, detectRatingSpikeDrop, detectQualityMetricSpikeDrop, parseQualityMetricsInput, RANK_BUCKETS } from '../src/lib/rank/track';
 import { parseAppInput } from '../src/lib/rank/fetch';
 import { parseKeywordsWithVolumes } from '../src/lib/rank/keywords';
 import type { RankSnapshot, TrackedApp } from '../src/lib/rank/types';
@@ -774,6 +774,46 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
     twoSpikeHit && twoSpikeHit.dateKey, '2026-08-09');
   eq('the smaller spike over a month later, which actually precedes a real drop, is reported instead',
     twoSpikeHit != null && twoSpikeHit.spikeDelta < 40, true);
+}
+
+// --- parseQualityMetricsInput: pasted Android vitals rows -------------------
+{
+  const { points, errors } = parseQualityMetricsInput(
+    '2026-08-25, 0.01, 0.13, 0.49\n' +
+    '2026-08-19,,0.11,\n' +   // crash + user-loss blank, only ANR given
+    '2026-08-12\t0.02%\t0.15%\t0.55%\n' + // tab-separated with % signs, pasted straight from Play Console
+    '\n' +                     // blank line, ignored
+    'not-a-date, 1, 2, 3\n' +  // bad date -> error, skipped
+    '2026-08-05, oops, 0.1,'   // bad number -> error, but still keeps the good column
+  );
+  eq('parses a well-formed comma-separated row', points[0], { dateKey: '2026-08-25', crashRate: 0.01, anrRate: 0.13, userLossRate: 0.49 });
+  eq('blank columns are omitted, not treated as 0', points[1], { dateKey: '2026-08-19', anrRate: 0.11 });
+  eq('tab-separated with % signs parses the same way', points[2], { dateKey: '2026-08-12', crashRate: 0.02, anrRate: 0.15, userLossRate: 0.55 });
+  eq('a bad date is reported as an error and skipped', errors.some((e) => e.includes('not-a-date')), true);
+  eq('a bad number in one column is reported but the row is not silently dropped',
+    points.find((p) => p.dateKey === '2026-08-05'), { dateKey: '2026-08-05', anrRate: 0.1 });
+  eq('exactly 4 usable rows out of 5 non-blank lines (the bad-date line contributes none)', points.length, 4);
+}
+
+// --- detectQualityMetricSpikeDrop: same pattern, any manually-tracked metric
+{
+  const day = (dateKey: string, visibility: number) =>
+    ({ dateKey, buckets: [], visibility, tracked: 5, failed: 0, unchecked: 0 }) as any;
+  const crashPoints = [
+    { dateKey: '2026-08-01', value: 0.01 }, { dateKey: '2026-08-05', value: 0.01 },
+    { dateKey: '2026-08-10', value: 0.02 }, { dateKey: '2026-08-15', value: 0.09 },
+  ];
+  const visAfterCrash = [
+    day('2026-07-20', 30), day('2026-07-25', 30), day('2026-08-01', 30), day('2026-08-05', 30),
+    day('2026-08-10', 30), day('2026-08-15', 30), day('2026-08-18', 20), day('2026-08-22', 16),
+  ];
+  const crashHit = detectQualityMetricSpikeDrop(crashPoints, visAfterCrash, 0.05);
+  eq('a crash-rate rise of 0.08pt (0.01% to 0.09%) clears a 0.05pt threshold', crashHit != null, true);
+  eq('reports the real crash-rate rise size', crashHit && crashHit.delta, 0.08);
+
+  const crashPointsNoise = [{ dateKey: '2026-08-01', value: 0.01 }, { dateKey: '2026-08-15', value: 0.03 }];
+  eq('a small 0.02pt wobble does not clear the same 0.05pt threshold',
+    detectQualityMetricSpikeDrop(crashPointsNoise, visAfterCrash, 0.05), null);
 }
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }

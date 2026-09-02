@@ -156,6 +156,20 @@ export interface RatingHistoryPoint {
 }
 export type RatingHistory = Record<string, RatingHistoryPoint[]>; // keyed by TrackedApp.key
 
+/** One day's Android vitals for an app — Play Console has no public API for
+ * these (crash rate / ANR rate / user loss rate), so they're pasted in
+ * manually (see parseQualityMetricsInput) rather than fetched. All three are
+ * percentages (e.g. 0.13 for 0.13%) and all optional — a client often pastes
+ * the Stability section one day and the user-loss chart another day for the
+ * same date, so a point can carry just one or two of the three fields. */
+export interface QualityMetricPoint {
+  dateKey: string; // YYYY-MM-DD
+  crashRate?: number;
+  anrRate?: number;
+  userLossRate?: number;
+}
+export type QualityMetrics = Record<string, QualityMetricPoint[]>; // keyed by TrackedApp.key, chronological
+
 /** One AI-extracted complaint theme from recent negative (1-3★) reviews. */
 export interface ReviewTheme {
   theme: string;   // short label, e.g. "Login / OTP failures"
