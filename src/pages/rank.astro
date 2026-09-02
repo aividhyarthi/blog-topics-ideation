@@ -2289,6 +2289,12 @@ ai photo enhancer"></textarea>
             <input type="number" min="10" max="2000" step="10" data-role="hourly-cap" placeholder="no cap"
                    value="${app.hourlyRequestCap || ''}" style="max-width:150px;" />
             ${capPlanHint(app)}
+            ${(app.coverageKeywords || []).length ? `
+            <label style="display:flex;align-items:center;gap:6px;font-weight:600;margin-top:10px;">
+              <input type="checkbox" data-role="coverage-weekends-only" ${app.coverageWeekendsOnly ? 'checked' : ''} style="margin:0;" /> Only check the All-Keywords list on weekends
+            </label>
+            <p class="hint" style="margin:2px 0 0;">Mon-Fri, the ${(app.coverageKeywords || []).length}-keyword All-Keywords list is skipped entirely — only the ${app.keywords.length} daily-tracked keywords run. Sat/Sun it runs all day. Good for a list too big to make daily progress worth the store traffic anyway.</p>
+            ` : ''}
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-window">Save check window</button>
             </div>
@@ -2794,7 +2800,9 @@ ai photo enhancer"></textarea>
             const endVal = card.querySelector('[data-role="window-end"]').value;
             const val = none ? '' : `${startVal}-${endVal}`;
             const cap = card.querySelector('[data-role="hourly-cap"]').value.trim();
-            const data = await api({ action: 'set-check-window', key, window: val, hourlyCap: cap });
+            const weekendsEl = card.querySelector('[data-role="coverage-weekends-only"]');
+            const coverageWeekendsOnly = weekendsEl ? weekendsEl.checked : false;
+            const data = await api({ action: 'set-check-window', key, window: val, hourlyCap: cap, coverageWeekendsOnly });
             showToast(val ? 'Check window saved' : 'Stagger removed — checks any time');
             return data;
           });

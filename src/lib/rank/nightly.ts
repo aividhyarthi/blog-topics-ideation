@@ -18,7 +18,7 @@ import type { RequestMeter } from './check';
 import { analyzeReviewThemes } from './themes';
 import { backfillDeveloperId, backfillGenreId } from './fetch';
 import { withTenantLock } from './lock';
-import { keywordTrends, overviewSeries, countsFromBuckets, universeSizeSeries, todayKey, isWithinCheckWindow, keywordDifficulties } from './track';
+import { keywordTrends, overviewSeries, countsFromBuckets, universeSizeSeries, todayKey, isWithinCheckWindow, keywordDifficulties, istParts } from './track';
 import { parseReportEmails, buildDailyReportEmail, buildRankAlertEmail, buildWeeklyDigestEmail, sendReportEmail } from './email';
 import { writeNightlyStatus } from './run-status';
 import { checkAccess } from '../saas/plans';
@@ -279,7 +279,9 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
     // Two changes make starvation impossible: serve the app that is FURTHEST
     // BEHIND first, and give each app an equal slice of what's left instead of
     // letting one consume it all.
-    const coverageApps = dueApps.filter((a) => (a.coverageKeywords || []).length);
+    const isWeekend = istParts(new Date()).day === 0 || istParts(new Date()).day === 6;
+    const coverageApps = dueApps.filter((a) =>
+      (a.coverageKeywords || []).length && (!a.coverageWeekendsOnly || isWeekend));
     if (coverageApps.length) {
       const covSnap = loadCoverageSnapshot(today, userId);
       const progressOf = (a: typeof coverageApps[number]) => {

@@ -108,6 +108,17 @@ export interface TrackedApp {
    * least that many hours. 645 keywords at 100/hour needs 7 hours.
    */
   hourlyRequestCap?: number;
+  /**
+   * When true, the nightly coverage batch (the big All-Keywords list) only
+   * runs on Saturday/Sunday IST for this app — Mon-Fri it's skipped
+   * entirely, not just narrowed to checkWindow's hours. The daily-tracked
+   * list (app.keywords) is never affected by this: it's checked every day
+   * regardless, before coverage batching even starts (see nightly.ts).
+   * For an app whose coverage list is too big to make daily progress worth
+   * the store traffic anyway, this concentrates that traffic into the
+   * weekend instead of a thin, easy-to-rate-limit slice every weekday.
+   */
+  coverageWeekendsOnly?: boolean;
 }
 
 export interface TrackerConfig {

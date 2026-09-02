@@ -485,6 +485,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
         app.hourlyRequestCap = Math.floor(cap);
       }
     }
+    // Third, optional part of the same form: confine the big All Keywords
+    // batch to weekends only for this app. Never touches the daily-tracked
+    // list, which is checked every day regardless — see coverageWeekendsOnly
+    // in types.ts.
+    if (body.coverageWeekendsOnly !== undefined) {
+      if (body.coverageWeekendsOnly) app.coverageWeekendsOnly = true;
+      else delete app.coverageWeekendsOnly;
+    }
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });
   }
