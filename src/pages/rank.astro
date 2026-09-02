@@ -2084,9 +2084,20 @@ ai photo enhancer"></textarea>
         const arrow = (col) => sort.col === col ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
         const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
 
+        // Strength-by-category gets the FULL keyword universe (daily +
+        // coverage), not just the plan-capped daily list used for the
+        // keyword-by-keyword table below. A curated daily list can easily
+        // hold zero keywords for a whole category (e.g. "personal loan")
+        // even though the coverage list has real, checked history for
+        // dozens of them — the category rollup showed a flat 0 for every
+        // app in that case, indistinguishable from "genuinely not ranked",
+        // when the real number was sitting right there in coverage data.
+        const catKws = (app.coverageKeywords || []).length
+          ? Array.from(new Set([...kws, ...app.coverageKeywords]))
+          : kws;
         return `${picker}
           ${compareTrendChart(app, comps, kws)}
-          ${categoryStrengthHtml(app, comps, kws)}
+          ${categoryStrengthHtml(app, comps, catKws)}
           <p class="scrollhint no-print">↔ Swipe to see all columns</p>
           <div class="table-wrap comparetable"><table>
             <thead><tr>${th('kw', 'Keyword')}${th('volume', 'Volume')}${th('mine', compLabel(app, true))}${comps.map((c, i) => th(`comp:${i}`, compLabel(c, false))).join('')}</tr></thead>
