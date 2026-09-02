@@ -2378,7 +2378,9 @@ ai photo enhancer"></textarea>
             <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
+              ${(app.coverageKeywords || []).length ? `<button class="ghost" data-act="curate-daily">Rebuild from top-ranked + highest-volume (30d)</button>` : ''}
             </div>
+            ${(app.coverageKeywords || []).length ? `<p class="hint" style="margin-top:8px;">If your All Keywords list is too big to fully check every day, this replaces the list above (up to your plan's daily cap) with keywords picked from the last 30 days: every keyword that's ranked top 20 at any point (kept regardless of volume), then filled out by search volume. Your All Keywords list itself is untouched.</p>` : ''}
           </div>
           <div class="settings-block no-print">
             <h4>All keywords list <span class="hint" style="display:inline;">— your full keyword universe, up to ${MAX_COVERAGE}</span></h4>
@@ -2866,6 +2868,17 @@ ai photo enhancer"></textarea>
             if (notes.length) showInfo(notes.join(' ')); else showToast('Keywords saved — fresh ranks below');
             const saved = data.apps.find((a) => a.key === key);
             if (saved) checkAsoFor(saved);
+            return data;
+          });
+          return;
+        }
+        if (act === 'curate-daily') {
+          withBusy(btn, 'Rebuilding…', async () => {
+            const data = await api({ action: 'curate-daily-keywords', key });
+            const notes = [];
+            if (data.curated) notes.push(`Daily list rebuilt: ${data.curated.before} → ${data.curated.after} keywords, picked from the last 30 days.`);
+            if (data.checkError) notes.push(data.checkError);
+            showInfo(notes.join(' '));
             return data;
           });
           return;

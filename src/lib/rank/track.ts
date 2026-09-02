@@ -316,6 +316,57 @@ export function universeSizeSeries(app: TrackedApp, snapshots: RankSnapshot[], d
   }).filter((d): d is UniverseSizePoint => d !== null);
 }
 
+/**
+ * Picks the `maxCount` keywords worth guaranteeing a daily check for, out of
+ * a coverage list too big to fully check every day. Built for exactly this
+ * situation: a big coverage list keeps missing a chunk of itself on any
+ * given day (see the check-window/hourly-cap limits), so the report looks
+ * like it's dropping when really it's just incomplete.
+ *
+ * Two tiers, in priority order:
+ *  1. Every keyword that's ranked in the top 20 at any point in the lookback
+ *     window, regardless of volume — these are proven wins; losing daily
+ *     visibility on them is what actually hurts, and a keyword can be
+ *     genuinely important with modest search volume.
+ *  2. Whatever's left, filled in by search volume, highest first, until
+ *     `maxCount` is reached.
+ *
+ * The result is meant to replace `app.keywords` (the small, plan-capped,
+ * checked-every-day list) — `app.coverageKeywords` (the full universe) is
+ * untouched, so nothing is stopped being tracked, only re-prioritized for
+ * which subset gets a guaranteed-daily check.
+ */
+export function curateTopKeywords(
+  app: TrackedApp,
+  coverageSnapshots: RankSnapshot[],
+  maxCount: number,
+  lookbackDays = 30,
+): string[] {
+  const recent = coverageSnapshots.slice(-lookbackDays);
+  const universe = new Set([...(app.coverageKeywords || []), ...(app.keywords || [])]);
+  const volumes = app.keywordVolumes || {};
+
+  const bestPosition = (kw: string): number | null => {
+    let best: number | null = null;
+    for (const snap of recent) {
+      const row = snap.apps.find((a) => a.key === app.key);
+      const k = row?.keywords.find((x) => x.keyword === kw);
+      if (k && !k.error && k.position != null && (best == null || k.position < best)) best = k.position;
+    }
+    return best;
+  };
+
+  const scored = [...universe].map((kw) => ({ kw, bestPos: bestPosition(kw), volume: volumes[kw] ?? null }));
+  const topRanked = scored
+    .filter((s) => s.bestPos != null && s.bestPos <= 20)
+    .sort((a, b) => a.bestPos! - b.bestPos!);
+  const byVolume = scored
+    .filter((s) => !(s.bestPos != null && s.bestPos <= 20))
+    .sort((a, b) => (b.volume ?? -1) - (a.volume ?? -1));
+
+  return [...topRanked, ...byVolume].map((s) => s.kw).slice(0, maxCount);
+}
+
 export interface KeywordDifficulty {
   /** 0–100; higher = harder to break into. */
   score: number;

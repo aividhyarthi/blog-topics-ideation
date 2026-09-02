@@ -7,7 +7,7 @@
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets } from '../../lib/rank/track';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets, curateTopKeywords } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, ConfigReadError } from '../../lib/rank/store';
 import { analyzeReviewThemes } from '../../lib/rank/themes';
 import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/rank/check';
@@ -551,6 +551,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const keywordsTruncated = action === 'set-keywords' && totalParsed > app.keywords.length
       ? { saved: app.keywords.length, total: totalParsed } : null;
     return json({ ok: true, checkError, keywordsTruncated, ...statePayload(userId) });
+  }
+
+  if (action === 'curate-daily-keywords') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    if (!(app.coverageKeywords || []).length) return json({ error: 'No coverage list to curate from — add one under Settings first.' }, 400);
+    const coverageSnaps = loadCoverageSnapshots(30, userId);
+    const curated = curateTopKeywords(app, coverageSnaps, maxKeywords, 30);
+    if (!curated.length) return json({ error: 'No check history yet for this coverage list — run "Check all keyword rankings" at least once first, then try again.' }, 400);
+    const before = app.keywords.length;
+    app.keywords = curated;
+    saveConfig(cfg, userId);
+    const checkError = await checkAfterEdit(app, userId);
+    return json({ ok: true, checkError, curated: { before, after: curated.length }, ...statePayload(userId) });
   }
 
   if (action === 'discover') {

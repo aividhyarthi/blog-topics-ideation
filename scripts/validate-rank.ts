@@ -1,6 +1,6 @@
 // Fixture tests for the Rank Tracker's pure engine (src/lib/rank/track.ts) —
 // no network needed, so this runs anywhere: npx tsx scripts/validate-rank.ts
-import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordAnnotationImpact, keywordDifficulties, RANK_BUCKETS } from '../src/lib/rank/track';
+import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordAnnotationImpact, keywordDifficulties, curateTopKeywords, RANK_BUCKETS } from '../src/lib/rank/track';
 import { parseAppInput } from '../src/lib/rank/fetch';
 import { parseKeywordsWithVolumes } from '../src/lib/rank/keywords';
 import type { RankSnapshot, TrackedApp } from '../src/lib/rank/types';
@@ -692,6 +692,31 @@ eq('candidates lowercase', cands.every((c) => c === c.toLowerCase()), true);
     keywordTrends(cred, afterCred, 30, CRED).map((r) => r.position), [1, 9]);
   eq('and the delta compares against yesterday',
     keywordTrends(cred, afterCred, 30, CRED)[0].delta, 2);
+}
+
+// --- curateTopKeywords: pick a guaranteed-daily-checkable subset ------------
+{
+  const app = {
+    key: 'play:big', keywords: [], coverageKeywords: ['niche win', 'big volume a', 'big volume b', 'mid volume', 'never ranked', 'no data at all'],
+    keywordVolumes: { 'niche win': 50, 'big volume a': 9000, 'big volume b': 8000, 'mid volume': 3000, 'never ranked': 7000 },
+  } as any;
+  const kw = (k: string, p: number | null) => ({ keyword: k, position: p, depth: 200, top: [] });
+  const snaps = [
+    { dateKey: '2026-08-01', checkedAt: 'x', apps: [{ key: 'play:big', store: 'play', appId: 'big', country: 'us', keywords: [
+      kw('niche win', 12), kw('big volume a', 55), kw('big volume b', 90), kw('mid volume', 40), kw('never ranked', null),
+    ], topChart: null, score: null, ratings: null }] },
+  ] as any[];
+
+  const top3 = curateTopKeywords(app, snaps, 3, 30);
+  eq('a low-volume top-20 keyword is kept even though the cap is tiny', top3.includes('niche win'), true);
+  eq('remaining slots fill by volume, highest first', top3, ['niche win', 'big volume a', 'big volume b']);
+
+  const top5 = curateTopKeywords(app, snaps, 5, 30);
+  eq('a keyword with volume but no rank data still gets picked once ranked ones are exhausted',
+    top5.includes('never ranked'), true);
+  const all6 = curateTopKeywords(app, snaps, 6, 30);
+  eq('a keyword with neither volume nor a good rank sorts last',
+    all6.indexOf('no data at all'), all6.length - 1);
 }
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
