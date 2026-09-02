@@ -215,12 +215,19 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
   const merged = mergeSnapshotSets(covSnapshots, snapshots);
   return {
     apps: cfg.apps.map((app) => {
-      const overview = overviewSeries(app, merged);
+      // 60 days shown on the headline chart (was 30) — a client's rating/
+      // vitals history commonly runs well past a month back, and a real
+      // spike-then-drop pattern outside the visible window got detected and
+      // written to Insights just fine (that already used the wider window
+      // below) but never got its chart mark drawn, since the mark can only
+      // land on a date the chart actually plots.
+      const overview = overviewSeries(app, merged, 60);
       const today = overview.length ? overview[overview.length - 1] : null;
       const prev = overview.length > 1 ? overview[overview.length - 2] : null;
-      // A wider (unrendered) window so a ±14-day before/after impact read is
-      // possible even for an annotation near the edge of the 30-day chart.
-      const widerOverview = overviewSeries(app, merged, 60);
+      // Wider still (unrendered) so a ±14-day before/after impact read is
+      // possible even for an annotation or detected spike near the edge of
+      // the 60-day chart.
+      const widerOverview = overviewSeries(app, merged, 90);
       const covKeywords = app.coverageKeywords || [];
       const covOverview = covKeywords.length ? overviewSeries(app, merged, 60, covKeywords) : [];
       const covToday = covOverview.length ? covOverview[covOverview.length - 1] : null;
