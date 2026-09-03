@@ -36,6 +36,14 @@ const THEMES = {
 
 // slug -> { art, takeaway, ...art-specific fields }
 const SPEC = {
+  'do-backlinks-affect-app-store-ranking':
+    { art: 'diverge', takeaway: 'App store ranking runs on a different signal set than web SEO', a: 'in-store signals', b: 'backlinks' },
+  'competitor-review-bombing-what-to-do':
+    { art: 'stars', takeaway: 'A clustered burst of 1★s is a pattern, not a coincidence' },
+  'ranking-doesnt-recover-after-app-reinstated':
+    { art: 'drop', takeaway: 'Zero signal during a suspension explains the slow climb back', mark: 'reinstated' },
+  'competitor-using-your-app-name-in-their-keywords':
+    { art: 'diverge', takeaway: 'Both platforms ban stuffing a rival’s name into your keywords', a: 'competitor', b: 'you' },
   'why-did-my-app-ranking-drop':
     { art: 'drop', takeaway: 'Rule out the confirmed causes before the speculative ones', mark: 'drop starts' },
   'app-ranking-dropped-after-update':
