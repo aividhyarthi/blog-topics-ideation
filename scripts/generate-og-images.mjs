@@ -36,6 +36,19 @@ const THEMES = {
 
 // slug -> { art, takeaway, ...art-specific fields }
 const SPEC = {
+  'why-aso-tools-show-different-keyword-data':
+    { art: 'chips', takeaway: 'Every tool estimates volume from a different proxy signal',
+      chips: ['AppTweak', 'Sensor Tower', 'Appfigures', 'AppFollow'] },
+  'impressions-up-downloads-flat-conversion-mystery':
+    { art: 'funnel', takeaway: 'The drop-off tells you exactly where the listing is failing', steps: ['impressions', 'page views', 'installs'] },
+  'why-didnt-my-new-app-get-the-launch-boost':
+    { art: 'bars', takeaway: 'A documented ranking factor is not the same as a confirmed boost',
+      bars: [['documented factors', 85], ['observed volatility', 55], ['confirmed new-app boost', 5]] },
+  'what-app-reviews-tell-you-that-ratings-cant':
+    { art: 'bars', takeaway: 'A star average hides which theme is actually driving complaints',
+      bars: [['crashes/bugs', 35], ['pricing', 25], ['missing feature', 15], ['confusing UI', 10]] },
+  'how-to-get-your-app-discovered-by-ai-assistants':
+    { art: 'qa', takeaway: 'AI assistants answer from the open web, not your store listing' },
   'do-backlinks-affect-app-store-ranking':
     { art: 'diverge', takeaway: 'App store ranking runs on a different signal set than web SEO', a: 'in-store signals', b: 'backlinks' },
   'competitor-review-bombing-what-to-do':
