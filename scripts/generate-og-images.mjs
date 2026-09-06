@@ -36,6 +36,18 @@ const THEMES = {
 
 // slug -> { art, takeaway, ...art-specific fields }
 const SPEC = {
+  'should-you-use-apple-search-ads-for-organic-growth':
+    { art: 'diverge', takeaway: 'The lift fades fast once the paid campaign stops', a: 'paid installs', b: 'organic rank' },
+  'why-you-should-automate-your-aso-tracking':
+    { art: 'wave', takeaway: 'A regression can come and go before a weekly check ever sees it' },
+  'does-your-screenshot-pass-the-3-second-test':
+    { art: 'chips', takeaway: "Apple's own guidance names exactly which images carry the weight",
+      chips: ['first 1-3 shown in search', 'up to 10 total', 'no ranking claims on-image'] },
+  'how-to-structure-an-app-preview-video':
+    { art: 'chips', takeaway: 'Two platforms, two very different technical rules',
+      chips: ['15-30 sec (Apple)', 'autoplay muted', 'YouTube-hosted (Play)', '80% real footage (Play)'] },
+  'finding-less-competitive-international-aso-markets':
+    { art: 'growth', takeaway: 'Most competitors never bother to localize past English', label: 'rank in a new market' },
   'why-aso-tools-show-different-keyword-data':
     { art: 'chips', takeaway: 'Every tool estimates volume from a different proxy signal',
       chips: ['AppTweak', 'Sensor Tower', 'Appfigures', 'AppFollow'] },
