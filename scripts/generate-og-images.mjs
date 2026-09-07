@@ -36,6 +36,17 @@ const THEMES = {
 
 // slug -> { art, takeaway, ...art-specific fields }
 const SPEC = {
+  'custom-store-listings-vs-store-listing-experiments':
+    { art: 'chips', takeaway: 'One targets who sees it, the other tests what wins',
+      chips: ['up to 50 custom listings', 'up to 3 test variants', '7-14 days to significance'] },
+  'does-app-size-affect-conversion-rate':
+    { art: 'diverge', takeaway: 'A real Google number from 2017, and nothing equivalent from Apple', a: 'app size', b: 'install conversion' },
+  'does-deep-linking-affect-app-store-ranking':
+    { art: 'chips', takeaway: 'On-device search rank and App Store search rank are not the same thing',
+      chips: ['Spotlight/Siri rank', 'App Store search rank', 'not the same system'] },
+  'does-what-new-release-notes-affect-aso':
+    { art: 'bars', takeaway: 'A real 8x length gap between platforms',
+      bars: [["iOS: 4,000 chars", 100], ["Android: 500 chars", 13]] },
   'should-you-use-apple-search-ads-for-organic-growth':
     { art: 'diverge', takeaway: 'The lift fades fast once the paid campaign stops', a: 'paid installs', b: 'organic rank' },
   'why-you-should-automate-your-aso-tracking':
