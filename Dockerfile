@@ -20,6 +20,9 @@ RUN apk add --no-cache libstdc++
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
+# Ops scripts (e.g. reset-password.mjs) run via the Railway Console — not
+# served over HTTP, but need to ship in the image to be runnable there.
+COPY --from=builder /app/scripts ./scripts
 # Bind to all interfaces. Do NOT hardcode PORT — Railway injects its own
 # PORT at runtime and the Astro node server reads it automatically.
 ENV HOST=0.0.0.0
