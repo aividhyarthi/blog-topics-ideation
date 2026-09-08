@@ -11,6 +11,7 @@ const { title = 'AI Page Audit', description = 'See your site the way AI answer 
 // type (Article, FAQPage, DefinedTermSet, …).
 const origin = Astro.site?.origin || new URL(Astro.request.url).origin;
 const canonical = new URL(Astro.url.pathname, origin).href;
+const ogImage = `${origin}/og-image.png`;
 
 const baseSchema = {
   '@context': 'https://schema.org',
@@ -20,6 +21,7 @@ const baseSchema = {
       '@id': `${origin}/#org`,
       name: 'AI Page Audit',
       url: origin,
+      logo: `${origin}/android-chrome-512x512.png`,
       description: 'Shows what AI crawlers can and cannot read on your site, and what to fix.',
     },
     {
@@ -40,6 +42,11 @@ const MARK = `<svg viewBox="0 0 24 24" fill="none"><rect x="5" y="13" width="3.2
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
@@ -48,9 +55,13 @@ const MARK = `<svg viewBox="0 0 24 24" fill="none"><rect x="5" y="13" width="3.2
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content="AI Page Audit" />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
     <script type="application/ld+json" set:html={JSON.stringify(baseSchema)} />
     {schema && <script type="application/ld+json" set:html={JSON.stringify(schema)} />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />

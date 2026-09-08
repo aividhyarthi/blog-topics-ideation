@@ -14,5 +14,8 @@
     "astro": "^4.16.0",
     "better-sqlite3": "^13.0.1",
     "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "png-to-ico": "^3.0.2"
   }
 }
