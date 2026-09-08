@@ -296,6 +296,28 @@ export async function grantTrial(email: string, days: number): Promise<{ ok: boo
   return { ok: true, expiresAt: newExpiry.toISOString() };
 }
 
+export interface AdminUserRow {
+  email: string; plan: 'free' | 'pro'; planExpiresAt: string | null;
+  credits: number; freeCheckUsed: boolean; createdAt: string;
+}
+
+/**
+ * Every signed-up account, newest first — so an admin can see who has
+ * actually signed up (e.g. before trying to grant them a trial) instead of
+ * guessing from a blind email box. Read-only; grantTrial still does the
+ * writing.
+ */
+export async function listUsers(limit = 200): Promise<AdminUserRow[]> {
+  const { rows } = await query<{
+    email: string; plan: string; plan_expires_at: string | null;
+    credits: number; free_check_used: number; created_at: string;
+  }>('SELECT email, plan, plan_expires_at, credits, free_check_used, created_at FROM users ORDER BY created_at DESC LIMIT $1', [limit]);
+  return rows.map((r) => ({
+    email: r.email, plan: r.plan === 'pro' ? 'pro' : 'free', planExpiresAt: r.plan_expires_at,
+    credits: Number(r.credits), freeCheckUsed: Boolean(r.free_check_used), createdAt: r.created_at,
+  }));
+}
+
 export async function rejectClaim(id: string): Promise<{ ok: boolean; error?: string }> {
   const { rows } = await query<{ status: string }>('SELECT status FROM payment_claims WHERE id = $1', [id]);
   if (!rows[0]) return { ok: false, error: 'Claim not found.' };
