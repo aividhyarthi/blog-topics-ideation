@@ -650,6 +650,12 @@ export const CLIENTS: ClientConfig[] = [
   { id: 'cred', name: 'CRED.club', domain: 'cred.club', vertical: 'fintech', pageTypes: [] },
   { id: 'kuvera', name: 'Kuvera.in', domain: 'kuvera.in', vertical: 'fintech', pageTypes: [] },
   { id: 'toi', name: 'Times of India', domain: 'timesofindia.indiatimes.com', vertical: 'news', pageTypes: [] },
+  // Domains are best-effort — confirm the exact live domain for each with
+  // the client; nothing functional keys off this field (see the comment on
+  // ClientConfig.domain), so a wrong one here doesn't break the audit itself.
+  { id: 'gadgetsnow', name: 'Gadgets Now', domain: 'gadgetsnow.com', vertical: 'reviews', pageTypes: [] },
+  { id: 'toi-homes', name: 'TOI Homes', domain: 'timesproperty.com', vertical: 'realestate', pageTypes: [] },
+  { id: 'toi-auto', name: 'TOI Auto', domain: 'timesofindia.indiatimes.com/auto', vertical: 'automotive', pageTypes: [] },
 ];
 
 export function getClient(id: string): ClientConfig | undefined {

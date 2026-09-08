@@ -195,8 +195,12 @@ export function isAdmin(user: User | null): boolean {
  * entries, never the full internal list of every agency client's domains.
  * Keyed by lowercased email; values are clients.ts client ids.
  */
+const TOI_CLIENT_IDS = ['toi', 'gadgetsnow', 'toi-homes', 'toi-auto'];
 const CLIENT_SCOPED_ACCESS: Record<string, string[]> = {
   'rudra.2.seo@cars24.com': ['cars24-in', 'cars24-au'],
+  'astha.joshi@timesinternet.in': TOI_CLIENT_IDS,
+  'komal.koul@timesinternet.in': TOI_CLIENT_IDS,
+  'ajar.tripathi@timesinternet.in': TOI_CLIENT_IDS,
 };
 
 /**
