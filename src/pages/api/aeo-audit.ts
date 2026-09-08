@@ -7,7 +7,7 @@ import {
 } from '../../lib/aeo';
 import { getUser } from '../../lib/auth';
 import { saveAudit, auditHistoryByUrl } from '../../lib/audits';
-import { consumeAccess, refundAccess, isAdmin } from '../../lib/billing';
+import { consumeAccess, refundAccess, clientAccessFor } from '../../lib/billing';
 import { dbEnabled } from '../../lib/db';
 import { runChecklist, type ChecklistResult } from '../../lib/checklists';
 import { getClient, getClientPageType } from '../../lib/clients';
@@ -219,11 +219,13 @@ export const POST: APIRoute = async (ctx) => {
   }
 
   // Client-scoped checklists (an agency client's own page-type checklist,
-  // e.g. Cars24) are an admin-only feature. Re-check server-side rather than
-  // trusting the request body — a non-admin hitting this endpoint directly
-  // with a clientId must never get client-specific checks.
-  const admin = isAdmin(gateUser);
-  const client = admin && body.clientId ? getClient(body.clientId) : undefined;
+  // e.g. Cars24) are gated per-user. Re-check server-side rather than
+  // trusting the request body — a user hitting this endpoint directly with a
+  // clientId they aren't scoped to must never get client-specific checks,
+  // and a client's own team member must never reach another client's id.
+  const clientAccess = clientAccessFor(gateUser);
+  const clientAllowed = (id: string) => clientAccess === 'all' || (Array.isArray(clientAccess) && clientAccess.includes(id));
+  const client = body.clientId && clientAllowed(body.clientId) ? getClient(body.clientId) : undefined;
   const clientPageType = client && body.clientPageType ? getClientPageType(client.id, body.clientPageType) : undefined;
   // Charged up front, refunded below if the page turns out to be unreachable.
   let chargedVia: 'plan' | 'free' | 'credit' | undefined;

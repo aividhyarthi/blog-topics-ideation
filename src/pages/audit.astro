@@ -6,15 +6,21 @@
 // visitors. Locks (never unlocks) if the DB is unreachable.
 import { getUser } from '../lib/auth';
 import { dbEnabled } from '../lib/db';
-import { isAdmin } from '../lib/billing';
+import { clientAccessFor } from '../lib/billing';
 import { CLIENTS } from '../lib/clients';
 const user = await getUser(Astro as any);
 const locked = !user;
 const accountsDown = !dbEnabled;
-const admin = isAdmin(user);
+// 'all' for the internal admin, an id list for a client's own scoped user
+// (e.g. Cars24's SEO lead only ever sees Cars24's own entries, never every
+// other agency client's domain), or null for a regular user — who never
+// sees this selector at all.
+const clientAccess = clientAccessFor(user);
+const visibleClients = clientAccess === 'all' ? CLIENTS : CLIENTS.filter((c) => Array.isArray(clientAccess) && clientAccess.includes(c.id));
+const admin = visibleClients.length > 0;
 // Only what the client-side needs to build the dropdowns — never the Check
 // functions themselves, which only ever run server-side.
-const clientOptions = CLIENTS.map((c) => ({
+const clientOptions = visibleClients.map((c) => ({
   id: c.id, name: c.name, vertical: c.vertical,
   pageTypes: c.pageTypes.map((p) => ({ id: p.id, label: p.label })),
 }));
@@ -86,7 +92,7 @@ import App from '../layouts/App.astro';
             {admin && (
               <div class="three" id="client-row">
                 <div>
-                  <label class="fld" for="client">Client <span class="opt">(admin — scopes the whole audit)</span></label>
+                  <label class="fld" for="client">Client <span class="opt">(scopes the whole audit to your checklist)</span></label>
                   <select id="client">
                     <option value="none">None — general audit</option>
                     {clientOptions.map((c) => <option value={c.id}>{c.name}</option>)}
@@ -209,10 +215,11 @@ import App from '../layouts/App.astro';
       $('tab-url').addEventListener('click', () => setMode('url'));
       $('tab-paste').addEventListener('click', () => setMode('paste'));
 
-      // Admin-only: choosing a client locks the Vertical dropdown to that
-      // client's vertical and swaps in their own page-type checklist (if we
-      // have one yet). Regular users never see any of this — the #client
-      // element only exists in the DOM at all when isAdmin(user) was true.
+      // Choosing a client locks the Vertical dropdown to that client's
+      // vertical and swaps in their own page-type checklist (if we have one
+      // yet). Regular users never see any of this — the #client element only
+      // exists in the DOM at all when clientAccessFor(user) returned clients
+      // to show, and the options list is already scoped to only their own.
       (function setupClientScope() {
         const clientEl = $('client');
         if (!clientEl) return;

@@ -188,6 +188,28 @@ export function isAdmin(user: User | null): boolean {
   return Boolean(user && adminEmail && user.email.toLowerCase() === adminEmail);
 }
 
+/**
+ * Client-scoped access to the Client selector (src/lib/clients.ts). The
+ * internal ADMIN_EMAIL sees every client there — but a client's own team
+ * member (e.g. Cars24's SEO lead) should only ever see their own client's
+ * entries, never the full internal list of every agency client's domains.
+ * Keyed by lowercased email; values are clients.ts client ids.
+ */
+const CLIENT_SCOPED_ACCESS: Record<string, string[]> = {
+  'rudra.2.seo@cars24.com': ['cars24-in', 'cars24-au'],
+};
+
+/**
+ * Which client ids this user may run client-scoped audits for: 'all' for the
+ * full internal admin, an explicit id list for a scoped external user, or
+ * null for a regular user who should never see the Client selector at all.
+ */
+export function clientAccessFor(user: User | null): 'all' | string[] | null {
+  if (isAdmin(user)) return 'all';
+  const email = user?.email.trim().toLowerCase();
+  return (email && CLIENT_SCOPED_ACCESS[email]) || null;
+}
+
 // ---- UPI payment claims ----
 export interface PaymentClaim {
   id: string; email: string; utr: string; amount: string | null; note: string | null;
