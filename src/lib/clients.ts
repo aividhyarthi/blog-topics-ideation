@@ -649,6 +649,7 @@ export const CLIENTS: ClientConfig[] = [
   { id: 'nykaa-fashion', name: 'NykaaFashion.com', domain: 'nykaafashion.com', vertical: 'ecommerce', pageTypes: [] },
   { id: 'cred', name: 'CRED.club', domain: 'cred.club', vertical: 'fintech', pageTypes: [] },
   { id: 'kuvera', name: 'Kuvera.in', domain: 'kuvera.in', vertical: 'fintech', pageTypes: [] },
+  { id: 'toi', name: 'Times of India', domain: 'timesofindia.indiatimes.com', vertical: 'news', pageTypes: [] },
 ];
 
 export function getClient(id: string): ClientConfig | undefined {
