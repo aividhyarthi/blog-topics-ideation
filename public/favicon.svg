@@ -1,6 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AI Page Audit">
   <rect width="64" height="64" rx="15" fill="#18181b"/>
-  <rect x="15" y="34" width="8" height="15" rx="3" fill="#ffffff" opacity="0.55"/>
-  <rect x="28" y="26" width="8" height="23" rx="3" fill="#ffffff" opacity="0.8"/>
-  <rect x="41" y="16" width="8" height="33" rx="3" fill="#ffffff"/>
+  <text x="32" y="43" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="34" fill="#ffffff">AI</text>
 </svg>
