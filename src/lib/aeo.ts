@@ -119,7 +119,7 @@ export const CATEGORY_WEIGHTS: Record<Category, Record<PillarId, number>> = {
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   general: 'General', entertainment: 'Entertainment', health: 'Health',
-  news: 'Breaking News', lifestyle: 'Lifestyle', commerce: 'Beauty / Commerce',
+  news: 'Breaking News', lifestyle: 'Lifestyle', commerce: 'Commerce',
 };
 
 // ---- low-level HTML helpers -------------------------------------------------

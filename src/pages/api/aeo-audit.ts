@@ -264,7 +264,11 @@ export const POST: APIRoute = async (ctx) => {
   const KIND_TO_PAGE_TYPE: Record<string, PageType> = {
     article: 'article', product: 'product', listing: 'listing', review: 'article', howto: 'article',
   };
-  const category = VERTICAL_TO_CATEGORY[rawVertical] || 'general';
+  // A selected client should drive this exactly like it drives the
+  // checklist engine's vertical below — otherwise the pillar weighting and
+  // "Category: X" label silently stay on "General" for every client audit
+  // regardless of which client/vertical was actually picked.
+  const category = client ? (VERTICAL_TO_CATEGORY[client.vertical] || 'general') : (VERTICAL_TO_CATEGORY[rawVertical] || 'general');
   const pageTypeChoice = (rawKind === 'auto' ? 'auto' : (KIND_TO_PAGE_TYPE[rawKind] || 'auto')) as 'auto' | PageType;
   // Only pass an override into the checklist engine when the user actually
   // picked something — otherwise it auto-detects, which is the whole point.
