@@ -269,6 +269,29 @@ export async function approveClaim(id: string): Promise<{ ok: boolean; error?: s
   return { ok: true };
 }
 
+/**
+ * Admin-granted free trial: activates Pro (unlimited within the plan, both
+ * tools) on an existing account for N days, with no payment claim involved —
+ * for giving an agency client's own team a no-strings trial of the whole
+ * tool. Same stacking behaviour as approveClaim: extends from the current
+ * expiry if the account is already on active Pro, rather than resetting it.
+ */
+export async function grantTrial(email: string, days: number): Promise<{ ok: boolean; error?: string; expiresAt?: string }> {
+  const clean = email.trim().toLowerCase();
+  if (!clean) return { ok: false, error: 'Email is required.' };
+  if (!Number.isFinite(days) || days <= 0) return { ok: false, error: 'Days must be a positive number.' };
+  const { rows: userRows } = await query<{ id: string; plan_expires_at: string | null }>(
+    'SELECT id, plan_expires_at FROM users WHERE email = $1', [clean],
+  );
+  if (!userRows[0]) return { ok: false, error: `No AI Page Audit account found for ${clean}. Ask them to sign up with this email first.` };
+  const now = new Date();
+  const currentExpiry = userRows[0].plan_expires_at ? new Date(userRows[0].plan_expires_at) : null;
+  const base = currentExpiry && currentExpiry > now ? currentExpiry : now;
+  const newExpiry = new Date(base.getTime() + days * 86_400_000);
+  await query(`UPDATE users SET plan = 'pro', plan_expires_at = $2 WHERE id = $1`, [userRows[0].id, newExpiry.toISOString()]);
+  return { ok: true, expiresAt: newExpiry.toISOString() };
+}
+
 export async function rejectClaim(id: string): Promise<{ ok: boolean; error?: string }> {
   const { rows } = await query<{ status: string }>('SELECT status FROM payment_claims WHERE id = $1', [id]);
   if (!rows[0]) return { ok: false, error: 'Claim not found.' };

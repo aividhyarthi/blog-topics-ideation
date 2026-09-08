@@ -11,6 +11,16 @@ import Site from '../../layouts/Site.astro';
   </section>
   <main>
     <div class="wrap">
+      <div class="trialcard">
+        <b>Grant a free trial</b>
+        <p>Activate Pro on an existing account for a fixed number of days — no payment claim needed. Use this for a client's own team getting a trial of the whole tool. Extends from the current expiry if the account already has active Pro.</p>
+        <div class="trialrow">
+          <input type="email" id="trial-email" placeholder="person@client.com" />
+          <input type="number" id="trial-days" value="7" min="1" style="width:80px" />
+          <button class="btn-primary sm" id="trial-go">Grant trial</button>
+        </div>
+        <p class="trialnote" id="trial-note"></p>
+      </div>
       <div id="gate" class="gate-msg">Checking access…</div>
       <div id="claims" style="display:none"></div>
     </div>
@@ -20,6 +30,22 @@ import Site from '../../layouts/Site.astro';
     const $ = (id) => document.getElementById(id);
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
     const STCLS = { pending: 'st-pend', approved: 'st-ok', rejected: 'st-bad' };
+
+    $('trial-go').addEventListener('click', async () => {
+      const email = $('trial-email').value.trim();
+      const days = Number($('trial-days').value) || 7;
+      if (!email) { $('trial-note').textContent = 'Enter an email first.'; return; }
+      $('trial-go').disabled = true;
+      $('trial-note').textContent = 'Granting…';
+      try {
+        const res = await fetch('/api/admin/grant-trial', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, days }) });
+        const d = await res.json();
+        if (!res.ok) { $('trial-note').textContent = d.error || 'Failed.'; $('trial-go').disabled = false; return; }
+        $('trial-note').textContent = `Done — ${email} has Pro until ${new Date(d.expiresAt).toLocaleString()}.`;
+        $('trial-email').value = '';
+      } catch { $('trial-note').textContent = 'Network error.'; }
+      $('trial-go').disabled = false;
+    });
 
     function renderClaims(list) {
       if (!list.length) { $('claims').innerHTML = '<p class="empty">No payment claims yet.</p>'; return; }
@@ -58,6 +84,13 @@ import Site from '../../layouts/Site.astro';
   </script>
 
   <style>
+    .trialcard { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 18px 20px; box-shadow: var(--shadow); margin-bottom: 22px; }
+    .trialcard b { font-size: 14.5px; }
+    .trialcard p { margin: 6px 0 14px; font-size: 12.5px; color: var(--muted); max-width: 62ch; }
+    .trialrow { display: flex; gap: 10px; flex-wrap: wrap; }
+    .trialrow input { border: 1px solid var(--line-2); border-radius: 9px; padding: 9px 12px; font-size: 13.5px; font-family: inherit; }
+    .trialrow input[type="email"] { flex: 1; min-width: 220px; }
+    .trialnote { margin: 10px 0 0; font-size: 12.5px; color: var(--ink-2); }
     .gate-msg { font-size: 14px; color: var(--muted); padding: 24px 0; }
     .empty { color: var(--muted); font-size: 14px; }
     .ctable { display: grid; gap: 10px; }
