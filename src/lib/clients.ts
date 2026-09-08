@@ -629,6 +629,681 @@ const COMPARE_CHECKS: Check[] = [
 ];
 
 // =============================================================================
+// GADGETS NOW (gadgetsnow.indiatimes.com) — AEO/rankings-focused, deliberately
+// lighter than Cars24's per-type depth: schema.org, freshness and
+// canonicalization are the checks that actually move an AI citation or a
+// ranking, so those are what's covered here rather than editorial style.
+// =============================================================================
+
+const GN_NEWS_CHECKS: Check[] = [
+  {
+    id: 'gn_news_schema', label: 'NewsArticle/Article schema with a published date',
+    why: 'An AI engine grounding "when did this happen" reads datePublished straight from schema — text-only dates are far less reliably parsed.',
+    pillar: 'freshness', weight: 3,
+    run: (c) => {
+      const hasType = hasSchema(c.facts.schemaTypes, 'NewsArticle', 'Article');
+      if (hasType && c.facts.datePublished) return pass('NewsArticle/Article schema with datePublished present.');
+      if (hasType) return warn('Article schema present but no datePublished.', 'Add datePublished to the Article/NewsArticle schema.');
+      return fail('No NewsArticle/Article schema.', 'Add NewsArticle JSON-LD with datePublished and dateModified.');
+    },
+  },
+  {
+    id: 'gn_news_author', label: 'Named author byline',
+    why: 'A named byline is the baseline attribution signal an engine uses to weigh whether to trust and cite the claims in the piece.',
+    pillar: 'attribution', weight: 2,
+    run: (c) => (c.facts.hasAuthor ? pass('Author is identified.') : fail('No author byline.', 'Add a named author to the article and its schema.')),
+  },
+  {
+    id: 'gn_news_meta_specific', label: 'Meta description states a concrete detail (spec, price, date)',
+    why: 'A meta description that names a real number gives both search snippets and AI summaries something concrete to quote instead of paraphrasing vaguely.',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (/\d/.test(c.facts.metaDescription) ? pass('Meta description includes a concrete figure.') : warn('Meta description has no concrete detail.', 'Work a real spec, price or date into the meta description.')),
+  },
+  {
+    id: 'gn_news_internal_links', label: 'Links to related coverage (product/category pages)',
+    why: 'Internal links to the product or category being discussed give an engine the entity graph it needs to place this story in context.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (c.facts.internalLinks >= 2 ? pass(`${c.facts.internalLinks} internal links.`) : warn('Few or no internal links.', 'Link to the relevant product/category page(s) from the story.')),
+  },
+];
+
+const GN_REVIEW_CHECKS: Check[] = [
+  {
+    id: 'gn_review_schema', label: 'Review schema with a rating',
+    why: 'Review/AggregateRating schema is what lets an engine surface "rated X/5" directly in an answer instead of having to infer a verdict from prose.',
+    pillar: 'structure', weight: 3,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'Review') || /"reviewrating"|"aggregaterating"/i.test(c.h)
+      ? pass('Review/rating schema present.') : fail('No Review or rating schema.', 'Add Review JSON-LD with reviewRating and a named author.')),
+  },
+  {
+    id: 'gn_review_verdict_visible', label: 'A rating or verdict is visible in the text, not only in schema',
+    why: 'A verdict that only exists inside a hidden schema block gives an LLM (which mostly reads visible text) nothing to quote back.',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (/\b\d(\.\d)?\s*(\/|out of)\s*5\b|\bverdict\b|\brating:\s*\d/i.test(c.text)
+      ? pass('A visible rating/verdict is present.') : warn('No visible rating/verdict found in the text.', 'State the rating or verdict in visible text, not just in schema.')),
+  },
+  {
+    id: 'gn_review_pros_cons', label: 'Pros/cons as a structured list',
+    why: 'A structured pros/cons list is directly extractable; the same content buried in a paragraph forces an engine to parse prose to find it.',
+    pillar: 'structure', weight: 2,
+    run: (c) => (c.facts.lists >= 1 ? pass(`${c.facts.lists} list(s) found.`) : warn('No structured list found.', 'Publish pros/cons as a real HTML list.')),
+  },
+  {
+    id: 'gn_review_title_says_review', label: 'Title signals this is a review',
+    why: 'People ask AI assistants "is the X good" or "X review" — a title that doesn’t signal review intent is a weaker match for that exact query shape.',
+    pillar: 'query', weight: 1,
+    run: (c) => (/\breview\b/i.test(c.facts.title) ? pass('Title signals a review.') : warn('Title doesn’t say "review".', 'Work "review" into the title.')),
+  },
+];
+
+const GN_PRODUCT_CHECKS: Check[] = [
+  {
+    id: 'gn_product_schema', label: 'Product schema with offers/price',
+    why: 'Product schema with a price is what lets an engine answer "how much does X cost" directly from the page rather than guessing.',
+    pillar: 'entity', weight: 3,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'Product') && /"offers"/i.test(c.h) ? pass('Product schema with offers present.')
+      : hasSchema(c.facts.schemaTypes, 'Product') ? warn('Product schema present but no offers block.', 'Add offers with price and priceCurrency.')
+      : fail('No Product schema.', 'Add Product JSON-LD with name, brand and offers.')),
+  },
+  {
+    id: 'gn_product_specs_table', label: 'Specifications as a real table or list',
+    why: 'Specs published as prose or an image are invisible to a crawler that reads structured HTML — a table is directly parseable.',
+    pillar: 'structure', weight: 3,
+    run: (c) => ((c.facts.tables + c.facts.lists) >= 1 ? pass(`${c.facts.tables} table(s) / ${c.facts.lists} list(s).`) : fail('No spec table or list.', 'Publish specs as a real HTML table.')),
+  },
+  {
+    id: 'gn_product_rating', label: 'Aggregate rating present',
+    why: 'AggregateRating is a strong trust signal AI shopping answers weigh directly — a page with genuine reviews but no rating markup is leaving that signal unused.',
+    pillar: 'attribution', weight: 2,
+    run: (c) => (c.facts.hasAggregateRating ? pass('AggregateRating present.') : warn('No AggregateRating found.', 'Add AggregateRating to the Product schema once reviews exist.')),
+  },
+  {
+    id: 'gn_product_brand_entity', label: 'Brand declared in schema',
+    why: 'An explicit brand property disambiguates the product entity — without it, an engine has to infer the brand from the title text alone.',
+    pillar: 'entity', weight: 2,
+    run: (c) => (/"brand"\s*:/i.test(c.h) ? pass('Brand declared in schema.') : warn('Brand not declared in schema.', 'Add brand to the Product JSON-LD.')),
+  },
+];
+
+const GN_CATEGORY_CHECKS: Check[] = [
+  {
+    id: 'gn_category_itemlist', label: 'ItemList schema naming the products in order',
+    why: 'ItemList schema is the explicit, machine-readable version of "here are the items in this category" — without it an engine has to infer the list from link text.',
+    pillar: 'structure', weight: 3,
+    run: (c) => (c.facts.hasItemList ? pass('ItemList schema present.') : fail('No ItemList schema.', 'Add ItemList JSON-LD naming each product in order.')),
+  },
+  {
+    id: 'gn_category_canonical_clean', label: 'Canonical points to a clean URL',
+    why: 'A category canonical that still carries sort/pagination parameters tells engines the parameterised URL is the "real" one, splitting authority across near-duplicate URLs instead of consolidating it.',
+    pillar: 'structure', weight: 2,
+    run: (c) => (!c.facts.canonical ? fail('No canonical tag.', 'Add a self-referencing canonical to the clean category URL.')
+      : c.facts.canonical.includes('?') ? warn('Canonical still includes a query string.', 'Point canonical at the clean, parameter-free category URL.')
+      : pass('Canonical points to a clean URL.')),
+  },
+  {
+    id: 'gn_category_breadcrumb', label: 'BreadcrumbList schema',
+    why: 'Breadcrumb schema gives an engine the category hierarchy explicitly, which is how it grounds "this is a subcategory of X".',
+    pillar: 'structure', weight: 1,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'BreadcrumbList') ? pass('BreadcrumbList schema present.') : warn('No BreadcrumbList schema.', 'Add a breadcrumb matching Home > Category.')),
+  },
+  {
+    id: 'gn_category_no_noindex', label: 'Not accidentally noindexed',
+    why: 'A category page is a primary entry point for both search and AI citation — a stray noindex here removes the whole category from consideration, not just one article.',
+    pillar: 'structure', weight: 3,
+    run: (c) => (/noindex/i.test(c.facts.robotsMeta) ? fail('Page is set to noindex.', 'Remove noindex — category pages should be indexable.') : pass('Not noindexed.')),
+  },
+];
+
+const GN_FILTER_CHECKS: Check[] = [
+  {
+    id: 'gn_filter_canonical_present', label: 'Canonical tag present',
+    why: 'Filter/facet URLs are the single most common source of duplicate-content dilution on a listing site — a canonical is the fix, and it’s the check most often skipped on programmatically generated filter pages.',
+    pillar: 'structure', weight: 3,
+    run: (c) => (c.facts.canonical ? pass('Canonical tag present.') : fail('No canonical tag.', 'Add a canonical pointing at the base category or a clean filtered URL.')),
+  },
+  {
+    id: 'gn_filter_h1_present', label: 'H1 reflects the applied filter',
+    why: 'Programmatically generated filter pages routinely skip the H1 entirely — without one, an engine has no on-page confirmation of what this specific filtered view actually is.',
+    pillar: 'structure', weight: 2,
+    run: (c) => (c.facts.headings.some((h) => h.level === 1) ? pass('H1 present.') : fail('No H1.', 'Add an H1 that names the applied filter, e.g. "5G Phones Under ₹20,000".')),
+  },
+  {
+    id: 'gn_filter_no_thin_content', label: 'Not thin content',
+    why: 'A filter page that’s just a product grid with near-zero surrounding text reads as thin, duplicate-adjacent content — a real risk for filter/facet URLs specifically.',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (c.facts.wordCount >= 150 ? pass(`${c.facts.wordCount} words.`) : warn(`Only ${c.facts.wordCount} words.`, 'Add a short intro paragraph describing this filtered view.')),
+  },
+  {
+    id: 'gn_filter_itemlist', label: 'ItemList schema still present on the filtered view',
+    why: 'The filtered result set is still a list — it should still describe itself as one, the same as the unfiltered category page does.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (c.facts.hasItemList ? pass('ItemList schema present.') : warn('No ItemList schema on this filtered view.', 'Keep ItemList JSON-LD on filtered result pages too.')),
+  },
+];
+
+const GN_BRAND_CHECKS: Check[] = [
+  {
+    id: 'gn_brand_entity_schema', label: 'Brand/Organization entity described in schema',
+    why: 'A dedicated Brand or Organization entity is what lets an engine treat "Samsung" (or whichever brand) as a distinct, groundable entity rather than a bare string in a title.',
+    pillar: 'entity', weight: 3,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'Brand', 'Organization') ? pass('Brand/Organization schema present.') : fail('No Brand/Organization schema.', 'Add Brand or Organization JSON-LD for this brand page.')),
+  },
+  {
+    id: 'gn_brand_itemlist', label: 'ItemList of the brand’s products',
+    why: 'A brand page exists to answer "what does this brand sell" — an explicit ItemList is the direct, structured version of that answer.',
+    pillar: 'structure', weight: 2,
+    run: (c) => (c.facts.hasItemList ? pass('ItemList schema present.') : warn('No ItemList schema.', 'Add ItemList JSON-LD naming the brand’s products.')),
+  },
+  {
+    id: 'gn_brand_description', label: 'Real descriptive text about the brand',
+    why: 'A page that’s pure product grid with no brand description gives an engine nothing to summarise when asked "tell me about this brand".',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (c.facts.wordCount >= 100 ? pass(`${c.facts.wordCount} words of text.`) : warn(`Only ${c.facts.wordCount} words.`, 'Add a short description of the brand above the product grid.')),
+  },
+  {
+    id: 'gn_brand_h1_named', label: 'H1 names the brand',
+    why: 'The H1 is the clearest on-page confirmation of which brand entity this page is about.',
+    pillar: 'entity', weight: 1,
+    run: (c) => (c.facts.headings.some((h) => h.level === 1) ? pass('H1 present.') : fail('No H1.', 'Add an H1 naming the brand.')),
+  },
+];
+
+const GN_SALE_CHECKS: Check[] = [
+  {
+    id: 'gn_sale_validity_signal', label: 'Offer validity is explicit',
+    why: 'An engine citing a sale page needs to know if the deal is still live — Offer schema’s priceValidUntil (or an explicit "valid till" date in text) is what makes that checkable.',
+    pillar: 'freshness', weight: 3,
+    run: (c) => (/"pricevaliduntil"/i.test(c.h) || /\b(valid\s*(till|until)|offer\s*ends|sale\s*ends)\b/i.test(c.text)
+      ? pass('Offer validity is stated.') : fail('No validity date found.', 'Add priceValidUntil to Offer schema or state a clear "valid until" date in the text.')),
+  },
+  {
+    id: 'gn_sale_specific_prices', label: 'Specific prices are named, not vague discount language',
+    why: 'A price-specific answer ("₹14,999, down from ₹19,999") is directly quotable; "great discounts" is not.',
+    pillar: 'answerability', weight: 3,
+    run: (c) => (c.facts.priceCount >= 1 ? pass(`${c.facts.priceCount} price(s) mentioned.`) : fail('No specific prices found.', 'Name actual prices, not just "huge discounts".')),
+  },
+  {
+    id: 'gn_sale_freshness', label: 'Page has a modified date',
+    why: 'Sale pages go stale within days — a visible dateModified is what tells both engines and readers this listing was actually checked recently.',
+    pillar: 'freshness', weight: 2,
+    run: (c) => (c.facts.dateModified ? pass('dateModified present.') : warn('No dateModified.', 'Add and keep dateModified current as prices/offers change.')),
+  },
+  {
+    id: 'gn_sale_product_links', label: 'Links to the actual product pages',
+    why: 'A sale roundup that never links to the product page it’s discussing gives an engine no way to connect the deal to the entity.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (c.facts.internalLinks >= 1 ? pass(`${c.facts.internalLinks} internal link(s).`) : warn('No internal links found.', 'Link each deal to its product page.')),
+  },
+];
+
+// =============================================================================
+// TIMES OF INDIA (timesofindia.indiatimes.com)
+// =============================================================================
+
+const TOI_NEWS_CHECKS: Check[] = [
+  {
+    id: 'toi_news_schema', label: 'NewsArticle schema with a published date',
+    why: 'NewsArticle + datePublished is the baseline structured signal engines use to ground "when did this happen".',
+    pillar: 'freshness', weight: 3,
+    run: (c) => {
+      const hasType = hasSchema(c.facts.schemaTypes, 'NewsArticle', 'Article');
+      if (hasType && c.facts.datePublished) return pass('NewsArticle schema with datePublished present.');
+      if (hasType) return warn('Article schema present but no datePublished.', 'Add datePublished to the NewsArticle schema.');
+      return fail('No NewsArticle schema.', 'Add NewsArticle JSON-LD with datePublished and dateModified.');
+    },
+  },
+  {
+    id: 'toi_news_author', label: 'Named author byline',
+    why: 'A named byline is the baseline attribution signal for a news story’s claims.',
+    pillar: 'attribution', weight: 2,
+    run: (c) => (c.facts.hasAuthor ? pass('Author is identified.') : fail('No author byline.', 'Add a named author to the story and its schema.')),
+  },
+  {
+    id: 'toi_news_h1_present', label: 'H1 present and matches the story',
+    why: 'A missing or mismatched H1 undermines the clearest on-page confirmation of what the story is actually about.',
+    pillar: 'entity', weight: 1,
+    run: (c) => (c.facts.headings.some((h) => h.level === 1) ? pass('H1 present.') : fail('No H1.', 'Add an H1 matching the headline.')),
+  },
+  {
+    id: 'toi_news_wordcount', label: 'Not a bare blurb',
+    why: 'A one- or two-line story gives an AI answer engine almost nothing to extract or cite beyond the headline itself.',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (c.facts.wordCount >= 150 ? pass(`${c.facts.wordCount} words.`) : warn(`Only ${c.facts.wordCount} words.`, 'Add enough context that the story stands on its own.')),
+  },
+];
+
+const TOI_LIVEBLOG_CHECKS: Check[] = [
+  {
+    id: 'toi_liveblog_schema', label: 'LiveBlogPosting schema',
+    why: 'LiveBlogPosting is schema.org’s dedicated type for this format — without it, an engine has no structured way to know this page is an ongoing, updating feed rather than a single static article.',
+    pillar: 'structure', weight: 3,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'LiveBlogPosting') ? pass('LiveBlogPosting schema present.') : fail('No LiveBlogPosting schema.', 'Add LiveBlogPosting JSON-LD with liveBlogUpdate entries.')),
+  },
+  {
+    id: 'toi_liveblog_timestamps', label: 'Individual updates are timestamped',
+    why: 'Visible per-update timestamps are what let a reader (or an engine) tell which entry is the latest, and cite the right one.',
+    pillar: 'freshness', weight: 2,
+    run: (c) => (count(c.text, /\b\d{1,2}:\d{2}\s*(am|pm|ist)?\b/gi) >= 3 ? pass('Multiple timestamped updates found.') : warn('Few or no visible timestamps.', 'Timestamp each individual update.')),
+  },
+  {
+    id: 'toi_liveblog_coverage_window', label: 'Coverage start time in schema',
+    why: 'coverageStartTime tells an engine exactly when this live coverage began, distinguishing it from a same-day static article.',
+    pillar: 'freshness', weight: 1,
+    run: (c) => (/"coveragestarttime"/i.test(c.h) ? pass('coverageStartTime present.') : warn('No coverageStartTime found.', 'Add coverageStartTime (and coverageEndTime once it wraps) to the LiveBlogPosting schema.')),
+  },
+  {
+    id: 'toi_liveblog_title_signals_live', label: 'Title signals this is live coverage',
+    why: 'People searching or asking an AI for live updates use "live" in the query — a title without it is a weaker match for that intent.',
+    pillar: 'query', weight: 1,
+    run: (c) => (/\blive\b/i.test(c.facts.title) ? pass('Title signals live coverage.') : warn('Title doesn’t say "live".', 'Work "Live" into the title if this is ongoing coverage.')),
+  },
+];
+
+const TOI_VIDEO_CHECKS: Check[] = [
+  {
+    id: 'toi_video_schema', label: 'VideoObject schema',
+    why: 'VideoObject is what gives an engine the title, description and duration of the video as structured data instead of having to infer it from the page around it.',
+    pillar: 'structure', weight: 3,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'VideoObject') ? pass('VideoObject schema present.') : fail('No VideoObject schema.', 'Add VideoObject JSON-LD with name, description and uploadDate.')),
+  },
+  {
+    id: 'toi_video_text_summary', label: 'Text summary or transcript accompanies the video',
+    why: 'LLM crawlers do not watch video — a page that’s just an embed with no surrounding text is functionally empty to them.',
+    pillar: 'answerability', weight: 3,
+    run: (c) => (c.facts.wordCount >= 100 ? pass(`${c.facts.wordCount} words of accompanying text.`) : fail(`Only ${c.facts.wordCount} words of text alongside the video.`, 'Add a text summary or transcript excerpt covering the video’s key points.')),
+  },
+  {
+    id: 'toi_video_duration', label: 'Duration declared in schema',
+    why: 'duration lets an engine answer "how long is this video" without fetching the video file itself.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (/"duration"\s*:/i.test(c.h) ? pass('duration present in schema.') : warn('No duration property found.', 'Add duration to the VideoObject schema.')),
+  },
+  {
+    id: 'toi_video_thumbnail', label: 'Thumbnail declared in schema',
+    why: 'thumbnailUrl is required for VideoObject to be eligible for rich video results at all.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (/"thumbnailurl"/i.test(c.h) ? pass('thumbnailUrl present.') : warn('No thumbnailUrl found.', 'Add thumbnailUrl to the VideoObject schema.')),
+  },
+];
+
+const TOI_LOCAL_CHECKS: Check[] = [
+  {
+    id: 'toi_local_geo_named', label: 'A specific place is named in the title or H1',
+    why: 'Local news lives or dies on the place name — a story about "a fire" instead of "a fire in Andheri" is unanswerable for any location-specific query.',
+    pillar: 'entity', weight: 3,
+    run: (c) => {
+      const h1 = c.facts.headings.find((h) => h.level === 1)?.text || '';
+      return cityRe.test(c.facts.title) || cityRe.test(h1) ? pass('A recognizable place is named.') : warn('No recognizable place name found in title/H1.', 'Name the specific city/locality in the title and H1.');
+    },
+  },
+  {
+    id: 'toi_local_schema_location', label: 'Location declared in schema',
+    why: 'contentLocation (or a comparable address property) makes the geo-scope explicit and machine-readable, not just implied by the wording.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (/"contentlocation"|"address"\s*:/i.test(c.h) ? pass('Location property present in schema.') : warn('No location property found in schema.', 'Add contentLocation to the NewsArticle schema.')),
+  },
+  {
+    id: 'toi_local_meta_specific', label: 'Meta description also names the location',
+    why: 'A location-specific meta description is what makes the search/AI snippet itself answer "is this about my city" at a glance.',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (cityRe.test(c.facts.metaDescription) ? pass('Meta description names the location.') : warn('Meta description doesn’t name the location.', 'Name the city/locality in the meta description.')),
+  },
+  {
+    id: 'toi_local_wordcount', label: 'Not a bare blurb',
+    why: 'A one-line local item gives an engine little to extract beyond the headline.',
+    pillar: 'answerability', weight: 1,
+    run: (c) => (c.facts.wordCount >= 150 ? pass(`${c.facts.wordCount} words.`) : warn(`Only ${c.facts.wordCount} words.`, 'Add enough context that the story stands on its own.')),
+  },
+];
+
+const TOI_MOVIE_CHECKS: Check[] = [
+  {
+    id: 'toi_movie_review_schema', label: 'Review schema naming the movie',
+    why: 'Review schema with itemReviewed lets an engine connect this specific verdict to this specific film entity, not just to "a movie".',
+    pillar: 'structure', weight: 3,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'Review') || /"itemreviewed"/i.test(c.h) ? pass('Review schema present.') : fail('No Review schema.', 'Add Review JSON-LD with itemReviewed (Movie) and reviewRating.')),
+  },
+  {
+    id: 'toi_movie_rating_visible', label: 'A rating is visible in the text',
+    why: 'A star rating that only lives in schema gives a text-reading LLM nothing to quote — it needs to be visible too.',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (/\b\d(\.\d)?\s*(\/|out of)\s*5\b|\bstars?\b/i.test(c.text) ? pass('A visible rating is present.') : warn('No visible rating found.', 'State the star rating in visible text.')),
+  },
+  {
+    id: 'toi_movie_reviewrating_schema', label: 'reviewRating property present',
+    why: 'reviewRating is the specific structured value ("3.5/5") an engine can quote directly, rather than paraphrasing a written verdict.',
+    pillar: 'entity', weight: 2,
+    run: (c) => (/"reviewrating"/i.test(c.h) ? pass('reviewRating present in schema.') : warn('No reviewRating property found.', 'Add reviewRating to the Review schema.')),
+  },
+  {
+    id: 'toi_movie_title_says_review', label: 'Title signals this is a review',
+    why: 'People ask "is [movie] good" or "[movie] review" — a title that doesn’t signal review intent is a weaker match for that query shape.',
+    pillar: 'query', weight: 1,
+    run: (c) => (/\breview\b/i.test(c.facts.title) ? pass('Title signals a review.') : warn('Title doesn’t say "review".', 'Work "review" into the title.')),
+  },
+];
+
+const TOI_HEALTH_CHECKS: Check[] = [
+  {
+    id: 'toi_health_source_named', label: 'A named expert or institution is cited',
+    why: 'Health is a YMYL (your-money-or-your-life) topic — engines weight attribution far more heavily here than on lower-stakes content, and "experts say" with no name is the weakest form of it.',
+    pillar: 'attribution', weight: 3,
+    run: (c) => (/\b(dr\.|according to|study (by|published)|expert)\b/i.test(c.text) ? pass('A named source or attribution pattern is present.') : fail('No named source found.', 'Name the doctor, study or institution behind the claims.')),
+  },
+  {
+    id: 'toi_health_schema', label: 'Article/MedicalWebPage schema present',
+    why: 'Structured markup lets an engine correctly classify this as health content, which is exactly the category where it applies the strictest sourcing bar.',
+    pillar: 'structure', weight: 2,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'MedicalWebPage', 'Article', 'NewsArticle') ? pass('Article/MedicalWebPage schema present.') : fail('No Article/MedicalWebPage schema.', 'Add Article or MedicalWebPage JSON-LD.')),
+  },
+  {
+    id: 'toi_health_freshness', label: 'Published/modified date present',
+    why: 'Medical guidance changes — a health story with no visible date gives a reader (or an engine) no way to judge whether it’s still current.',
+    pillar: 'freshness', weight: 3,
+    run: (c) => (c.facts.datePublished || c.facts.dateModified ? pass('A published or modified date is present.') : fail('No date found.', 'Add and display datePublished/dateModified.')),
+  },
+  {
+    id: 'toi_health_no_clickbait', label: 'Title avoids exaggerated claims',
+    why: 'Sensational health claims ("miracle cure") are exactly the pattern engines are tuned to distrust and deprioritize for YMYL content.',
+    pillar: 'attribution', weight: 1,
+    run: (c) => (/\b(miracle|instant cure|doctors hate)\b/i.test(c.facts.title) ? warn('Title uses exaggerated/clickbait language.', 'Rewrite the title to state the finding plainly.') : pass('Title avoids exaggerated claims.')),
+  },
+];
+
+const TOI_REALESTATE_CHECKS: Check[] = [
+  {
+    id: 'toi_realestate_data_specific', label: 'Specific figures are cited, not vague trend language',
+    why: 'A price-per-sqft or growth-rate figure is directly quotable by an AI answer; "prices are rising" is not.',
+    pillar: 'answerability', weight: 3,
+    run: (c) => ((c.facts.statistics + c.facts.priceCount) >= 1 ? pass('Specific figures are present.') : fail('No specific figures found.', 'Cite real numbers — price/sqft, growth %, unit counts.')),
+  },
+  {
+    id: 'toi_realestate_source_attribution', label: 'Data is attributed to a named source',
+    why: 'Market data without a named source (a report, a firm, an index) reads as unverifiable, which weakens both trust and citation-worthiness.',
+    pillar: 'attribution', weight: 3,
+    run: (c) => (/\b(according to|data (from|by)|report (by|from))\b/i.test(c.text) ? pass('Data is attributed to a source.') : fail('No source attribution found.', 'Name the report/firm/index the figures come from.')),
+  },
+  {
+    id: 'toi_realestate_schema', label: 'NewsArticle schema present',
+    why: 'Baseline structured markup for freshness and authorship, same as any news story.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'NewsArticle', 'Article') ? pass('NewsArticle schema present.') : warn('No NewsArticle schema.', 'Add NewsArticle JSON-LD.')),
+  },
+  {
+    id: 'toi_realestate_location_named', label: 'A specific market/location is named',
+    why: 'Real-estate data is meaningless without a geography attached — "prices rose 8%" needs a city/locality to be answerable at all.',
+    pillar: 'entity', weight: 2,
+    run: (c) => {
+      const h1 = c.facts.headings.find((h) => h.level === 1)?.text || '';
+      return cityRe.test(c.facts.title) || cityRe.test(h1) ? pass('A recognizable market/location is named.') : warn('No recognizable location found.', 'Name the specific city/locality this data is about.');
+    },
+  },
+];
+
+const TOI_LAW_CHECKS: Check[] = [
+  {
+    id: 'toi_law_specifics_named', label: 'Specific court/section/case is named',
+    why: '"The court ruled" is unanswerable; "the Supreme Court, in [case]" is a groundable claim an engine can cite with confidence.',
+    pillar: 'entity', weight: 3,
+    run: (c) => (/\b(supreme court|high court|section\s*\d+|\bipc\b|\bcrpc\b|\bbns\b)\b/i.test(c.text) ? pass('Specific legal entities are named.') : fail('No specific court/section named.', 'Name the exact court, case or section being reported.')),
+  },
+  {
+    id: 'toi_law_attribution', label: 'The ruling/order is attributed with specifics',
+    why: 'A dated, sourced order ("order dated 12 March, bench of Justice X") is verifiable; a paraphrase with no order details is not.',
+    pillar: 'attribution', weight: 3,
+    run: (c) => (/\b(according to|order (dated|passed)|bench (of|led))\b/i.test(c.text) ? pass('The ruling is attributed with specifics.') : warn('No specific attribution found.', 'Cite the order date and bench/judge where possible.')),
+  },
+  {
+    id: 'toi_law_schema', label: 'NewsArticle schema present',
+    why: 'Baseline structured markup for freshness and authorship.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'NewsArticle', 'Article') ? pass('NewsArticle schema present.') : warn('No NewsArticle schema.', 'Add NewsArticle JSON-LD.')),
+  },
+  {
+    id: 'toi_law_dates', label: 'Published date present',
+    why: 'Legal news ages fast (appeals, stays, reversals) — a missing date makes it impossible to know if this is still the current status.',
+    pillar: 'freshness', weight: 2,
+    run: (c) => (c.facts.datePublished ? pass('datePublished present.') : fail('No datePublished found.', 'Add datePublished to the schema.')),
+  },
+];
+
+const TOI_QUOTE_CHECKS: Check[] = [
+  {
+    id: 'toi_quote_attributed', label: 'The quote is attributed with a speech verb',
+    why: 'An unattributed quote is just a floating string — "said/told/says" tied to it is what makes it a sourced claim rather than an assertion.',
+    pillar: 'attribution', weight: 3,
+    run: (c) => (c.facts.quotedPhrases >= 1 && /\bsaid\b|\bsays\b|\btold\b/i.test(c.text)
+      ? pass('A quote with attribution language is present.') : fail('No attributed quote found.', 'Attribute the quote with "said/told" and the speaker’s name.')),
+  },
+  {
+    id: 'toi_quote_named_speaker_visible', label: 'Quote is present in visible text',
+    why: 'A quote that exists only in an image or embedded post is invisible to an LLM crawler — it needs to be real, extractable text.',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (c.facts.quotedPhrases >= 1 ? pass(`${c.facts.quotedPhrases} quoted phrase(s) in visible text.`) : fail('No quoted text found on the page.', 'Include the actual quote as real text, not just an embedded image/post.')),
+  },
+  {
+    id: 'toi_quote_context', label: 'The quote has surrounding context',
+    why: 'A bare quote with no context leaves "why does this matter" unanswered — the surrounding paragraph is what an AI answer actually draws on.',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (c.facts.wordCount >= 100 ? pass(`${c.facts.wordCount} words of context.`) : warn(`Only ${c.facts.wordCount} words.`, 'Add context — who said it, when, and why it matters.')),
+  },
+  {
+    id: 'toi_quote_title_reflects', label: 'Title reflects the quote itself',
+    why: 'A title built around the actual quote text is a stronger match for someone searching or asking about exactly what was said.',
+    pillar: 'query', weight: 1,
+    run: (c) => (/["“]/.test(c.facts.title) ? pass('Title includes quoted text.') : warn('Title doesn’t include the quote.', 'Work the quote itself into the title.')),
+  },
+];
+
+const TOI_FACTCHECK_CHECKS: Check[] = [
+  {
+    id: 'toi_factcheck_claimreview_schema', label: 'ClaimReview schema present',
+    why: 'ClaimReview is schema.org’s dedicated type for fact-checks — without it, an engine has no structured way to distinguish this from an ordinary news story, and loses the single biggest AEO advantage this page type has.',
+    pillar: 'structure', weight: 3,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'ClaimReview') || /"claimreview"/i.test(c.h) ? pass('ClaimReview schema present.') : fail('No ClaimReview schema.', 'Add ClaimReview JSON-LD with the claim, claimant and your rating.')),
+  },
+  {
+    id: 'toi_factcheck_verdict_stated', label: 'A clear verdict is stated',
+    why: 'A fact-check answer is only useful if the verdict is unambiguous — "some parts may be accurate" is a worse answer than "False".',
+    pillar: 'answerability', weight: 3,
+    run: (c) => (/\b(true|false|misleading|unverified|partly true|fake)\b/i.test(c.text) ? pass('A clear verdict word is present.') : fail('No clear verdict found.', 'State the verdict plainly (True/False/Misleading/etc.).')),
+  },
+  {
+    id: 'toi_factcheck_claim_source', label: 'The original claim and where it circulated is named',
+    why: 'A fact-check needs to name what’s being checked and where it came from — without that, the verdict has nothing concrete to attach to.',
+    pillar: 'attribution', weight: 2,
+    run: (c) => (/\b(claim(ed)?|viral|circulating|post (on|claims))\b/i.test(c.text) ? pass('The claim and its origin are described.') : warn('No claim/source description found.', 'Describe the original claim and where it was circulating.')),
+  },
+  {
+    id: 'toi_factcheck_dates', label: 'Published date present',
+    why: 'A fact-check’s currency matters — the claim may already be old news, or the verdict may need revisiting; a date lets a reader judge that.',
+    pillar: 'freshness', weight: 1,
+    run: (c) => (c.facts.datePublished ? pass('datePublished present.') : warn('No datePublished found.', 'Add datePublished to the schema.')),
+  },
+];
+
+// =============================================================================
+// TOI AUTO (auto.timesofindia.com) — page types are our own design (the
+// client asked for "the same depth as Gadgets Now" without dictating an
+// exact list), matched to what an automotive vertical actually publishes.
+// =============================================================================
+
+const TOIAUTO_NEWS_CHECKS: Check[] = [
+  {
+    id: 'toiauto_news_schema', label: 'NewsArticle/Article schema with a published date',
+    why: 'Baseline structured freshness signal for any news story.',
+    pillar: 'freshness', weight: 3,
+    run: (c) => {
+      const hasType = hasSchema(c.facts.schemaTypes, 'NewsArticle', 'Article');
+      if (hasType && c.facts.datePublished) return pass('NewsArticle/Article schema with datePublished present.');
+      if (hasType) return warn('Article schema present but no datePublished.', 'Add datePublished to the schema.');
+      return fail('No NewsArticle/Article schema.', 'Add NewsArticle JSON-LD with datePublished.');
+    },
+  },
+  {
+    id: 'toiauto_news_brand_named', label: 'Title names a specific brand/model',
+    why: 'Automotive news searches are almost always brand/model-specific — a title with neither is a weak match for that query shape.',
+    pillar: 'entity', weight: 2,
+    run: (c) => (brandRe.test(c.facts.title) ? pass('Title names a recognizable brand.') : warn('Title doesn’t name a recognizable brand.', 'Name the specific brand/model in the title.')),
+  },
+  {
+    id: 'toiauto_news_author', label: 'Named author byline',
+    why: 'Baseline attribution signal for the story’s claims.',
+    pillar: 'attribution', weight: 1,
+    run: (c) => (c.facts.hasAuthor ? pass('Author is identified.') : warn('No author byline.', 'Add a named author.')),
+  },
+  {
+    id: 'toiauto_news_wordcount', label: 'Not a bare blurb',
+    why: 'A one-line item gives an engine little beyond the headline to extract.',
+    pillar: 'answerability', weight: 1,
+    run: (c) => (c.facts.wordCount >= 150 ? pass(`${c.facts.wordCount} words.`) : warn(`Only ${c.facts.wordCount} words.`, 'Add enough context that the story stands on its own.')),
+  },
+];
+
+const TOIAUTO_REVIEW_CHECKS: Check[] = [
+  {
+    id: 'toiauto_review_schema', label: 'Review schema with a rating',
+    why: 'Review schema is what lets an engine surface a verdict directly instead of inferring one from prose.',
+    pillar: 'structure', weight: 3,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'Review') || /"reviewrating"/i.test(c.h) ? pass('Review/rating schema present.') : fail('No Review schema.', 'Add Review JSON-LD with reviewRating and a named author.')),
+  },
+  {
+    id: 'toiauto_review_verdict_visible', label: 'A rating/verdict is visible in the text',
+    why: 'A verdict only in schema gives a text-reading LLM nothing to quote.',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (/\b\d(\.\d)?\s*(\/|out of)\s*5\b|\bverdict\b|\brating:\s*\d/i.test(c.text) ? pass('A visible rating/verdict is present.') : warn('No visible rating/verdict found.', 'State the rating or verdict in visible text.')),
+  },
+  {
+    id: 'toiauto_review_specs_table', label: 'Specifications as a real table or list',
+    why: 'A specs table is directly parseable; the same specs in prose are not.',
+    pillar: 'structure', weight: 2,
+    run: (c) => ((c.facts.tables + c.facts.lists) >= 1 ? pass(`${c.facts.tables} table(s) / ${c.facts.lists} list(s).`) : warn('No spec table or list.', 'Publish specs as a real HTML table.')),
+  },
+  {
+    id: 'toiauto_review_title_year_brand', label: 'Title includes year and brand/model',
+    why: 'Buyers search by year + brand + model; a title missing either can’t match that query.',
+    pillar: 'entity', weight: 2,
+    run: (c) => {
+      const hasYear = /\b(19|20)\d{2}\b/.test(c.facts.title);
+      const hasBrand = brandRe.test(c.facts.title);
+      if (hasYear && hasBrand) return pass('Title includes both a year and a recognizable brand.');
+      const missing = [!hasYear && 'year', !hasBrand && 'brand'].filter(Boolean).join(' and ');
+      return warn(`Title is missing the ${missing}.`, 'Include both the model year and the brand/model in the title.');
+    },
+  },
+];
+
+const TOIAUTO_COMPARE_CHECKS: Check[] = [
+  {
+    id: 'toiauto_compare_signals_comparison', label: 'Title signals a comparison',
+    why: 'People search "X vs Y" — a title that doesn’t reflect that exact shape is a weaker match for the query.',
+    pillar: 'query', weight: 2,
+    run: (c) => (/\bvs\.?\b|\bcompare(d)?\b/i.test(c.facts.title) ? pass('Title signals a comparison.') : warn('Title doesn’t signal a comparison.', 'Use a "Brand A vs Brand B" style title.')),
+  },
+  {
+    id: 'toiauto_compare_table', label: 'Side-by-side specs table',
+    why: 'A comparison’s entire value is the side-by-side data — without a table, both readers and engines have to reconstruct it from prose.',
+    pillar: 'structure', weight: 3,
+    run: (c) => (c.facts.tables >= 1 ? pass(`${c.facts.tables} table(s) found.`) : fail('No comparison table found.', 'Publish the spec comparison as a real HTML table.')),
+  },
+  {
+    id: 'toiauto_compare_itemlist', label: 'ItemList schema for the models being compared',
+    why: 'ItemList makes explicit which entities are being compared, rather than leaving it to be inferred from the title alone.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (c.facts.hasItemList ? pass('ItemList schema present.') : warn('No ItemList schema.', 'Add ItemList JSON-LD naming the models being compared.')),
+  },
+  {
+    id: 'toiauto_compare_breadcrumb', label: 'BreadcrumbList schema',
+    why: 'Breadcrumb schema gives an engine the page’s place in the site hierarchy explicitly.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'BreadcrumbList') ? pass('BreadcrumbList schema present.') : warn('No BreadcrumbList schema.', 'Add a breadcrumb matching Home > Compare > Model A vs Model B.')),
+  },
+];
+
+const TOIAUTO_LAUNCH_CHECKS: Check[] = [
+  {
+    id: 'toiauto_launch_schema', label: 'Product/Car schema with price',
+    why: 'Structured price data is what lets an engine answer "how much does the new X cost" directly.',
+    pillar: 'entity', weight: 3,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'Product', 'Car') && /"offers"/i.test(c.h) ? pass('Product/Car schema with offers present.')
+      : hasSchema(c.facts.schemaTypes, 'Product', 'Car') ? warn('Product/Car schema present but no offers/price block.', 'Add offers with price to the schema.')
+      : fail('No Product/Car schema.', 'Add Product (or Car) JSON-LD with name, brand and offers.')),
+  },
+  {
+    id: 'toiauto_launch_specs_table', label: 'Specifications as a real table or list',
+    why: 'Launch specs published as prose or an image are effectively invisible to a crawler that reads structured HTML.',
+    pillar: 'structure', weight: 3,
+    run: (c) => ((c.facts.tables + c.facts.lists) >= 1 ? pass(`${c.facts.tables} table(s) / ${c.facts.lists} list(s).`) : fail('No spec table or list.', 'Publish specs as a real HTML table.')),
+  },
+  {
+    id: 'toiauto_launch_price_specific', label: 'A specific price is named',
+    why: 'A launch story with no ex-showroom figure forces a reader (and an engine) to go elsewhere for the one number that matters most.',
+    pillar: 'answerability', weight: 2,
+    run: (c) => (c.facts.priceCount >= 1 ? pass(`${c.facts.priceCount} price(s) mentioned.`) : fail('No specific price found.', 'Name the actual ex-showroom price.')),
+  },
+  {
+    id: 'toiauto_launch_title_brand_model', label: 'Title names the brand/model',
+    why: 'The clearest on-page confirmation of which car entity this launch story is about.',
+    pillar: 'entity', weight: 2,
+    run: (c) => (brandRe.test(c.facts.title) ? pass('Title names a recognizable brand.') : warn('Title doesn’t name a recognizable brand.', 'Name the specific brand/model in the title.')),
+  },
+];
+
+const TOIAUTO_GUIDE_CHECKS: Check[] = [
+  {
+    id: 'toiauto_guide_schema', label: 'HowTo/Article schema present',
+    why: 'HowTo schema is what lets an engine present the guide as discrete, ordered steps rather than an undifferentiated block of prose.',
+    pillar: 'structure', weight: 2,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'HowTo', 'Article') ? pass('HowTo/Article schema present.') : fail('No HowTo/Article schema.', 'Add HowTo (or Article) JSON-LD.')),
+  },
+  {
+    id: 'toiauto_guide_structured_steps', label: 'Steps/comparisons as structured lists or tables',
+    why: 'A buying guide’s value is its structure — numbered steps or a comparison table are directly extractable; the same content in paragraphs is not.',
+    pillar: 'structure', weight: 2,
+    run: (c) => ((c.facts.lists + c.facts.tables) >= 1 ? pass(`${c.facts.lists} list(s) / ${c.facts.tables} table(s).`) : warn('No structured list/table found.', 'Break the guide into a numbered list or comparison table.')),
+  },
+  {
+    id: 'toiauto_guide_faq', label: 'Common questions answered directly (FAQ)',
+    why: 'A guide with an explicit Q&A section maps directly onto how people phrase questions to an AI assistant.',
+    pillar: 'query', weight: 2,
+    run: (c) => (c.facts.hasFaqHeading || hasSchema(c.facts.schemaTypes, 'FAQPage') ? pass('FAQ content found.') : warn('No FAQ section found.', 'Add a short FAQ covering the most common buyer questions.')),
+  },
+  {
+    id: 'toiauto_guide_depth', label: 'Sufficient depth for a buying decision',
+    why: 'A shallow guide can’t actually help someone decide — depth is what earns the citation over a thinner competing page.',
+    pillar: 'answerability', weight: 1,
+    run: (c) => (c.facts.wordCount >= 300 ? pass(`${c.facts.wordCount} words.`) : warn(`Only ${c.facts.wordCount} words.`, 'Expand the guide to cover the decision in real depth.')),
+  },
+];
+
+const TOIAUTO_VIDEO_CHECKS: Check[] = [
+  {
+    id: 'toiauto_video_schema', label: 'VideoObject schema',
+    why: 'VideoObject gives an engine the video’s title, description and duration as structured data.',
+    pillar: 'structure', weight: 3,
+    run: (c) => (hasSchema(c.facts.schemaTypes, 'VideoObject') ? pass('VideoObject schema present.') : fail('No VideoObject schema.', 'Add VideoObject JSON-LD with name, description and uploadDate.')),
+  },
+  {
+    id: 'toiauto_video_text_summary', label: 'Text summary or transcript accompanies the video',
+    why: 'LLM crawlers do not watch video — without accompanying text, the page is functionally empty to them.',
+    pillar: 'answerability', weight: 3,
+    run: (c) => (c.facts.wordCount >= 100 ? pass(`${c.facts.wordCount} words of accompanying text.`) : fail(`Only ${c.facts.wordCount} words alongside the video.`, 'Add a text summary covering the video’s key points.')),
+  },
+  {
+    id: 'toiauto_video_duration', label: 'Duration declared in schema',
+    why: 'Required for the video to be fully eligible for rich video results.',
+    pillar: 'structure', weight: 1,
+    run: (c) => (/"duration"\s*:/i.test(c.h) ? pass('duration present in schema.') : warn('No duration property found.', 'Add duration to the VideoObject schema.')),
+  },
+  {
+    id: 'toiauto_video_title_brand', label: 'Title names the brand/model',
+    why: 'The clearest on-page confirmation of which car this video is actually about.',
+    pillar: 'entity', weight: 1,
+    run: (c) => (brandRe.test(c.facts.title) ? pass('Title names a recognizable brand.') : warn('Title doesn’t name a recognizable brand.', 'Name the specific brand/model in the title.')),
+  },
+];
+
+// =============================================================================
 // CLIENTS
 // =============================================================================
 
@@ -649,10 +1324,45 @@ export const CLIENTS: ClientConfig[] = [
   { id: 'nykaa-fashion', name: 'NykaaFashion.com', domain: 'nykaafashion.com', vertical: 'ecommerce', pageTypes: [] },
   { id: 'cred', name: 'CRED.club', domain: 'cred.club', vertical: 'fintech', pageTypes: [] },
   { id: 'kuvera', name: 'Kuvera.in', domain: 'kuvera.in', vertical: 'fintech', pageTypes: [] },
-  { id: 'toi', name: 'Times of India', domain: 'timesofindia.indiatimes.com', vertical: 'news', pageTypes: [] },
-  { id: 'gadgetsnow', name: 'Gadgets Now', domain: 'gadgetsnow.indiatimes.com', vertical: 'reviews', pageTypes: [] },
+  {
+    id: 'toi', name: 'Times of India', domain: 'timesofindia.indiatimes.com', vertical: 'news',
+    pageTypes: [
+      { id: 'news', label: 'News', checks: TOI_NEWS_CHECKS },
+      { id: 'liveblog', label: 'Live Blog', checks: TOI_LIVEBLOG_CHECKS },
+      { id: 'video', label: 'Videos', checks: TOI_VIDEO_CHECKS },
+      { id: 'local', label: 'Local News', checks: TOI_LOCAL_CHECKS },
+      { id: 'movie-review', label: 'Movie Reviews', checks: TOI_MOVIE_CHECKS },
+      { id: 'health', label: 'Health News', checks: TOI_HEALTH_CHECKS },
+      { id: 'realestate', label: 'Real Estate News', checks: TOI_REALESTATE_CHECKS },
+      { id: 'law', label: 'Law News', checks: TOI_LAW_CHECKS },
+      { id: 'quote', label: 'Quotes as News', checks: TOI_QUOTE_CHECKS },
+      { id: 'factcheck', label: 'Fact Checks', checks: TOI_FACTCHECK_CHECKS },
+    ],
+  },
+  {
+    id: 'gadgetsnow', name: 'Gadgets Now', domain: 'gadgetsnow.indiatimes.com', vertical: 'reviews',
+    pageTypes: [
+      { id: 'news', label: 'News', checks: GN_NEWS_CHECKS },
+      { id: 'review', label: 'Gadget Reviews', checks: GN_REVIEW_CHECKS },
+      { id: 'product', label: 'Product page', checks: GN_PRODUCT_CHECKS },
+      { id: 'category', label: 'Category page', checks: GN_CATEGORY_CHECKS },
+      { id: 'filter', label: 'Filter page', checks: GN_FILTER_CHECKS },
+      { id: 'brand', label: 'Brand page', checks: GN_BRAND_CHECKS },
+      { id: 'sale', label: 'Sales/Offers article', checks: GN_SALE_CHECKS },
+    ],
+  },
   { id: 'toi-homes', name: 'TOI Homes', domain: 'toihomes.com', vertical: 'realestate', pageTypes: [] },
-  { id: 'toi-auto', name: 'TOI Auto', domain: 'auto.timesofindia.com', vertical: 'automotive', pageTypes: [] },
+  {
+    id: 'toi-auto', name: 'TOI Auto', domain: 'auto.timesofindia.com', vertical: 'automotive',
+    pageTypes: [
+      { id: 'news', label: 'News', checks: TOIAUTO_NEWS_CHECKS },
+      { id: 'review', label: 'Car Reviews', checks: TOIAUTO_REVIEW_CHECKS },
+      { id: 'compare', label: 'Car Comparisons', checks: TOIAUTO_COMPARE_CHECKS },
+      { id: 'launch', label: 'New Car Launch/Specs', checks: TOIAUTO_LAUNCH_CHECKS },
+      { id: 'guide', label: 'Buying Guides', checks: TOIAUTO_GUIDE_CHECKS },
+      { id: 'video', label: 'Videos', checks: TOIAUTO_VIDEO_CHECKS },
+    ],
+  },
 ];
 
 export function getClient(id: string): ClientConfig | undefined {
