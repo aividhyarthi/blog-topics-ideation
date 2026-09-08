@@ -198,6 +198,15 @@ const SPEC = {
       leftLabel: 'still live', rightLabel: 'removed' },
   'sudden-drop-in-play-store-visitors':
     { art: 'diverge', takeaway: 'Visitors can fall while your actual rank hasn’t moved at all', a: 'rank', b: 'visitors' },
+  'how-to-get-listed-in-chatgpt-app-directory':
+    { art: 'qa', takeaway: 'No published ranking system exists here yet, unlike App Store search' },
+  'does-privacy-nutrition-label-affect-conversion-rate':
+    { art: 'diverge', takeaway: 'Research checked label accuracy, not a conversion lift', a: 'privacy label', b: 'install conversion' },
+  'does-responding-to-app-store-reviews-improve-rating':
+    { art: 'stars', takeaway: "One of the few review claims Apple has actually confirmed itself" },
+  'does-eu-alternative-distribution-affect-app-store-ranking':
+    { art: 'chips', takeaway: 'New EU terms, and a separate question from App Store search rank',
+      chips: ['alternative marketplaces', 'web distribution', 'Oct 1, 2026 terms'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
