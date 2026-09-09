@@ -3,7 +3,7 @@
 // the single-line "© AppRankr · About" footer that was on every page. Only
 // links to real, existing routes (no placeholder Terms/Privacy pages that
 // would just 404).
-import { BRAND, FOUNDER_NAME, FOUNDER_LINKEDIN, INITIATIVE_NAME } from '../lib/saas/plans';
+import { BRAND, FOUNDER_NAME, INITIATIVE_NAME } from '../lib/saas/plans';
 ---
 <footer class="site-footer">
   <div class="sf-wrap sf-grid">
@@ -25,7 +25,7 @@ import { BRAND, FOUNDER_NAME, FOUNDER_LINKEDIN, INITIATIVE_NAME } from '../lib/s
     </div>
   </div>
   <div class="sf-wrap sf-bottom">
-    © {new Date().getFullYear()} {BRAND} · An initiative by {INITIATIVE_NAME} · Built by <a href={FOUNDER_LINKEDIN} target="_blank" rel="noopener">{FOUNDER_NAME}</a>
+    © {new Date().getFullYear()} {BRAND} · An initiative by {INITIATIVE_NAME} · Built by <a href="/about">{FOUNDER_NAME}</a>
   </div>
 </footer>
 
