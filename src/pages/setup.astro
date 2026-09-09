@@ -34,7 +34,7 @@ const other = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Setup — AI Page Audit</title>
+    <title>Setup, AI Page Audit</title>
     <style>
       :root {
         --blue: #18181b; --blue-soft: #f4f4f5; --ink: #0f172a; --ink-2: #334155;
@@ -94,6 +94,12 @@ const other = [
   </head>
   <body>
     <div class="wrap">
+      {Boolean(process.env.SITE_PASSWORD) && (
+        <div class="banner bad">
+          <h1>SITE_PASSWORD is set, this site is locked behind Basic Auth</h1>
+          <p>Every page and API route requires a username/password right now, including for search engines, AI crawlers (GPTBot, PerplexityBot, ClaudeBot) and link-preview bots (WhatsApp, Slack, X). None of them can authenticate, so they all silently get nothing, no indexing, no citations, no link previews. This is a leftover from an earlier internal-only deployment. If this site is meant to be public, remove the <kbd>SITE_PASSWORD</kbd> variable in Railway → Variables and redeploy.</p>
+        </div>
+      )}
       {state === 'live' ? (
         <div class="banner ok">
           <h1>Your site is live</h1>
@@ -107,18 +113,18 @@ const other = [
       ) : (
         <div class="banner bad">
           <h1>Your site can't take sign-ups yet</h1>
-          <p>AI Page Audit needs one place to remember who signs up and what they've paid for. Right now it doesn't have one, so visitors see a locked page instead of the tool. Nothing else is broken — this is the only thing standing in the way, and it's a single step.</p>
+          <p>AI Page Audit needs one place to remember who signs up and what they've paid for. Right now it doesn't have one, so visitors see a locked page instead of the tool. Nothing else is broken, this is the only thing standing in the way, and it's a single step.</p>
         </div>
       )}
 
       {state === 'missing' && (
         <div class="card">
           <h2>Fix it in about a minute</h2>
-          <p class="lead">All of this happens on railway.com, on the ONE box that is your website — nothing else to find or click between.</p>
+          <p class="lead">All of this happens on railway.com, on the ONE box that is your website, nothing else to find or click between.</p>
           <ol class="steps">
             <li>
               <b>Open your project on railway.com, click your website's box</b>
-              <p>Not a second box, not a database — just the one that already runs your site.</p>
+              <p>Not a second box, not a database, just the one that already runs your site.</p>
             </li>
             <li>
               <b>Go to Settings → Volumes → New Volume</b>
@@ -126,7 +132,7 @@ const other = [
             </li>
             <li>
               <b>Go to Variables → New Variable</b>
-              <p>Name: <kbd>DATA_DIR</kbd>. Value: <kbd>/data</kbd> — matching the path you just typed above. Click Add.</p>
+              <p>Name: <kbd>DATA_DIR</kbd>. Value: <kbd>/data</kbd>, matching the path you just typed above. Click Add.</p>
             </li>
             <li>
               <b>Let it redeploy, then reload this page</b>
@@ -143,7 +149,7 @@ const other = [
           <ol class="steps">
             <li>
               <b>Settings → Volumes</b>
-              <p>Confirm a Volume exists and its mount path is exactly <kbd>/data</kbd> — no typos, no trailing slash difference from the variable below.</p>
+              <p>Confirm a Volume exists and its mount path is exactly <kbd>/data</kbd>, no typos, no trailing slash difference from the variable below.</p>
             </li>
             <li>
               <b>Variables</b>
@@ -156,14 +162,14 @@ const other = [
       {state === 'unreachable' && dbError && (
         <div class="card">
           <h2>What the server reported</h2>
-          <p class="lead">Send this to your developer if it doesn't make sense — it contains no passwords.</p>
+          <p class="lead">Send this to your developer if it doesn't make sense, it contains no passwords.</p>
           <div class="seen">{dbError}</div>
         </div>
       )}
 
       <div class="card">
         <h2>What this server can currently see</h2>
-        <p class="lead">Where it's looking for storage right now. Safe to share — it's a folder path, not a password.</p>
+        <p class="lead">Where it's looking for storage right now. Safe to share, it's a folder path, not a password.</p>
         <div class="seen">{diag.dataDir ? `DATA_DIR = ${diag.dataDir}` : 'DATA_DIR is not set on this service yet.'}</div>
       </div>
 
@@ -183,7 +189,7 @@ const other = [
       )}
 
       <p style="text-align:center;margin:26px 0"><button class="btn" onclick="location.reload()">Check again</button></p>
-      <p class="foot">Bookmark this page — it always tells you the truth about what's running.<br />Machine-readable version: <a href="/api/health">/api/health</a></p>
+      <p class="foot">Bookmark this page, it always tells you the truth about what's running.<br />Machine-readable version: <a href="/api/health">/api/health</a></p>
     </div>
   </body>
 </html>
