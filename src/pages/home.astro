@@ -63,30 +63,35 @@ const hour = new Date().getHours();
 const bucket = hour < 5 ? 'late' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 21 ? 'evening' : 'night';
 const RETURNING: Record<string, { h: string; sub: string }[]> = {
   late: [
-    { h: `Still up, ${name}?`, sub: "Most people are asleep — here's what's changed since your last check." },
-    { h: `Burning the midnight oil, ${name}?`, sub: 'Either way, here\'s what happened while you were away.' },
+    { h: `Still up, ${name}?`, sub: "The internet doesn't sleep, and neither does your score. Here's where things stand." },
+    { h: `Burning the midnight oil, ${name}?`, sub: "Whatever's keeping you up, here's what happened while you were away." },
+    { h: `Quiet hours, ${name}.`, sub: 'Good time to think clearly. Here\'s your latest snapshot.' },
   ],
   morning: [
-    { h: `Morning, ${name}.`, sub: "Here's where things stand before you dive in." },
-    { h: `Good morning, ${name}.`, sub: "Here's a quick look at what changed." },
+    { h: `Good morning, ${name}.`, sub: 'Fresh coffee, fresh numbers. Here\'s where things stand.' },
+    { h: `Morning, ${name}.`, sub: "Let's see what changed overnight before you dive into anything else." },
+    { h: `Rise and shine, ${name}.`, sub: "Here's a clear-eyed look at where things stand today." },
   ],
   afternoon: [
-    { h: `Afternoon, ${name}.`, sub: "Here's your latest snapshot." },
-    { h: `Hey ${name}, welcome back.`, sub: "Here's what's changed since last time." },
+    { h: `Afternoon, ${name}.`, sub: 'Quick pulse check before you get back to it.' },
+    { h: `Hey ${name}, good to see you.`, sub: "Here's what's changed since you last looked." },
+    { h: `Midday check-in, ${name}.`, sub: "Here's your latest snapshot, no scrolling required." },
   ],
   evening: [
-    { h: `Evening, ${name}.`, sub: 'Wrapping up for the day? Here\'s where things stand.' },
-    { h: `Hey ${name}, welcome back.`, sub: "Here's what's changed since last time." },
+    { h: `Evening, ${name}.`, sub: "Winding down? Here's where things stand before you log off." },
+    { h: `Hey ${name}, welcome back.`, sub: 'One last look before the day wraps up.' },
+    { h: `Good evening, ${name}.`, sub: "Here's what's changed since this morning." },
   ],
   night: [
-    { h: `Hey ${name}, working late?`, sub: "Here's what's changed since your last check." },
-    { h: `Welcome back, ${name}.`, sub: "Here's tonight's snapshot." },
+    { h: `Working late, ${name}?`, sub: "Here's what's changed since your last check." },
+    { h: `Welcome back, ${name}.`, sub: "Here's tonight's snapshot, ready when you are." },
+    { h: `Hey ${name}, night owl mode?`, sub: "Here's where things stand right now." },
   ],
 };
 const NEW_GREETINGS = [
-  { h: `Welcome, ${name}.`, sub: "Let's run your first check." },
-  { h: `Hey ${name}, glad you're here.`, sub: "Let's see what AI engines can read on your site." },
-  { h: `Welcome aboard, ${name}.`, sub: "Paste a URL and get your first read in about 20 seconds." },
+  { h: `Welcome, ${name}.`, sub: "Let's run your first check and see what AI actually reads on your site." },
+  { h: `Hey ${name}, glad you're here.`, sub: 'Paste a URL and see exactly what ChatGPT, Perplexity and Claude can read on it.' },
+  { h: `Welcome aboard, ${name}.`, sub: 'Your first read is about 20 seconds away.' },
 ];
 const pool = isReturning ? RETURNING[bucket] : NEW_GREETINGS;
 const dayKey = new Date().toISOString().slice(0, 10) + user.id;
@@ -181,19 +186,21 @@ function sparkPath(vals: number[]): string {
         <div class="greetbrand">AI PAGE AUDIT</div>
         <h1>{greetHeadline}</h1>
         <p>{greetSub}</p>
-        {isReturning && <span class="greetchip" title="Rolling window: always the 7 days up to today, not a fixed calendar range">Last 7 days · {dateRange}</span>}
+        {isReturning && <span class="greetchip">{dateRange}</span>}
       </div>
 
       {isReturning && (
         <>
           <div class="snaphead">
             <span>Last 7 days</span>
-            <span class="dyksub">Rolling window, not a fixed date range</span>
           </div>
           <div class="snapgrid">
             <a class="snapcard" href={latestAudit ? `/audit?view=${latestAudit.id}` : '/audit'}>
-              <div class="snaplabel">Latest AEO score</div>
-              {latestAudit && <div class="snapurl">{latestAudit.host || latestAudit.url || 'Pasted content'}</div>}
+              <div class="snaplabel">
+                {latestAudit
+                  ? <>Latest score <span class="snaplabel-host">· {latestAudit.host || latestAudit.url || 'pasted content'}</span></>
+                  : 'Latest AEO score'}
+              </div>
               <div class="snaprow">
                 <span class="snapnum" style={`color:${hexFor(latestAudit?.overall ?? null)}`}>{latestAudit?.overall ?? '–'}</span>
                 {scoreDelta !== null && (
@@ -219,8 +226,11 @@ function sparkPath(vals: number[]): string {
             </div>
 
             <a class="snapcard" href="/check">
-              <div class="snaplabel">Crawler access</div>
-              {latestCheck && <div class="snapurl">{latestCheck.host || latestCheck.url}</div>}
+              <div class="snaplabel">
+                {latestCheck
+                  ? <>Crawler access <span class="snaplabel-host">· {latestCheck.host || latestCheck.url}</span></>
+                  : 'Crawler access'}
+              </div>
               <div class="snaprow">
                 <span class={`snapstatus ${latestCheck?.verdict === 'yes' ? 'ok' : latestCheck?.verdict === 'no' ? 'bad' : latestCheck ? 'warn' : ''}`}>
                   {latestCheck?.verdict === 'yes' ? 'Readable' : latestCheck?.verdict === 'no' ? 'Blocked' : latestCheck?.verdict === 'partial' ? 'Partial' : '–'}
@@ -232,7 +242,6 @@ function sparkPath(vals: number[]): string {
 
           <div class="dykhead">
             <span>Did you know?</span>
-            <span class="dyksub">Picked from what's actually true of your account</span>
           </div>
           <div class="dykgrid">
             {insights.map((ins) => (
@@ -383,14 +392,13 @@ function sparkPath(vals: number[]): string {
 
     .snaphead, .dykhead { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; }
     .snaphead span:first-child, .dykhead span:first-child { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-    .dyksub { font-size: 12px; color: var(--faint); }
 
     .snapgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
     @media (max-width: 900px) { .snapgrid { grid-template-columns: repeat(2, 1fr); } }
     .snapcard { display: block; border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 16px 18px; text-decoration: none; color: inherit; transition: border-color .15s, transform .15s; }
     .snapcard:not(.nolink):hover { border-color: var(--accent); transform: translateY(-2px); }
-    .snaplabel { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
-    .snapurl { font-size: 11.5px; color: var(--faint); margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .snaplabel { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .snaplabel-host { color: var(--ink); font-weight: 800; }
     .snaprow { display: flex; align-items: baseline; gap: 8px; }
     .snapnum { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
     .snapdelta { font-size: 12px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: #eef0f5; color: var(--muted); }
