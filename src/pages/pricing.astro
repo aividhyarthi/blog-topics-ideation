@@ -29,11 +29,11 @@ if (upiConfigured) {
 // list below; both render from the same array.
 const faqs = [
   { q: 'What counts as a check?', a: 'Any single URL run through the LLM Access Check or the Full AEO Audit. Pasting HTML into the LLM Access Check (no live fetch) is always free. Individual on-demand crawler tabs within one report don\u2019t each cost a check.' },
-  { q: 'Do check packs expire?', a: 'No \u2014 purchased credits never expire. Buy once, use whenever.' },
+  { q: 'Do check packs expire?', a: 'No: purchased credits never expire. Buy once, use whenever.' },
   { q: 'What if a page can\u2019t be fetched?', a: 'The check is returned to your balance automatically. You are never charged for a result we could not deliver.' },
-  { q: 'Why only one login?', a: 'Accounts are per-seat. Only one active session is allowed at a time \u2014 signing in elsewhere ends the previous session. Need multiple seats? Contact us.' },
-  { q: 'Can I cancel Pro?', a: 'Yes \u2014 anytime. Pro does not auto-renew, so there is no mandate to cancel; it simply expires at the end of the period unless you renew.' },
-  { q: 'How can I pay?', a: 'UPI or WhatsApp \u2014 those are the only two options. We do not accept cards, we never store payment details, and nothing auto-renews. Pay by UPI and submit the reference number, or message us on WhatsApp and we will activate your account by hand.' },
+  { q: 'Why only one login?', a: 'Accounts are per-seat. Only one active session is allowed at a time: signing in elsewhere ends the previous session. Need multiple seats? Contact us.' },
+  { q: 'Can I cancel Pro?', a: 'Yes: anytime. Pro does not auto-renew, so there is no mandate to cancel; it simply expires at the end of the period unless you renew.' },
+  { q: 'How can I pay?', a: 'UPI or WhatsApp: those are the only two options. We do not accept cards, we never store payment details, and nothing auto-renews. Pay by UPI and submit the reference number, or message us on WhatsApp and we will activate your account by hand.' },
   { q: 'How long does activation take?', a: 'Each payment is checked by a person, usually within a few hours and always the same business day. You will get an email the moment your account is topped up.' },
 ];
 const faqSchema = {
@@ -46,12 +46,12 @@ const faqSchema = {
   })),
 };
 ---
-<Site schema={faqSchema} title="Pricing — AI Page Audit" description="Check one page free. Pay per URL, or subscribe for volume — pricing for the AEO audit tool built for AI search visibility.">
+<Site schema={faqSchema} title="Pricing | AI Page Audit" description="Check one page free. Pay per URL, or subscribe for volume: pricing for the AEO audit tool built for AI search visibility.">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Pricing</span>
       <h1>Try it free. Pay only for what you check.</h1>
-      <p>Every account gets <b>one free check</b>. After that, buy a check pack for occasional use, or subscribe for volume — no forced annual lock-in.</p>
+      <p>Every account gets <b>one free check</b>. After that, buy a check pack for occasional use, or subscribe for volume, no forced annual lock-in.</p>
     </div>
   </section>
 
@@ -60,7 +60,7 @@ const faqSchema = {
       <div class="tiercard">
         <div class="pc-name">Free trial</div>
         <div class="pc-price">₹0</div>
-        <div class="pc-sub">One check, on us — no card required.</div>
+        <div class="pc-sub">One check, on us, no card required.</div>
         <a href="/check" class="btn-ghost pc-cta">Sign up free</a>
         <ul class="pc-list">
           <li>1 full check (LLM Access or AEO Audit)</li>
@@ -108,7 +108,7 @@ const faqSchema = {
     <div class="wrap pay-wrap" id="pay">
       <h2 class="faq-h">How to pay</h2>
       <p class="pay-intro">
-        Two ways, both verified by a human — usually within a few hours, and always
+        Two ways, both verified by a human, usually within a few hours, and always
         the same business day. We never see or store your card or bank details.
       </p>
 
@@ -127,8 +127,8 @@ const faqSchema = {
 
               <div class="paywhat">
                 <div class="pw-label">What are you paying for?</div>
-                <label class="pw-opt"><input type="radio" name="paywhat" value="credits" checked /> A check pack — <span id="pw-pack-amt">₹599 (5 checks)</span></label>
-                <label class="pw-opt"><input type="radio" name="paywhat" value="subscription" /> Monthly Pro — ₹{MONTHLY_INR} (500 checks/month)</label>
+                <label class="pw-opt"><input type="radio" name="paywhat" value="credits" checked /> A check pack, <span id="pw-pack-amt">₹599 (5 checks)</span></label>
+                <label class="pw-opt"><input type="radio" name="paywhat" value="subscription" /> Monthly Pro, ₹{MONTHLY_INR} (500 checks/month)</label>
               </div>
 
               <ol class="upi-steps">
@@ -161,14 +161,14 @@ const faqSchema = {
           </p>
           {waConfigured ? (
             <div class="wa-actions">
-              <a class="btn-wa" href={waLink('Hi — I would like to buy a check pack on AI Page Audit. My account email is: ')} target="_blank" rel="noopener">
+              <a class="btn-wa" href={waLink('Hi, I would like to buy a check pack on AI Page Audit. My account email is: ')} target="_blank" rel="noopener">
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.13h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.17 8.17 0 0 1-1.26-4.36c0-4.54 3.7-8.23 8.25-8.23 2.2 0 4.27.86 5.83 2.41a8.18 8.18 0 0 1 2.41 5.83c0 4.54-3.7 8.21-8.24 8.21Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.24-.64.8-.78.97-.14.16-.29.18-.53.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.47c-.16 0-.43.06-.65.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.17 1.73 2.64 4.19 3.7.59.25 1.04.4 1.4.52.59.19 1.12.16 1.55.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.11-.22-.17-.47-.29Z"/></svg>
                 Message us on WhatsApp
               </a>
               <span class="wa-num">+{WHATSAPP}</span>
             </div>
           ) : (
-            <p class="pay-off">WhatsApp isn’t switched on for this deployment yet — set WHATSAPP_NUMBER to enable it.</p>
+            <p class="pay-off">WhatsApp isn’t switched on for this deployment yet, set WHATSAPP_NUMBER to enable it.</p>
           )}
           <ul class="wa-list">
             <li>Ask a question before you pay</li>
@@ -231,7 +231,7 @@ const faqSchema = {
         const d = await res.json();
         if (!res.ok) { msg.classList.add('err'); msg.textContent = d.error || 'Something went wrong.'; }
         else { msg.classList.add('ok'); msg.textContent = 'Thanks! We’ll verify and activate your account within a few hours.'; form.reset(); refreshPayWhat(); }
-      } catch { msg.classList.add('err'); msg.textContent = 'Network error — try again.'; }
+      } catch { msg.classList.add('err'); msg.textContent = 'Network error, try again.'; }
       finally { btn.disabled = false; btn.textContent = 'Submit for verification'; }
     });
   </script>

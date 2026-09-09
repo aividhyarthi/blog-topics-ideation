@@ -19,13 +19,13 @@ const terms: Term[] = [
     cat: 'Crawlers',
     chip: 'User-agent: GPTBot',
     def: 'OpenAI\'s crawler for gathering model training data. It fetches raw HTML and does not execute JavaScript.',
-    why: 'Blocking it keeps your content out of future model training, but has no effect on whether ChatGPT cites you in live answers — that is a different bot entirely.',
+    why: 'Blocking it keeps your content out of future model training, but has no effect on whether ChatGPT cites you in live answers, that is a different bot entirely.',
   },
   {
     term: 'OAI-SearchBot',
     cat: 'Crawlers',
     chip: 'User-agent: OAI-SearchBot',
-    def: 'OpenAI\'s crawler for ChatGPT Search — the live, cited web answers inside ChatGPT. Separate from GPTBot.',
+    def: 'OpenAI\'s crawler for ChatGPT Search, the live, cited web answers inside ChatGPT. Separate from GPTBot.',
     why: 'This is the OpenAI bot that determines whether ChatGPT can cite you today. Sites routinely block it by accident while meaning to opt out of training only.',
   },
   {
@@ -33,14 +33,14 @@ const terms: Term[] = [
     cat: 'Crawlers',
     chip: 'User-agent: ClaudeBot',
     def: 'Anthropic\'s web crawler for Claude. Respects robots.txt and reads raw HTML only.',
-    why: 'Like every answer-engine crawler, it never runs your JavaScript — so a client-rendered page is invisible to it regardless of robots.txt.',
+    why: 'Like every answer-engine crawler, it never runs your JavaScript, so a client-rendered page is invisible to it regardless of robots.txt.',
   },
   {
     term: 'PerplexityBot',
     cat: 'Crawlers',
     chip: 'User-agent: PerplexityBot',
     def: 'Perplexity\'s crawler, used to fetch pages for its live cited answers.',
-    why: 'Perplexity surfaces its sources prominently, so a citation here is unusually visible — and unusually easy to lose to a WAF rule you did not know existed.',
+    why: 'Perplexity surfaces its sources prominently, so a citation here is unusually visible, and unusually easy to lose to a WAF rule you did not know existed.',
   },
   {
     term: 'Google-Extended',
@@ -53,7 +53,7 @@ const terms: Term[] = [
     term: 'Googlebot',
     cat: 'Crawlers',
     chip: 'User-agent: Googlebot',
-    def: 'Google\'s classic search crawler — and the one major crawler that runs a full browser engine to render JavaScript before indexing.',
+    def: 'Google\'s classic search crawler, and the one major crawler that runs a full browser engine to render JavaScript before indexing.',
     why: 'Googlebot is the reason JS-rendering problems stay hidden. Your page indexes perfectly on Google while every AI crawler sees an empty shell.',
   },
   {
@@ -67,7 +67,7 @@ const terms: Term[] = [
     cat: 'Crawlers',
     chip: 'User-agent: Applebot-Extended',
     def: 'Apple\'s opt-out token for using crawled content in Apple Intelligence training, distinct from the Applebot that powers Siri and Spotlight.',
-    why: 'Same two-bot pattern as OpenAI and Google — the opt-out and the citation crawler are different tokens.',
+    why: 'Same two-bot pattern as OpenAI and Google, the opt-out and the citation crawler are different tokens.',
   },
 
   // ─── Surfaces ────────────────────────────────────────────────────────────
@@ -75,12 +75,12 @@ const terms: Term[] = [
     term: 'AI Overviews',
     cat: 'Surfaces',
     def: 'Google\'s AI-generated summary above traditional results, synthesising and citing a handful of sources.',
-    why: 'Correlated with a 58% CTR drop for top-ranking pages (Ahrefs, Feb 2026) — but cited brands earn ~120% more clicks per impression than uncited ones on the same query.',
+    why: 'Correlated with a 58% CTR drop for top-ranking pages (Ahrefs, Feb 2026), but cited brands earn ~120% more clicks per impression than uncited ones on the same query.',
   },
   {
     term: 'AI Mode',
     cat: 'Surfaces',
-    def: 'Google\'s conversational, multi-turn AI search experience — a deeper AI-first surface than AI Overviews.',
+    def: 'Google\'s conversational, multi-turn AI search experience, a deeper AI-first surface than AI Overviews.',
     why: 'Follow-up questions mean a single page can be re-queried from several angles, rewarding pages that answer a cluster of related questions rather than exactly one.',
   },
   {
@@ -93,7 +93,7 @@ const terms: Term[] = [
     term: 'ChatGPT Search',
     cat: 'Surfaces',
     def: 'Live, cited web answers inside ChatGPT, powered by OAI-SearchBot plus a re-ranked hybrid index.',
-    why: 'Only ~10% of URLs it cites rank in Google\'s top 10 — strong evidence that AI visibility and SEO rank are genuinely different problems.',
+    why: 'Only ~10% of URLs it cites rank in Google\'s top 10, strong evidence that AI visibility and SEO rank are genuinely different problems.',
   },
   {
     term: 'AI shopping module',
@@ -112,7 +112,7 @@ const terms: Term[] = [
   {
     term: 'Share of voice (AI)',
     cat: 'Metrics',
-    def: 'Your citation frequency relative to named competitors across the same prompt set — "cited in 24% of answers vs their 40%".',
+    def: 'Your citation frequency relative to named competitors across the same prompt set, "cited in 24% of answers vs their 40%".',
     why: 'Citation rate alone is not actionable. Share of voice tells you whether a low number is a category problem or specifically your problem.',
   },
   {
@@ -139,14 +139,14 @@ const terms: Term[] = [
     term: 'Server-side rendering (SSR)',
     cat: 'Technical',
     def: 'Generating full HTML on the server so content exists in the first response, before any client JavaScript runs.',
-    why: 'The fix for the JS blind spot. You do not have to drop your framework — the substance just has to be in the initial HTML, with JS layered on for interactivity.',
+    why: 'The fix for the JS blind spot. You do not have to drop your framework, the substance just has to be in the initial HTML, with JS layered on for interactivity.',
   },
   {
     term: 'robots.txt',
     cat: 'Technical',
     chip: '/robots.txt',
     def: 'A root-level file declaring which crawlers may fetch which paths.',
-    why: 'Necessary but no longer sufficient. A CDN or WAF rule can block GPTBot at the edge while your robots.txt cheerfully allows it — your server never sees the request.',
+    why: 'Necessary but no longer sufficient. A CDN or WAF rule can block GPTBot at the edge while your robots.txt cheerfully allows it, your server never sees the request.',
   },
   {
     term: 'llms.txt',
@@ -159,7 +159,7 @@ const terms: Term[] = [
     term: 'Structured data (JSON-LD)',
     cat: 'Technical',
     chip: 'schema.org',
-    def: 'Machine-readable markup describing a page\'s type, attributes and relationships — Product, Article, FAQPage, Review.',
+    def: 'Machine-readable markup describing a page\'s type, attributes and relationships, Product, Article, FAQPage, Review.',
     why: 'It removes guesswork. An engine reading explicit Product markup does not have to infer your price from prose, and Q&A markup turns "readable" into "quotable".',
   },
   {
@@ -171,7 +171,7 @@ const terms: Term[] = [
   {
     term: 'Pay Per Crawl / Pay Per Use',
     cat: 'Technical',
-    def: 'Cloudflare mechanisms for charging AI companies for content access — per fetch originally, evolving to payment when content surfaces in an answer.',
+    def: 'Cloudflare mechanisms for charging AI companies for content access, per fetch originally, evolving to payment when content surfaces in an answer.',
     why: 'Signals that crawler access is becoming a negotiated commercial arrangement rather than a default, especially for publishers.',
   },
 
@@ -185,19 +185,19 @@ const terms: Term[] = [
   {
     term: 'Entity clarity',
     cat: 'Content',
-    def: 'Naming concrete entities — products, people, places, versions — explicitly rather than leaning on pronouns and back-references.',
+    def: 'Naming concrete entities, products, people, places, versions, explicitly rather than leaning on pronouns and back-references.',
     why: 'Models retrieve passages, not whole pages. A chunk saying "it supports this natively" is unusable once separated from the paragraph that defined "it".',
   },
   {
     term: 'Chunk',
     cat: 'Content',
-    def: 'The passage-sized unit of text a retrieval system actually indexes and feeds to a model — typically a section, not a page.',
+    def: 'The passage-sized unit of text a retrieval system actually indexes and feeds to a model, typically a section, not a page.',
     why: 'Explains most AEO advice at once. Each section has to stand alone, because a chunk is often all the model ever sees of you.',
   },
   {
     term: 'Content gap (AEO)',
     cat: 'Content',
-    def: 'A missing element — no FAQ block, no author byline, no specs table, no comparison — that a competitor supplies and wins the citation with.',
+    def: 'A missing element, no FAQ block, no author byline, no specs table, no comparison, that a competitor supplies and wins the citation with.',
     why: 'Citations are competitive, not absolute. You lose them to a page that answered one more question than you did.',
   },
   {
@@ -209,7 +209,7 @@ const terms: Term[] = [
   {
     term: 'E-E-A-T',
     cat: 'Content',
-    def: 'Experience, Expertise, Authoritativeness, Trust — Google\'s quality framework, expressed on-page through bylines, credentials, citations and dates.',
+    def: 'Experience, Expertise, Authoritativeness, Trust, Google\'s quality framework, expressed on-page through bylines, credentials, citations and dates.',
     why: 'The signals overlap heavily with what makes a source citable: named authors, dated content and linked primary sources all raise the odds of being quoted.',
   },
 ];
@@ -234,14 +234,14 @@ const glossarySchema = {
 ---
 <Site
   schema={glossarySchema}
-  title="AEO / GEO Glossary — AI Page Audit"
-  description="Every term that matters in AI search — GPTBot, OAI-SearchBot, AI Overviews, citation rate, extractability — with what it is and why it matters to your site."
+  title="AEO / GEO Glossary | AI Page Audit"
+  description="Every term that matters in AI search: GPTBot, OAI-SearchBot, AI Overviews, citation rate, extractability, with what it is and why it matters to your site."
 >
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Glossary</span>
       <h1>The AI search glossary</h1>
-      <p>{terms.length} terms across crawlers, surfaces, metrics and technique — each with what it is, and why it actually matters for your site.</p>
+      <p>{terms.length} terms across crawlers, surfaces, metrics and technique, each with what it is, and why it actually matters for your site.</p>
     </div>
   </section>
 
@@ -250,7 +250,7 @@ const glossarySchema = {
       <div class="gbar">
         <div class="gsearch">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
-          <input id="gq" type="search" placeholder="Search terms — try “bot”, “schema”, “citation”…" autocomplete="off" />
+          <input id="gq" type="search" placeholder="Search terms, try “bot”, “schema”, “citation”…" autocomplete="off" />
         </div>
         <div class="gcats">
           {cats.map((c) => (

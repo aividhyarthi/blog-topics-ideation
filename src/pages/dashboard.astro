@@ -21,7 +21,7 @@ const expiresAt = usage?.expiresAt ? new Date(usage.expiresAt).toLocaleDateStrin
 
 function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75) return '#12855a'; if (s >= 45) return '#b7791f'; return '#d43a3a'; }
 ---
-<App tab="reports" title="Reports — AI Page Audit" description="Your saved audits, usage and plan.">
+<App tab="reports" title="Reports | AI Page Audit" description="Your saved audits, usage and plan.">
   <section class="toolhead">
     <div class="wrap">
       <h1>Reports</h1>
@@ -68,7 +68,7 @@ function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75
           ) : (
             <div class="alist">
               {audits.map((a) => (
-                <a class="arow" href={`/audit?view=${a.id}`} title="View this saved report — no new check, nothing charged">
+                <a class="arow" href={`/audit?view=${a.id}`} title="View this saved report: no new check, nothing charged">
                   <span class="ascore" style={`color:${hexFor(a.overall)}`}>{a.overall == null ? '–' : a.overall}</span>
                   <div class="abody">
                     <div class="ahost">{a.host || a.url || 'Pasted content'}</div>

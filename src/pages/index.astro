@@ -45,21 +45,21 @@ const ICO_SEARCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const ICO_CHART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg>';
 const ICO_CHECKLIST = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>';
 const tools = [
-  { icon: ICO_SEARCH, h: 'LLM Access Check', p: 'Fetch any URL as Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI, desktop and mobile — see exactly what each one can and can’t read, element by element.', href: '/check' },
-  { icon: ICO_CHART, h: 'Full AEO Audit', p: 'A weighted score built from the same checklist across every tab — content, indexability, keyword match — with ranked, page-specific fixes, not a generic checklist.', href: '/audit' },
-  { icon: ICO_CHECKLIST, h: 'The AEO Checklist', p: 'Every check we run, and why it affects whether an AI engine cites the page — published openly so you know exactly what "the score" means.', href: '/checklist' },
+  { icon: ICO_SEARCH, h: 'LLM Access Check', p: 'Fetch any URL as Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI, desktop and mobile, see exactly what each one can and can’t read, element by element.', href: '/check' },
+  { icon: ICO_CHART, h: 'Full AEO Audit', p: 'A weighted score built from the same checklist across every tab, content, indexability, keyword match, with ranked, page-specific fixes, not a generic checklist.', href: '/audit' },
+  { icon: ICO_CHECKLIST, h: 'The AEO Checklist', p: 'Every check we run, and why it affects whether an AI engine cites the page, published openly so you know exactly what "the score" means.', href: '/checklist' },
 ];
 
 const faqs = [
-  { q: 'Why would a page rank on Google but never get cited by ChatGPT?', a: 'Googlebot renders JavaScript. GPTBot, ClaudeBot and PerplexityBot mostly don’t — they read the raw HTML response. Content injected by JavaScript is invisible to them even though Google sees it fine.' },
-  { q: 'What does the AEO score actually measure?', a: 'Every pillar score is built from the same named checklist shown on the report’s Content, Indexability and Keywords tabs — not a separate black-box number. See the full checklist at /checklist.' },
+  { q: 'Why would a page rank on Google but never get cited by ChatGPT?', a: 'Googlebot renders JavaScript. GPTBot, ClaudeBot and PerplexityBot mostly don’t, they read the raw HTML response. Content injected by JavaScript is invisible to them even though Google sees it fine.' },
+  { q: 'What does the AEO score actually measure?', a: 'Every pillar score is built from the same named checklist shown on the report’s Content, Indexability and Keywords tabs, not a separate black-box number. See the full checklist at /checklist.' },
   { q: 'Do I need to install anything on my site?', a: 'No. Paste a URL and we fetch it the same way the crawlers do. Nothing to install, no tag, no waiting for a crawl.' },
 ];
 ---
 <Site
   schema={homeSchema}
-  title="AI Page Audit — the AEO Audit Tool for AI Search Visibility"
-  description="AI Page Audit is the AEO audit tool (and AI audit tool) that fetches any page as Googlebot, ChatGPT, Perplexity and Claude, and shows exactly what each AI crawler can and cannot read — then scores it and tells you what to fix. First check free."
+  title="AI Page Audit: the AEO Audit Tool for AI Search Visibility"
+  description="AI Page Audit is the AEO audit tool (and AI audit tool) that fetches any page as Googlebot, ChatGPT, Perplexity and Claude, and shows exactly what each AI crawler can and cannot read. Then it scores the page and tells you what to fix. First check free."
 >
   <!-- ── hero ───────────────────────────────────────────────── -->
   <section class="hero">
@@ -68,14 +68,12 @@ const faqs = [
         <span class="eyebrow">The AEO audit tool for the new front page of search</span>
         <h1>See your site the way <em>AI answer engines</em> see it</h1>
         <p>
-          Google renders your JavaScript. ChatGPT, Perplexity and Claude don’t —
-          they read raw HTML. A page can rank beautifully and still be invisible
+          Google renders your JavaScript. ChatGPT, Perplexity and Claude don't: they read raw HTML. A page can rank beautifully and still be invisible
           to every AI answer at the same time. As an AI audit tool built
-          specifically for AEO, we show you which, and why —
-          then exactly what to fix, ranked by impact.
+          specifically for AEO, we show you which, and why, then exactly what to fix, ranked by impact.
         </p>
         <div class="herocta">
-          <button class="btn-primary lg" id="cta-signup">Start free — no card required</button>
+          <button class="btn-primary lg" id="cta-signup">Start free, no card required</button>
           <button class="btn-ghost lg" id="cta-login">Log in</button>
         </div>
         <p class="herofine">Your first check is free · Results in ~20 seconds</p>
@@ -155,7 +153,7 @@ const faqs = [
         <div class="sec-eyebrow">Not a black box</div>
         <h2 class="sec-h2 left">See exactly what each crawler reads</h2>
         <p class="sec-sub left">
-          Header, navigation, main content, footer, images, schema — each one
+          Header, navigation, main content, footer, images, schema, each one
           checked separately, by page region and by content type. If your nav
           is JavaScript-rendered and invisible to GPTBot, that's the line that
           tells you, not a vague overall score.
@@ -168,9 +166,9 @@ const faqs = [
       </div>
       <div class="visdemo">
         <div class="vd-row vd-pass"><span class="vd-dot"></span><div><b>Main content</b><span>Readable in the static HTML (about 1,490 words).</span></div></div>
-        <div class="vd-row vd-fail"><span class="vd-dot"></span><div><b>Navigation</b><span>Rendered by JavaScript — empty in the static HTML LLM crawlers fetch.</span></div></div>
+        <div class="vd-row vd-fail"><span class="vd-dot"></span><div><b>Navigation</b><span>Rendered by JavaScript, empty in the static HTML LLM crawlers fetch.</span></div></div>
         <div class="vd-row vd-pass"><span class="vd-dot"></span><div><b>Structured data (schema)</b><span>JSON-LD present: Organization, WebSite, Article.</span></div></div>
-        <div class="vd-row vd-warn"><span class="vd-dot"></span><div><b>Images (14)</b><span>9/14 images have alt text — the rest are invisible to LLMs.</span></div></div>
+        <div class="vd-row vd-warn"><span class="vd-dot"></span><div><b>Images (14)</b><span>9/14 images have alt text, the rest are invisible to LLMs.</span></div></div>
       </div>
     </div>
   </section>
@@ -191,7 +189,7 @@ const faqs = [
         <h2 class="sec-h2 left">Know why a fix matters, not just that it's broken</h2>
         <p class="sec-sub left">
           Every failed check comes with a plain-English reason it affects AI
-          citation, and a concrete fix — not "structured data: 45/100" with no
+          citation, and a concrete fix, not "structured data: 45/100" with no
           idea what to actually change.
         </p>
         <a class="inline-link" href="/checklist">See the full checklist and why each check matters →</a>
@@ -209,12 +207,12 @@ const faqs = [
         <div class="step">
           <span class="st-n">1</span>
           <h3>Paste any URL</h3>
-          <p>Your page, a client's page, or a competitor's. Nothing to install and no access to their site required — we fetch it the same way the crawlers do.</p>
+          <p>Your page, a client's page, or a competitor's. Nothing to install and no access to their site required, we fetch it the same way the crawlers do.</p>
         </div>
         <div class="step">
           <span class="st-n">2</span>
           <h3>We fetch it as each crawler</h3>
-          <p>Googlebot, GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot and Bingbot — each with its real user-agent, paced so we never trip the site's rate limiter.</p>
+          <p>Googlebot, GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot and Bingbot, each with its real user-agent, paced so we never trip the site's rate limiter.</p>
         </div>
         <div class="step">
           <span class="st-n">3</span>
@@ -238,12 +236,12 @@ const faqs = [
         </a>
         <a class="rcard" href="/glossary">
           <h3>AEO / GEO glossary</h3>
-          <p>Plain-English definitions for the terms that come up in every report — answerability, entity clarity, citation likelihood and more.</p>
+          <p>Plain-English definitions for the terms that come up in every report, answerability, entity clarity, citation likelihood and more.</p>
           <span class="t-go">Read the glossary →</span>
         </a>
         <a class="rcard" href="/blog">
           <h3>The AEO blog</h3>
-          <p>Practical guides on getting cited by ChatGPT, Perplexity, Claude and Google AI Overviews — not vague theory.</p>
+          <p>Practical guides on getting cited by ChatGPT, Perplexity, Claude and Google AI Overviews, not vague theory.</p>
           <span class="t-go">Read the blog →</span>
         </a>
       </div>
@@ -272,7 +270,7 @@ const faqs = [
       <h2>Find out what AI can actually read on your site</h2>
       <p>One check takes about 20 seconds. The first one is on us.</p>
       <div class="herocta center">
-        <button class="btn-primary lg" id="cta-signup2">Start free — no card required</button>
+        <button class="btn-primary lg" id="cta-signup2">Start free, no card required</button>
         <a href="/pricing" class="btn-ghost lg">See pricing</a>
       </div>
     </div>
