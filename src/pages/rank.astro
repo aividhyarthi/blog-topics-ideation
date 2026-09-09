@@ -93,6 +93,8 @@ const limitsText = product && plan
       .alert { margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; display: none; }
       .alert.err { background: var(--bad-tint); color: var(--bad); border: 1px solid rgba(242,84,91,0.35); }
       .alert.info { background: var(--blue-tint); color: var(--blue); border: 1px solid rgba(110,168,254,0.32); }
+      .alert.warn { background: var(--warn-tint); color: var(--ink); border: 1px solid rgba(184,121,10,0.3); }
+      .alert.warn b { color: var(--warn); }
       .appcard { margin-bottom: 16px; }
       .apphead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
       .apphead img.icon { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); }
@@ -164,6 +166,8 @@ const limitsText = product && plan
       .wn-linkline:hover .wn-viewcta { background: var(--accent); color: var(--accent-ink); }
       .wn-line-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
       .wn-viewcta { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--accent); background: var(--tint); padding: 4px 9px; border-radius: 999px; white-space: nowrap; transition: background 0.12s, color 0.12s; }
+      .wn-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+      .wn-score { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 700; font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .wn-line-title { font-size: 13px; color: var(--ink); }
       .charts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-top: 12px; }
       @media (max-width: 880px) { .charts { grid-template-columns: 1fr; } }
@@ -187,6 +191,16 @@ const limitsText = product && plan
       .insight-t { font-size: 13.5px; font-weight: 700; margin-bottom: 3px; }
       .insight-d { font-size: 13px; color: var(--muted); line-height: 1.55; }
       .viztip { position: fixed; z-index: 60; pointer-events: none; background: var(--card2); border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); padding: 8px 11px; font-size: 12px; display: none; min-width: 130px; }
+      /* Annotation/auto-mark on the visibility chart: a full-height dashed
+         line for every one of these is a barcode across a long chart. Keep
+         only the small marker visible; the guide line appears on hover so
+         it highlights one mark at a time instead of always cluttering the
+         whole chart. */
+      .annmark line { opacity: 0; transition: opacity 0.1s; }
+      .annmark:hover line { opacity: 1; }
+      .annmark .annmarker { opacity: 0.55; transition: opacity 0.1s; }
+      .annmark:hover .annmarker { opacity: 1; }
+      .annmark .hcol { cursor: help; }
       .kwmodal-backdrop { display: none; position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; padding: 20px; }
       .kwmodal-backdrop.open { display: flex; }
       .kwmodal { background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 20px; max-width: 520px; width: 100%; max-height: 86vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.55); }
@@ -278,7 +292,10 @@ const limitsText = product && plan
       .ghost-link { display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none; }
       .ghost-link:hover { text-decoration: underline; }
       .lastcheck { font-size: 12.5px; color: var(--muted); }
-      .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+      .toolbar { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+      .toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      .toolbar-range { padding-top: 10px; border-top: 1px solid var(--line); }
+      .toolbar-range:only-child, .toolbar-row:only-of-type { border-top: none; padding-top: 0; }
       .segwrap { display: inline-flex; background: var(--card2); border-radius: 999px; padding: 3px; gap: 2px; }
       .segwrap .seg { padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--muted); cursor: pointer; border: none; background: none; font-family: inherit; white-space: nowrap; }
       .segwrap .seg:hover { color: var(--ink); }
@@ -420,12 +437,19 @@ const limitsText = product && plan
         <div class="alert info no-print" id="ro-banner" style="display:none;"></div>
 
         <div class="toolbar no-print">
-          <span class="lastcheck" id="lastcheck"></span>
-          <div class="row">
-            <select id="ws-switch" style="display:none;" title="Switch between your own apps and apps shared with you">
-              <option value="own">My apps</option>
-              <option value="shared">Shared with me</option>
-            </select>
+          <div class="toolbar-row">
+            <span class="lastcheck" id="lastcheck"></span>
+            <div class="row">
+              <select id="ws-switch" style="display:none;" title="Switch between your own apps and apps shared with you">
+                <option value="own">My apps</option>
+                <option value="shared">Shared with me</option>
+              </select>
+              <button class="ghost" id="portfolio-btn" title="See every app's current ranking at once">All apps</button>
+              <button class="ghost" id="csv-btn">Export CSV</button>
+              <button class="primary" id="checkall-btn">Check all rankings now</button>
+            </div>
+          </div>
+          <div class="toolbar-row toolbar-range">
             <div class="segwrap" id="range-presets">
               <span class="seg" data-days="7">7D</span>
               <span class="seg" data-days="30">30D</span>
@@ -433,15 +457,14 @@ const limitsText = product && plan
               <span class="seg" data-days="180">6M</span>
               <span class="seg active" data-days="">ALL</span>
             </div>
-            <label class="hint" style="margin:0;" for="range-from">From</label>
-            <input type="date" id="range-from" title="Start date for the rankings shown below" />
-            <label class="hint" style="margin:0;" for="range-to">To</label>
-            <input type="date" id="range-to" title="End date for the rankings shown below" />
-            <button class="ghost" id="range-apply">Apply</button>
-            <button class="ghost" id="range-clear" style="display:none;">Reset</button>
-            <button class="ghost" id="portfolio-btn" title="See every app's current ranking at once">All apps</button>
-            <button class="ghost" id="csv-btn">Export CSV</button>
-            <button class="primary" id="checkall-btn">Check all rankings now</button>
+            <div class="row">
+              <label class="hint" style="margin:0;" for="range-from">From</label>
+              <input type="date" id="range-from" title="Start date for the rankings shown below" />
+              <label class="hint" style="margin:0;" for="range-to">To</label>
+              <input type="date" id="range-to" title="End date for the rankings shown below" />
+              <button class="ghost" id="range-apply">Apply</button>
+              <button class="ghost" id="range-clear" style="display:none;">Reset</button>
+            </div>
           </div>
         </div>
 
@@ -948,10 +971,12 @@ ai photo enhancer"></textarea>
           if (idx === -1) return;
           const ax = x(idx);
           const color = a.type === 'paid' ? 'var(--blue)' : 'var(--ink)';
-          out += `<line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,2"/>`;
-          out += `<circle cx="${ax.toFixed(1)}" cy="${(padT - 2).toFixed(1)}" r="3.5" fill="${color}" stroke="var(--card)" stroke-width="1"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(a.date))} · ${esc(ANN_TYPE_LABEL[a.type] || a.type)}</div><div class="tt-r"><span>${esc(a.label)}</span></div>`);
-          out += `<rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${(padT - 8).toFixed(1)}" width="8" height="${(plotH + padB + 8).toFixed(1)}" fill="transparent"/>`;
+          out += `<g class="annmark">
+            <line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,2"/>
+            <circle class="annmarker" cx="${ax.toFixed(1)}" cy="${(padT - 2).toFixed(1)}" r="3.5" fill="${color}" stroke="var(--card)" stroke-width="1"/>
+            <rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${(padT - 8).toFixed(1)}" width="8" height="${(plotH + padB + 8).toFixed(1)}" fill="transparent"/>
+          </g>`;
         });
         // System-detected marks (currently: a rating spike that visibility
         // actually dropped after — see detectRatingSpikeDrop). Deliberately
@@ -962,10 +987,12 @@ ai photo enhancer"></textarea>
           const idx = days.findIndex((d) => d.dateKey === m.date);
           if (idx === -1) return;
           const ax = x(idx);
-          out += `<line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="1,2"/>`;
-          out += `<polygon points="${ax.toFixed(1)},${(padT - 5).toFixed(1)} ${(ax - 4).toFixed(1)},${(padT + 2).toFixed(1)} ${(ax + 4).toFixed(1)},${(padT + 2).toFixed(1)}" fill="var(--bad)" stroke="var(--card)" stroke-width="1"/>`;
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(m.date))} · Detected</div><div class="tt-r"><span>${esc(m.label)}</span></div>`);
-          out += `<rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${(padT - 8).toFixed(1)}" width="8" height="${(plotH + padB + 8).toFixed(1)}" fill="transparent"/>`;
+          out += `<g class="annmark">
+            <line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="1,2"/>
+            <polygon class="annmarker" points="${ax.toFixed(1)},${(padT - 5).toFixed(1)} ${(ax - 4).toFixed(1)},${(padT + 2).toFixed(1)} ${(ax + 4).toFixed(1)},${(padT + 2).toFixed(1)}" fill="var(--bad)" stroke="var(--card)" stroke-width="1"/>
+            <rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${(padT - 8).toFixed(1)}" width="8" height="${(plotH + padB + 8).toFixed(1)}" fill="transparent"/>
+          </g>`;
         });
         return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
       }
@@ -1336,7 +1363,18 @@ ai photo enhancer"></textarea>
           const icon = c.icon ? `<img src="${escAttr(c.icon)}" alt="" class="cticon" />` : '';
           const shortTitle = c.title.length > 24 ? c.title.slice(0, 23) + '…' : c.title;
           const nameHtml = `<span class="wn-line-title cthead" title="${escAttr(c.title)}">${icon}<b>${esc(shortTitle)}</b></span>`;
-          if (!curTotal) return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main">${nameHtml}<span class="wn-empty">No shared keyword data checked yet</span></span><span class="wn-viewcta">Compare →</span></button>`;
+          // The competitor's own visibility score — same number their own
+          // Overview headline shows, computed the same way — so "what did
+          // they gain, how much" has a real figure attached instead of only
+          // a "Compare" link with no number on the card itself.
+          const cv = c.overview && c.overview.visibility != null ? c.overview.visibility : null;
+          const cvPrev = c.overview && c.overview.prevVisibility != null ? c.overview.prevVisibility : null;
+          const cvDelta = (cv != null && cvPrev != null) ? Math.round((cv - cvPrev) * 10) / 10 : null;
+          const scoreHtml = cv == null ? '' : `<span class="wn-score">${cv.toFixed(1)}${
+            cvDelta == null ? '' : cvDelta > 0 ? ` <span class="delta up">▲${cvDelta}</span>` : cvDelta < 0 ? ` <span class="delta down">▼${-cvDelta}</span>` : ` <span class="delta flat">＝</span>`
+          }</span>`;
+          const rightHtml = `<span class="wn-right">${scoreHtml}<span class="wn-viewcta">Compare →</span></span>`;
+          if (!curTotal) return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main">${nameHtml}<span class="wn-empty">No shared keyword data checked yet</span></span>${rightHtml}</button>`;
           // "Beats you on N/M" every time, regardless of the actual number,
           // read as a wall of bad news even on keywords the app is winning —
           // three competitor rows saying the same downbeat sentence back to
@@ -1351,7 +1389,7 @@ ai photo enhancer"></textarea>
             : curWin === yourWin
               ? `<span class="delta flat">${curWin}/${curTotal}</span> — dead even`
               : `<span class="delta up">${yourWin}/${curTotal}</span> ahead of them`;
-          return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main">${nameHtml}<span class="wn-empty">${shareTxt} · ${trendTxt}</span></span><span class="wn-viewcta">Compare →</span></button>`;
+          return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main">${nameHtml}<span class="wn-empty">${shareTxt} · ${trendTxt}</span></span>${rightHtml}</button>`;
         }).join('');
         return `<div class="wn-card">${head}${lines}</div>`;
       }
@@ -1436,14 +1474,10 @@ ai photo enhancer"></textarea>
         const legend = bucketLegend(ov.days);
         const cur = ov.visibility, prev = ov.prevVisibility;
         const vDelta = (cur != null && prev != null) ? Math.round((cur - prev) * 10) / 10 : null;
-        // A custom timeframe is active — the number/chart above are already
-        // scoped to it (see /api/rank's `range` handling), but the specific
-        // "X climbed from #A to #B" sentence below comes from live,
-        // unranged keyword trends and would keep naming today's real
-        // movement even while showing an old date's score — confusingly
-        // implying that move happened inside the picked range when it may
-        // not have. Swap in a plain, honest period label instead of
-        // guessing at a range-scoped version of that sentence.
+        // A custom timeframe is active — the number/chart, and (see
+        // /api/rank's `range` handling) app.trends behind the "X climbed
+        // from #A to #B" sentence below, are both scoped to it now, so the
+        // sentence describes real movement inside the picked window.
         const ranged = Boolean(rangeFrom || rangeTo);
         const periodLabel = ranged ? `for ${esc(rangeFrom || 'the start')} → ${esc(rangeTo || 'today')}` : 'since last check';
         const vDeltaHtml = vDelta == null ? ''
@@ -1464,12 +1498,12 @@ ai photo enhancer"></textarea>
         // out in words, in the same red the chart mark uses — no hunting
         // for a colored line required, and it's already computed above,
         // not a separate check.
-        const spikeBannerHtml = autoInsights.map((i) => `<div class="alert err" style="display:block;">⚠︎ <b>${esc(i.title)}</b><br/>${esc(i.detail)}</div>`).join('');
+        const spikeBannerHtml = autoInsights.map((i) => `<div class="alert warn" style="display:block;"><b>${esc(i.title)}.</b> ${esc(i.detail)}</div>`).join('');
         return `<div class="ov">
           <div class="headline">
             <div class="headline-eyebrow">Search visibility score</div>
             <div class="headline-num">${cur != null ? cur.toFixed(1) : '–'}</div>
-            <div class="headline-sub">${vDeltaHtml}${ranged ? `today's live keyword movement is hidden while a custom range is applied.` : visibilityNarrative(app)}</div>
+            <div class="headline-sub">${vDeltaHtml}${visibilityNarrative(app)}</div>
             ${coverageCaption(todayDay)}
             ${spikeBannerHtml}
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks)}</div>
@@ -1589,6 +1623,15 @@ ai photo enhancer"></textarea>
       // Renders the server-computed insights (see lib/rank/insights.ts).
       // Grouped by kind so the "things you changed" vs "things you didn't"
       // split — the whole point of this view — is visible at a glance.
+      // The chart, if any, that actually backs a given insight group — reuses
+      // the same chart functions Overview/Trends already use (no new chart
+      // types, just attaching the existing visual to the text explaining it,
+      // instead of Insights being text-only while everywhere else has one).
+      function insightGroupChart(kind, app) {
+        if (kind === 'reviews') return (app.ratingHistory || []).length ? ratingTrendChart(app.ratingHistory) : '';
+        if (kind === 'chart') return (app.chart && (app.chart.history || []).some((v) => v != null)) ? chartPositionTrend(app.chart.dateKeys, app.chart.history) : '';
+        return '';
+      }
       function insightsHtml(app) {
         const items = app.insights || [];
         if (!items.length) return '<p class="hint">Not enough data yet — run a check and log a listing change to start building this.</p>';
@@ -1604,6 +1647,7 @@ ai photo enhancer"></textarea>
                 <div class="insight-t">${esc(i.title)}</div>
                 <div class="insight-d">${esc(i.detail)}</div>
               </div>`).join('')}
+            ${insightGroupChart(g.kind, app)}
           </div>`).join('');
       }
 
@@ -2190,7 +2234,7 @@ ai photo enhancer"></textarea>
         // instead of just the plan-capped daily one.
         const sectionOverviewFn = () => `
           <div class="section-head"><h2>Overview</h2><p class="hint">Where you rank today, your trend, and what changed since your last check.</p>
-          ${(rangeFrom || rangeTo) ? `<p class="hint" style="margin-top:4px;">📅 Showing the visibility score, trend chart, and top-N tiles for <b>${esc(rangeFrom || 'the start')} → ${esc(rangeTo || 'today')}</b>. Category rank and rating health below always reflect the most recent check, not the selected range.</p>` : ''}</div>
+          ${(rangeFrom || rangeTo) ? `<p class="hint" style="margin-top:4px;">📅 Showing everything below for <b>${esc(rangeFrom || 'the start')} → ${esc(rangeTo || 'today')}</b>.</p>` : ''}</div>
           ${overviewHtml(app)}`;
 
         const sectionInsightsFn = () => `

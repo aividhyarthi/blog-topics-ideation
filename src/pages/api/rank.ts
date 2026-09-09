@@ -199,6 +199,13 @@ function coverageAlreadyCheckedToday(app: TrackedApp, userId?: string): string |
  * just outside it. Same code path for owner and guest, so a granted client
  * email gets the identical picker — there's no separate "client view".
  */
+/** Same bound-filter as snapshotsInRange, generalized to any dated row
+ * (rating history, quality metrics) that isn't a RankSnapshot. */
+function dateFiltered<T extends { dateKey: string }>(rows: T[], from?: string | null, to?: string | null): T[] {
+  if (!from && !to) return rows;
+  return rows.filter((r) => (!from || r.dateKey >= from) && (!to || r.dateKey <= to));
+}
+
 function statePayload(
   userId?: string,
   ws?: { appKeys: string[] | null; readOnly: boolean; sharedByEmail: string | null; canSwitch?: boolean; mode?: string; granteeEmail?: string | null },
@@ -287,8 +294,12 @@ function statePayload(
           ...(a.keywords && a.keywords.length
             ? { keywordImpact: keywordAnnotationImpact(merged, app.key, a.keywords, a.date) } : {}),
         })),
-        trends: keywordTrends(app, merged),
-        chart: chartTrend(app, snapshots),
+        // Ranged when a custom timeframe is picked, same as the overview
+        // chart/tiles above — a client picking "7D" expects the keyword
+        // table, category chart and rating trend to all describe that same
+        // window, not some of them silently staying on the full history.
+        trends: keywordTrends(app, rangedMerged || merged, rangedMerged ? rangedMerged.length : 30),
+        chart: chartTrend(app, rangedSnapshots || snapshots, rangedSnapshots ? rangedSnapshots.length : 30),
         overview: {
           days: overview,
           counts: today ? countsFromBuckets(today.buckets) : null,
@@ -320,7 +331,7 @@ function statePayload(
         // plan-limited daily-tracked subset) — lets the owner see where every
         // keyword they care about ranks, sorted by volume, regardless of
         // whether it made the cut into the daily-tracked list.
-        coverageTrends: covKeywords.length ? keywordTrends(app, merged, 60, covKeywords) : [],
+        coverageTrends: covKeywords.length ? keywordTrends(app, rangedMerged || merged, rangedMerged ? rangedMerged.length : 60, covKeywords) : [],
         // The "why" behind the numbers — see insights.ts. Computed here so
         // it's deterministic and testable rather than assembled in the page's
         // inline script.
@@ -349,7 +360,10 @@ function statePayload(
         })(),
         asoCache: asoCache[app.key] || null,
         reviewThemes: reviewThemes[app.key] || null,
-        ratingHistory: ratingHistory[app.key] || [],
+        // Ranged like trends/chart above — the 1-2★ trend chart on Overview
+        // otherwise looked frozen while every other chart responded to the
+        // timeframe picker.
+        ratingHistory: hasRange ? dateFiltered(ratingHistory[app.key] || [], range!.from, range!.to) : (ratingHistory[app.key] || []),
         latestResult: latest?.apps.find((a) => a.key === app.key) || null,
       };
     }),

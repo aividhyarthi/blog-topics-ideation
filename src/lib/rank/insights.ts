@@ -161,10 +161,9 @@ export function buildInsights(input: InsightsInput): Insight[] {
     out.push({
       kind: 'reviews',
       tone: 'bad',
-      title: `1-2★ share rose ${spikeDrop.spikeDelta}pt ${whenPhrase}, visibility fell ${Math.abs(spikeDrop.visDelta)} pt after`,
-      detail: `1-2★ share went from ${pct(spikeDrop.fromShare)} to ${pct(spikeDrop.toShare)} ${sameDay ? 'that day' : 'over that stretch'}. Average visibility over the following 14 days `
-        + `(${spikeDrop.visAfter ?? '–'}) came in ${Math.abs(spikeDrop.visDelta)} pt below the 14 days before it (${spikeDrop.visBefore ?? '–'}). `
-        + 'Correlation, not confirmed causation — but it matches the pattern Google has described, and it\'s marked on the visibility chart below.',
+      title: 'Negative reviews are hurting your ranking',
+      detail: `1-2★ share went from ${pct(spikeDrop.fromShare)} to ${pct(spikeDrop.toShare)} ${sameDay ? 'that day' : 'over that stretch'} `
+        + `${whenPhrase}, and visibility dropped ${Math.abs(spikeDrop.visDelta)} pt in the 14 days after (${spikeDrop.visBefore ?? '–'} → ${spikeDrop.visAfter ?? '–'}).`,
       markDate: spikeDrop.dateKey,
     });
   }
@@ -187,10 +186,9 @@ export function buildInsights(input: InsightsInput): Insight[] {
     out.push({
       kind: 'quality',
       tone: 'bad',
-      title: `${def.label} rose ${hit.delta}pt ${whenPhrase}, visibility fell ${Math.abs(hit.visDelta)} pt after`,
-      detail: `${def.label} went from ${hit.fromValue}% to ${hit.toValue}% ${sameDay ? 'that day' : 'over that stretch'}. Average visibility over the following 14 days `
-        + `(${hit.visAfter ?? '–'}) came in ${Math.abs(hit.visDelta)} pt below the 14 days before it (${hit.visBefore ?? '–'}). `
-        + 'Correlation, not confirmed causation — but it\'s marked on the visibility chart below.',
+      title: `${def.label} is hurting your ranking`,
+      detail: `${def.label} went from ${hit.fromValue}% to ${hit.toValue}% ${sameDay ? 'that day' : 'over that stretch'} `
+        + `${whenPhrase}, and visibility dropped ${Math.abs(hit.visDelta)} pt in the 14 days after (${hit.visBefore ?? '–'} → ${hit.visAfter ?? '–'}).`,
       markDate: hit.dateKey,
     });
   }
