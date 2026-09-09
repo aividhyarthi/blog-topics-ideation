@@ -7,7 +7,7 @@
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets, curateTopKeywords, parseQualityMetricsInput } from '../../lib/rank/track';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets, curateTopKeywords, parseQualityMetricsInput, snapshotsInRange } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, loadQualityMetrics, mergeQualityMetrics, ConfigReadError } from '../../lib/rank/store';
 import { analyzeReviewThemes } from '../../lib/rank/themes';
 import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/rank/check';
@@ -189,8 +189,21 @@ function coverageAlreadyCheckedToday(app: TrackedApp, userId?: string): string |
  * guest: the app list is filtered to what they were granted, so an app they
  * don't have access to never reaches the browser at all — the dashboard's
  * read-only mode is a UI convenience, not the security boundary.
+ *
+ * `range` is the dashboard's custom timeframe picker (YYYY-MM-DD, either end
+ * optional) — it narrows the CHART windows (overview/coverage/universe
+ * series) so a client can look at a specific stretch of history instead of
+ * the fixed trailing 60/90 days. It never narrows `widerOverview`, the ±14
+ * day window annotation/spike detection reads from, since a client picking
+ * a 7-day window shouldn't make Insights blind to a spike that started
+ * just outside it. Same code path for owner and guest, so a granted client
+ * email gets the identical picker — there's no separate "client view".
  */
-function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly: boolean; sharedByEmail: string | null; canSwitch?: boolean; mode?: string; granteeEmail?: string | null }) {
+function statePayload(
+  userId?: string,
+  ws?: { appKeys: string[] | null; readOnly: boolean; sharedByEmail: string | null; canSwitch?: boolean; mode?: string; granteeEmail?: string | null },
+  range?: { from?: string | null; to?: string | null },
+) {
   const cfg = loadConfig(userId);
   if (ws?.appKeys) {
     cfg.apps = visibleApps(cfg.apps, {
@@ -199,9 +212,17 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
       granteeEmail: ws.granteeEmail ?? null,
     });
   }
-  const snapshots = loadSnapshots(90, userId);
+  // A custom "from" further back than the default 90/60-day trailing window
+  // needs that many snapshot files actually loaded, or the range filter
+  // below would just find nothing outside that window. `latest`/`covLatest`
+  // (and snapshotDays) are unaffected by loading more — slice(-limit) always
+  // keeps the newest end, a bigger limit only reaches further into the past.
+  // Capped at 2 years so a typo'd ancient date can't force reading the
+  // account's entire history.
+  const daysBack = range?.from ? Math.min(730, Math.max(0, Math.ceil((Date.now() - Date.parse(range.from + 'T00:00:00Z')) / 86400000) + 1)) : 0;
+  const snapshots = loadSnapshots(Math.max(90, daysBack), userId);
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null;
-  const covSnapshots = loadCoverageSnapshots(60, userId);
+  const covSnapshots = loadCoverageSnapshots(Math.max(60, daysBack), userId);
   const covLatest = covSnapshots.length ? covSnapshots[covSnapshots.length - 1] : null;
   const asoCache = loadAsoCache(userId);
   const ratingHistory = loadRatingHistory(userId);
@@ -213,6 +234,14 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
   // tab and "not checked" in the other purely depending on which check last
   // touched it.
   const merged = mergeSnapshotSets(covSnapshots, snapshots);
+  // Ranged views for the chart-facing series only — see the doc comment
+  // above. `rangedDays` is "however many snapshots fall in range" so the
+  // slice(-days) inside overviewSeries/universeSizeSeries is effectively a
+  // no-op on top of the already-filtered list, rather than re-truncating it.
+  const hasRange = Boolean(range?.from || range?.to);
+  const rangedMerged = hasRange ? snapshotsInRange(merged, range!.from, range!.to) : null;
+  const rangedSnapshots = hasRange ? snapshotsInRange(snapshots, range!.from, range!.to) : null;
+  const rangedCov = hasRange ? snapshotsInRange(covSnapshots, range!.from, range!.to) : null;
   return {
     apps: cfg.apps.map((app) => {
       // 60 days shown on the headline chart (was 30) — a client's rating/
@@ -220,16 +249,20 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
       // spike-then-drop pattern outside the visible window got detected and
       // written to Insights just fine (that already used the wider window
       // below) but never got its chart mark drawn, since the mark can only
-      // land on a date the chart actually plots.
-      const overview = overviewSeries(app, merged, 60);
+      // land on a date the chart actually plots. A custom timeframe from
+      // the picker overrides this trailing window entirely.
+      const overview = rangedMerged ? overviewSeries(app, rangedMerged, rangedMerged.length) : overviewSeries(app, merged, 60);
       const today = overview.length ? overview[overview.length - 1] : null;
       const prev = overview.length > 1 ? overview[overview.length - 2] : null;
       // Wider still (unrendered) so a ±14-day before/after impact read is
       // possible even for an annotation or detected spike near the edge of
-      // the 60-day chart.
+      // the 60-day chart. Always the full trailing window, never narrowed by
+      // the picker — see the doc comment on statePayload.
       const widerOverview = overviewSeries(app, merged, 90);
       const covKeywords = app.coverageKeywords || [];
-      const covOverview = covKeywords.length ? overviewSeries(app, merged, 60, covKeywords) : [];
+      const covOverview = covKeywords.length
+        ? (rangedMerged ? overviewSeries(app, rangedMerged, rangedMerged.length, covKeywords) : overviewSeries(app, merged, 60, covKeywords))
+        : [];
       const covToday = covOverview.length ? covOverview[covOverview.length - 1] : null;
       const covPrev = covOverview.length > 1 ? covOverview[covOverview.length - 2] : null;
       return {
@@ -265,9 +298,9 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
           // Real historical list size per day (not today's list re-applied
           // backwards, unlike `days` above) — answers "is my keyword
           // universe actually growing over time".
-          universeTrend: universeSizeSeries(app, covSnapshots, 90),
+          universeTrend: rangedCov ? universeSizeSeries(app, rangedCov, rangedCov.length) : universeSizeSeries(app, covSnapshots, 90),
         },
-        dailyUniverseTrend: universeSizeSeries(app, snapshots, 90),
+        dailyUniverseTrend: rangedSnapshots ? universeSizeSeries(app, rangedSnapshots, rangedSnapshots.length) : universeSizeSeries(app, snapshots, 90),
         // Difficulty from top-3 churn (see keywordDifficulties) — coverage
         // keywords scored from coverage snapshots, daily-tracked keywords
         // from daily snapshots (checked every day, so the fresher signal
@@ -323,10 +356,22 @@ function statePayload(userId?: string, ws?: { appKeys: string[] | null; readOnly
   };
 }
 
-export const GET: APIRoute = async ({ locals }) => {
+export const GET: APIRoute = async ({ locals, url }) => {
   try {
     const t = tenant(locals);
-    return json(statePayload(t.userId, t));
+    // Optional custom timeframe from the dashboard's date-range picker —
+    // ?from=YYYY-MM-DD&to=YYYY-MM-DD, either omittable. Read here (not
+    // inside statePayload) so every other caller of statePayload keeps its
+    // existing default-window behavior untouched. Anything that isn't a
+    // real YYYY-MM-DD is dropped rather than passed through — it otherwise
+    // becomes a NaN that trips up the "how far back do we need to read"
+    // math in statePayload.
+    const isDateKey = (s: string | null) => Boolean(s && /^\d{4}-\d{2}-\d{2}$/.test(s));
+    const fromRaw = url.searchParams.get('from');
+    const toRaw = url.searchParams.get('to');
+    const from = isDateKey(fromRaw) ? fromRaw : null;
+    const to = isDateKey(toRaw) ? toRaw : null;
+    return json(statePayload(t.userId, t, (from || to) ? { from, to } : undefined));
   } catch (e) {
     if (e instanceof ConfigReadError) return json({ error: e.message }, 500);
     throw e;

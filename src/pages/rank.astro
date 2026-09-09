@@ -419,6 +419,13 @@ const limitsText = product && plan
               <option value="own">My apps</option>
               <option value="shared">Shared with me</option>
             </select>
+            <label class="hint" style="margin:0;" for="range-from">From</label>
+            <input type="date" id="range-from" title="Start date for the rankings shown below" />
+            <label class="hint" style="margin:0;" for="range-to">To</label>
+            <input type="date" id="range-to" title="End date for the rankings shown below" />
+            <button class="ghost" id="range-apply">Apply</button>
+            <button class="ghost" id="range-clear" style="display:none;">Reset</button>
+            <button class="ghost" id="portfolio-btn" title="See every app's current ranking at once">All apps</button>
             <button class="ghost" id="csv-btn">Export CSV</button>
             <button class="primary" id="checkall-btn">Check all rankings now</button>
           </div>
@@ -482,6 +489,17 @@ ai photo enhancer"></textarea>
       const $ = (id) => document.getElementById(id);
       let state = { apps: [], lastCheckedAt: null, snapshotDays: [] };
       let selectedAppKey = null;
+      // Custom timeframe picker (YYYY-MM-DD, either blank) — narrows the
+      // charts server-side (see /api/rank's `range` handling) instead of the
+      // fixed trailing 60/90-day windows. Same state and same picker for an
+      // owner and a read-only guest; nothing here checks state.readOnly.
+      let rangeFrom = '';
+      let rangeTo = '';
+      // Cross-app summary view ("All apps") — an alternative to renderApp()
+      // for the single selected app, so an account with several tracked
+      // apps/clients can see every one's current rank at a glance instead of
+      // switching through the sidebar one at a time.
+      let portfolioMode = false;
       const sortState = {};
       const covSortState = {};
       const compareSortState = {};
@@ -2447,6 +2465,41 @@ ai photo enhancer"></textarea>
           </button>`;
       }
 
+      // A summary row per app (client), so a portfolio of several tracked
+      // apps can be scanned at once instead of clicking through the sidebar
+      // one at a time. Reads the same `overview`/`chart` fields renderApp()
+      // uses for a single app — both already reflect the picked timeframe
+      // (see /api/rank's `range` handling), so this table and the single-app
+      // charts always agree on what window they're showing.
+      function renderPortfolio() {
+        const rows = state.apps.map((app) => {
+          const vis = app.overview && app.overview.visibility != null ? app.overview.visibility : null;
+          const prevVis = app.overview && app.overview.prevVisibility != null ? app.overview.prevVisibility : null;
+          const vDelta = vis != null && prevVis != null ? Math.round((vis - prevVis) * 10) / 10 : null;
+          const deltaHtml = vDelta == null ? '<span class="delta na">–</span>'
+            : vDelta > 0 ? `<span class="delta up">▲ ${vDelta}</span>`
+            : vDelta < 0 ? `<span class="delta down">▼ ${-vDelta}</span>`
+            : '<span class="delta flat">＝ 0</span>';
+          const rank = app.chart && app.chart.position != null ? `#${app.chart.position}` : '–';
+          const storePill = app.store === 'play' ? '<span class="pill play">Google Play</span>' : '<span class="pill ios">App Store</span>';
+          return `<tr data-goto-app="${escAttr(app.key)}" style="cursor:pointer;">
+            <td>${esc(app.title || app.appId)}</td>
+            <td>${storePill} <span class="pill cc">${esc((app.country || '').toUpperCase())}</span></td>
+            <td>${vis != null ? vis + '%' : '–'}</td>
+            <td>${deltaHtml}</td>
+            <td>${rank}</td>
+            <td>${(app.keywords || []).length}</td>
+          </tr>`;
+        }).join('');
+        const rangeNote = (rangeFrom || rangeTo) ? ` for ${esc(rangeFrom || 'the start')} → ${esc(rangeTo || 'today')}` : '';
+        return `
+          <div class="section-head"><h2>All apps</h2><p class="hint">Rankings across every app you can see${rangeNote} — click a row to open that app.</p></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>App</th><th>Store</th><th>Visibility</th><th>Change</th><th>Category rank</th><th>Keywords</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6" class="empty">No apps to show.</td></tr>'}</tbody>
+          </table></div>`;
+      }
+
       function renderSidebar() {
         const sb = $('sidebar');
         if (!state.apps.length) { sb.style.display = 'none'; return; }
@@ -2474,6 +2527,9 @@ ai photo enhancer"></textarea>
         }
         $('side-apps').innerHTML = primaries.map((app) =>
           sideAppBtn(app, false) + (byPrimary[app.key] || []).map((c) => sideAppBtn(c, true)).join('')).join('');
+        // The section tabs (Overview/Insights/...) are per-app — nothing to
+        // show while the All-apps summary is open.
+        if (portfolioMode) { $('snav').innerHTML = ''; return; }
         const app = state.apps.find((a) => a.key === selectedAppKey);
         // Settings is entirely owner-only controls — for a read-only guest
         // the whole tab would render empty once applyReadOnly() strips it.
@@ -2526,8 +2582,12 @@ ai photo enhancer"></textarea>
         } else {
           if (!selectedAppKey || !state.apps.some((a) => a.key === selectedAppKey)) selectedAppKey = state.apps[0].key;
           renderSidebar();
-          const current = state.apps.find((a) => a.key === selectedAppKey);
-          box.innerHTML = renderApp(current);
+          if (portfolioMode) {
+            box.innerHTML = renderPortfolio();
+          } else {
+            const current = state.apps.find((a) => a.key === selectedAppKey);
+            box.innerHTML = renderApp(current);
+          }
         }
         renderLikeAppOptions();
         const days = state.snapshotDays || [];
@@ -2546,6 +2606,14 @@ ai photo enhancer"></textarea>
         } else {
           wsSwitch.style.display = 'none';
         }
+
+        // Timeframe picker + All-apps toggle — same for owner and guest,
+        // just reflecting whatever's currently selected.
+        $('range-from').value = rangeFrom;
+        $('range-to').value = rangeTo;
+        $('range-clear').style.display = (rangeFrom || rangeTo) ? '' : 'none';
+        $('portfolio-btn').classList.toggle('active', portfolioMode);
+        $('portfolio-btn').textContent = portfolioMode ? '← Back to app' : 'All apps';
 
         if (state.readOnly) {
           const banner = $('ro-banner');
@@ -2570,7 +2638,10 @@ ai photo enhancer"></textarea>
       }
 
       async function refresh() {
-        const res = await fetch('/api/rank');
+        const qs = new URLSearchParams();
+        if (rangeFrom) qs.set('from', rangeFrom);
+        if (rangeTo) qs.set('to', rangeTo);
+        const res = await fetch('/api/rank' + (qs.toString() ? `?${qs}` : ''));
         state = await res.json();
         render();
         // ASO results are cached server-side (see api/aso.ts) — load whatever
@@ -2648,9 +2719,27 @@ ai photo enhancer"></textarea>
       $('checkall-btn').addEventListener('click', () =>
         withBusy($('checkall-btn'), 'Checking rankings… this can take a minute', () => api({ action: 'check' })));
 
+      $('range-apply').addEventListener('click', async () => {
+        const from = $('range-from').value;
+        const to = $('range-to').value;
+        if (from && to && from > to) { showErr('The "From" date is after the "To" date.'); return; }
+        rangeFrom = from;
+        rangeTo = to;
+        showErr('');
+        try { await refresh(); } catch (e) { showErr(e && e.message ? e.message : String(e)); }
+      });
+      $('range-clear').addEventListener('click', async () => {
+        rangeFrom = '';
+        rangeTo = '';
+        try { await refresh(); } catch (e) { showErr(e && e.message ? e.message : String(e)); }
+      });
+      $('portfolio-btn').addEventListener('click', () => { portfolioMode = !portfolioMode; render(); });
+
       $('sidebar').addEventListener('click', (ev) => {
         const appBtn = ev.target.closest('.side-app');
         if (appBtn) {
+          // Opening a specific app always leaves the All-apps summary.
+          portfolioMode = false;
           const compOf = appBtn.getAttribute('data-competitor-of');
           const key = appBtn.getAttribute('data-key');
           // First click on a nested competitor jumps to its primary's
@@ -2699,6 +2788,15 @@ ai photo enhancer"></textarea>
 
       $('apps').addEventListener('click', (ev) => {
         if (ev.target.closest('#empty-add-app')) { openAddAppModal(); return; }
+        // A row in the All-apps summary — open that app's own Overview.
+        const gotoApp = ev.target.closest('[data-goto-app]');
+        if (gotoApp) {
+          portfolioMode = false;
+          selectedAppKey = gotoApp.getAttribute('data-goto-app');
+          currentSection = 'overview';
+          render();
+          return;
+        }
         const gotoCompare = ev.target.closest('[data-goto-compare]');
         if (gotoCompare) {
           const compKey = gotoCompare.getAttribute('data-goto-compare');

@@ -265,6 +265,17 @@ export function mergeSnapshotSets(coverage: RankSnapshot[], daily: RankSnapshot[
   return [...byDate.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
 }
 
+/** Restricts a snapshot list to an inclusive dateKey range, for the
+ * dashboard's custom timeframe picker — `from`/`to` are YYYY-MM-DD strings,
+ * either end optional. Snapshots are already sorted oldest→newest (see
+ * mergeSnapshotSets), so this is a plain filter, not a re-sort. Returns the
+ * input unchanged when neither bound is set, so callers can pass this
+ * through unconditionally without a branch at every call site. */
+export function snapshotsInRange(snapshots: RankSnapshot[], from?: string | null, to?: string | null): RankSnapshot[] {
+  if (!from && !to) return snapshots;
+  return snapshots.filter((s) => (!from || s.dateKey >= from) && (!to || s.dateKey <= to));
+}
+
 /** Per-day distribution + visibility series for one app (snapshots oldest→newest).
  * `keywordList` defaults to the app's plan-limited tracked keywords, but the
  * coverage overview passes the full keyword universe instead. */

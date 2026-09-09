@@ -1,6 +1,6 @@
 // Fixture tests for the Rank Tracker's pure engine (src/lib/rank/track.ts) —
 // no network needed, so this runs anywhere: npx tsx scripts/validate-rank.ts
-import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordAnnotationImpact, keywordDifficulties, curateTopKeywords, detectRatingSpikeDrop, detectQualityMetricSpikeDrop, parseQualityMetricsInput, RANK_BUCKETS } from '../src/lib/rank/track';
+import { findPosition, keywordRank, keywordTrends, chartTrend, mergeIntoSnapshot, bucketIndex, topCounts, countsFromBuckets, visibilityScore, overviewSeries, annotationImpact, keywordAnnotationImpact, keywordDifficulties, curateTopKeywords, detectRatingSpikeDrop, detectQualityMetricSpikeDrop, parseQualityMetricsInput, snapshotsInRange, RANK_BUCKETS } from '../src/lib/rank/track';
 import { parseAppInput } from '../src/lib/rank/fetch';
 import { parseKeywordsWithVolumes } from '../src/lib/rank/keywords';
 import type { RankSnapshot, TrackedApp } from '../src/lib/rank/types';
@@ -136,6 +136,14 @@ eq('overview visibility > 0', ov[2].visibility > 0 && ov[2].visibility < 100, tr
 const covOv = overviewSeries(app, snaps, 30, ['alpha']);
 eq('coverage overview tracked = 1 (alpha only)', covOv[2].tracked, 1);
 eq('coverage overview visibility differs from full-keyword overview', covOv[2].visibility === ov[2].visibility, false);
+
+// --- snapshotsInRange: the dashboard's custom timeframe picker --------------
+eq('no bounds returns the input unchanged', snapshotsInRange(snaps), snaps);
+eq('no bounds (both null) also returns everything', snapshotsInRange(snaps, null, null), snaps);
+eq('from only keeps that day and later', snapshotsInRange(snaps, '2026-07-02').map((s) => s.dateKey), ['2026-07-02', '2026-07-03']);
+eq('to only keeps that day and earlier', snapshotsInRange(snaps, undefined, '2026-07-02').map((s) => s.dateKey), ['2026-07-01', '2026-07-02']);
+eq('from and to together is an inclusive range', snapshotsInRange(snaps, '2026-07-02', '2026-07-02').map((s) => s.dateKey), ['2026-07-02']);
+eq('a range outside every snapshot is empty, not an error', snapshotsInRange(snaps, '2026-08-01', '2026-08-31'), []);
 
 // --- annotationImpact: before/after visibility around a dated marker --------
 const ovDay = (dateKey: string, visibility: number) => ({ dateKey, buckets: [], visibility, tracked: 1 });
