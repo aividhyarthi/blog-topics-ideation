@@ -1423,10 +1423,20 @@ ai photo enhancer"></textarea>
         const legend = bucketLegend(ov.days);
         const cur = ov.visibility, prev = ov.prevVisibility;
         const vDelta = (cur != null && prev != null) ? Math.round((cur - prev) * 10) / 10 : null;
+        // A custom timeframe is active — the number/chart above are already
+        // scoped to it (see /api/rank's `range` handling), but the specific
+        // "X climbed from #A to #B" sentence below comes from live,
+        // unranged keyword trends and would keep naming today's real
+        // movement even while showing an old date's score — confusingly
+        // implying that move happened inside the picked range when it may
+        // not have. Swap in a plain, honest period label instead of
+        // guessing at a range-scoped version of that sentence.
+        const ranged = Boolean(rangeFrom || rangeTo);
+        const periodLabel = ranged ? `for ${esc(rangeFrom || 'the start')} → ${esc(rangeTo || 'today')}` : 'since last check';
         const vDeltaHtml = vDelta == null ? ''
-          : vDelta > 0 ? `<span class="delta up">▲ ${vDelta}</span> since last check — `
-          : vDelta < 0 ? `<span class="delta down">▼ ${-vDelta}</span> since last check — `
-          : `<span class="delta flat">＝ unchanged</span> since last check — `;
+          : vDelta > 0 ? `<span class="delta up">▲ ${vDelta}</span> ${periodLabel} — `
+          : vDelta < 0 ? `<span class="delta down">▼ ${-vDelta}</span> ${periodLabel} — `
+          : `<span class="delta flat">＝ unchanged</span> ${periodLabel} — `;
         const todayDay = ov.days[ov.days.length - 1];
         // Everything a client asks for lives here now — this used to be
         // split across Overview and a separate "Report Card" tab that
@@ -1450,7 +1460,7 @@ ai photo enhancer"></textarea>
           <div class="headline">
             <div class="headline-eyebrow">Search visibility score</div>
             <div class="headline-num">${cur != null ? cur.toFixed(1) : '–'}</div>
-            <div class="headline-sub">${vDeltaHtml}${visibilityNarrative(app)}</div>
+            <div class="headline-sub">${vDeltaHtml}${ranged ? `today's live keyword movement is hidden while a custom range is applied.` : visibilityNarrative(app)}</div>
             ${coverageCaption(todayDay)}
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks)}</div>
           </div>
@@ -2164,7 +2174,8 @@ ai photo enhancer"></textarea>
         // started scoring an app's full multi-hundred-keyword coverage list
         // instead of just the plan-capped daily one.
         const sectionOverviewFn = () => `
-          <div class="section-head"><h2>Overview</h2><p class="hint">Where you rank today, your trend, and what changed since your last check.</p></div>
+          <div class="section-head"><h2>Overview</h2><p class="hint">Where you rank today, your trend, and what changed since your last check.</p>
+          ${(rangeFrom || rangeTo) ? `<p class="hint" style="margin-top:4px;">📅 Showing the visibility score, trend chart, and top-N tiles for <b>${esc(rangeFrom || 'the start')} → ${esc(rangeTo || 'today')}</b>. Category rank and rating health below always reflect the most recent check, not the selected range.</p>` : ''}</div>
           ${overviewHtml(app)}`;
 
         const sectionInsightsFn = () => `
@@ -2465,14 +2476,33 @@ ai photo enhancer"></textarea>
           </button>`;
       }
 
-      // A summary row per app (client), so a portfolio of several tracked
-      // apps can be scanned at once instead of clicking through the sidebar
-      // one at a time. Reads the same `overview`/`chart` fields renderApp()
-      // uses for a single app — both already reflect the picked timeframe
-      // (see /api/rank's `range` handling), so this table and the single-app
-      // charts always agree on what window they're showing.
+      // Same "one level of nesting, never drop an app" grouping the sidebar
+      // uses (see renderSidebar) — shared here so the All-apps summary draws
+      // competitors under their primary the same way instead of a flat list
+      // with no visible link between a client's app and its competitors.
+      function groupAppsByPrimary(apps) {
+        const byKey = new Map(apps.map((a) => [a.key, a]));
+        const isNested = (a) => {
+          const target = a.competitorOf ? byKey.get(a.competitorOf) : null;
+          return !!(target && !(target.competitorOf && byKey.has(target.competitorOf)));
+        };
+        const primaries = apps.filter((a) => !isNested(a));
+        const byPrimary = {};
+        for (const a of apps) {
+          if (isNested(a)) (byPrimary[a.competitorOf] = byPrimary[a.competitorOf] || []).push(a);
+        }
+        return { primaries, byPrimary };
+      }
+
+      // A summary row per app (client) plus its competitors nested under it,
+      // so a portfolio of several tracked apps can be scanned at once instead
+      // of clicking through the sidebar one at a time. Reads the same
+      // `overview`/`chart` fields renderApp() uses for a single app — both
+      // already reflect the picked timeframe (see /api/rank's `range`
+      // handling), so this table and the single-app charts always agree on
+      // what window they're showing.
       function renderPortfolio() {
-        const rows = state.apps.map((app) => {
+        const row = (app, isSub) => {
           const vis = app.overview && app.overview.visibility != null ? app.overview.visibility : null;
           const prevVis = app.overview && app.overview.prevVisibility != null ? app.overview.prevVisibility : null;
           const vDelta = vis != null && prevVis != null ? Math.round((vis - prevVis) * 10) / 10 : null;
@@ -2482,18 +2512,24 @@ ai photo enhancer"></textarea>
             : '<span class="delta flat">＝ 0</span>';
           const rank = app.chart && app.chart.position != null ? `#${app.chart.position}` : '–';
           const storePill = app.store === 'play' ? '<span class="pill play">Google Play</span>' : '<span class="pill ios">App Store</span>';
+          const nameCell = isSub
+            ? `<span style="padding-left:20px;color:var(--muted);">↳ ${esc(app.title || app.appId)}</span>`
+            : `<b>${esc(app.title || app.appId)}</b>`;
           return `<tr data-goto-app="${escAttr(app.key)}" style="cursor:pointer;">
-            <td>${esc(app.title || app.appId)}</td>
+            <td>${nameCell}${isSub ? ' <span class="pill cc">competitor</span>' : ''}</td>
             <td>${storePill} <span class="pill cc">${esc((app.country || '').toUpperCase())}</span></td>
             <td>${vis != null ? vis + '%' : '–'}</td>
             <td>${deltaHtml}</td>
             <td>${rank}</td>
             <td>${(app.keywords || []).length}</td>
           </tr>`;
-        }).join('');
+        };
+        const { primaries, byPrimary } = groupAppsByPrimary(state.apps);
+        const rows = primaries.map((app) =>
+          row(app, false) + (byPrimary[app.key] || []).map((c) => row(c, true)).join('')).join('');
         const rangeNote = (rangeFrom || rangeTo) ? ` for ${esc(rangeFrom || 'the start')} → ${esc(rangeTo || 'today')}` : '';
         return `
-          <div class="section-head"><h2>All apps</h2><p class="hint">Rankings across every app you can see${rangeNote} — click a row to open that app.</p></div>
+          <div class="section-head"><h2>All apps</h2><p class="hint">Rankings across every app you can see${rangeNote} — competitors are nested under the app they're tracked against. Click a row to open that app.</p></div>
           <div class="table-wrap"><table>
             <thead><tr><th>App</th><th>Store</th><th>Visibility</th><th>Change</th><th>Category rank</th><th>Keywords</th></tr></thead>
             <tbody>${rows || '<tr><td colspan="6" class="empty">No apps to show.</td></tr>'}</tbody>
@@ -2504,10 +2540,9 @@ ai photo enhancer"></textarea>
         const sb = $('sidebar');
         if (!state.apps.length) { sb.style.display = 'none'; return; }
         sb.style.display = 'block';
-        const byKey = new Map(state.apps.map((a) => [a.key, a]));
-        // The sidebar draws exactly one level of nesting, so an app is only
-        // ever indented under a target that is itself top-level. Every other
-        // shape renders at the top level rather than being skipped:
+        // groupAppsByPrimary draws exactly one level of nesting, so an app is
+        // only ever indented under a target that is itself top-level. Every
+        // other shape renders at the top level rather than being skipped:
         //  - competitorOf pointing at a deleted app (orphan)
         //  - competitorOf pointing at an app that is itself a competitor
         //    (chain: A→B→C), and two apps pointing at each other (loop:
@@ -2516,15 +2551,7 @@ ai photo enhancer"></textarea>
         // and only drew children of primaries — a chain or loop made BOTH
         // sides fail that filter and entire apps silently vanished from the
         // sidebar (nothing deleted, just never drawn). Never drop an app.
-        const isNested = (a) => {
-          const target = a.competitorOf ? byKey.get(a.competitorOf) : null;
-          return !!(target && !(target.competitorOf && byKey.has(target.competitorOf)));
-        };
-        const primaries = state.apps.filter((a) => !isNested(a));
-        const byPrimary = {};
-        for (const a of state.apps) {
-          if (isNested(a)) (byPrimary[a.competitorOf] = byPrimary[a.competitorOf] || []).push(a);
-        }
+        const { primaries, byPrimary } = groupAppsByPrimary(state.apps);
         $('side-apps').innerHTML = primaries.map((app) =>
           sideAppBtn(app, false) + (byPrimary[app.key] || []).map((c) => sideAppBtn(c, true)).join('')).join('');
         // The section tabs (Overview/Insights/...) are per-app — nothing to
@@ -2607,13 +2634,26 @@ ai photo enhancer"></textarea>
           wsSwitch.style.display = 'none';
         }
 
-        // Timeframe picker + All-apps toggle — same for owner and guest,
-        // just reflecting whatever's currently selected.
+        // Timeframe picker — same for owner and guest (a granted client
+        // email should be able to look at the same history you can), just
+        // reflecting whatever's currently selected.
         $('range-from').value = rangeFrom;
         $('range-to').value = rangeTo;
         $('range-clear').style.display = (rangeFrom || rangeTo) ? '' : 'none';
-        $('portfolio-btn').classList.toggle('active', portfolioMode);
-        $('portfolio-btn').textContent = portfolioMode ? '← Back to app' : 'All apps';
+
+        // All-apps summary is an account-portfolio view — it only makes
+        // sense for the account managing several apps/clients, not for a
+        // client looking at their own single shared app. A guest never sees
+        // the toggle at all, so they can't land on it even via a stale URL.
+        const portfolioBtn = $('portfolio-btn');
+        if (state.readOnly) {
+          portfolioBtn.style.display = 'none';
+          if (portfolioMode) { portfolioMode = false; box.innerHTML = renderApp(state.apps.find((a) => a.key === selectedAppKey)); }
+        } else {
+          portfolioBtn.style.display = '';
+          portfolioBtn.classList.toggle('active', portfolioMode);
+          portfolioBtn.textContent = portfolioMode ? '← Back to app' : 'All apps';
+        }
 
         if (state.readOnly) {
           const banner = $('ro-banner');
