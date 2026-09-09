@@ -7,10 +7,11 @@
 // marketing footer. A logged-in workspace should look like a workspace.
 import '../styles/base.css';
 
-interface Props { title?: string; description?: string; tab: 'check' | 'audit' | 'reports' }
+interface Props { title?: string; description?: string; tab: 'home' | 'check' | 'audit' | 'reports' }
 const { title = 'AI Page Audit', description = 'Your AI visibility workspace.', tab } = Astro.props as Props;
 
 const TABS = [
+  { id: 'home', href: '/home', label: 'Home', hint: 'Welcome back, and what to do next' },
   { id: 'check', href: '/check', label: 'LLM Access Check', hint: 'What each AI crawler can read' },
   { id: 'audit', href: '/audit', label: 'Full AEO Audit', hint: 'Weighted score and ranked fixes' },
   { id: 'reports', href: '/dashboard', label: 'Reports', hint: 'Saved audits, usage and plan' },
@@ -39,7 +40,7 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
   <body class="appbody">
     <div class="nav">
       <div class="wrap navinner">
-        <a href="/dashboard" class="brand"><span class="mark" set:html={MARK} />AI Page Audit</a>
+        <a href="/home" class="brand"><span class="mark" set:html={MARK} />AI Page Audit</a>
         <div class="navcta">
           <span class="usagepill" id="usagepill" hidden></span>
           <a href="/pricing" class="applink">Plan &amp; billing</a>

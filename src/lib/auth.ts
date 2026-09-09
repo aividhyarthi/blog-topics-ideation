@@ -33,6 +33,17 @@ export async function verifyPassword(pw: string, stored: string): Promise<boolea
 
 export interface User { id: string; email: string }
 
+// There's no display-name field — accounts are just email + password. For a
+// warm "Welcome back, X" greeting, take the first dot-segment of the local
+// part (firstname.lastname@company.com is the common convention) and
+// capitalize it. Falls back to the raw local part for anything else.
+export function displayNameFromEmail(email: string): string {
+  const local = (email || '').split('@')[0] || '';
+  const first = local.split(/[._+-]/)[0].replace(/[^a-zA-Z]/g, '');
+  if (!first) return local || 'there';
+  return first[0].toUpperCase() + first.slice(1).toLowerCase();
+}
+
 export async function createUser(email: string, password: string): Promise<User> {
   const hash = await hashPassword(password);
   const { rows } = await query<{ id: string; email: string }>(

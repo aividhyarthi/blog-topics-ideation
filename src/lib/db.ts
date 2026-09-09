@@ -113,6 +113,21 @@ function ensureSchema(): void {
     );
     CREATE INDEX IF NOT EXISTS audits_user_idx ON audits(user_id, created_at DESC);
 
+    -- Saved LLM Access Check results (URL mode only — pasted content has no
+    -- stable identity worth remembering). Lets the home page recap "what did
+    -- you last check" without needing a fresh live fetch.
+    CREATE TABLE IF NOT EXISTS checks (
+      id             INTEGER PRIMARY KEY,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      url            TEXT,
+      host           TEXT,
+      verdict        TEXT,
+      verdict_label  TEXT,
+      report         TEXT NOT NULL,
+      created_at     TEXT NOT NULL DEFAULT ${ISO_NOW}
+    );
+    CREATE INDEX IF NOT EXISTS checks_user_idx ON checks(user_id, created_at DESC);
+
     -- One row per check (LLM Access Check or full audit), used to enforce the
     -- monthly Pro limit independent of whether a full report gets saved.
     CREATE TABLE IF NOT EXISTS usage_events (

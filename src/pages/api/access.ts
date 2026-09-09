@@ -4,6 +4,7 @@ import { accessGroups, renderInfo } from '../../lib/access';
 import { extractContent } from '../../lib/extract';
 import { getUser } from '../../lib/auth';
 import { consumeAccess, refundAccess } from '../../lib/billing';
+import { saveCheck } from '../../lib/checks';
 import { dbEnabled } from '../../lib/db';
 import { cached } from '../../lib/fetchcache';
 import { UA } from '../../lib/useragents';
@@ -183,12 +184,16 @@ export const POST: APIRoute = async (ctx) => {
   let fetchNote: string | undefined;
   if (factsM.wordCount < 120 && factsD.wordCount < 120) fetchNote = 'Both fetches returned very little text — the page is likely JavaScript-rendered (content loads client-side).';
 
-  return json({
+  const responseBody = {
     mode: 'url', url: inputUrl, host,
     pageType: factsM.pageType, pageTypeLabel: PAGE_TYPE_LABEL[factsM.pageType],
     content, gaps,
     overall, viewers: visM.viewers, parity, bots, botTabs, ourFetchOk, ourWords,
     llmsTxt: (llmsTxtSignal?.score ?? 0) >= 100,
     desktop, mobile, fetchNote,
-  });
+  };
+  // Best-effort — a save failure must never break the check response itself.
+  // Powers the home page's "what you last checked" recap.
+  saveCheck(gateUser.id, responseBody).catch(() => {});
+  return json(responseBody);
 };

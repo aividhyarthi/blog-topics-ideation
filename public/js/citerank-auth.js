@@ -129,11 +129,13 @@
       const res = await fetch('/api/auth/' + (mode === 'login' ? 'login' : 'signup'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pw }) });
       const d = await res.json();
       if (!res.ok) { err.textContent = d.error || 'Something went wrong.'; err.style.display = 'block'; btn.disabled = false; btn.textContent = mode === 'login' ? 'Sign in' : 'Create account'; return; }
-      // Reload so any server-rendered login-gated content (the tool form, the
-      // dashboard) reveals itself — simpler and more robust than trying to keep
-      // client state in sync with what the server decided to render.
+      // Every sign-in/sign-up lands on the personalized home page first,
+      // regardless of which page the auth modal was opened from — a plain
+      // reload used to just re-render wherever they'd been, which meant
+      // clicking "Log in" from the marketing homepage dropped them right
+      // back on the marketing homepage instead of into the workspace.
       btn.textContent = 'Success — loading…';
-      location.reload();
+      location.href = '/home';
     } catch { err.textContent = 'Network error. Try again.'; err.style.display = 'block'; btn.disabled = false; btn.textContent = mode === 'login' ? 'Sign in' : 'Create account'; }
   }
 

@@ -40,6 +40,7 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /api/
+Disallow: /home
 Disallow: /dashboard
 Disallow: /check
 Disallow: /audit

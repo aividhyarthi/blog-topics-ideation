@@ -1174,11 +1174,11 @@ import App from '../layouts/App.astro';
           const res = await fetch('/api/auth/' + (mode === 'login' ? 'login' : 'signup'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pw }) });
           const d = await res.json();
           if (!res.ok) { err.textContent = d.error || 'Something went wrong.'; err.style.display = 'block'; reset(); return; }
-          // Reload: the audit form itself is server-rendered only for signed-in
-          // visitors, so a full reload is what reveals it (simpler + more robust
-          // than trying to keep client state in sync with the SSR gate).
+          // Every sign-in/sign-up lands on the personalized home page first —
+          // same as the shared nav auth widget — rather than reloading back
+          // into whatever locked form they were looking at.
           btn.innerHTML = 'Success — loading…';
-          location.reload();
+          location.href = '/home';
         } catch { err.textContent = 'Network error. Try again.'; err.style.display = 'block'; reset(); }
       }
       async function signOut() { try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {} await refreshAuth(); showToast('Signed out'); }
