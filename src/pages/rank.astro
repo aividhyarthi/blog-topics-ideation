@@ -94,11 +94,11 @@ const limitsText = product && plan
       .alert.err { background: var(--bad-tint); color: var(--bad); border: 1px solid rgba(242,84,91,0.35); }
       .alert.info { background: var(--blue-tint); color: var(--blue); border: 1px solid rgba(110,168,254,0.32); }
       .appcard { margin-bottom: 16px; }
-      .apphead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-      .apphead img.icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
-      .apphead .fallback-icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 18px; background: var(--card2); }
+      .apphead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+      .apphead img.icon { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); }
+      .apphead .fallback-icon { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 19px; background: var(--card2); }
       .apphead .names { flex: 1; min-width: 200px; }
-      .apphead .t { font-weight: 700; font-size: 14.5px; }
+      .apphead .t { font-weight: 800; font-size: 16.5px; letter-spacing: -0.01em; margin-bottom: 2px; }
       .apphead .d { font-size: 12.5px; color: var(--muted); }
       .apphead .btns { display: flex; gap: 6px; flex-wrap: wrap; }
       .pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; }
@@ -276,7 +276,7 @@ const limitsText = product && plan
       .ghost-link { display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none; }
       .ghost-link:hover { text-decoration: underline; }
       .lastcheck { font-size: 12.5px; color: var(--muted); }
-      .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 16px; }
+      .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
       .empty { text-align: center; color: var(--muted); padding: 26px 10px; font-size: 14px; }
       .app-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
       .app-tab { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 6px 7px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink); transition: border-color 0.15s; max-width: 220px; }
@@ -2148,7 +2148,7 @@ ai photo enhancer"></textarea>
           ? `<img class="icon" src="${escAttr(app.icon)}" alt="" />`
           : `<div class="fallback-icon">${app.store === 'play' ? '🤖' : ''}</div>`;
         const apphead = `
-          <div class="apphead" style="margin-bottom:14px;">
+          <div class="apphead" style="margin-bottom:20px;">
             ${icon}
             <div class="names">
               <div class="t">${app.url ? `<a href="${escAttr(app.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${esc(app.title)}</a>` : esc(app.title)}</div>
