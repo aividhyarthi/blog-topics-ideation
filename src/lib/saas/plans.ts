@@ -33,10 +33,10 @@ export const ADSENSE_SLOTS = {
 
 /** Google Search Console's HTML-tag site-ownership verification code. */
 export const GOOGLE_SITE_VERIFICATION =
-  process.env.GOOGLE_SITE_VERIFICATION || 'M5rfPY6hOHg91xlOv9Zsx_oBf1oVha8w8RHNtnPW6eI';
+  process.env.GOOGLE_SITE_VERIFICATION || 'ygDecINSGKhej-o7TG5x87yDaRNJ0KcDASZFccj_un4';
 
 /** Google Analytics (GA4) measurement id — loaded via GoogleAnalytics.astro. */
-export const GA_MEASUREMENT_ID = process.env.GA_MEASUREMENT_ID || 'G-8D07RHSDDJ';
+export const GA_MEASUREMENT_ID = process.env.GA_MEASUREMENT_ID || 'G-ZG9919Z4CC';
 
 /**
  * Absolute base URL of the live site — used for canonical links, Open Graph
