@@ -3,11 +3,9 @@
 // /check and /audit behind login, but a locked front door made the product
 // look broken to anyone arriving cold.
 import Site from '../layouts/Site.astro';
-import { getCollection } from 'astro:content';
+import { listPublishedPosts } from '../lib/blogPosts';
 
-const latestPosts = (await getCollection('blog', ({ data }) => !data.draft))
-  .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
-  .slice(0, 3);
+const latestPosts = (await listPublishedPosts().catch(() => [])).slice(0, 3);
 
 const origin = new URL(Astro.request.url).origin;
 const homeSchema = {
@@ -263,16 +261,16 @@ const faqs = [
         <div class="fbgrid">
           {latestPosts.map((p) => (
             <a class="fbcard" href={`/blog/${p.slug}`}>
-              {p.data.image && <img class="fbthumb" src={p.data.image} alt={p.data.title} width="1200" height="630" loading="lazy" />}
+              {p.image && <img class="fbthumb" src={p.image} alt={p.title} width="1200" height="630" loading="lazy" />}
               <div class="fbcard-body">
                 <div class="fbmeta">
-                  <time datetime={p.data.publishDate.toISOString()}>
-                    {p.data.publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  <time datetime={new Date(p.publishDate).toISOString()}>
+                    {new Date(p.publishDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </time>
-                  {p.data.tags[0] && <span class="fbtag">{p.data.tags[0]}</span>}
+                  {p.tags[0] && <span class="fbtag">{p.tags[0]}</span>}
                 </div>
-                <h3>{p.data.title}</h3>
-                <p>{p.data.description}</p>
+                <h3>{p.title}</h3>
+                <p>{p.description}</p>
                 <span class="t-go">Read →</span>
               </div>
             </a>

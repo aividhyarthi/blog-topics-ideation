@@ -22,6 +22,13 @@ import Site from '../../layouts/Site.astro';
         <p class="trialnote" id="trial-note"></p>
       </div>
       <div class="dcard">
+        <div class="dcard-head"><b>Blog auto-publish</b><span id="bloggen-status" class="muted"></span></div>
+        <p class="dcard-lead">Sources a topic from Reddit r/AEO and official AI-provider news, drafts a post with Claude and publishes it immediately. Runs automatically 5x/day (2h apart); use this to fire one cycle right now.</p>
+        <button class="btn-primary sm" id="bloggen-go">Generate now</button>
+        <p class="trialnote" id="bloggen-note"></p>
+        <div id="bloggen-runs" style="margin-top:14px"></div>
+      </div>
+      <div class="dcard">
         <div class="dcard-head"><b>Registered users</b><span id="users-count" class="muted"></span></div>
         <p class="dcard-lead">Everyone who has actually signed up — check here before granting a trial to make sure the account exists yet.</p>
         <div id="users-gate" class="gate-msg">Checking access…</div>
@@ -52,6 +59,38 @@ import Site from '../../layouts/Site.astro';
         loadUsers();
       } catch { $('trial-note').textContent = 'Network error.'; }
       $('trial-go').disabled = false;
+    });
+
+    function renderRuns(list) {
+      if (!list.length) { $('bloggen-runs').innerHTML = '<p class="empty">No runs yet.</p>'; return; }
+      const STATUS_CLS = { published: 'st-ok', skipped: 'st-pend', error: 'st-bad' };
+      $('bloggen-runs').innerHTML = list.map((r) => `
+        <div class="runrow">
+          <span class="st ${STATUS_CLS[r.status] || ''}">${esc(r.status)}</span>
+          <span class="runrow-detail">${esc(r.detail || '')}</span>
+          <span class="runrow-when">${new Date(r.createdAt).toLocaleString()}</span>
+          ${r.postSlug ? `<a href="/blog/${esc(r.postSlug)}" target="_blank" class="runrow-link">View post →</a>` : ''}
+        </div>`).join('');
+    }
+    async function loadRuns() {
+      try {
+        const res = await fetch('/api/admin/blog-gen-runs');
+        const d = await res.json();
+        if (!res.ok) return;
+        renderRuns(d.runs || []);
+      } catch {}
+    }
+    loadRuns();
+    $('bloggen-go').addEventListener('click', async () => {
+      $('bloggen-go').disabled = true;
+      $('bloggen-note').textContent = 'Sourcing a topic and drafting the post — this can take up to a minute…';
+      try {
+        const res = await fetch('/api/admin/generate-blog-post', { method: 'POST' });
+        const d = await res.json();
+        $('bloggen-note').textContent = d.detail || (res.ok ? 'Done.' : 'Failed.');
+        loadRuns();
+      } catch { $('bloggen-note').textContent = 'Network error.'; }
+      $('bloggen-go').disabled = false;
     });
 
     function renderUsers(list) {
@@ -159,5 +198,10 @@ import Site from '../../layouts/Site.astro';
     .crow-note { font-size: 12.5px; color: var(--ink-2); margin-top: 6px; font-style: italic; }
     .crow-actions { display: flex; gap: 8px; flex-shrink: 0; }
     .btn-primary.sm, .btn-ghost.sm { padding: 7px 13px; font-size: 12.5px; }
+    .runrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+    .runrow:first-child { border-top: none; }
+    .runrow-detail { color: var(--ink-2); flex: 1; min-width: 160px; }
+    .runrow-when { color: var(--faint); white-space: nowrap; }
+    .runrow-link { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
   </style>
 </Site>

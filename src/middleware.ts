@@ -5,6 +5,13 @@
 // If SITE_PASSWORD is NOT set, the site stays open (handy for local dev) — so
 // always set it on the deployed (Railway) environment.
 import { defineMiddleware } from 'astro:middleware';
+import { startBlogScheduler } from './lib/blogScheduler';
+
+// Runs once, when this module is first imported at process boot — not
+// per-request. Astro loads middleware once at startup, which makes this the
+// natural place for one-time process-lifetime setup like arming the blog
+// auto-publish timer (see blogScheduler.ts).
+startBlogScheduler();
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const password = process.env.SITE_PASSWORD;

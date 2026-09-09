@@ -1,9 +1,8 @@
 ---
 import Site from '../../layouts/Site.astro';
-import { getCollection } from 'astro:content';
+import { listPublishedPosts } from '../../lib/blogPosts';
 
-const allPosts = await getCollection('blog', ({ data }) => !data.draft);
-const posts = allPosts.sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf());
+const posts = await listPublishedPosts();
 
 const origin = Astro.site?.origin || new URL(Astro.request.url).origin;
 const schema = {
@@ -13,9 +12,9 @@ const schema = {
   url: `${origin}/blog`,
   blogPost: posts.map((p) => ({
     '@type': 'BlogPosting',
-    headline: p.data.title,
+    headline: p.title,
     url: `${origin}/blog/${p.slug}`,
-    datePublished: p.data.publishDate.toISOString(),
+    datePublished: new Date(p.publishDate).toISOString(),
   })),
 };
 ---
@@ -39,16 +38,16 @@ const schema = {
         <div class="postgrid">
           {posts.map((p) => (
             <a class="postcard" href={`/blog/${p.slug}`}>
-              {p.data.image && <img class="postthumb" src={p.data.image} alt={p.data.title} width="1200" height="630" loading="lazy" />}
+              {p.image && <img class="postthumb" src={p.image} alt={p.title} width="1200" height="630" loading="lazy" />}
               <div class="postcard-body">
                 <div class="postmeta">
-                  <time datetime={p.data.publishDate.toISOString()}>
-                    {p.data.publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  <time datetime={new Date(p.publishDate).toISOString()}>
+                    {new Date(p.publishDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </time>
-                  {p.data.tags[0] && <span class="posttag">{p.data.tags[0]}</span>}
+                  {p.tags[0] && <span class="posttag">{p.tags[0]}</span>}
                 </div>
-                <h2>{p.data.title}</h2>
-                <p>{p.data.description}</p>
+                <h2>{p.title}</h2>
+                <p>{p.description}</p>
                 <span class="t-go">Read →</span>
               </div>
             </a>

@@ -13,6 +13,7 @@
     "@astrojs/node": "^8.3.0",
     "astro": "^4.16.0",
     "better-sqlite3": "^13.0.1",
+    "marked": "^12.0.2",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

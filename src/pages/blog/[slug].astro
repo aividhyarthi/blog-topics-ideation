@@ -1,21 +1,40 @@
 ---
 import Site from '../../layouts/Site.astro';
-import { getCollection, getEntry } from 'astro:content';
+import { marked } from 'marked';
+import { getPostBySlug, listPublishedPosts } from '../../lib/blogPosts';
+import { injectCharts } from '../../lib/blogCharts';
 
 const { slug } = Astro.params;
-const entry = slug ? await getEntry('blog', slug) : undefined;
-if (!entry || entry.data.draft) return Astro.redirect('/blog');
-const { Content } = await entry.render();
+const post = slug ? await getPostBySlug(slug) : null;
+if (!post) return Astro.redirect('/blog');
 
-const allPosts = await getCollection('blog', ({ data }) => !data.draft);
-const related = allPosts
-  .filter((p) => p.slug !== entry.slug)
-  .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
-  .slice(0, 3);
+// FAQ text and the source label/URL are concatenated as raw HTML below
+// (set:html on .prose bypasses Astro's normal auto-escaping), so they're
+// escaped explicitly here — defense in depth, since FAQ text for
+// auto-generated posts comes from an unreviewed LLM call.
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+let bodyHtml = injectCharts(await marked.parse(post.bodyMarkdown), post.charts);
+if (post.faqs.length > 0) {
+  bodyHtml += '<h2>FAQ</h2>' + post.faqs.map((f) => `<h3>${esc(f.q)}</h3><p>${esc(f.a)}</p>`).join('');
+}
+if (post.sourceUrl) {
+  const label = esc(post.sourceLabel || post.sourceUrl);
+  bodyHtml += `<p class="postsource">Source: <a href="${esc(post.sourceUrl)}" rel="noopener nofollow" target="_blank">${label}</a></p>`;
+}
+
+const allPosts = await listPublishedPosts();
+const related = allPosts.filter((p) => p.slug !== post.slug).slice(0, 3);
 
 const origin = Astro.site?.origin || new URL(Astro.request.url).origin;
-const url = `${origin}/blog/${entry.slug}`;
-const absoluteImage = entry.data.image ? `${origin}${entry.data.image}` : undefined;
+const url = `${origin}/blog/${post.slug}`;
+// A data: URI (the SVG cover auto-generated posts get — see blogCover.ts)
+// can't be used as og:image: link-preview crawlers (WhatsApp, Twitter) fetch
+// an absolute http(s) URL, not an inline data URI, and don't reliably
+// render SVG for previews anyway. Fall back to the branded default PNG for
+// those; only a real hosted image path becomes the share image.
+const hasHostedImage = Boolean(post.image) && !post.image!.startsWith('data:');
+const absoluteImage = hasHostedImage ? `${origin}${post.image}` : `${origin}/og-image.png`;
 
 // Deliberately qualitative, not invented market-size statistics we can't
 // verify or source: each of these describes documented crawler/schema
@@ -26,18 +45,20 @@ const LLM_STATS = [
   'Structured data like FAQPage, Review and ClaimReview schema lets a model quote a fact directly instead of having to infer it from prose.',
 ];
 
+const publishDate = new Date(post.publishDate);
+
 const schema = {
   '@context': 'https://schema.org',
   '@graph': [
     {
       '@type': 'BlogPosting',
       '@id': `${url}#post`,
-      headline: entry.data.title,
-      description: entry.data.description,
+      headline: post.title,
+      description: post.description,
       image: absoluteImage,
-      datePublished: entry.data.publishDate.toISOString(),
-      dateModified: (entry.data.updatedDate || entry.data.publishDate).toISOString(),
-      author: { '@type': 'Person', name: entry.data.author },
+      datePublished: publishDate.toISOString(),
+      dateModified: publishDate.toISOString(),
+      author: { '@type': 'Person', name: post.author },
       publisher: { '@id': `${origin}/#org` },
       mainEntityOfPage: url,
     },
@@ -46,65 +67,51 @@ const schema = {
       itemListElement: [
         { '@type': 'ListItem', position: 1, name: 'Home', item: origin },
         { '@type': 'ListItem', position: 2, name: 'Blog', item: `${origin}/blog` },
-        { '@type': 'ListItem', position: 3, name: entry.data.title, item: url },
+        { '@type': 'ListItem', position: 3, name: post.title, item: url },
       ],
     },
-    ...(entry.data.faqs.length ? [{
+    ...(post.faqs.length ? [{
       '@type': 'FAQPage',
-      mainEntity: entry.data.faqs.map((f) => ({
+      mainEntity: post.faqs.map((f) => ({
         '@type': 'Question', name: f.q,
         acceptedAnswer: { '@type': 'Answer', text: f.a },
       })),
     }] : []),
+    ...(post.sourceUrl ? [{
+      '@type': 'CreativeWork',
+      '@id': `${url}#source`,
+      name: post.sourceLabel || 'Source',
+      url: post.sourceUrl,
+    }] : []),
   ],
 };
 ---
-<Site schema={schema} title={`${entry.data.title} | AI Page Audit`} description={entry.data.description} ogImage={absoluteImage} ogType="article">
+<Site schema={schema} title={`${post.title} | AI Page Audit`} description={post.description} ogImage={absoluteImage} ogType="article">
   <article class="post">
     <section class="pagehead posthead">
       <div class="wrap">
-        <nav class="crumbs"><a href="/blog">Blog</a><span>/</span><span>{entry.data.tags[0] || 'AEO'}</span></nav>
-        <h1>{entry.data.title}</h1>
-        <p>{entry.data.description}</p>
+        <nav class="crumbs"><a href="/blog">Blog</a><span>/</span><span>{post.tags[0] || 'AEO'}</span></nav>
+        <h1>{post.title}</h1>
+        <p>{post.description}</p>
         <div class="bylinerow">
-          <span>{entry.data.author}</span>
+          <span>{post.author}</span>
           <span class="dot">·</span>
-          <time datetime={entry.data.publishDate.toISOString()}>
-            {entry.data.publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+          <time datetime={publishDate.toISOString()}>
+            {publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
           </time>
-          {entry.data.updatedDate && (
-            <>
-              <span class="dot">·</span>
-              <span>Updated {entry.data.updatedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-            </>
-          )}
         </div>
       </div>
     </section>
 
-    {entry.data.image && (
+    {post.image && (
       <div class="wrap postcoverwrap">
-        <img class="postcover" src={entry.data.image} alt={entry.data.title} width="1200" height="630" />
+        <img class="postcover" src={post.image} alt={post.title} width="1200" height="630" />
       </div>
     )}
 
     <main>
       <div class="wrap postlayout">
-        <div class="prose">
-          <Content />
-
-          {entry.data.faqs.length > 0 && (
-            <>
-              <h2>FAQ</h2>
-              {entry.data.faqs.map((f) => (
-                <>
-                  <h3>{f.q}</h3>
-                  <p>{f.a}</p>
-                </>
-              ))}
-            </>
-          )}
-        </div>
+        <div class="prose" set:html={bodyHtml} />
 
         <aside class="postside">
           <div class="ctacard">
@@ -121,7 +128,7 @@ const schema = {
           {related.length > 0 && (
             <div class="relcard">
               <b>More on AEO</b>
-              {related.map((p) => <a href={`/blog/${p.slug}`}>{p.data.title}</a>)}
+              {related.map((p) => <a href={`/blog/${p.slug}`}>{p.title}</a>)}
             </div>
           )}
         </aside>
@@ -157,14 +164,14 @@ const schema = {
 
     .postcoverwrap { padding: 0 24px 34px; max-width: 900px; margin: 0 auto; }
     .postcover { width: 100%; height: auto; border-radius: 16px; display: block; }
+    .postsource { font-size: 12.5px; color: var(--faint); margin-top: 24px; }
+    .postsource a { color: var(--muted); }
   </style>
 
-  <!-- Content rendered via <Content /> comes from a separate markdown
-       collection entry, not this component's own template — Astro's scoped
-       styles only stamp a data-astro-cid attribute onto elements written
-       directly in a .astro file, so a normal scoped <style> block silently
-       fails to match any of it (headings, tables, everything). Has to be
-       global, deliberately scoped by the .prose class prefix instead. -->
+  <!-- bodyHtml comes from marked() rendering our own DB-stored markdown, not
+       a .astro-template element, so scoped styles never attach to it —
+       same reason this had to be is:global back when it came from Astro's
+       content-collection <Content />. Scoped by the .prose class prefix. -->
   <style is:global>
     .prose { font-size: 16px; line-height: 1.75; color: var(--ink-2); max-width: 68ch; }
     .prose h2 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); margin: 44px 0 16px; }
@@ -184,12 +191,18 @@ const schema = {
     .prose tr:nth-child(even) td { background: #fafafa; }
 
     /* Quick-answer / key-takeaway highlight box — a raw HTML block dropped
-       directly into the markdown source (Astro passes inline HTML through
+       directly into the markdown source (marked passes inline HTML through
        untouched). Gives the direct-answer-first structure this tool itself
        checks for a visible, scannable home on the page, not just prose. */
     .prose .callout { border: 1px solid var(--accent-line); background: var(--accent-soft); border-radius: 14px; padding: 18px 22px; margin: 0 0 26px; }
     .prose .callout p:last-child { margin-bottom: 0; }
     .prose .callout-label { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin-bottom: 8px; }
     .prose .stat { font-weight: 800; color: var(--ink); }
+
+    /* Inline chart figures — see blogCharts.ts. */
+    .prose .postchart { border: 1px solid var(--line); border-radius: 14px; background: #fafafa; padding: 20px 22px 16px; margin: 8px 0 28px; }
+    .prose .postchart-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 14px; }
+    .prose .postchart-svg { display: flex; justify-content: center; }
+    .prose .postchart figcaption { margin-top: 12px; font-size: 12px; color: var(--faint); text-align: center; }
   </style>
 </Site>

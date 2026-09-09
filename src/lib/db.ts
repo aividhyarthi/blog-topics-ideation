@@ -166,6 +166,43 @@ function ensureSchema(): void {
       created_at  TEXT NOT NULL DEFAULT ${ISO_NOW}
     );
     CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets(user_id);
+
+    -- Blog posts. DB-backed (not Astro content-collection markdown files) so
+    -- the auto-publish pipeline (src/lib/blogGen.ts) can insert a new post at
+    -- runtime and have it live immediately — a static content collection only
+    -- picks up new files on the next build+deploy, which a 2-hourly job can't
+    -- wait for. tags/faqs/charts are JSON arrays stored as TEXT.
+    CREATE TABLE IF NOT EXISTS blog_posts (
+      id             INTEGER PRIMARY KEY,
+      slug           TEXT UNIQUE NOT NULL,
+      title          TEXT NOT NULL,
+      description    TEXT NOT NULL,
+      body_markdown  TEXT NOT NULL,
+      tags           TEXT NOT NULL DEFAULT '[]',
+      faqs           TEXT NOT NULL DEFAULT '[]',
+      charts         TEXT NOT NULL DEFAULT '[]',
+      author         TEXT NOT NULL DEFAULT 'AI Page Audit Team',
+      image          TEXT,
+      source_url     TEXT,
+      source_label   TEXT,
+      publish_date   TEXT NOT NULL,
+      created_at     TEXT NOT NULL DEFAULT ${ISO_NOW}
+    );
+    CREATE INDEX IF NOT EXISTS blog_posts_publish_idx ON blog_posts(publish_date DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS blog_posts_source_url_uniq ON blog_posts (source_url) WHERE source_url IS NOT NULL;
+
+    -- One row per generation cycle (every ~2h), whether it produced a post or
+    -- skipped. Lets /admin show the pipeline is actually alive without
+    -- digging through Railway logs, and lets the job itself check "did I
+    -- already run this cycle" after a restart.
+    CREATE TABLE IF NOT EXISTS blog_gen_runs (
+      id          INTEGER PRIMARY KEY,
+      status      TEXT NOT NULL,
+      detail      TEXT,
+      post_slug   TEXT,
+      created_at  TEXT NOT NULL DEFAULT ${ISO_NOW}
+    );
+    CREATE INDEX IF NOT EXISTS blog_gen_runs_created_idx ON blog_gen_runs(created_at DESC);
   `);
   schemaReady = true;
 }

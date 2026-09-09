@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { siteOrigin } from '../lib/mail';
-import { getCollection } from 'astro:content';
+import { listPublishedPosts } from '../lib/blogPosts';
 
 // Public, indexable routes only — gated tool surfaces and the admin area are
 // deliberately absent (they're also disallowed in robots.txt).
@@ -20,9 +20,9 @@ export const GET: APIRoute = async ({ request }) => {
   const origin = siteOrigin(request);
   const today = new Date().toISOString().slice(0, 10);
 
-  const posts = await getCollection('blog', ({ data }) => !data.draft);
+  const posts = await listPublishedPosts().catch(() => []);
   const postUrls = posts.map((p) => {
-    const lastmod = (p.data.updatedDate || p.data.publishDate).toISOString().slice(0, 10);
+    const lastmod = new Date(p.publishDate).toISOString().slice(0, 10);
     return `  <url>
     <loc>${origin}/blog/${p.slug}</loc>
     <lastmod>${lastmod}</lastmod>
