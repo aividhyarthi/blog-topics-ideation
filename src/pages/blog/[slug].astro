@@ -15,6 +15,16 @@ const related = allPosts
 
 const origin = Astro.site?.origin || new URL(Astro.request.url).origin;
 const url = `${origin}/blog/${entry.slug}`;
+const absoluteImage = entry.data.image ? `${origin}${entry.data.image}` : undefined;
+
+// Deliberately qualitative, not invented market-size statistics we can't
+// verify or source: each of these describes documented crawler/schema
+// behavior, not a number that needs a citation we don't actually have.
+const LLM_STATS = [
+  'GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot do not execute JavaScript, unlike Googlebot, which renders a page fully before indexing it.',
+  'A generated AI answer can fully satisfy the reader\'s question, so a page can be cited by name without ever receiving a click.',
+  'Structured data like FAQPage, Review and ClaimReview schema lets a model quote a fact directly instead of having to infer it from prose.',
+];
 
 const schema = {
   '@context': 'https://schema.org',
@@ -24,6 +34,7 @@ const schema = {
       '@id': `${url}#post`,
       headline: entry.data.title,
       description: entry.data.description,
+      image: absoluteImage,
       datePublished: entry.data.publishDate.toISOString(),
       dateModified: (entry.data.updatedDate || entry.data.publishDate).toISOString(),
       author: { '@type': 'Person', name: entry.data.author },
@@ -48,7 +59,7 @@ const schema = {
   ],
 };
 ---
-<Site schema={schema} title={`${entry.data.title} — AI Page Audit`} description={entry.data.description}>
+<Site schema={schema} title={`${entry.data.title} | AI Page Audit`} description={entry.data.description} ogImage={absoluteImage} ogType="article">
   <article class="post">
     <section class="pagehead posthead">
       <div class="wrap">
@@ -70,6 +81,12 @@ const schema = {
         </div>
       </div>
     </section>
+
+    {entry.data.image && (
+      <div class="wrap postcoverwrap">
+        <img class="postcover" src={entry.data.image} alt={entry.data.title} width="1200" height="630" />
+      </div>
+    )}
 
     <main>
       <div class="wrap postlayout">
@@ -94,6 +111,12 @@ const schema = {
             <b>See it on your own page</b>
             <p>Run a free AEO audit tool check and see exactly what ChatGPT, Perplexity, Claude and Google AI can read on your page.</p>
             <a class="btn-primary sm" href="/audit">Run a free audit →</a>
+          </div>
+          <div class="statcard">
+            <b>Why this matters</b>
+            <ul>
+              {LLM_STATS.map((s) => <li>{s}</li>)}
+            </ul>
           </div>
           {related.length > 0 && (
             <div class="relcard">
@@ -126,6 +149,14 @@ const schema = {
     .relcard a { display: block; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; font-weight: 600; color: var(--ink); text-decoration: none; }
     .relcard a:first-of-type { border-top: none; }
     .relcard a:hover { color: var(--accent); }
+    .statcard { border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 18px 20px; }
+    .statcard b { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); display: block; margin-bottom: 12px; }
+    .statcard ul { margin: 0; padding-left: 18px; }
+    .statcard li { font-size: 12.5px; color: var(--ink-2); line-height: 1.6; margin-bottom: 10px; }
+    .statcard li:last-child { margin-bottom: 0; }
+
+    .postcoverwrap { padding: 0 24px 34px; max-width: 900px; margin: 0 auto; }
+    .postcover { width: 100%; height: auto; border-radius: 16px; display: block; }
   </style>
 
   <!-- Content rendered via <Content /> comes from a separate markdown

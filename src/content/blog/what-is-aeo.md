@@ -4,6 +4,7 @@ description: "AEO is the practice of making a page easy for ChatGPT, Perplexity,
 publishDate: 2026-09-09
 author: "AI Page Audit Team"
 tags: ["AEO", "Basics"]
+image: "/blog/what-is-aeo.png"
 faqs:
   - q: "Is AEO the same as SEO?"
     a: "No, though they overlap. SEO optimizes for ranking in a list of blue links a human clicks through. AEO optimizes for being the specific source an AI model reads, trusts and quotes inside a generated answer. The human may never click through to your page at all."

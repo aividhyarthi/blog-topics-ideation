@@ -21,33 +21,36 @@ const schema = {
 ---
 <Site
   schema={schema}
-  title="AEO Blog — AI Page Audit"
+  title="AEO Blog | AI Page Audit"
   description="How to get cited by ChatGPT, Perplexity, Claude and Google AI Overviews. Practical AEO and GEO guides, not vague theory."
 >
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">The AEO blog</span>
       <h1>Answer Engine Optimization, explained plainly</h1>
-      <p>How AI answer engines actually read, weigh and cite pages — and what to do about it. No vague theory, just what changes when you check it.</p>
+      <p>How AI answer engines actually read, weigh and cite pages, and what to do about it. No vague theory, just what changes when you check it.</p>
     </div>
   </section>
   <main>
     <div class="wrap">
       {posts.length === 0 ? (
-        <p class="empty">No posts yet — check back soon.</p>
+        <p class="empty">No posts yet. Check back soon.</p>
       ) : (
         <div class="postgrid">
           {posts.map((p) => (
             <a class="postcard" href={`/blog/${p.slug}`}>
-              <div class="postmeta">
-                <time datetime={p.data.publishDate.toISOString()}>
-                  {p.data.publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                </time>
-                {p.data.tags[0] && <span class="posttag">{p.data.tags[0]}</span>}
+              {p.data.image && <img class="postthumb" src={p.data.image} alt={p.data.title} width="1200" height="630" loading="lazy" />}
+              <div class="postcard-body">
+                <div class="postmeta">
+                  <time datetime={p.data.publishDate.toISOString()}>
+                    {p.data.publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </time>
+                  {p.data.tags[0] && <span class="posttag">{p.data.tags[0]}</span>}
+                </div>
+                <h2>{p.data.title}</h2>
+                <p>{p.data.description}</p>
+                <span class="t-go">Read →</span>
               </div>
-              <h2>{p.data.title}</h2>
-              <p>{p.data.description}</p>
-              <span class="t-go">Read →</span>
             </a>
           ))}
         </div>
@@ -59,8 +62,10 @@ const schema = {
     .empty { color: var(--muted); font-size: 15px; }
     .postgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
     @media (max-width: 720px) { .postgrid { grid-template-columns: 1fr; } }
-    .postcard { display: block; border: 1px solid var(--line); border-radius: 16px; padding: 26px 24px; background: var(--card); text-decoration: none; transition: border-color .15s, transform .15s, box-shadow .15s; }
+    .postcard { display: block; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--card); text-decoration: none; transition: border-color .15s, transform .15s, box-shadow .15s; }
     .postcard:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
+    .postthumb { display: block; width: 100%; height: 220px; object-fit: cover; }
+    .postcard-body { padding: 22px 24px 26px; }
     .postmeta { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
     .postmeta time { font-size: 12px; color: var(--faint); font-weight: 600; }
     .posttag { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }

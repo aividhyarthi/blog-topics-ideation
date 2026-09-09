@@ -4,6 +4,7 @@ description: "A step-by-step walkthrough of checking whether ChatGPT, Perplexity
 publishDate: 2026-09-09
 author: "AI Page Audit Team"
 tags: ["AEO", "Guide"]
+image: "/blog/how-to-audit-a-page-for-ai-citation.png"
 faqs:
   - q: "Is this free?"
     a: "Yes: every account gets one free check. After that, buy a one-time credit pack for occasional use, or subscribe to Pro for volume. See /pricing for current rates."
