@@ -412,13 +412,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // and the admin is the one person who can already run the nightly check
   // on demand from /admin, so this just gives them that same freedom here.
   const isAdmin = !locals.productMode || isAdminEmail(locals.user?.email);
-  // Read-only guests get exactly one verb: GET. Every action below either
-  // edits the owner's config or spends the owner's money (store fetches,
-  // Anthropic calls), so there is no useful subset to allow through and a
-  // per-action allowlist would be one forgotten `if` away from a hole.
-  if (t.readOnly) {
+  // Read-only guests get exactly one verb: GET, EXCEPT the specific actions
+  // below — pure config edits (or a bounded, capped store fetch, for adding
+  // a competitor) an owner explicitly asked to let their guests do. Every
+  // one of these is additionally scoped to appAllowed() so a guest can only
+  // touch the app(s) actually shared with them, never anything else in the
+  // owner's account — that scoping never existed before since write access
+  // used to be all-or-nothing.
+  const GUEST_SAFE_ACTIONS = new Set([
+    'add-keywords', 'set-keywords', 'set-coverage-keywords',
+    'add-annotation', 'remove-annotation',
+    'save-quality-metrics', 'set-report-emails', 'set-alert',
+    'add-app', 'remove-app',
+  ]);
+  if (t.readOnly && !GUEST_SAFE_ACTIONS.has(action)) {
     return json({ error: 'This is a read-only shared view — ask the account owner to make changes.' }, 403);
   }
+  const appAllowed = (key: string) => !t.appKeys || t.appKeys.includes(key);
   let cfg;
   try { cfg = loadConfig(userId); }
   catch (e) {
@@ -429,6 +439,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   if (action === 'add-app') {
+    // A guest can only add a COMPETITOR for an app already shared with
+    // them — never a brand-new standalone app (that would count against
+    // the owner's own plan slots and has nothing to do with what was
+    // shared).
+    if (t.readOnly && !body.likeApp) {
+      return json({ error: 'A shared view can only add a competitor for an app already shared with you.' }, 400);
+    }
     const parsed = parseAppInput(String(body.app || ''));
     if (!parsed) {
       return json({ error: 'Paste a Google Play URL / package id (com.example.app) or an App Store URL / numeric id (id310633997).' }, 400);
@@ -442,6 +459,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Resolved to the chain's top-level app — a new competitor must never
     // be linked to another competitor (see resolvePrimary).
     const likeApp = body.likeApp ? resolvePrimary(cfg, String(body.likeApp)) : null;
+    if (t.readOnly && likeApp && !appAllowed(likeApp.key)) {
+      return json({ error: 'That app is not shared with you.' }, 403);
+    }
     const country = (String(body.country || parsed.country || likeApp?.country || 'us').trim() || 'us').toLowerCase();
     const lang = (String(body.lang || likeApp?.lang || 'en').trim() || 'en').toLowerCase();
     const key = `${parsed.store}:${parsed.appId}:${country}`;
@@ -522,6 +542,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   if (action === 'remove-app') {
     const key = String(body.key || '');
+    // A guest can only remove a COMPETITOR of an app shared with them —
+    // never the primary app itself (that's the owner's own tracked app,
+    // not something a share grants control over).
+    if (t.readOnly) {
+      const target = cfg.apps.find((a) => a.key === key);
+      if (!target) return json({ error: 'App not found.' }, 404);
+      if (!target.competitorOf || !appAllowed(target.competitorOf)) {
+        return json({ error: 'A shared view can only remove a competitor from an app shared with you.' }, 403);
+      }
+    }
     const before = cfg.apps.length;
     cfg.apps = cfg.apps.filter((a) => a.key !== key);
     if (cfg.apps.length === before) return json({ error: 'App not found.' }, 404);
@@ -580,6 +610,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'save-quality-metrics') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
+    if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
     const { points, errors } = parseQualityMetricsInput(String(body.text || ''));
     if (points.length) mergeQualityMetrics(app.key, points, userId);
     return json({ ok: true, saved: points.length, errors, ...statePayload(userId) });
@@ -633,6 +664,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'set-keywords' || action === 'add-keywords') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
+    if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
     // Only meaningful for a full replace — 'add-keywords' (the Discovery
     // "track selected" flow) already reports its own more precise
     // before/after count client-side, which correctly excludes keywords
@@ -711,6 +743,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'set-coverage-keywords') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
+    if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
     const parsedCov = parseKeywordsWithVolumes(body.keywords, MAX_COVERAGE_KEYWORDS);
     app.coverageKeywords = parsedCov.keywords;
     app.keywordVolumes = { ...(app.keywordVolumes || {}), ...parsedCov.volumes };
@@ -721,6 +754,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'set-report-emails') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
+    if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
     const raw = String(body.reportEmails || '').trim();
     const valid = parseReportEmails(raw);
     if (raw && !valid.length) return json({ error: 'That doesn\'t look like a valid email address.' }, 400);
@@ -753,6 +787,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'set-alert') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
+    if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
     const n = Number(body.alertTopN);
     // Only the thresholds the UI offers — a free-form number here would just
     // be one more thing to explain in the email.
@@ -788,6 +823,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'add-annotation') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
+    if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
     const date = String(body.date || '').trim();
     if (Number.isNaN(Date.parse(date))) return json({ error: 'Enter a valid date.' }, 400);
     const type = body.type === 'paid' ? 'paid' : 'experiment';
@@ -808,6 +844,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (action === 'remove-annotation') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
+    if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
     app.annotations = (app.annotations || []).filter((a) => a.id !== String(body.id || ''));
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });

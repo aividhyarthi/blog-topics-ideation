@@ -921,11 +921,19 @@ ai photo enhancer"></textarea>
       // so the one number the dashboard leads with also gets the one chart
       // that visually stands apart from every other (neutral-colored) trend.
       let vizGradSeq = 0;
-      function visChart(days, annotations, autoMarks) {
+      // `compareSeries` (optional): [{ label, color, days }], each `days` a
+      // competitor's own overview.days array — aligned onto the primary's
+      // dateKeys by date, same mechanism as ratingTrendChart's overlay.
+      function visChart(days, annotations, autoMarks, compareSeries) {
         const W = 400, H = 190, padL = 30, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
         const vals = days.map((d) => d.visibility);
-        const maxY = Math.max(10, Math.ceil(Math.max(...vals) / 10) * 10);
+        const compLines = (compareSeries || []).map((s) => ({
+          ...s,
+          vals: alignByDateKey(days, s.days, (d) => d.visibility),
+        }));
+        const allVals = [...vals, ...compLines.flatMap((s) => s.vals.filter((v) => v != null))];
+        const maxY = Math.max(10, Math.ceil(Math.max(...allVals) / 10) * 10);
         const x = (i) => padL + (days.length === 1 ? plotW / 2 : (i / (days.length - 1)) * plotW);
         const y = (v) => padT + plotH - (v / maxY) * plotH;
         const gradId = `visFill${++vizGradSeq}`;
@@ -941,6 +949,17 @@ ai photo enhancer"></textarea>
         const d = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
         const areaD = `${d} L${x(vals.length - 1).toFixed(1)},${(padT + plotH).toFixed(1)} L${x(0).toFixed(1)},${(padT + plotH).toFixed(1)} Z`;
         out += `<path d="${areaD}" fill="url(#${gradId})" stroke="none"/>`;
+        // Competitor overlays under the primary line/fill — same layering
+        // as ratingTrendChart's, so "you" always reads on top.
+        for (const s of compLines) {
+          let cd = '', cStarted = false;
+          s.vals.forEach((v, i) => {
+            if (v == null) { cStarted = false; return; }
+            cd += `${cStarted ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+            cStarted = true;
+          });
+          if (cd) out += `<path d="${cd}" fill="none" stroke="${s.color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4,3"/>`;
+        }
         out += `<path d="${d}" fill="none" stroke="var(--ok)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(days.length / 6);
         days.forEach((day, i) => {
@@ -994,7 +1013,8 @@ ai photo enhancer"></textarea>
             <rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${(padT - 8).toFixed(1)}" width="8" height="${(plotH + padB + 8).toFixed(1)}" fill="transparent"/>
           </g>`;
         });
-        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+        return svg + compareLegendHtml('You', 'var(--ok)', compLines);
       }
 
       // Category (top-chart) position trend — top = best rank, same
@@ -1034,27 +1054,58 @@ ai photo enhancer"></textarea>
 
       // 1-2★ share trend — one cheap (no-AI) point per nightly check, shows
       // the ranking-impact risk building over time even between full ASO audits.
-      function ratingTrendChart(history) {
+      let ratingGradSeq = 0;
+      // `compareSeries` (optional): [{ label, color, history }], each
+      // history entry a raw RatingHistoryPoint[] like the primary — aligned
+      // to the primary's dateKeys by matching date, not index, since two
+      // apps' rating-check days don't line up 1:1. Same shape/role as
+      // visChart's compareSeries below — one overlay mechanism, reused.
+      function ratingTrendChart(history, compareSeries) {
         const pts = (history || []).map((h) => ({ dateKey: h.dateKey, v: h.tone === 'na' ? null : h.negativeShare, windowDays: h.windowDays }));
         const known = pts.filter((p) => p.v != null);
         if (!known.length) return '<p class="hint">Not enough rating history yet — check back after a few nightly checks.</p>';
+        const compLines = (compareSeries || []).map((s) => ({
+          ...s,
+          vals: alignByDateKey(pts, s.history, (h) => (h.tone === 'na' ? null : h.negativeShare)),
+        }));
         const W = 400, H = 170, padL = 30, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
-        const maxY = Math.max(20, Math.ceil(Math.max(...known.map((p) => p.v)) / 10) * 10);
+        const allKnown = [...known.map((p) => p.v), ...compLines.flatMap((s) => s.vals.filter((v) => v != null))];
+        const maxY = Math.max(20, Math.ceil(Math.max(...allKnown) / 10) * 10);
         const x = (i) => padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
         const y = (v) => padT + plotH - (v / maxY) * plotH;
-        let out = '';
+        const gradId = `ratingFill${++ratingGradSeq}`;
+        let out = `<defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--bad)" stop-opacity="0.16"/>
+          <stop offset="100%" stop-color="var(--bad)" stop-opacity="0"/>
+        </linearGradient></defs>`;
         for (const v of [maxY, maxY / 2]) {
           out += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - 6}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>
             <text x="${padL - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--muted)">${v}%</text>`;
         }
         out += `<line x1="${padL}" y1="${(padT + plotH).toFixed(1)}" x2="${W - 6}" y2="${(padT + plotH).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`;
-        let d = '', started = false;
+        let d = '', started = false, areaD = '', areaStartX = null, lastX = null;
         pts.forEach((p, i) => {
           if (p.v == null) { started = false; return; }
+          if (!started) { areaD += `${areaD ? ' ' : ''}M${x(i).toFixed(1)},${y(p.v).toFixed(1)} `; areaStartX = x(i); }
+          else areaD += `L${x(i).toFixed(1)},${y(p.v).toFixed(1)} `;
           d += `${started ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)} `;
           started = true;
+          lastX = x(i);
         });
+        if (areaD && lastX != null) out += `<path d="${areaD} L${lastX.toFixed(1)},${(padT + plotH).toFixed(1)} L${areaStartX.toFixed(1)},${(padT + plotH).toFixed(1)} Z" fill="url(#${gradId})" stroke="none"/>`;
+        // Competitor overlays draw first (plain lines, no fill, no point
+        // markers) so the primary "you" line + its area fill stay visually
+        // on top — same layering compareTrendChart uses.
+        for (const s of compLines) {
+          let cd = '', cStarted = false;
+          s.vals.forEach((v, i) => {
+            if (v == null) { cStarted = false; return; }
+            cd += `${cStarted ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+            cStarted = true;
+          });
+          if (cd) out += `<path d="${cd}" fill="none" stroke="${s.color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4,3"/>`;
+        }
         out += `<path d="${d}" fill="none" stroke="var(--bad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(pts.length / 6);
         pts.forEach((p, i) => {
@@ -1065,7 +1116,8 @@ ai photo enhancer"></textarea>
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(p.dateKey))}</text>`;
         });
-        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+        return svg + compareLegendHtml('You', 'var(--bad)', compLines);
       }
 
       // Raw 1★/2★/5★ counts for the most recent check — the % trend above
@@ -1499,6 +1551,15 @@ ai photo enhancer"></textarea>
         // for a colored line required, and it's already computed above,
         // not a separate check.
         const spikeBannerHtml = autoInsights.map((i) => `<div class="alert warn" style="display:block;"><b>${esc(i.title)}.</b> ${esc(i.detail)}</div>`).join('');
+        // "Show competitor(s)" on the visibility chart — same shared
+        // compareState the Compare tab picker uses (see comparePickerHtml),
+        // opt-in here since Overview shouldn't default to a cluttered chart.
+        const visPicker = comparePickerHtml(app, comparableApps(app));
+        const visCompSeries = visPicker.comps.map((c, i) => ({
+          label: c.title.length > 20 ? c.title.slice(0, 19) + '…' : c.title,
+          color: COMPARE_COLORS[i + 1],
+          days: (c.overview && c.overview.days) || [],
+        }));
         return `<div class="ov">
           <div class="headline">
             <div class="headline-eyebrow">Search visibility score</div>
@@ -1506,7 +1567,8 @@ ai photo enhancer"></textarea>
             <div class="headline-sub">${vDeltaHtml}${visibilityNarrative(app)}</div>
             ${coverageCaption(todayDay)}
             ${spikeBannerHtml}
-            <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks)}</div>
+            ${visPicker.picker}
+            <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks, visCompSeries)}</div>
           </div>
           ${keyStatsTilesHtml(app)}
           <div class="glancecards">${moversHtml(app)}${competitorPulseHtml(app)}${ratingPulseHtml(app)}</div>
@@ -1599,7 +1661,15 @@ ai photo enhancer"></textarea>
       }
 
       function trendChartsHtml(app) {
-        return `<div class="chartbox"><h4>1-2★ rating share trend</h4>${ratingTrendChart(app.ratingHistory)}${ratingCountBars(app.ratingHistory)}</div>`;
+        // Same shared compareState as the visibility chart's picker — ticking
+        // a competitor there shows it here too, one selection either way.
+        const picker = comparePickerHtml(app, comparableApps(app));
+        const compSeries = picker.comps.map((c, i) => ({
+          label: c.title.length > 20 ? c.title.slice(0, 19) + '…' : c.title,
+          color: COMPARE_COLORS[i + 1],
+          history: c.ratingHistory || [],
+        }));
+        return `<div class="chartbox"><h4>1-2★ rating share trend</h4>${picker.picker}${ratingTrendChart(app.ratingHistory, compSeries)}${ratingCountBars(app.ratingHistory)}</div>`;
       }
 
       // Daily-tracked + coverage keywords, deduped (daily wins on overlap —
@@ -1953,6 +2023,45 @@ ai photo enhancer"></textarea>
       // and different enough from the amber accent not to be mistaken for
       // an interactive element.
       const COMPARE_COLORS = ['var(--ink)', '#6ea8fe', '#34d399', '#c084fc'];
+
+      // Shared "compare against" picker for the Overview charts (visibility,
+      // 1-2★ rating) — the SAME selection state as the Compare tab's own
+      // picker (compareState), so choosing a competitor once shows it
+      // everywhere instead of three separate pickers disagreeing with each
+      // other. Returns the picker markup plus the resolved competitor list,
+      // capped at 3 like Compare (COMPARE_COLORS only has 4 slots).
+      function comparePickerHtml(app, others) {
+        if (!others.length) return { picker: '', comps: [] };
+        // Only rewrite compareState when it was already set (dedupe/cap) —
+        // leaving it untouched while unset lets the Compare tab's own
+        // default-select-3 behavior still apply the first time THAT tab is
+        // opened, instead of an empty Overview visit poisoning it to "none".
+        const existing = compareState[app.key];
+        let sel = (existing || []).filter((k) => others.some((o) => o.key === k)).slice(0, 3);
+        if (existing) compareState[app.key] = sel;
+        const picker = `<div class="row no-print" style="margin:0 0 8px;">
+          <span class="hint" style="margin:0;">Show competitor${others.length === 1 ? '' : 's'}:</span>
+          ${others.map((o) => `<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;cursor:pointer;">
+            <input type="checkbox" data-comp-toggle="${escAttr(o.key)}" ${sel.includes(o.key) ? 'checked' : ''} /> ${compLabel(o, false)}
+          </label>`).join('')}
+        </div>`;
+        const comps = sel.map((k) => others.find((o) => o.key === k)).filter(Boolean);
+        return { picker, comps };
+      }
+
+      // Aligns another app's dated points onto the primary's date sequence
+      // by matching dateKey (not index/position) — two apps' check days
+      // rarely line up 1:1. `pick` reads the value out of one point.
+      function alignByDateKey(primaryPts, otherPts, pick) {
+        const map = new Map((otherPts || []).map((p) => [p.dateKey, pick(p)]));
+        return primaryPts.map((p) => (map.has(p.dateKey) ? map.get(p.dateKey) : null));
+      }
+
+      function compareLegendHtml(youLabel, youColor, compLines) {
+        if (!compLines.length) return '';
+        const chip = (label, color, dashed) => `<span class="li"><span class="sw" style="background:${color};${dashed ? 'opacity:0.85;' : ''}"></span>${esc(label)}</span>`;
+        return `<div class="legend">${chip(youLabel, youColor)}${compLines.map((s) => chip(s.label, s.color, true)).join('')}</div>`;
+      }
 
       // Icon + short name instead of the full store title in comparison
       // TABLE headers specifically — a real app title ("PhonePe: UPI,
@@ -2340,7 +2449,7 @@ ai photo enhancer"></textarea>
         };
 
         const sectionSettingsFn = () => `
-          <div class="section-head"><h2>Settings</h2><p class="hint">Everything you can edit for this app lives here.</p></div>
+          <div class="section-head"><h2>Settings</h2><p class="hint">${state.readOnly ? 'A shared view can edit keywords, annotations, Android vitals, competitors and rank-drop alerts — everything else here is the account owner\'s.' : 'Everything you can edit for this app lives here.'}</p></div>
           <div class="settings-block no-print">
             <h4>Daily-tracked keywords</h4>
             <p class="hint" style="margin:0 0 8px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line. Saving re-checks this app's rankings right away. <b>This list is checked daily and capped by your plan</b> — bigger lists go in the All keywords list below.</p>
@@ -2380,12 +2489,12 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="save-alert">Save alert setting</button>
             </div>
           </div>
-          <div class="settings-block no-print">
+          <div class="settings-block no-print" data-guest-hide>
             <h4>Keyword volumes</h4>
             <p class="hint" style="margin:0 0 8px;">If you already have search volume data (e.g. from AppRadar or your own research), paste it in alongside your keywords and we'll use it as-is. This button estimates the <b>missing</b> ones for you on a 0–100 popularity scale. Click again if some keywords are still blank after the first pass.</p>
             <button class="ghost" data-act="estimate-volumes">Estimate missing volumes</button>
           </div>
-          <div class="settings-block no-print">
+          <div class="settings-block no-print" data-guest-hide>
             <h4>Daily check window <span class="hint" style="display:inline;">— IST</span></h4>
             <p class="hint" style="margin:0 0 8px;">Stagger your apps into separate slots so they don't all hit the stores at once — simultaneous bursts are the main cause of rate-limited checks that come back as "failed" or unchecked keywords. Weekends ignore this and use the whole day, so large keyword lists can catch up.</p>
             <label style="display:flex;align-items:center;gap:6px;font-weight:600;">
@@ -2448,7 +2557,7 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="add-competitor">Add competitor</button>
             </div>
           </div>
-          <div class="settings-block no-print">
+          <div class="settings-block no-print" data-guest-hide>
             <h4>Competitor relationship</h4>
             <p class="hint" style="margin:0 0 8px;">If this app is a rival you're tracking rather than your own, pick which of your apps it's a competitor for — that's what scopes it into that app's Compare tab instead of showing up everywhere.</p>
             <select data-role="competitor-of-select">
@@ -2475,7 +2584,7 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="save-competitor-of">Save</button>
             </div>
           </div>
-          <div class="dangerzone no-print">
+          <div class="dangerzone no-print" data-guest-hide>
             <h4>Danger zone</h4>
             <p class="hint" style="margin:0 0 8px;">Stops tracking this app. Its saved history stays on disk but will no longer be shown.</p>
             <button class="ghost danger" data-act="remove">Remove this app</button>
@@ -2617,10 +2726,10 @@ ai photo enhancer"></textarea>
         // show while the All-apps summary is open.
         if (portfolioMode) { $('snav').innerHTML = ''; return; }
         const app = state.apps.find((a) => a.key === selectedAppKey);
-        // Settings is entirely owner-only controls — for a read-only guest
-        // the whole tab would render empty once applyReadOnly() strips it.
-        const sections = state.readOnly ? SECTIONS.filter((s) => s.id !== 'settings') : SECTIONS;
-        if (state.readOnly && currentSection === 'settings') currentSection = 'overview';
+        // Settings used to be entirely owner-only; a guest now keeps the
+        // specific blocks in GUEST_SAFE_ACTIONS (see applyReadOnly's
+        // [data-guest-hide] sweep, which strips the rest of the tab).
+        const sections = SECTIONS;
         $('snav').innerHTML = sections.map((s) => {
           const cnt = app ? sectionCount(app, s.id) : '';
           return `<button class="${s.id === currentSection ? 'active' : ''}" data-section="${s.id}">${s.label}${cnt !== '' ? `<span class="cnt">${cnt}</span>` : ''}</button>`;
@@ -2646,14 +2755,35 @@ ai photo enhancer"></textarea>
       // allowlist of "safe" controls sprinkled through the render functions,
       // sweep the DOM after each render and drop anything that acts —
       // a new mutating button added later is then read-only by default.
-      const READONLY_SAFE_ACTS = new Set(['pdf', 'close-addapp-modal', 'close-kwmodal', 'dismiss-discover']);
+      // These 5 write actions are open to a read-only guest (see the
+      // matching GUEST_SAFE_ACTIONS allowlist + appAllowed scoping in
+      // /api/rank.ts) — everything else stays hidden.
+      const READONLY_SAFE_ACTS = new Set([
+        'pdf', 'close-addapp-modal', 'close-kwmodal', 'dismiss-discover',
+        'save-kw', 'save-coverage', 'save-report-emails', 'save-alert',
+        'add-competitor', 'remove-competitor', 'save-annotation', 'remove-annotation',
+        'save-quality-metrics',
+      ]);
+      const READONLY_SAFE_ROLES = new Set([
+        'kwtext', 'covtext', 'report-emails', 'alert-select', 'quality-metrics-input',
+        'add-competitor-input', 'add-competitor-country',
+        'ann-date', 'ann-type', 'ann-label', 'ann-keywords',
+      ]);
       function applyReadOnly() {
         if (!state.readOnly) return;
         document.querySelectorAll('[data-act]').forEach((el) => {
           if (!READONLY_SAFE_ACTS.has(el.getAttribute('data-act'))) el.remove();
         });
-        // Editable fields would silently discard whatever was typed.
+        // Whole Settings blocks that aren't in the guest-safe set (keyword
+        // volumes, check window, competitor-of reassignment, danger zone) —
+        // stripping only their buttons above would leave dead, button-less
+        // sections still describing controls a guest can't use.
+        document.querySelectorAll('[data-guest-hide]').forEach((el) => el.remove());
+        // Editable fields would silently discard whatever was typed — except
+        // the fields backing the 5 write actions above, which need to stay
+        // usable for exactly the same reason those buttons stayed visible.
         document.querySelectorAll('#apps input, #apps textarea, #apps select').forEach((el) => {
+          if (READONLY_SAFE_ROLES.has(el.getAttribute('data-role'))) return;
           if (!el.closest('[data-role="sortable"]')) el.setAttribute('disabled', 'disabled');
         });
       }
@@ -2717,8 +2847,8 @@ ai photo enhancer"></textarea>
         if (state.readOnly) {
           const banner = $('ro-banner');
           banner.textContent = state.sharedByEmail
-            ? `Read-only view shared with you by ${state.sharedByEmail}. Rankings update automatically every day.`
-            : 'Read-only view. Rankings update automatically every day.';
+            ? `Shared with you by ${state.sharedByEmail}. Rankings update automatically every day — you can edit keywords, annotations, Android vitals, competitors and rank-drop alerts under Settings.`
+            : 'Shared, read-mostly view. Rankings update automatically every day — you can edit keywords, annotations, Android vitals, competitors and rank-drop alerts under Settings.';
           banner.style.display = 'block';
           $('checkall-btn').style.display = 'none';
           const addBtn = $('toggle-add-app');
