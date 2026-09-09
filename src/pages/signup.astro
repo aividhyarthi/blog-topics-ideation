@@ -14,6 +14,7 @@ if (Astro.locals.user) return Astro.redirect('/rank');
     <title>{BRAND} — Create your account</title>
     <meta name="description" content={`Start a free ${TRIAL_DAYS}-day trial of ${BRAND} — track your app's keyword rankings on Google Play and the App Store. No card required.`} />
     <link rel="canonical" href={`${SITE_URL}/signup`} />
+    <meta name="robots" content="noindex, follow" />
     <style>
       :root { --pink: #16181d; --pink-dark: #000000; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; }
       * { box-sizing: border-box; }
