@@ -1166,7 +1166,7 @@ import App from '../layouts/App.astro';
           location.href = '/home';
         } catch { err.textContent = 'Network error. Try again.'; err.style.display = 'block'; reset(); }
       }
-      async function signOut() { try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {} await refreshAuth(); showToast('Signed out'); }
+      async function signOut() { try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {} location.href = '/'; }
 
       async function showAudits() {
         openModal('<h3>Your audits</h3><p class="msub">Click any audit to reload it.</p><div class="hist-list" id="hist"><div class="hist-empty">Loading…</div></div>');

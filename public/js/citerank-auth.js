@@ -142,7 +142,12 @@
   async function signOut() {
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
     state.user = null;
-    render();
+    // A gated page (/home, /check, /audit, /dashboard) was already rendered
+    // server-side for the signed-in user before this ran — just clearing
+    // the nav widget's own state left that content sitting on screen with
+    // no session behind it. A full navigation to / is the only thing that
+    // actually leaves the gated page.
+    location.href = '/';
   }
 
   function render() {
