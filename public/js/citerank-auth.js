@@ -149,10 +149,12 @@
     document.querySelectorAll('#cr-navauth').forEach((el) => {
       if (!state.accountsEnabled) { el.innerHTML = ''; return; }
       if (state.user) {
-        // Inside the app shell the tab bar already links to Reports (/dashboard),
-        // so showing a Dashboard button here would be a duplicate control.
+        // Inside the app shell the tab bar already links to Home, so showing
+        // a Home button here would be a duplicate control. This always goes
+        // to /home, never straight to /dashboard, so a signed-in visitor
+        // always lands on the personalized landing page first.
         const inApp = document.body.classList.contains('appbody');
-        const dash = inApp ? '' : '<a href="/dashboard" class="cra-btn">Dashboard</a>';
+        const dash = inApp ? '' : '<a href="/home" class="cra-btn">Home</a>';
         el.innerHTML = `<span class="cra-email">${esc(state.user.email)}</span>${dash}<button class="cra-btn" id="cra-signout">Sign out</button>`;
         el.querySelector('#cra-signout').addEventListener('click', signOut);
       } else {
