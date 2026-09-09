@@ -143,6 +143,8 @@ const limitsText = product && plan
       .statblock .kwtabs.cattabs { margin: 12px 0 0; padding: 0; }
       .statblock .table-wrap { border: none; border-radius: 0; border-top: 1px solid var(--line); margin-top: 10px; background: transparent; }
       .wn-card { background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px; }
+      .glancecards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; align-items: start; }
+      .glancecards .wn-card { margin: 0; }
       .wn-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
       .promo-row { display: flex; align-items: center; gap: 9px; padding: 6px 0; border-top: 1px solid var(--bg); font-size: 13.5px; cursor: pointer; }
       .promo-row:first-of-type { border-top: none; }
@@ -277,6 +279,10 @@ const limitsText = product && plan
       .ghost-link:hover { text-decoration: underline; }
       .lastcheck { font-size: 12.5px; color: var(--muted); }
       .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+      .segwrap { display: inline-flex; background: var(--card2); border-radius: 999px; padding: 3px; gap: 2px; }
+      .segwrap .seg { padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--muted); cursor: pointer; border: none; background: none; font-family: inherit; white-space: nowrap; }
+      .segwrap .seg:hover { color: var(--ink); }
+      .segwrap .seg.active { background: var(--accent); color: var(--accent-ink); }
       .empty { text-align: center; color: var(--muted); padding: 26px 10px; font-size: 14px; }
       .app-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
       .app-tab { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 6px 7px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink); transition: border-color 0.15s; max-width: 220px; }
@@ -420,6 +426,13 @@ const limitsText = product && plan
               <option value="own">My apps</option>
               <option value="shared">Shared with me</option>
             </select>
+            <div class="segwrap" id="range-presets">
+              <span class="seg" data-days="7">7D</span>
+              <span class="seg" data-days="30">30D</span>
+              <span class="seg" data-days="90">90D</span>
+              <span class="seg" data-days="180">6M</span>
+              <span class="seg active" data-days="">ALL</span>
+            </div>
             <label class="hint" style="margin:0;" for="range-from">From</label>
             <input type="date" id="range-from" title="Start date for the rankings shown below" />
             <label class="hint" style="margin:0;" for="range-to">To</label>
@@ -1462,7 +1475,7 @@ ai photo enhancer"></textarea>
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks)}</div>
           </div>
           ${keyStatsTilesHtml(app)}
-          <div style="max-width:520px;">${ratingPulseHtml(app)}</div>
+          <div class="glancecards">${moversHtml(app)}${competitorPulseHtml(app)}${ratingPulseHtml(app)}</div>
           ${trendChartsHtml(app)}
           ${categoryChartTrendHtml(app)}
           <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>
@@ -2761,18 +2774,45 @@ ai photo enhancer"></textarea>
       $('checkall-btn').addEventListener('click', () =>
         withBusy($('checkall-btn'), 'Checking rankings… this can take a minute', () => api({ action: 'check' })));
 
+      function setActivePreset(days) {
+        document.querySelectorAll('#range-presets .seg').forEach((el) => el.classList.toggle('active', el.getAttribute('data-days') === days));
+      }
       $('range-apply').addEventListener('click', async () => {
         const from = $('range-from').value;
         const to = $('range-to').value;
         if (from && to && from > to) { showErr('The "From" date is after the "To" date.'); return; }
         rangeFrom = from;
         rangeTo = to;
+        setActivePreset(null);
         showErr('');
         try { await refresh(); } catch (e) { showErr(e && e.message ? e.message : String(e)); }
       });
       $('range-clear').addEventListener('click', async () => {
         rangeFrom = '';
         rangeTo = '';
+        setActivePreset('');
+        try { await refresh(); } catch (e) { showErr(e && e.message ? e.message : String(e)); }
+      });
+      // Quick presets (7D/30D/90D/6M/ALL) — a shortcut onto the same
+      // rangeFrom/rangeTo the manual From/To fields already drive, not a
+      // separate mechanism. "ALL" is data-days="" — same as Reset.
+      $('range-presets').addEventListener('click', async (ev) => {
+        const seg = ev.target.closest('.seg');
+        if (!seg) return;
+        const days = seg.getAttribute('data-days');
+        const to = new Date();
+        rangeTo = days ? to.toISOString().slice(0, 10) : '';
+        if (days) {
+          const from = new Date(to);
+          from.setUTCDate(from.getUTCDate() - Number(days));
+          rangeFrom = from.toISOString().slice(0, 10);
+        } else {
+          rangeFrom = '';
+        }
+        $('range-from').value = rangeFrom;
+        $('range-to').value = rangeTo;
+        setActivePreset(days);
+        showErr('');
         try { await refresh(); } catch (e) { showErr(e && e.message ? e.message : String(e)); }
       });
       $('portfolio-btn').addEventListener('click', () => { portfolioMode = !portfolioMode; render(); });
