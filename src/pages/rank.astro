@@ -932,8 +932,13 @@ ai photo enhancer"></textarea>
           ...s,
           vals: alignByDateKey(days, s.days, (d) => d.visibility),
         }));
-        const allVals = [...vals, ...compLines.flatMap((s) => s.vals.filter((v) => v != null))];
-        const maxY = Math.max(10, Math.ceil(Math.max(...allVals) / 10) * 10);
+        // Scaled to YOUR OWN data only — a competitor with a much higher
+        // score used to stretch this axis and squash your line flat near
+        // the bottom, which looked broken since the whole point of this
+        // chart is your own number. A competitor line taller than your own
+        // scale simply runs off the top of the chart (clipped, see the SVG
+        // below) instead of shrinking everything to fit it in.
+        const maxY = Math.max(10, Math.ceil(Math.max(...vals) / 10) * 10);
         const x = (i) => padL + (days.length === 1 ? plotW / 2 : (i / (days.length - 1)) * plotW);
         const y = (v) => padT + plotH - (v / maxY) * plotH;
         const gradId = `visFill${++vizGradSeq}`;
@@ -1013,7 +1018,7 @@ ai photo enhancer"></textarea>
             <rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${(padT - 8).toFixed(1)}" width="8" height="${(plotH + padB + 8).toFixed(1)}" fill="transparent"/>
           </g>`;
         });
-        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:hidden;">${out}</svg>`;
         return svg + compareLegendHtml('You', 'var(--ok)', compLines);
       }
 
@@ -1070,8 +1075,8 @@ ai photo enhancer"></textarea>
         }));
         const W = 400, H = 170, padL = 30, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
-        const allKnown = [...known.map((p) => p.v), ...compLines.flatMap((s) => s.vals.filter((v) => v != null))];
-        const maxY = Math.max(20, Math.ceil(Math.max(...allKnown) / 10) * 10);
+        // Scaled to YOUR OWN data only — see visChart's identical fix above.
+        const maxY = Math.max(20, Math.ceil(Math.max(...known.map((p) => p.v)) / 10) * 10);
         const x = (i) => padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
         const y = (v) => padT + plotH - (v / maxY) * plotH;
         const gradId = `ratingFill${++ratingGradSeq}`;
@@ -1116,7 +1121,7 @@ ai photo enhancer"></textarea>
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(p.dateKey))}</text>`;
         });
-        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:hidden;">${out}</svg>`;
         return svg + compareLegendHtml('You', 'var(--bad)', compLines);
       }
 
@@ -1425,7 +1430,7 @@ ai photo enhancer"></textarea>
           const scoreHtml = cv == null ? '' : `<span class="wn-score">${cv.toFixed(1)}${
             cvDelta == null ? '' : cvDelta > 0 ? ` <span class="delta up">▲${cvDelta}</span>` : cvDelta < 0 ? ` <span class="delta down">▼${-cvDelta}</span>` : ` <span class="delta flat">＝</span>`
           }</span>`;
-          const rightHtml = `<span class="wn-right">${scoreHtml}<span class="wn-viewcta">Compare →</span></span>`;
+          const rightHtml = `<span class="wn-right">${scoreHtml}</span>`;
           if (!curTotal) return `<button class="wn-linkline" data-goto-compare="${escAttr(c.key)}"><span class="wn-line-main">${nameHtml}<span class="wn-empty">No shared keyword data checked yet</span></span>${rightHtml}</button>`;
           // "Beats you on N/M" every time, regardless of the actual number,
           // read as a wall of bad news even on keywords the app is winning —
