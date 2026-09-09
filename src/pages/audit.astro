@@ -329,8 +329,17 @@ import App from '../layouts/App.astro';
         const passSummary = passes.length
           ? `<details class="passfold"><summary>${IC.check} ${passes.length} more thing${passes.length > 1 ? 's' : ''} already look${passes.length > 1 ? '' : 's'} good — tap to see</summary><div class="passlist">${passes.map((i) => `<div class="passrow">${esc(i.label)} — ${esc(i.detail)}</div>`).join('')}</div></details>`
           : '';
+        // Same "scan the summary before the detail" stat-card language as the
+        // Overview tab's Key signals row, scoped to just this topic's checks.
+        const pct = items.length ? Math.round((passes.length / items.length) * 100) : 0;
+        const statCol = pct >= 75 ? 'var(--ok)' : pct >= 45 ? 'var(--warn)' : 'var(--bad)';
+        const topicStat = items.length ? `<div class="topicstat">
+          <span class="topicstat-n" style="color:${statCol}">${passes.length}<small>/${items.length}</small></span>
+          <div class="topicstat-track"><i style="width:${pct}%;background:${statCol}"></i></div>
+          <span class="topicstat-lbl">${issues.length ? `${issues.length} to fix` : 'all passing'}</span>
+        </div>` : '';
         return `${topExtraHtml || ''}
-          <div class="card topicintro"><p>${intro}</p></div>
+          <div class="card topicintro">${topicStat}<p>${intro}</p></div>
           <div class="issuelist">${issuesHtml}</div>
           ${passSummary}
           ${extraHtml || ''}`;
@@ -392,32 +401,57 @@ import App from '../layouts/App.astro';
         </svg>`;
       }
 
-      // ---- Score history sparkline for this URL (2+ saved audits required) ----
+      // ---- Score history for this URL (2+ saved audits required) ----
+      // Drawn to a fixed 0-100 scale with real gridlines and date labels — not
+      // fit-to-data — so the line's actual height on the page means what it
+      // looks like it means, and a 74->83 move never gets drawn as dramatically
+      // as a 20->90 one just because the axis stretched to fit.
       function buildTrend(history) {
         if (!history || history.length < 2) {
           return `<div class="trend-empty">${IC.bars}<div>Re-run this page after making changes to see the score move — this fills in once you have 2 or more saved audits for the same URL.</div></div>`;
         }
-        const w = 150, h = 56, pad = 6;
+        const W = 640, H = 200, padL = 30, padR = 10, padT = 14, padB = 24;
+        const plotW = W - padL - padR, plotH = H - padT - padB;
         const scores = history.map((hh) => hh.overall);
-        const min = Math.min(...scores), max = Math.max(...scores), span = Math.max(1, max - min);
-        const stepX = (w - pad * 2) / (history.length - 1);
-        const y = (v) => h - pad - ((v - min) / span) * (h - pad * 2);
-        const pts = scores.map((v, i) => [pad + i * stepX, y(v)]);
-        const delta = scores[scores.length - 1] - scores[0];
+        const scaleY = (v) => padT + plotH - (v / 100) * plotH;
+        const scaleX = (i, n) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+        const n = scores.length;
+        const pts = scores.map((v, i) => [scaleX(i, n), scaleY(v)]);
+        const last = pts[n - 1];
+        const delta = scores[n - 1] - scores[0];
+        const prevDelta = n >= 2 ? scores[n - 1] - scores[n - 2] : 0;
         const col = delta >= 0 ? 'var(--ok)' : 'var(--bad)';
-        const last = pts[pts.length - 1];
-        const dots = pts.slice(0, -1).map(([x, yy]) => `<circle cx="${x.toFixed(1)}" cy="${yy.toFixed(1)}" r="3" fill="var(--card,#fff)" stroke="var(--muted)" stroke-width="2"/>`).join('');
         const dateFmt = (iso) => { try { return new Date(iso).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }); } catch { return ''; } };
-        const ptLabels = history.map((hh, i) => `<div>${i === history.length - 1 ? 'Today' : esc(dateFmt(hh.createdAt))} <b>${hh.overall}%</b></div>`).join('');
-        return `<div class="trendrow">
-            <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-              <polyline points="${pts.map((p) => p.join(',')).join(' ')}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              ${dots}
-              <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="4" fill="${col}" stroke="#fff" stroke-width="2"/>
-            </svg>
-            <div class="trend-delta" style="color:${col}">${delta >= 0 ? '+' : ''}${delta}<small>pts since your first audit</small></div>
+
+        const gridlines = [0, 25, 50, 75, 100].map((g) => {
+          const y = scaleY(g);
+          return `<line x1="${padL}" x2="${W - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/><text x="2" y="${(y + 4).toFixed(1)}" font-size="10.5" fill="var(--faint)">${g}</text>`;
+        }).join('');
+        const areaPath = `M${pts.map((p) => p.join(',')).join(' L')} L${last[0].toFixed(1)},${(padT + plotH).toFixed(1)} L${pts[0][0].toFixed(1)},${(padT + plotH).toFixed(1)} Z`;
+        const linePath = `M${pts.map((p) => p.join(',')).join(' L')}`;
+        const dots = pts.map(([x, y], i) => i === n - 1
+          ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${col}" stroke="var(--card,#fff)" stroke-width="2.5"/>`
+          : `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="var(--card,#fff)" stroke="var(--muted)" stroke-width="2"/>`).join('');
+        // Only every other date label on longer histories so they don't collide.
+        const showLabel = (i) => n <= 6 || i === 0 || i === n - 1 || i % 2 === 0;
+        const labels = history.map((hh, i) => showLabel(i)
+          ? `<text x="${pts[i][0].toFixed(1)}" y="${H - 6}" font-size="10.5" fill="var(--faint)" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${i === n - 1 ? 'Latest' : esc(dateFmt(hh.createdAt))}</text>` : '').join('');
+
+        return `<div class="trendhead">
+            <div>
+              <div class="trend-now">${scores[n - 1]}<span class="trend-delta ${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)} pt${Math.abs(delta) === 1 ? '' : 's'}<small>since your first saved audit</small></span></div>
+            </div>
+            <div class="trend-prev">Previous check<b>${scores[n - 2]}${prevDelta !== 0 ? ` <span class="${prevDelta > 0 ? 'up' : 'down'}">${prevDelta > 0 ? '▲' : '▼'}${Math.abs(prevDelta)}</span>` : ''}</b></div>
           </div>
-          <div class="trend-pts">${ptLabels}</div>`;
+          <svg class="trendchart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+            <defs><linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity="0.16"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+            ${gridlines}
+            <path d="${areaPath}" fill="url(#trendFill)"/>
+            <path d="${linePath}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            ${dots}
+            ${labels}
+          </svg>
+          <div class="chart-caption">Every point is one saved audit of this exact URL, filtered to a single scoring methodology — a scoring-formula change never plots as a fake jump.</div>`;
       }
 
       function render(data) {
@@ -708,6 +742,37 @@ import App from '../layouts/App.astro';
         const legendHtml = sortedPillars.map((p) => `<div class="rl-row${p.measured === false ? ' dim' : ''}" title="${esc(p.purpose || '')}"><span class="rl-dot"></span><span class="name">${esc(p.label)}</span><span class="val">${p.measured === false ? '—' : p.score}</span></div>`).join('');
         const trendHtml = buildTrend(history);
 
+        // ---- Key signals: a glanceable strip above the tabs, visible no
+        // matter which tab is open — every figure here is already computed
+        // elsewhere in this function, just surfaced in one place instead of
+        // buried inside whichever tab happens to compute it.
+        const sigDelta = history.length >= 2 ? history[history.length - 1].overall - history[0].overall : null;
+        const engineEntries = r.engines ? Object.entries(r.engines).filter(([, v]) => typeof v === 'number') : [];
+        const likelyCiteN = engineEntries.filter(([, v]) => v >= 60).length;
+        const signalsHtml = `<div class="signalgrid">
+          <div class="signal">
+            <div class="signal-label">Score vs. first audit</div>
+            ${sigDelta === null
+              ? `<div class="signal-value">—</div><div class="signal-cap">Run this URL again to see it move</div>`
+              : `<div class="signal-value ${sigDelta >= 0 ? 'up' : 'down'}">${sigDelta >= 0 ? '▲' : '▼'} ${Math.abs(sigDelta)}</div><div class="signal-cap">${r.overall}% today, was ${history[0].overall}%</div>`}
+          </div>
+          <div class="signal">
+            <div class="signal-label">Checks passed</div>
+            <div class="signal-value">${cl ? `${cl.passed}<small>/${cl.applicable}</small>` : `${(r.pillars || []).length ? 'n/a' : '—'}`}</div>
+            <div class="signal-cap">${nFix} open fix${nFix === 1 ? '' : 'es'} remaining</div>
+          </div>
+          <div class="signal">
+            <div class="signal-label">Engines likely to cite</div>
+            <div class="signal-value">${engineEntries.length ? `${likelyCiteN}<small>/${engineEntries.length}</small>` : '—'}</div>
+            <div class="signal-cap">${engineEntries.length ? 'Estimated, 60%+ predicted score' : 'Not estimated for this audit'}</div>
+          </div>
+          <div class="signal">
+            <div class="signal-label">Tracking history</div>
+            <div class="signal-value">${history.length}<small>${history.length === 1 ? ' check' : ' checks'}</small></div>
+            <div class="signal-cap">${history.length ? `Since ${esc(new Date(history[0].createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }))}` : 'First audit of this URL'}</div>
+          </div>
+        </div>`;
+
         root.innerHTML = `
           <div class="printhead">
             <div class="pt-brand">AI Page Audit — AEO Audit</div>
@@ -717,6 +782,7 @@ import App from '../layouts/App.astro';
           ${clientBanner}
           ${crawlBanner}
           <div class="resbar">${m.savedId ? `<span class="savednote" style="margin-right:auto">${IC.check} Saved to your history</span>` : (ACCOUNTS && !USER ? `<span class="savednote" style="margin-right:auto;color:var(--muted)"><a id="savesignin" style="color:var(--accent-dark);font-weight:700;cursor:pointer">Sign in</a> to save this audit to your history</span>` : '')}<button class="ghostbtn" id="pdfbtn">${IC.download} Download PDF</button><button class="ghostbtn" id="copyreport">${IC.copy} Copy report</button></div>
+          ${signalsHtml}
 
           <div class="reptabs" id="reptabs">
             ${m.client ? `<div class="reptab active" data-tab="client">${esc(m.client.name.split('.')[0].split(' ')[0])} checklist${clientIssueN ? ` <span class="repcnt bad">${clientIssueN}</span>` : ''}</div>` : ''}
@@ -1398,11 +1464,31 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .rl-row .val { font-weight: 800; font-variant-numeric: tabular-nums; }
 .trend-empty { display: flex; align-items: center; gap: 12px; padding: 6px 2px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .trend-empty svg { width: 30px; height: 30px; flex-shrink: 0; opacity: .5; }
-.trendrow { display: flex; align-items: center; gap: 16px; }
-.trend-delta { font-size: 22px; font-weight: 800; }
-.trend-delta small { font-size: 11.5px; font-weight: 700; color: var(--muted); display: block; margin-top: 1px; }
-.trend-pts { display: flex; gap: 14px; margin-top: 10px; font-size: 11px; color: var(--faint); font-weight: 600; flex-wrap: wrap; }
-.trend-pts b { color: var(--ink-2); font-size: 12px; }
+
+/* ---- Score-history chart (Overview tab) — see buildTrend() ---- */
+.trendhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
+.trend-now { display: flex; align-items: baseline; gap: 10px; font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.trend-delta { display: inline-flex; flex-direction: column; font-size: 12.5px; font-weight: 800; padding: 4px 10px; border-radius: 999px; line-height: 1.35; vertical-align: middle; }
+.trend-delta.up { background: var(--ok-bg); color: var(--ok); }
+.trend-delta.down { background: var(--bad-bg); color: var(--bad); }
+.trend-delta small { font-size: 10px; font-weight: 700; opacity: .85; }
+.trend-prev { font-size: 11.5px; color: var(--faint); text-align: right; }
+.trend-prev b { display: block; font-size: 14px; color: var(--ink-2); font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.trend-prev b .up { color: var(--ok); }
+.trend-prev b .down { color: var(--bad); }
+.trendchart { width: 100%; height: 200px; display: block; margin-top: 8px; }
+.chart-caption { font-size: 11.5px; color: var(--faint); margin-top: 8px; }
+
+/* ---- Key signals strip, visible above the tabs on every tab ---- */
+.signalgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 760px) { .signalgrid { grid-template-columns: repeat(2, 1fr); } }
+.signal { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 14px 16px; box-shadow: var(--shadow); }
+.signal-label { font-size: 11.5px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+.signal-value { font-size: 22px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.signal-value small { font-size: 13px; font-weight: 700; color: var(--faint); }
+.signal-value.up { color: var(--ok); }
+.signal-value.down { color: var(--bad); }
+.signal-cap { font-size: 11.5px; color: var(--faint); margin-top: 4px; }
 
 /* ---- Compact per-engine bars, Overview tab (full cards live in Engines tab) ---- */
 .minieng-list { display: flex; flex-direction: column; }
@@ -1533,6 +1619,12 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .reptab.active .repcnt.bad { background: var(--bad-bg); color: var(--bad); }
 .topicintro { margin-bottom: 14px; }
 .topicintro p { margin: 0; font-size: 14.5px; color: var(--ink-2); line-height: 1.6; }
+.topicstat { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.topicstat-n { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.topicstat-n small { font-size: 12px; font-weight: 700; color: var(--faint); }
+.topicstat-track { flex: 1; height: 6px; border-radius: 999px; background: #edeef4; overflow: hidden; }
+.topicstat-track i { display: block; height: 100%; border-radius: 999px; }
+.topicstat-lbl { font-size: 11.5px; font-weight: 700; color: var(--muted); flex-shrink: 0; }
 .issuelist { display: grid; gap: 10px; }
 .issuecard { display: flex; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px; background: #fff; border-left: 4px solid var(--line-2); box-shadow: var(--shadow); }
 .issuecard.fail { border-left-color: var(--bad); }
