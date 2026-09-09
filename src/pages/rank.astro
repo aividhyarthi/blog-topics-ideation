@@ -1419,7 +1419,6 @@ ai photo enhancer"></textarea>
             ? '<p class="hint">No check data yet — the first daily check hasn\'t run for this app.</p>'
             : '<p class="hint">No check data yet — hit <b>Check now</b> to record the first data point.</p>';
         }
-        const c = ov.counts || {}, p = ov.prevCounts || null;
         const legend = bucketLegend(ov.days);
         const cur = ov.visibility, prev = ov.prevVisibility;
         const vDelta = (cur != null && prev != null) ? Math.round((cur - prev) * 10) / 10 : null;
@@ -1438,45 +1437,31 @@ ai photo enhancer"></textarea>
           : vDelta < 0 ? `<span class="delta down">▼ ${-vDelta}</span> ${periodLabel} — `
           : `<span class="delta flat">＝ unchanged</span> ${periodLabel} — `;
         const todayDay = ov.days[ov.days.length - 1];
-        // Everything a client asks for lives here now — this used to be
-        // split across Overview and a separate "Report Card" tab that
-        // mostly re-showed the same numbers in a different layout (see
-        // git history). One tab, no second copy to keep in sync.
-        const volumes = app.keywordVolumes || {};
-        const diffMap = app.difficulty || {};
-        const allTrends = mergedKeywordTrends(app).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
-        const rankingNow = allTrends.filter((t) => t.position != null && !t.error);
-        const newlyRanked = rankingNow.filter((t) => t.prevPosition == null).length;
-        const coverageSub = allTrends.length
-          ? `of ${allTrends.length.toLocaleString()} tracked${newlyRanked ? ` · <span class="delta up">+${newlyRanked}</span> new` : ''}`
-          : 'no keywords tracked yet';
         // A detected rating-spike-then-drop (see detectRatingSpikeDrop,
         // surfaced as an Insight with markDate) gets its own mark on this
         // chart — same visual language as a manually logged annotation, but
         // a distinct color/icon so it reads as "the system noticed this",
         // not something you logged yourself.
-        const autoMarks = (app.insights || []).filter((i) => i.markDate).map((i) => ({ date: i.markDate, label: i.title }));
+        const autoInsights = (app.insights || []).filter((i) => i.markDate);
+        const autoMarks = autoInsights.map((i) => ({ date: i.markDate, label: i.title }));
+        // The chart mark alone is easy to miss (a thin dashed line among
+        // several weeks of data) or to mistake for a manually logged
+        // annotation right next to it. This is the same finding, spelled
+        // out in words, in the same red the chart mark uses — no hunting
+        // for a colored line required, and it's already computed above,
+        // not a separate check.
+        const spikeBannerHtml = autoInsights.map((i) => `<div class="alert err" style="display:block;">⚠︎ <b>${esc(i.title)}</b><br/>${esc(i.detail)}</div>`).join('');
         return `<div class="ov">
           <div class="headline">
             <div class="headline-eyebrow">Search visibility score</div>
             <div class="headline-num">${cur != null ? cur.toFixed(1) : '–'}</div>
             <div class="headline-sub">${vDeltaHtml}${ranged ? `today's live keyword movement is hidden while a custom range is applied.` : visibilityNarrative(app)}</div>
             ${coverageCaption(todayDay)}
+            ${spikeBannerHtml}
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks)}</div>
           </div>
           <div style="max-width:520px;">${ratingPulseHtml(app)}</div>
           ${trendChartsHtml(app)}
-          <div class="tiles">
-            ${tileHtml('Top 1 rankings', c.top1, p && p.top1)}
-            ${tileHtml('Top 10 rankings', c.top10, p && p.top10)}
-            ${tileHtml('Top 30 rankings', c.top30, p && p.top30)}
-            ${tileHtml('Top 100 rankings', c.top100, p && p.top100)}
-          </div>
-          <div class="tile" style="max-width:220px;">
-            <div class="lbl">Keywords ranking</div>
-            <div class="val">${rankingNow.length.toLocaleString()}</div>
-            <div class="hint" style="margin:6px 0 0;">${coverageSub}</div>
-          </div>
           ${categoryChartTrendHtml(app)}
           <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>
         </div>`;
