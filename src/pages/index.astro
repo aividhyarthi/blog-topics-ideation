@@ -13,7 +13,7 @@ const homeSchema = {
   operatingSystem: 'Web',
   url: origin,
   description:
-    'The AEO audit tool and AI audit tool that fetches your pages as Googlebot, GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot, then scores exactly what each crawler can and cannot read, with ranked fixes.',
+    'The AI page audit and AI site audit tool (AEO audit, AEO site audit) that fetches your pages as Googlebot, GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot, then scores exactly what each crawler can and cannot read, with ranked fixes.',
   offers: {
     '@type': 'Offer',
     price: '0',
@@ -54,23 +54,24 @@ const faqs = [
   { q: 'Why would a page rank on Google but never get cited by ChatGPT?', a: 'Googlebot renders JavaScript. GPTBot, ClaudeBot and PerplexityBot mostly don’t, they read the raw HTML response. Content injected by JavaScript is invisible to them even though Google sees it fine.' },
   { q: 'What does the AEO score actually measure?', a: 'Every pillar score is built from the same named checklist shown on the report’s Content, Indexability and Keywords tabs, not a separate black-box number. See the full checklist at /checklist.' },
   { q: 'Do I need to install anything on my site?', a: 'No. Paste a URL and we fetch it the same way the crawlers do. Nothing to install, no tag, no waiting for a crawl.' },
+  { q: 'Is this an AI page audit tool or an AI site audit tool?', a: 'Both. Run it against a single URL for a page-level AEO audit, or work through your key templates (home, product, article) one by one for a practical AI site audit, since AI crawlers can treat pages on the same site very differently depending on how each template renders.' },
 ];
 ---
 <Site
   schema={homeSchema}
-  title="AI Page Audit: the AEO Audit Tool for AI Search Visibility"
-  description="AI Page Audit is the AEO audit tool (and AI audit tool) that fetches any page as Googlebot, ChatGPT, Perplexity and Claude, and shows exactly what each AI crawler can and cannot read. Then it scores the page and tells you what to fix. First check free."
+  title="AI Page Audit: AI Site Audit &amp; AEO Audit Tool for AI Search Visibility"
+  description="AI Page Audit is an AI page audit and AI site audit tool (AEO audit, AEO site audit) that fetches any page as Googlebot, ChatGPT, Perplexity and Claude, and shows exactly what each AI crawler can and cannot read. Then it scores the page and tells you what to fix. First check free."
 >
   <!-- ── hero ───────────────────────────────────────────────── -->
   <section class="hero">
     <div class="wrap herogrid">
       <div class="herocopy">
-        <span class="eyebrow">The AEO audit tool for the new front page of search</span>
+        <span class="eyebrow">The AI page audit &amp; AI site audit tool for the new front page of search</span>
         <h1>See your site the way <em>AI answer engines</em> see it</h1>
         <p>
           Google renders your JavaScript. ChatGPT, Perplexity and Claude don't: they read raw HTML. A page can rank beautifully and still be invisible
-          to every AI answer at the same time. As an AI audit tool built
-          specifically for AEO, we show you which, and why, then exactly what to fix, ranked by impact.
+          to every AI answer at the same time. As an AI page audit tool built
+          specifically for AEO, we show you which, and why, then exactly what to fix, ranked by impact, whether you're checking one page or running a full AI site audit across your key templates.
         </p>
         <div class="herocta">
           <button class="btn-primary lg" id="cta-signup">Start free, no card required</button>

@@ -36,6 +36,18 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Google tag (gtag.js) — product-usage analytics for signed-in pages.
+         These pages carry noindex above, so this has no effect on search.
+         is:inline keeps this literally inline instead of Astro bundling it
+         into a hoisted module chunk. -->
+    <script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-ZG9919Z4CC"></script>
+    <script is:inline>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){window.dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-ZG9919Z4CC');
+    </script>
   </head>
   <body class="appbody">
     <div class="nav">
