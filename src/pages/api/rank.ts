@@ -14,7 +14,7 @@ import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/r
 import { withTenantLock } from '../../lib/rank/lock';
 import { discoverKeywords } from '../../lib/rank/discover';
 import { fetchTrendsScores } from '../../lib/rank/trends';
-import type { Annotation, TrackedApp, TrackerConfig } from '../../lib/rank/types';
+import type { Annotation, TrackedApp, TrackerConfig, RankSnapshot } from '../../lib/rank/types';
 import { parseKeywordsWithVolumes } from '../../lib/rank/keywords';
 import { buildInsights } from '../../lib/rank/insights';
 import { parseReportEmails } from '../../lib/rank/email';
@@ -212,17 +212,9 @@ function statePayload(
       granteeEmail: ws.granteeEmail ?? null,
     });
   }
-  // A custom "from" further back than the default 90/60-day trailing window
-  // needs that many snapshot files actually loaded, or the range filter
-  // below would just find nothing outside that window. `latest`/`covLatest`
-  // (and snapshotDays) are unaffected by loading more — slice(-limit) always
-  // keeps the newest end, a bigger limit only reaches further into the past.
-  // Capped at 2 years so a typo'd ancient date can't force reading the
-  // account's entire history.
-  const daysBack = range?.from ? Math.min(730, Math.max(0, Math.ceil((Date.now() - Date.parse(range.from + 'T00:00:00Z')) / 86400000) + 1)) : 0;
-  const snapshots = loadSnapshots(Math.max(90, daysBack), userId);
+  const snapshots = loadSnapshots(90, userId);
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null;
-  const covSnapshots = loadCoverageSnapshots(Math.max(60, daysBack), userId);
+  const covSnapshots = loadCoverageSnapshots(60, userId);
   const covLatest = covSnapshots.length ? covSnapshots[covSnapshots.length - 1] : null;
   const asoCache = loadAsoCache(userId);
   const ratingHistory = loadRatingHistory(userId);
@@ -232,16 +224,31 @@ function statePayload(
   // mergeSnapshotSets) rather than only the daily or only the coverage
   // snapshots — a keyword in both lists otherwise showed a real rank in one
   // tab and "not checked" in the other purely depending on which check last
-  // touched it.
+  // touched it. Always the default bounded window — widerOverview/trends/
+  // chart/insights below read from THIS, unaffected by the picker, so this
+  // stays exactly as cheap as it was before the timeframe picker existed.
   const merged = mergeSnapshotSets(covSnapshots, snapshots);
   // Ranged views for the chart-facing series only — see the doc comment
-  // above. `rangedDays` is "however many snapshots fall in range" so the
-  // slice(-days) inside overviewSeries/universeSizeSeries is effectively a
-  // no-op on top of the already-filtered list, rather than re-truncating it.
+  // above. The common case (7/30/60/90-day pickers) is a pure in-memory
+  // filter of what's already loaded, no extra disk reads. Only a "from"
+  // that reaches further back than the default window loads MORE, and even
+  // then only that smaller, already-filtered slice gets merged — not the
+  // full wider window — so a client picking an old date doesn't multiply
+  // the (per-app) merge cost by however far back they went. Capped at 2
+  // years so a typo'd ancient date can't force reading the account's
+  // entire history.
   const hasRange = Boolean(range?.from || range?.to);
-  const rangedMerged = hasRange ? snapshotsInRange(merged, range!.from, range!.to) : null;
-  const rangedSnapshots = hasRange ? snapshotsInRange(snapshots, range!.from, range!.to) : null;
-  const rangedCov = hasRange ? snapshotsInRange(covSnapshots, range!.from, range!.to) : null;
+  let rangedMerged: RankSnapshot[] | null = null;
+  let rangedSnapshots: RankSnapshot[] | null = null;
+  let rangedCov: RankSnapshot[] | null = null;
+  if (hasRange) {
+    const daysBack = range!.from ? Math.min(730, Math.max(0, Math.ceil((Date.now() - Date.parse(range!.from + 'T00:00:00Z')) / 86400000) + 1)) : 0;
+    const baseSnapshots = daysBack > snapshots.length ? loadSnapshots(daysBack, userId) : snapshots;
+    const baseCov = daysBack > covSnapshots.length ? loadCoverageSnapshots(daysBack, userId) : covSnapshots;
+    rangedSnapshots = snapshotsInRange(baseSnapshots, range!.from, range!.to);
+    rangedCov = snapshotsInRange(baseCov, range!.from, range!.to);
+    rangedMerged = mergeSnapshotSets(rangedCov, rangedSnapshots);
+  }
   return {
     apps: cfg.apps.map((app) => {
       // 60 days shown on the headline chart (was 30) — a client's rating/
