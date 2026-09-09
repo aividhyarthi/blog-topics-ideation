@@ -81,7 +81,7 @@ const limitsText = product && plan
       .addrow { display: grid; grid-template-columns: 2.2fr 110px 110px; gap: 10px; margin-bottom: 10px; }
       @media (max-width: 760px) { .addrow { grid-template-columns: 1fr; } }
       .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-      button.primary { background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); border-radius: 7px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+      button.primary { background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); border-radius: 999px; padding: 9px 18px; font-size: 13.5px; font-weight: 700; cursor: pointer; }
       button.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
       button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
       button.ghost { background: var(--card2); color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
@@ -309,12 +309,12 @@ const limitsText = product && plan
       .side-app.sub.selected { color: var(--accent-ink); }
       .side-add { display: block; width: 100%; margin-top: 6px; }
       .main-col { min-width: 0; }
-      .toptabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); margin-bottom: 18px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-      .toptabs button { display: flex; align-items: center; gap: 7px; padding: 11px 15px; border: none; background: none; font-size: 13.5px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: inherit; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.12s, border-color 0.12s; }
+      .toptabs { display: flex; gap: 2px; background: var(--card2); border-radius: 999px; padding: 4px; margin-bottom: 18px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .toptabs button { display: flex; align-items: center; gap: 6px; padding: 8px 15px; border: none; background: none; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: inherit; white-space: nowrap; transition: color 0.12s, background 0.12s; }
       .toptabs button:hover { color: var(--ink); }
-      .toptabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
-      .toptabs .cnt { font-size: 10.5px; font-weight: 700; background: var(--card2); color: var(--muted); padding: 1px 6px; border-radius: 999px; }
-      .toptabs button.active .cnt { background: var(--tint); color: var(--accent); }
+      .toptabs button.active { color: var(--accent-ink); background: var(--accent); }
+      .toptabs .cnt { font-size: 10.5px; font-weight: 700; background: var(--card); color: var(--muted); padding: 1px 6px; border-radius: 999px; }
+      .toptabs button.active .cnt { background: rgba(255,255,255,0.18); color: var(--accent-ink); }
       .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 2px 0 12px; }
       .section-head h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
       .section-head .hint { margin: 0; }
@@ -894,8 +894,8 @@ ai photo enhancer"></textarea>
         const y = (v) => padT + plotH - (v / maxY) * plotH;
         const gradId = `visFill${++vizGradSeq}`;
         let out = `<defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.3"/>
-          <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+          <stop offset="0%" stop-color="var(--ok)" stop-opacity="0.25"/>
+          <stop offset="100%" stop-color="var(--ok)" stop-opacity="0"/>
         </linearGradient></defs>`;
         for (const v of [maxY, maxY / 2]) {
           out += `<line x1="${padL}" y1="${y(v)}" x2="${W - 6}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>
@@ -905,7 +905,7 @@ ai photo enhancer"></textarea>
         const d = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
         const areaD = `${d} L${x(vals.length - 1).toFixed(1)},${(padT + plotH).toFixed(1)} L${x(0).toFixed(1)},${(padT + plotH).toFixed(1)} Z`;
         out += `<path d="${areaD}" fill="url(#${gradId})" stroke="none"/>`;
-        out += `<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>`;
+        out += `<path d="${d}" fill="none" stroke="var(--ok)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(days.length / 6);
         days.forEach((day, i) => {
           const isLast = i === days.length - 1;
@@ -918,8 +918,8 @@ ai photo enhancer"></textarea>
           const nc = notCheckedOn(day);
           const totalForDay = day.tracked + nc;
           const lowConfidence = totalForDay > 0 && day.tracked / totalForDay < 0.7;
-          const fill = lowConfidence ? 'var(--card)' : 'var(--accent)';
-          const stroke = lowConfidence ? 'var(--accent)' : 'var(--card)';
+          const fill = lowConfidence ? 'var(--card)' : 'var(--ok)';
+          const stroke = lowConfidence ? 'var(--ok)' : 'var(--card)';
           out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="${isLast ? 4.5 : 2.6}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
           const covRow = totalForDay
             ? `<div class="tt-r"><span>Keywords checked</span><b>${day.tracked} of ${totalForDay}</b></div>`
@@ -1461,6 +1461,7 @@ ai photo enhancer"></textarea>
             ${spikeBannerHtml}
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks)}</div>
           </div>
+          ${keyStatsTilesHtml(app)}
           <div style="max-width:520px;">${ratingPulseHtml(app)}</div>
           ${trendChartsHtml(app)}
           ${categoryChartTrendHtml(app)}
@@ -1473,6 +1474,21 @@ ai photo enhancer"></textarea>
       // "Unranked", which both inflated that bar and dragged the visibility
       // score down — making a throttled store look identical to a real
       // ranking loss. Now they're excluded and stated explicitly instead.
+      // Overview's "Key Statistics" glance row — the same Top-N counts the
+      // Coverage tab already tracks (see coverageHtml), surfaced a tab
+      // earlier so a client sees ranking breadth alongside the visibility
+      // score itself instead of needing to switch tabs for it.
+      function keyStatsTilesHtml(app) {
+        const cov = app.coverageOverview;
+        if (!cov || !cov.total) return '';
+        const c = cov.counts || {}, p = cov.prevCounts || null;
+        return `<div class="tiles">
+          ${tileHtml('Top 10', c.top10, p && p.top10)}
+          ${tileHtml('Top 30', c.top30, p && p.top30)}
+          ${tileHtml('Top 100', c.top100, p && p.top100)}
+        </div>`;
+      }
+
       function coverageNote(days) {
         const today = days && days.length ? days[days.length - 1] : null;
         if (!today) return '';
