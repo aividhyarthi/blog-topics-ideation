@@ -1,0 +1,61 @@
+---
+import Site from '../layouts/Site.astro';
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'AboutPage',
+  mainEntity: {
+    '@type': 'Person',
+    name: 'Rudra Kasturi',
+    sameAs: ['https://linkedin.com/in/rudrakasturi'],
+  },
+};
+---
+<Site
+  schema={schema}
+  title="About | AI Page Audit"
+  description="AI Page Audit is an initiative by AI Vidhyarthi, built by Rudra Kasturi, to help sites see themselves the way AI answer engines actually do."
+>
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">About</span>
+      <h1>Why this exists</h1>
+      <p>Search changed. A page can rank on page one of Google and still be invisible to ChatGPT, Perplexity and Claude, because most AI crawlers read raw HTML and never execute JavaScript. AI Page Audit exists to make that gap checkable, not guessable.</p>
+    </div>
+  </section>
+  <main>
+    <div class="wrap about-layout">
+      <div class="about-body">
+        <h2>An initiative by AI Vidhyarthi</h2>
+        <p>AI Page Audit is built and maintained as an initiative by AI Vidhyarthi. The tool fetches any page exactly as Googlebot, GPTBot, OAI-SearchBot, ClaudeBot and PerplexityBot would, shows what each one actually receives, and scores the page against a <a href="/checklist">published checklist</a> so the score is never a black box.</p>
+
+        <h2>Built by Rudra Kasturi</h2>
+        <p>Rudra Kasturi built and runs AI Page Audit. For background, connect on <a href="https://linkedin.com/in/rudrakasturi" target="_blank" rel="noopener">LinkedIn</a>.</p>
+
+        <h2>Get in touch</h2>
+        <p>For product questions, partnerships, or anything else, the fastest way to reach the team is via <a href="https://linkedin.com/in/rudrakasturi" target="_blank" rel="noopener">LinkedIn</a>.</p>
+      </div>
+      <aside class="about-side">
+        <div class="ctacard">
+          <b>Try it yourself</b>
+          <p>Run a free AEO audit and see exactly what AI crawlers can and can't read on your page.</p>
+          <a class="btn-primary sm" href="/audit">Run a free audit →</a>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <style>
+    .about-layout { display: grid; grid-template-columns: 1fr 280px; gap: 40px; align-items: start; }
+    @media (max-width: 820px) { .about-layout { grid-template-columns: 1fr; } }
+    .about-body { font-size: 16px; line-height: 1.75; color: var(--ink-2); max-width: 68ch; }
+    .about-body h2 { font-size: 22px; font-weight: 800; letter-spacing: -.015em; color: var(--ink); margin: 36px 0 12px; }
+    .about-body h2:first-of-type { margin-top: 0; }
+    .about-body p { margin: 0 0 16px; }
+    .about-body a { color: var(--accent-dark); }
+    .about-side { position: sticky; top: 90px; }
+    .ctacard { border: 1px solid var(--accent-line); background: var(--accent-soft); border-radius: 14px; padding: 20px; }
+    .ctacard b { font-size: 14.5px; display: block; margin-bottom: 8px; }
+    .ctacard p { font-size: 13px; color: var(--ink-2); line-height: 1.6; margin: 0 0 14px; }
+  </style>
+</Site>

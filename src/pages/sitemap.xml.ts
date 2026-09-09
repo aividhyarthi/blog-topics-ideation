@@ -10,6 +10,7 @@ const ROUTES: { path: string; priority: string; changefreq: string }[] = [
   { path: '/checklist', priority: '0.9', changefreq: 'monthly' },
   { path: '/glossary', priority: '0.8', changefreq: 'monthly' },
   { path: '/blog', priority: '0.8', changefreq: 'weekly' },
+  { path: '/about', priority: '0.5', changefreq: 'monthly' },
   { path: '/terms', priority: '0.3', changefreq: 'yearly' },
   { path: '/privacy', priority: '0.3', changefreq: 'yearly' },
   { path: '/refunds', priority: '0.3', changefreq: 'yearly' },

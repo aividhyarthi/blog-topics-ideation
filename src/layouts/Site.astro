@@ -4,14 +4,17 @@
 // App.astro instead, which deliberately drops the marketing footer.
 import '../styles/base.css';
 
-const { title = 'AI Page Audit', description = 'See your site the way AI answer engines see it.', schema } = Astro.props;
+const { title = 'AI Page Audit', description = 'See your site the way AI answer engines see it.', schema, ogImage: ogImageProp, ogType } = Astro.props;
 
 // We audit other people's structured data, so ours has to be right. Every page
 // gets Organization + WebSite; pages pass their own `schema` for the specific
 // type (Article, FAQPage, DefinedTermSet, …).
 const origin = Astro.site?.origin || new URL(Astro.request.url).origin;
 const canonical = new URL(Astro.url.pathname, origin).href;
-const ogImage = `${origin}/og-image.png`;
+// A page (e.g. a blog post) can pass its own share image via ogImage — must
+// be an absolute URL since WhatsApp/Slack/X fetch it directly, not relative
+// to the page. Falls back to the site-wide default.
+const ogImage = ogImageProp || `${origin}/og-image.png`;
 
 const baseSchema = {
   '@context': 'https://schema.org',
@@ -50,7 +53,7 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType || 'website'} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
@@ -78,6 +81,7 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
           <a href="/checklist">Checklist</a>
           <a href="/glossary">Glossary</a>
           <a href="/blog">Blog</a>
+          <a href="/about">About</a>
         </nav>
         <div class="navcta" id="cr-navauth"></div>
       </div>
@@ -90,13 +94,13 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
       <div class="wrap footcols">
         <div class="footbrand">
           <div class="brand"><span class="mark" set:html={MARK} />AI Page Audit</div>
-          <p>See your site the way AI answer engines see it. By Rudra Kasturi Inc.</p>
+          <p>See your site the way AI answer engines see it. An initiative by AI Vidhyarthi, built by <a href="/about">Rudra Kasturi</a>.</p>
         </div>
         <div class="footcol"><b>Product</b><a href="/check">LLM Access Check</a><a href="/audit">Full AEO Audit</a><a href="/pricing">Pricing</a></div>
         <div class="footcol"><b>Resources</b><a href="/checklist">The AEO checklist</a><a href="/glossary">AEO / GEO Glossary</a><a href="/blog">Blog</a></div>
-        <div class="footcol"><b>Legal</b><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/refunds">Refunds &amp; Cancellation</a></div>
+        <div class="footcol"><b>Company</b><a href="/about">About</a><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/refunds">Refunds &amp; Cancellation</a></div>
       </div>
-      <div class="wrap footbottom">© 2026 AI Page Audit · By Rudra Kasturi Inc</div>
+      <div class="wrap footbottom">© 2026 AI Page Audit · An initiative by AI Vidhyarthi · Built by <a href="/about">Rudra Kasturi</a></div>
     </footer>
   </body>
 </html>

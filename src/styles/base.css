@@ -174,6 +174,8 @@ main { padding: 44px 0 64px; }
 @media (max-width: 720px) { .footcols { grid-template-columns: 1fr 1fr; } }
 .footbrand .brand { color: #fff; margin-bottom: 12px; }
 .footbrand p { font-size: 13px; color: #94a3b8; line-height: 1.6; max-width: 34ch; margin: 0; }
+.footbrand p a, .footbottom a { color: #cbd5e1; }
+.footbrand p a:hover, .footbottom a:hover { color: #fff; }
 .footcol { display: flex; flex-direction: column; gap: 10px; }
 .footcol b { color: #fff; font-size: 13px; margin-bottom: 3px; }
 .footcol a { color: #cbd5e1; text-decoration: none; font-size: 13px; }
