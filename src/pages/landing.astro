@@ -11,7 +11,7 @@ import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../components/AdSenseMeta.astro';
 import Icon from '../components/Icon.astro';
 import SiteFooter from '../components/SiteFooter.astro';
-const user = Astro.locals.user;
+import SiteHeader from '../components/SiteHeader.astro';
 
 const latestPosts = (await getCollection('blog'))
   .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
@@ -71,21 +71,6 @@ const softwareAppJsonLd = {
       * { box-sizing: border-box; }
       body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: var(--ink); background: #fff; line-height: 1.6; }
       .wrap { max-width: 1160px; margin: 0 auto; padding: 0 22px; }
-
-      /* Black top strip, same pattern as the other AppStudioX tools —
-         brand + nav on a black bar, full-bleed, content still capped to
-         the page's max-width inside it. */
-      header.topstrip { background: #16181d; }
-      header.topstrip .wrap { display: flex; align-items: center; justify-content: space-between; padding: 13px 22px; flex-wrap: wrap; gap: 10px; }
-      .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 16px; letter-spacing: -0.02em; text-decoration: none; color: #fff; }
-      .logo .mark { width: 24px; height: 24px; border-radius: 7px; background: #fff; color: #16181d; display: grid; place-items: center; font-size: 10px; font-weight: 800; letter-spacing: -0.03em; }
-      .navlinks { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
-      .navlinks .tlink { color: #9ca3af; text-decoration: none; font-size: 13.5px; font-weight: 600; }
-      .navlinks .tlink:hover { color: #fff; }
-      .navlinks .tmail { color: #6b7280; font-size: 12.5px; font-weight: 600; max-width: 32vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .topstrip .btn { text-decoration: none; font-weight: 700; font-size: 13.5px; border-radius: 8px; padding: 8px 15px; white-space: nowrap; display: inline-block; }
-      .topstrip .btn.primary { background: #fff; color: #16181d; }
-      .topstrip .btn.primary:hover { background: #d1d5db; }
 
       .btn { text-decoration: none; font-weight: 700; font-size: 14px; border-radius: 10px; padding: 10px 18px; white-space: nowrap; display: inline-block; }
       .btn.primary { background: var(--pink); color: #fff; }
@@ -162,19 +147,7 @@ const softwareAppJsonLd = {
     </style>
   </head>
   <body>
-    <header class="topstrip">
-      <div class="wrap">
-        <a class="logo" href="/"><span class="mark">AR</span>{BRAND}</a>
-        <div class="navlinks">
-          <a class="tlink" href="#features">Features</a>
-          <a class="tlink" href="/blog">Blog</a>
-          <a class="tlink" href="/about">About</a>
-          {user
-            ? <><span class="tmail">{user.email}</span><a class="btn primary" href="/rank">Dashboard</a><a class="tlink" href="#" id="topsignout">Sign out</a></>
-            : <><a class="tlink" href="/login">Log in</a><a class="btn primary" href="/signup">Start free trial</a></>}
-        </div>
-      </div>
-    </header>
+    <SiteHeader active="features" />
     <div class="wrap">
       <section class="hero">
         <div>
@@ -331,13 +304,5 @@ const softwareAppJsonLd = {
     </div>
 
     <SiteFooter />
-    <script>
-      const topSignout = document.getElementById('topsignout');
-      if (topSignout) topSignout.addEventListener('click', async (e) => {
-        e.preventDefault();
-        await fetch('/api/auth/logout', { method: 'POST' });
-        location.href = '/';
-      });
-    </script>
   </body>
 </html>

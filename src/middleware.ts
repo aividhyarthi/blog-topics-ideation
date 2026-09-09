@@ -73,7 +73,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
     // fetch()es agree without every call having to pass it explicitly.
     context.locals.wsMode = readCookie(cookieHeader, 'ws_mode') === 'shared' ? 'shared' : undefined;
 
-    if (path === '/') return next('/landing'); // rewrite: landing page is the storefront
+    // Default landing spot: signed-in visitors always land on their home dashboard,
+    // not the anonymous storefront pitch — everyone else sees the storefront.
+    if (path === '/') return next(user ? '/welcome' : '/landing');
     if (PUBLIC_PREFIXES.some(matches)) return next();
 
     if (!user) {

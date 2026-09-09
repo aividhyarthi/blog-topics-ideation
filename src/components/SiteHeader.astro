@@ -1,0 +1,57 @@
+---
+// Shared top nav strip for SERVER-RENDERED marketing pages (landing.astro,
+// about.astro) — these already have Astro.locals.user directly, unlike the
+// prerendered blog pages (see BlogTopNav.astro, which does the same job via
+// a client-side /api/auth/me fetch since it can't read locals at build
+// time). Same black-strip look either way — one nav across the whole site.
+import { BRAND } from '../lib/saas/plans';
+interface Props { active?: 'features' | 'blog' | 'about' }
+const { active } = Astro.props as Props;
+const user = Astro.locals.user;
+---
+<header class="sh-top">
+  <a class="sh-logo" href="/"><span class="sh-mark">AR</span>{BRAND}</a>
+  <div class="sh-navlinks">
+    <a class="sh-plain" class:list={[active === 'features' && 'sh-active']} href="/#features">Features</a>
+    <a class="sh-plain" class:list={[active === 'blog' && 'sh-active']} href="/blog">Blog</a>
+    <a class="sh-plain" class:list={[active === 'about' && 'sh-active']} href="/about">About</a>
+    {user ? (
+      <>
+        <span class="sh-mail">{user.email}</span>
+        <a class="sh-btn" href="/welcome">Dashboard</a>
+        <a class="sh-plain" href="#" id="sh-signout">Sign out</a>
+      </>
+    ) : (
+      <>
+        <a class="sh-plain" href="/login">Log in</a>
+        <a class="sh-btn" href="/signup">Start free trial</a>
+      </>
+    )}
+  </div>
+</header>
+
+<style>
+  :where(.sh-top) {
+    background: #16181d;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 22px; max-width: 1160px; margin: 0 auto; flex-wrap: wrap; gap: 10px;
+  }
+  .sh-logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 16px; letter-spacing: -0.02em; text-decoration: none; color: #fff; }
+  .sh-mark { width: 24px; height: 24px; border-radius: 7px; background: #fff; color: #16181d; display: grid; place-items: center; font-size: 10px; font-weight: 800; letter-spacing: -0.03em; }
+  .sh-navlinks { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .sh-plain { color: #9ca3af; text-decoration: none; font-size: 13.5px; font-weight: 600; }
+  .sh-plain:hover { color: #fff; }
+  .sh-plain.sh-active { color: #fff; }
+  .sh-mail { color: #6b7280; font-size: 12.5px; font-weight: 600; max-width: 32vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-btn { text-decoration: none; font-weight: 700; font-size: 13.5px; border-radius: 8px; padding: 8px 15px; background: #fff; color: #16181d; white-space: nowrap; display: inline-block; }
+  .sh-btn:hover { background: #d1d5db; }
+</style>
+
+<script>
+  const signout = document.getElementById('sh-signout');
+  if (signout) signout.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await fetch('/api/auth/logout', { method: 'POST' });
+    location.href = '/';
+  });
+</script>
