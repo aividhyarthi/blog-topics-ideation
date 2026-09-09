@@ -57,6 +57,16 @@ export async function auditHistoryByUrl(userId: string, url: string, currentScor
   } catch { return []; }
 }
 
+export async function countAuditsSince(userId: string, sinceIso: string): Promise<number> {
+  if (!dbEnabled) return 0;
+  try {
+    const { rows } = await query<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM audits WHERE user_id = $1 AND created_at >= $2', [userId, sinceIso],
+    );
+    return Number(rows[0]?.n ?? 0);
+  } catch { return 0; }
+}
+
 export async function getAudit(userId: string, id: string): Promise<{ report: any; meta: any } | null> {
   const { rows } = await query<any>(
     'SELECT report, meta FROM audits WHERE id = $1 AND user_id = $2', [id, userId],

@@ -2,13 +2,15 @@
 // The post-login landing page. A hard redirect target after every
 // login/signup (see citerank-auth.js and audit.astro's own auth modal) so a
 // signed-in visitor always lands somewhere personal before picking a tool,
-// rather than being dropped straight into a blank form.
+// rather than being dropped straight into a blank form. Wrapped in the same
+// App shell (nav + tab bar) as every other signed-in page — this is content
+// inside the workspace, not a standalone page.
 import App from '../layouts/App.astro';
 import { getUser, displayNameFromEmail } from '../lib/auth';
 import { dbEnabled } from '../lib/db';
 import { usageStatus } from '../lib/billing';
-import { listAudits, auditHistoryByUrl } from '../lib/audits';
-import { lastCheck } from '../lib/checks';
+import { listAudits, auditHistoryByUrl, getAudit, countAuditsSince } from '../lib/audits';
+import { lastCheck, countChecksSince } from '../lib/checks';
 import { SCORING_VERSION } from '../lib/aeo';
 
 const user = await getUser(Astro as any);
@@ -19,36 +21,25 @@ const usage = await usageStatus(user.id).catch(() => null);
 const recentAudits = await listAudits(user.id, 3).catch(() => []);
 const latestAudit = recentAudits[0] || null;
 const latestCheck = await lastCheck(user.id).catch(() => null);
+const isReturning = recentAudits.length > 0 || latestCheck !== null;
 
 let scoreDelta: number | null = null;
+let sparkline: number[] = [];
 if (latestAudit?.url && latestAudit.overall != null) {
-  const hist = await auditHistoryByUrl(user.id, latestAudit.url, SCORING_VERSION, 2).catch(() => []);
+  const hist = await auditHistoryByUrl(user.id, latestAudit.url, SCORING_VERSION, 6).catch(() => []);
+  sparkline = hist.map((h) => h.overall);
   if (hist.length >= 2) scoreDelta = hist[hist.length - 1].overall - hist[0].overall;
 }
 
-const isReturning = recentAudits.length > 0 || latestCheck !== null;
+const fullLatestAudit = latestAudit ? await getAudit(user.id, latestAudit.id).catch(() => null) : null;
+const openFixes: number = fullLatestAudit?.report?.topFixes?.length ?? 0;
 
-// Deterministic per user per day — varies visit to visit across days without
-// flickering between two different greetings on back-to-back page loads in
-// the same sitting (which would just read as buggy, not warm).
-const RETURNING_GREETINGS = [
-  `Welcome back, ${name}.`,
-  `Good to see you again, ${name}.`,
-  `Hey ${name}, welcome back.`,
-  `Welcome back, ${name} — let's pick up where you left off.`,
-  `Good to have you back, ${name}.`,
-];
-const NEW_GREETINGS = [
-  `Welcome, ${name}.`,
-  `Hey ${name}, glad you're here.`,
-  `Welcome aboard, ${name}.`,
-  `Great to have you, ${name}.`,
-];
-const pool = isReturning ? RETURNING_GREETINGS : NEW_GREETINGS;
-const dayKey = new Date().toISOString().slice(0, 10) + user.id;
-let hash = 0;
-for (let i = 0; i < dayKey.length; i++) hash = (hash * 31 + dayKey.charCodeAt(i)) >>> 0;
-const greeting = pool[hash % pool.length];
+const sevenDaysAgoIso = new Date(Date.now() - 7 * 86_400_000).toISOString();
+const [auditsThisWeek, checksThisWeek] = await Promise.all([
+  countAuditsSince(user.id, sevenDaysAgoIso).catch(() => 0),
+  countChecksSince(user.id, sevenDaysAgoIso).catch(() => 0),
+]);
+const activityThisWeek = auditsThisWeek + checksThisWeek;
 
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -63,27 +54,196 @@ function timeAgo(iso: string): string {
 }
 function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75) return '#12855a'; if (s >= 45) return '#b7791f'; return '#d43a3a'; }
 
+// ---- Greeting: time-of-day flavoured for a returning visitor, simpler for
+// a brand-new one. Server-clock-based, so the "late night" framing is a
+// nice-to-have flourish rather than something precision-timed. Picked
+// deterministically per user per day so it varies day to day without
+// flickering between two different greetings on back-to-back loads.
+const hour = new Date().getHours();
+const bucket = hour < 5 ? 'late' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 21 ? 'evening' : 'night';
+const RETURNING: Record<string, { h: string; sub: string }[]> = {
+  late: [
+    { h: `Still up, ${name}?`, sub: "Most people are asleep — here's what's changed since your last check." },
+    { h: `Burning the midnight oil, ${name}?`, sub: 'Either way, here\'s what happened while you were away.' },
+  ],
+  morning: [
+    { h: `Morning, ${name}.`, sub: "Here's where things stand before you dive in." },
+    { h: `Good morning, ${name}.`, sub: "Here's a quick look at what changed." },
+  ],
+  afternoon: [
+    { h: `Afternoon, ${name}.`, sub: "Here's your latest snapshot." },
+    { h: `Hey ${name}, welcome back.`, sub: "Here's what's changed since last time." },
+  ],
+  evening: [
+    { h: `Evening, ${name}.`, sub: 'Wrapping up for the day? Here\'s where things stand.' },
+    { h: `Hey ${name}, welcome back.`, sub: "Here's what's changed since last time." },
+  ],
+  night: [
+    { h: `Hey ${name}, working late?`, sub: "Here's what's changed since your last check." },
+    { h: `Welcome back, ${name}.`, sub: "Here's tonight's snapshot." },
+  ],
+};
+const NEW_GREETINGS = [
+  { h: `Welcome, ${name}.`, sub: "Let's run your first check." },
+  { h: `Hey ${name}, glad you're here.`, sub: "Let's see what AI engines can read on your site." },
+  { h: `Welcome aboard, ${name}.`, sub: "Paste a URL and get your first read in about 20 seconds." },
+];
+const pool = isReturning ? RETURNING[bucket] : NEW_GREETINGS;
+const dayKey = new Date().toISOString().slice(0, 10) + user.id;
+let hash = 0;
+for (let i = 0; i < dayKey.length; i++) hash = (hash * 31 + dayKey.charCodeAt(i)) >>> 0;
+const { h: greetHeadline, sub: greetSub } = pool[hash % pool.length];
+
+const today = new Date();
+const weekAgo = new Date(sevenDaysAgoIso);
+const dateRange = `${weekAgo.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+
 const planLine = !usage ? ''
   : usage.owner ? "You're the owner — unlimited, unmetered access."
-  : usage.plan === 'pro' ? `You're on Pro — ${usage.planUsed}/${usage.planLimit} checks used this month.`
-  : usage.freeCheckAvailable ? "You're on the free plan, with your first check still unused."
-  : usage.credits > 0 ? `You're on the free plan, with ${usage.credits} credit${usage.credits === 1 ? '' : 's'} left.`
-  : "You're out of checks right now — buy a pack or subscribe to keep going.";
+  : usage.plan === 'pro' ? `Pro — ${usage.planUsed}/${usage.planLimit} checks used this month.`
+  : usage.freeCheckAvailable ? 'Free plan — your first check is still unused.'
+  : usage.credits > 0 ? `Free plan — ${usage.credits} credit${usage.credits === 1 ? '' : 's'} left.`
+  : "You're out of checks — buy a pack or subscribe to keep going.";
 
-// Most recent URL between the audit and the check, whichever is newer — used
-// to prefill the tools via the same sessionStorage key they already read.
+// ---- "Did you know?" — small, real, data-driven insight cards that link
+// into the blog rather than generic filler. Picks from whichever templates
+// actually apply to this account's real state, falling back to the
+// always-true basics so there are always at least two.
+type Insight = { tag: string; tone: 'bad' | 'ok' | 'neutral'; h: string; body: string; href: string };
+const insightPool: Insight[] = [];
+if (latestCheck?.verdict === 'no') {
+  insightPool.push({
+    tag: 'Content may be invisible', tone: 'bad',
+    h: 'Google sees your page. ChatGPT might not.',
+    body: 'Your last access check flagged a gap between what Googlebot and what AI crawlers actually receive — here\'s what that breaks and how to check for it.',
+    href: '/blog/how-to-audit-a-page-for-ai-citation',
+  });
+}
+if (scoreDelta !== null && scoreDelta < 0) {
+  insightPool.push({
+    tag: 'Your score dipped', tone: 'bad',
+    h: 'Your AEO score dropped since last time',
+    body: `Down ${Math.abs(scoreDelta)} points. A drop like this usually traces back to one or two specific checks — here's how to find which ones.`,
+    href: '/blog/how-to-audit-a-page-for-ai-citation',
+  });
+}
+if (openFixes >= 4) {
+  insightPool.push({
+    tag: `${openFixes} open fixes`, tone: 'neutral',
+    h: 'Not every fix matters equally',
+    body: 'Your last report has several open items — working them in the wrong order wastes effort. Here\'s how to prioritize.',
+    href: '/blog/how-to-audit-a-page-for-ai-citation',
+  });
+}
+if (scoreDelta !== null && scoreDelta > 0) {
+  insightPool.push({
+    tag: 'Trending up', tone: 'ok',
+    h: 'Your score is climbing',
+    body: `Up ${scoreDelta} points since last time. Re-checking after every fix is what keeps it moving in the right direction.`,
+    href: '/blog/how-to-audit-a-page-for-ai-citation',
+  });
+}
+insightPool.push({
+  tag: 'Good to know', tone: 'neutral',
+  h: "AEO isn't just SEO with a new name",
+  body: 'If you\'re wondering how this relates to your existing SEO work, here\'s the actual difference.',
+  href: '/blog/aeo-vs-seo-vs-geo',
+});
+insightPool.push({
+  tag: 'The basics', tone: 'neutral',
+  h: 'New to AEO? Start here',
+  body: 'A quick, practical primer on what Answer Engine Optimization actually means and why it changed.',
+  href: '/blog/what-is-aeo',
+});
+const insights = insightPool.slice(0, 2);
+
 const candidates = [
   latestAudit?.url && latestAudit.createdAt ? { url: latestAudit.url, at: latestAudit.createdAt } : null,
   latestCheck?.url && latestCheck.createdAt ? { url: latestCheck.url, at: latestCheck.createdAt } : null,
 ].filter(Boolean) as { url: string; at: string }[];
 candidates.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 const lastUrl = candidates[0]?.url || null;
+
+function sparkPath(vals: number[]): string {
+  if (vals.length < 2) return '';
+  const w = 64, h = 22, min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
+  return vals.map((v, i) => {
+    const x = (i / (vals.length - 1)) * w;
+    const y = h - ((v - min) / span) * h;
+    return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+}
 ---
 <App tab="home" title="Home — AI Page Audit" description="Your AI visibility workspace.">
-  <section class="greethero">
+  <section class="hometop">
     <div class="wrap">
-      <h1>{greeting}</h1>
-      <p class="greetsub">{planLine}</p>
+      <div class="greetcard">
+        <div class="greetbrand">AI PAGE AUDIT</div>
+        <h1>{greetHeadline}</h1>
+        <p>{greetSub}</p>
+        {isReturning && <span class="greetchip">{dateRange}</span>}
+      </div>
+
+      {isReturning && (
+        <>
+          <div class="snaphead">
+            <span>7-day snapshot</span>
+          </div>
+          <div class="snapgrid">
+            <a class="snapcard" href={latestAudit ? `/audit?view=${latestAudit.id}` : '/audit'}>
+              <div class="snaplabel">Latest AEO score</div>
+              <div class="snaprow">
+                <span class="snapnum" style={`color:${hexFor(latestAudit?.overall ?? null)}`}>{latestAudit?.overall ?? '–'}</span>
+                {scoreDelta !== null && (
+                  <span class={`snapdelta ${scoreDelta > 0 ? 'up' : scoreDelta < 0 ? 'down' : ''}`}>{scoreDelta > 0 ? `▲ ${scoreDelta}` : scoreDelta < 0 ? `▼ ${Math.abs(scoreDelta)}` : '–'}</span>
+                )}
+              </div>
+              {sparkline.length >= 2 && (
+                <svg class="spark" viewBox="0 0 64 22"><path d={sparkPath(sparkline)} fill="none" stroke={scoreDelta !== null && scoreDelta < 0 ? '#d43a3a' : '#12855a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              )}
+              <div class="snapcap">{latestAudit ? `Since ${timeAgo(latestAudit.createdAt)}` : 'No audit yet'}</div>
+            </a>
+
+            <div class="snapcard nolink">
+              <div class="snaplabel">Open fixes</div>
+              <div class="snaprow"><span class="snapnum">{fullLatestAudit ? openFixes : '–'}</span></div>
+              <div class="snapcap">{fullLatestAudit ? 'From your last report' : 'Run an audit to see fixes'}</div>
+            </div>
+
+            <div class="snapcard nolink">
+              <div class="snaplabel">Activity this week</div>
+              <div class="snaprow"><span class="snapnum">{activityThisWeek}</span></div>
+              <div class="snapcap">{auditsThisWeek} audit{auditsThisWeek === 1 ? '' : 's'} · {checksThisWeek} check{checksThisWeek === 1 ? '' : 's'}</div>
+            </div>
+
+            <a class="snapcard" href="/check">
+              <div class="snaplabel">Crawler access</div>
+              <div class="snaprow">
+                <span class={`snapstatus ${latestCheck?.verdict === 'yes' ? 'ok' : latestCheck?.verdict === 'no' ? 'bad' : latestCheck ? 'warn' : ''}`}>
+                  {latestCheck?.verdict === 'yes' ? 'Readable' : latestCheck?.verdict === 'no' ? 'Blocked' : latestCheck?.verdict === 'partial' ? 'Partial' : '–'}
+                </span>
+              </div>
+              <div class="snapcap">{latestCheck ? `Checked ${timeAgo(latestCheck.createdAt)}` : 'No access check yet'}</div>
+            </a>
+          </div>
+
+          <div class="dykhead">
+            <span>Did you know?</span>
+            <span class="dyksub">Picked from what's actually true of your account</span>
+          </div>
+          <div class="dykgrid">
+            {insights.map((ins) => (
+              <a class="dykcard" href={ins.href}>
+                <span class={`dyktag ${ins.tone}`}>{ins.tag}</span>
+                <div class="dykeyebrow">Did you know?</div>
+                <h3>{ins.h}</h3>
+                <p>{ins.body}</p>
+                <span class="t-go">Read the post →</span>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   </section>
 
@@ -109,11 +269,6 @@ const lastUrl = candidates[0]?.url || null;
                   <div class="recap-body">
                     <div class="recap-top"><b>Full AEO Audit</b><span class="recap-when">{timeAgo(latestAudit.createdAt)}</span></div>
                     <div class="recap-url">{latestAudit.host || latestAudit.url || 'Pasted content'}</div>
-                    {scoreDelta !== null && (
-                      <div class={`recap-delta ${scoreDelta > 0 ? 'up' : scoreDelta < 0 ? 'down' : ''}`}>
-                        {scoreDelta > 0 ? `+${scoreDelta} pts since your check before that` : scoreDelta < 0 ? `${scoreDelta} pts since your check before that` : 'Unchanged since your check before that'}
-                      </div>
-                    )}
                   </div>
                   <span class="recap-go">View report →</span>
                 </a>
@@ -129,7 +284,6 @@ const lastUrl = candidates[0]?.url || null;
                   <span class="recap-go">Check again →</span>
                 </a>
               )}
-              {!latestAudit && !latestCheck && <p class="empty">No saved checks yet.</p>}
             </div>
 
             {lastUrl && (
@@ -170,6 +324,18 @@ const lastUrl = candidates[0]?.url || null;
         )}
       </div>
     </div>
+
+    {isReturning && (
+      <div class="wrap">
+        <div class="ctabar">
+          <div>
+            <b>Ready to dig into the details?</b>
+            <p>Full history, every saved audit, and your plan — all in one place.</p>
+          </div>
+          <a class="btn-primary" href="/dashboard">Go to my reports →</a>
+        </div>
+      </div>
+    )}
   </main>
 
   <script define:vars={{ lastUrl }}>
@@ -200,12 +366,53 @@ const lastUrl = candidates[0]?.url || null;
   </script>
 
   <style>
-    .greethero { background: #fff; border-bottom: 1px solid var(--line); }
-    .greethero .wrap { padding: 34px 24px 26px; }
-    .greethero h1 { margin: 0 0 6px; font-size: 27px; font-weight: 800; letter-spacing: -.02em; }
-    .greetsub { margin: 0; font-size: 14.5px; color: var(--muted); }
+    .hometop { background: #fff; border-bottom: 1px solid var(--line); padding: 28px 0 34px; }
+
+    .greetcard {
+      position: relative; overflow: hidden;
+      background: var(--ink-900); color: #fff; border-radius: 20px;
+      padding: 30px 32px 26px;
+    }
+    .greetbrand { font-size: 11px; font-weight: 800; letter-spacing: .12em; color: #94a3b8; margin-bottom: 12px; }
+    .greetcard h1 { margin: 0 0 8px; font-size: 26px; font-weight: 800; letter-spacing: -.02em; color: #fff; }
+    .greetcard p { margin: 0; font-size: 14.5px; color: #cbd5e1; max-width: 52ch; }
+    .greetchip { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; font-size: 12px; font-weight: 700; color: #e2e8f0; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); padding: 6px 13px; border-radius: 999px; }
+
+    .snaphead, .dykhead { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; }
+    .snaphead span, .dykhead span:first-child { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .dyksub { font-size: 12px; color: var(--faint); }
+
+    .snapgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    @media (max-width: 900px) { .snapgrid { grid-template-columns: repeat(2, 1fr); } }
+    .snapcard { display: block; border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 16px 18px; text-decoration: none; color: inherit; transition: border-color .15s, transform .15s; }
+    .snapcard:not(.nolink):hover { border-color: var(--accent); transform: translateY(-2px); }
+    .snaplabel { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+    .snaprow { display: flex; align-items: baseline; gap: 8px; }
+    .snapnum { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+    .snapdelta { font-size: 12px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: #eef0f5; color: var(--muted); }
+    .snapdelta.up { background: var(--ok-bg); color: var(--ok); }
+    .snapdelta.down { background: var(--bad-bg); color: var(--bad); }
+    .snapstatus { font-size: 18px; font-weight: 800; color: var(--muted); }
+    .snapstatus.ok { color: var(--ok); }
+    .snapstatus.bad { color: var(--bad); }
+    .snapstatus.warn { color: var(--warn); }
+    .spark { display: block; width: 64px; height: 22px; margin-top: 6px; }
+    .snapcap { font-size: 11.5px; color: var(--faint); margin-top: 8px; }
+
+    .dykgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    @media (max-width: 720px) { .dykgrid { grid-template-columns: 1fr; } }
+    .dykcard { display: block; border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 18px 20px; text-decoration: none; color: inherit; transition: border-color .15s, transform .15s; }
+    .dykcard:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .dyktag { display: inline-block; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; background: #eef0f5; color: var(--muted); margin-bottom: 10px; }
+    .dyktag.bad { background: var(--bad-bg); color: var(--bad); }
+    .dyktag.ok { background: var(--ok-bg); color: var(--ok); }
+    .dykeyebrow { font-size: 11px; font-weight: 700; color: var(--faint); margin-bottom: 4px; }
+    .dykcard h3 { margin: 0 0 8px; font-size: 15.5px; font-weight: 800; letter-spacing: -.01em; color: var(--ink); line-height: 1.35; }
+    .dykcard p { margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+    .dykcard .t-go { font-size: 12px; font-weight: 700; color: var(--accent); }
+
     main { padding: 26px 0 56px; }
-    .homegrid { display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: start; }
+    .homegrid { display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: start; margin-bottom: 24px; }
     @media (max-width: 820px) { .homegrid { grid-template-columns: 1fr; } }
     .homemain { display: grid; gap: 16px; }
     .homeside { display: grid; gap: 16px; }
@@ -227,12 +434,8 @@ const lastUrl = candidates[0]?.url || null;
     .recap-top b { font-size: 14px; }
     .recap-when { font-size: 11.5px; color: var(--faint); }
     .recap-url { font-size: 13px; color: var(--ink-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .recap-delta { font-size: 12px; font-weight: 700; margin-top: 4px; color: var(--muted); }
-    .recap-delta.up { color: var(--ok); }
-    .recap-delta.down { color: var(--bad); }
     .recap-verdict { font-size: 12px; color: var(--muted); margin-top: 4px; }
     .recap-go { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; flex: none; }
-    .empty { font-size: 13.5px; color: var(--muted); margin: 0; }
 
     .preflight-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
     .preflight-row b { font-size: 14.5px; }
@@ -249,5 +452,9 @@ const lastUrl = candidates[0]?.url || null;
     .sidelink span { display: block; font-size: 11.5px; color: var(--muted); font-weight: 500; margin-top: 2px; }
     .sidelink:hover { color: var(--accent); }
     .sidenote { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+
+    .ctabar { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 22px 26px; }
+    .ctabar b { font-size: 15.5px; }
+    .ctabar p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
   </style>
 </App>

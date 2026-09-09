@@ -21,6 +21,16 @@ export async function saveCheck(userId: string, report: any): Promise<string | n
   } catch { return null; }
 }
 
+export async function countChecksSince(userId: string, sinceIso: string): Promise<number> {
+  if (!dbEnabled) return 0;
+  try {
+    const { rows } = await query<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM checks WHERE user_id = $1 AND created_at >= $2', [userId, sinceIso],
+    );
+    return Number(rows[0]?.n ?? 0);
+  } catch { return 0; }
+}
+
 export async function lastCheck(userId: string): Promise<CheckSummary | null> {
   if (!dbEnabled) return null;
   try {
