@@ -56,24 +56,32 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
         <div class="navcta">
           <span class="usagepill" id="usagepill" hidden></span>
           <a href="/blog" class="applink">Blog</a>
-          <a href="/pricing" class="applink">Plan &amp; billing</a>
-          <span id="cr-navauth"></span>
         </div>
       </div>
     </div>
 
     <div class="appshell">
       <nav class="sidenav" role="tablist" aria-label="Sections">
-        {TABS.map((t) => (
-          <a
-            href={t.href}
-            class:list={['apptab', tab === t.id && 'on']}
-            aria-current={tab === t.id ? 'page' : undefined}
-          >
-            <span class="t-label">{t.label}</span>
-            <span class="t-hint">{t.hint}</span>
-          </a>
-        ))}
+        <div class="sidetabs">
+          {TABS.map((t) => (
+            <a
+              href={t.href}
+              class:list={['apptab', tab === t.id && 'on']}
+              aria-current={tab === t.id ? 'page' : undefined}
+            >
+              <span class="t-label">{t.label}</span>
+              <span class="t-hint">{t.hint}</span>
+            </a>
+          ))}
+        </div>
+        <!-- Account area: pinned to the bottom of the sidebar (margin-top:
+             auto in a column flex container) rather than the top nav, so the
+             nav bar itself stays uncluttered — plan/billing, the signed-in
+             email and sign-out live with the rest of account-scoped nav. -->
+        <div class="sidefoot">
+          <a href="/pricing" class="sidefoot-link">Plan &amp; billing</a>
+          <span id="cr-navauth"></span>
+        </div>
       </nav>
       <div class="appmain">
         <slot />
@@ -145,11 +153,12 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
          fixed-width side rail would eat too much of a phone's screen. */
       .appshell { flex: 1 0 auto; display: flex; align-items: flex-start; width: 100%; }
       .sidenav {
-        flex: none; width: 236px; display: flex; flex-direction: column; gap: 2px;
+        flex: none; width: 236px; display: flex; flex-direction: column;
         background: #fff; border-right: 1px solid var(--line);
         position: sticky; top: 60px; padding: 14px 10px;
         min-height: calc(100vh - 60px);
       }
+      .sidetabs { display: flex; flex-direction: column; gap: 2px; }
       .appmain { flex: 1; min-width: 0; }
 
       .apptab {
@@ -163,17 +172,45 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
       .apptab.on { color: var(--accent); background: var(--accent-soft); border-left-color: var(--accent); }
       .apptab.on .t-hint { color: var(--accent); opacity: .75; }
 
+      /* Account area, pinned to the bottom of the sidebar (see App.astro's
+         comment above the markup). Stacked, not the horizontal row #cr-navauth
+         uses in the top nav elsewhere — a lot narrower here than a full-width
+         nav bar. */
+      .sidefoot { margin-top: auto; padding: 14px 13px 4px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+      .sidefoot-link { font-size: 13px; font-weight: 700; color: var(--ink-2); text-decoration: none; }
+      .sidefoot-link:hover { color: var(--accent); }
+      .sidefoot #cr-navauth { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .sidefoot .cra-email { max-width: none; }
+      .sidefoot .cra-btn { width: 100%; justify-content: center; }
+
       @media (max-width: 780px) {
         .appshell { flex-direction: column; }
         .sidenav {
-          flex-direction: row; width: 100%; align-self: auto; position: sticky; top: 60px; z-index: 30;
+          flex-direction: row; align-items: center; width: 100%; align-self: auto; position: sticky; top: 60px; z-index: 30;
           border-right: none; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none;
-          padding: 0; gap: 4px;
+          padding: 0; min-height: 0;
         }
         .sidenav::-webkit-scrollbar { display: none; }
+        /* flex-shrink: 0 on both — without it, .sidetabs (no explicit
+           shrink) got squeezed by flexbox to fit next to .sidefoot's full
+           natural width, but its own tab labels didn't actually shrink to
+           match, so the last tab visually overflowed its compressed box
+           and sat on top of "Plan & billing". Letting both keep their
+           natural width means the row is wider than the phone screen, which
+           is fine — that's what overflow-x: auto on .sidenav is for. */
+        .sidetabs { flex-direction: row; gap: 4px; flex-shrink: 0; }
         .apptab { flex: none; padding: 13px 16px 12px; border-left: none; border-bottom: 2.5px solid transparent; border-radius: 0; }
         .apptab.on { background: transparent; border-left-color: transparent; border-bottom-color: var(--accent); }
         .apptab .t-hint { display: none; }
+        /* No "bottom" in a horizontal strip — sits inline after the tabs instead. */
+        /* Flows after the tabs in the same horizontal scroller, not pinned
+           via margin-left:auto — that fights with overflow-x:auto and
+           overlapped the last tab instead of scrolling into view after it. */
+        .sidefoot { margin-top: 0; padding: 0 14px; border-top: none; border-left: 1px solid var(--line); flex-direction: row; align-items: center; flex: none; }
+        .sidefoot-link { white-space: nowrap; }
+        .sidefoot #cr-navauth { flex-direction: row; align-items: center; }
+        .sidefoot .cra-email { max-width: 120px; }
+        .sidefoot .cra-btn { width: auto; }
       }
 
       /* Slim, functional footer — the marketing one has no place in a

@@ -55,49 +55,58 @@ function timeAgo(iso: string): string {
 function hexFor(s: number | null) { if (s == null) return '#94a3b8'; if (s >= 75) return '#12855a'; if (s >= 45) return '#b7791f'; return '#d43a3a'; }
 
 // ---- Greeting: time-of-day flavoured for a returning visitor, simpler for
-// a brand-new one. Server-clock-based, so the "late night" framing is a
-// nice-to-have flourish rather than something precision-timed. Picked
-// deterministically per user per day so it varies day to day without
-// flickering between two different greetings on back-to-back loads.
+// a brand-new one. Server-clock-based, so the framing is a nice-to-have
+// flourish rather than something precision-timed. Picked fresh at random on
+// every load (not stabilized per day) — the whole point is that it doesn't
+// read like the same canned line every time.
 const hour = new Date().getHours();
 const bucket = hour < 5 ? 'late' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 21 ? 'evening' : 'night';
 const RETURNING: Record<string, { h: string; sub: string }[]> = {
   late: [
-    { h: `Still up, ${name}?`, sub: "The internet doesn't sleep, and neither does your score. Here's where things stand." },
-    { h: `Burning the midnight oil, ${name}?`, sub: "Whatever's keeping you up, here's what happened while you were away." },
-    { h: `Quiet hours, ${name}.`, sub: 'Good time to think clearly. Here\'s your latest snapshot.' },
+    { h: `Not sleeping, ${name}?`, sub: "Deep in thought, or just doomscrolling your own scores? Either way, here's where things stand." },
+    { h: `3am thoughts hit different, ${name}.`, sub: "Since you're up, here's what's changed." },
+    { h: `Still awake, ${name}?`, sub: "The internet never sleeps, and apparently neither do you. Here's tonight's snapshot." },
+    { h: `Insomnia or ambition, ${name}?`, sub: "No judgment either way — here's your latest read." },
+    { h: `Burning the midnight oil, ${name}?`, sub: 'Respect. Here\'s what happened while everyone else was asleep.' },
+    { h: `Quiet hours, ${name}.`, sub: "Good time to think clearly. Here's your latest snapshot." },
   ],
   morning: [
-    { h: `Good morning, ${name}.`, sub: 'Fresh coffee, fresh numbers. Here\'s where things stand.' },
-    { h: `Morning, ${name}.`, sub: "Let's see what changed overnight before you dive into anything else." },
-    { h: `Rise and shine, ${name}.`, sub: "Here's a clear-eyed look at where things stand today." },
+    { h: `Morning, ${name}.`, sub: 'Coffee first, or scores first? Either way, here\'s where things stand.' },
+    { h: `Rise and shine, ${name}.`, sub: "Here's what happened while you were asleep." },
+    { h: `Good morning, ${name}.`, sub: 'Fresh day, fresh numbers.' },
+    { h: `Up early, ${name}?`, sub: "Here's your first read of the day." },
+    { h: `Morning, ${name}.`, sub: "Let's see what moved overnight before you dive into anything else." },
   ],
   afternoon: [
     { h: `Afternoon, ${name}.`, sub: 'Quick pulse check before you get back to it.' },
-    { h: `Hey ${name}, good to see you.`, sub: "Here's what's changed since you last looked." },
-    { h: `Midday check-in, ${name}.`, sub: "Here's your latest snapshot, no scrolling required." },
+    { h: `Hey ${name}, midday check-in.`, sub: "Here's what's changed since you last looked." },
+    { h: `Afternoon slump, ${name}?`, sub: "Here's something more useful to stare at for a minute." },
+    { h: `Halfway through the day, ${name}.`, sub: "Here's your snapshot, no scrolling required." },
+    { h: `Hey ${name}, good to see you.`, sub: 'Here\'s where things stand right now.' },
   ],
   evening: [
-    { h: `Evening, ${name}.`, sub: "Winding down? Here's where things stand before you log off." },
-    { h: `Hey ${name}, welcome back.`, sub: 'One last look before the day wraps up.' },
+    { h: `Evening, ${name}.`, sub: "One more look before you call it a day?" },
+    { h: `Winding down, ${name}?`, sub: "Here's what changed today, before you log off." },
+    { h: `Hey ${name}, how'd today treat your pages?`, sub: "Here's your end-of-day snapshot." },
     { h: `Good evening, ${name}.`, sub: "Here's what's changed since this morning." },
+    { h: `Evening check-in, ${name}.`, sub: 'Nothing urgent, just the latest.' },
   ],
   night: [
     { h: `Working late, ${name}?`, sub: "Here's what's changed since your last check." },
-    { h: `Welcome back, ${name}.`, sub: "Here's tonight's snapshot, ready when you are." },
     { h: `Hey ${name}, night owl mode?`, sub: "Here's where things stand right now." },
+    { h: `Still going, ${name}?`, sub: "The day's technically over. Here's tonight's snapshot anyway." },
+    { h: `Welcome back, ${name}.`, sub: "Here's tonight's snapshot, ready when you are." },
+    { h: `Night check-in, ${name}.`, sub: 'Quick look before you turn in?' },
   ],
 };
 const NEW_GREETINGS = [
   { h: `Welcome, ${name}.`, sub: "Let's run your first check and see what AI actually reads on your site." },
   { h: `Hey ${name}, glad you're here.`, sub: 'Paste a URL and see exactly what ChatGPT, Perplexity and Claude can read on it.' },
   { h: `Welcome aboard, ${name}.`, sub: 'Your first read is about 20 seconds away.' },
+  { h: `Hi ${name}.`, sub: "Let's find out what's actually invisible to AI on your site." },
 ];
 const pool = isReturning ? RETURNING[bucket] : NEW_GREETINGS;
-const dayKey = new Date().toISOString().slice(0, 10) + user.id;
-let hash = 0;
-for (let i = 0; i < dayKey.length; i++) hash = (hash * 31 + dayKey.charCodeAt(i)) >>> 0;
-const { h: greetHeadline, sub: greetSub } = pool[hash % pool.length];
+const { h: greetHeadline, sub: greetSub } = pool[Math.floor(Math.random() * pool.length)];
 
 const today = new Date();
 const weekAgo = new Date(sevenDaysAgoIso);
