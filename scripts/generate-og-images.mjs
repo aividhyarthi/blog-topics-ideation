@@ -207,6 +207,14 @@ const SPEC = {
   'does-eu-alternative-distribution-affect-app-store-ranking':
     { art: 'chips', takeaway: 'New EU terms, and a separate question from App Store search rank',
       chips: ['alternative marketplaces', 'web distribution', 'Oct 1, 2026 terms'] },
+  'does-changing-app-category-reset-rankings':
+    { art: 'drop', takeaway: 'Developers report starting over from zero in the new category', mark: 'category switch' },
+  'does-age-rating-affect-search-visibility':
+    { art: 'threshold', takeaway: 'Apple ties your rating tier directly to who can even see your app', band: 'visibility by age tier' },
+  'do-apple-offer-codes-affect-app-store-ranking':
+    { art: 'diverge', takeaway: 'Apple documents the revenue effect and stays silent on rank', a: 'redemptions', b: 'rank' },
+  'does-apple-featuring-move-long-term-ranking':
+    { art: 'diverge', takeaway: 'A huge reported spike, and a separate question of what sticks', a: 'feature-week spike', b: 'lasting rank' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
