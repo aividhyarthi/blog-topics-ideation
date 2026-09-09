@@ -98,13 +98,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
       }
     }
 
-    // First visit to the dashboard today gets the "Welcome" snapshot first
-    // — /welcome sets this cookie the moment it actually renders (see
-    // welcome.astro), so this only fires once per calendar day, and a
-    // direct reload of /welcome itself never redirects back to itself.
+    // First /rank visit of a fresh browser session gets the "Welcome"
+    // snapshot first — /welcome sets a session cookie the moment it
+    // actually renders (see welcome.astro), so this fires once per session
+    // (new day, new device, browser reopened), not on every in-app nav
+    // between /rank and /aso, and a direct reload of /welcome itself never
+    // redirects back to itself.
     if (path === '/rank' && !isJsonRoute(path)) {
-      const todayKey = new Date().toISOString().slice(0, 10);
-      if (readCookie(cookieHeader, 'welcome_seen') !== todayKey) {
+      if (!readCookie(cookieHeader, 'welcome_seen')) {
         return context.redirect('/welcome');
       }
     }

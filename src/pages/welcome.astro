@@ -11,7 +11,7 @@ import { BRAND, SITE_URL } from '../lib/saas/plans';
 import { tenant } from './api/rank';
 import { visibleApps } from '../lib/saas/grants';
 import { loadConfig, loadSnapshots, loadCoverageSnapshots, loadRatingHistory } from '../lib/rank/store';
-import { mergeSnapshotSets, overviewSeries, chartTrend, todayKey } from '../lib/rank/track';
+import { mergeSnapshotSets, overviewSeries, chartTrend } from '../lib/rank/track';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 
 const product = Boolean(Astro.locals.productMode);
@@ -19,15 +19,19 @@ const user = Astro.locals.user || null;
 const userName = (user?.name || '').trim().split(/\s+/)[0] || 'there';
 const t = tenant(Astro.locals);
 
-// Mark today as "seen" as soon as we know we've actually reached this page
-// — before the no-apps-yet early return below, or that case would bounce
-// to /rank, which bounces right back here forever (see middleware.ts).
+// Mark this browser session as "seen" as soon as we know we've actually
+// reached this page — before the no-apps-yet early return below, or that
+// case would bounce to /rank, which bounces right back here forever (see
+// middleware.ts). No maxAge/expires — a real session cookie, cleared when
+// the browser closes, so this shows again on a fresh session rather than
+// once a calendar day; going back and forth between /rank and /aso within
+// one session won't re-trigger it, since neither is a fresh landing.
 // Astro.cookies.set (not Astro.response.headers) because it's the one API
 // that reliably attaches to an early `Astro.redirect()` response too —
 // headers appended by hand get dropped when a redirect builds its own
 // Response further down.
 if (product) {
-  Astro.cookies.set('welcome_seen', todayKey(), { path: '/', maxAge: 86400, sameSite: 'lax' });
+  Astro.cookies.set('welcome_seen', '1', { path: '/', sameSite: 'lax' });
 }
 
 const cfg = loadConfig(t.userId);
