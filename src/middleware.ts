@@ -35,9 +35,12 @@ if (process.env.PRODUCT_MODE) {
 // search engines) without a login, same as /about.
 const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/blog', '/api/auth/', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.
-const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/admin', '/api/admin', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/shares', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
+const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/welcome', '/admin', '/api/admin', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/shares', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
 // The two paid tools — gated on a live trial/subscription (checked below).
-const PAID_TOOL_PREFIXES = ['/rank', '/api/rank', '/aso', '/api/aso', '/api/aso-variants'];
+// /welcome reads the same tracked-app data as /rank, so it needs the same
+// gate — no point showing a "quick snapshot" of data that's behind the
+// paywall to a trial-expired visitor.
+const PAID_TOOL_PREFIXES = ['/rank', '/api/rank', '/aso', '/api/aso', '/api/aso-variants', '/welcome'];
 
 const isJsonRoute = (path: string) => path.startsWith('/api/');
 const json = (data: unknown, status: number) =>
@@ -92,6 +95,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
         return isJsonRoute(path)
           ? json({ error: 'Your trial has ended — choose a plan on the Account page to continue.', code: 'payment_required' }, 402)
           : context.redirect('/account?expired=1');
+      }
+    }
+
+    // First visit to the dashboard today gets the "Welcome" snapshot first
+    // — /welcome sets this cookie the moment it actually renders (see
+    // welcome.astro), so this only fires once per calendar day, and a
+    // direct reload of /welcome itself never redirects back to itself.
+    if (path === '/rank' && !isJsonRoute(path)) {
+      const todayKey = new Date().toISOString().slice(0, 10);
+      if (readCookie(cookieHeader, 'welcome_seen') !== todayKey) {
+        return context.redirect('/welcome');
       }
     }
     return next();

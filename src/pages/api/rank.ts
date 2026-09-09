@@ -43,7 +43,7 @@ const MAX_COVERAGE_KEYWORDS = 2000;
  * "who is logged in", and must never be used to decide write permission.
  * `readOnly` is the only thing that decides that.
  */
-function tenant(locals: APIContext['locals']) {
+export function tenant(locals: APIContext['locals']) {
   if (locals.productMode && locals.user) {
     const plan = planOf(locals.user.plan);
     const ws = resolveWorkspace(locals.user, locals.wsMode);

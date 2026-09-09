@@ -1,0 +1,498 @@
+---
+// "Welcome" snapshot — shown once per day, right after login, before the
+// dashboard. Product-mode-only redirect gating lives in middleware.ts (it
+// sends a first-of-the-day visit to /rank here instead); this page itself
+// just renders whatever it's given, so visiting it directly is harmless.
+//
+// The 7-day numbers and the "Did you know?" picks are computed here from
+// the SAME data /api/rank's dashboard reads (see lib/rank/store.ts and
+// lib/rank/track.ts) — nothing here is a separate, possibly-drifting copy.
+import { BRAND, SITE_URL } from '../lib/saas/plans';
+import { tenant } from './api/rank';
+import { visibleApps } from '../lib/saas/grants';
+import { loadConfig, loadSnapshots, loadCoverageSnapshots, loadRatingHistory } from '../lib/rank/store';
+import { mergeSnapshotSets, overviewSeries, chartTrend, todayKey } from '../lib/rank/track';
+import GoogleAnalytics from '../components/GoogleAnalytics.astro';
+
+const product = Boolean(Astro.locals.productMode);
+const user = Astro.locals.user || null;
+const userName = (user?.name || '').trim().split(/\s+/)[0] || 'there';
+const t = tenant(Astro.locals);
+
+// Mark today as "seen" as soon as we know we've actually reached this page
+// — before the no-apps-yet early return below, or that case would bounce
+// to /rank, which bounces right back here forever (see middleware.ts).
+// Astro.cookies.set (not Astro.response.headers) because it's the one API
+// that reliably attaches to an early `Astro.redirect()` response too —
+// headers appended by hand get dropped when a redirect builds its own
+// Response further down.
+if (product) {
+  Astro.cookies.set('welcome_seen', todayKey(), { path: '/', maxAge: 86400, sameSite: 'lax' });
+}
+
+const cfg = loadConfig(t.userId);
+const visible = t.appKeys
+  ? visibleApps(cfg.apps, {
+      ownerId: t.userId || '', appKeys: t.appKeys, readOnly: true, sharedByEmail: t.sharedByEmail,
+      mode: 'shared', canSwitch: Boolean(t.canSwitch), granteeEmail: t.granteeEmail ?? null,
+    })
+  : cfg.apps;
+// The account's own app, not a tracked competitor — the one thing this
+// screen greets you with a number for. An account with several apps still
+// gets the full breakdown one click away on /rank; picking one here keeps
+// the snapshot readable instead of trying to summarize a whole portfolio
+// in four tiles.
+const primary = visible.find((a) => !a.competitorOf) || visible[0] || null;
+
+// Nothing to show a snapshot for yet (brand-new account, or every tracked
+// app is somehow a competitor entry) — the dashboard's own empty state
+// already explains how to add a first app, no need for a second one here.
+if (!primary) return Astro.redirect('/rank');
+
+const snapshots = loadSnapshots(14, t.userId);
+const covSnapshots = loadCoverageSnapshots(14, t.userId);
+const merged = mergeSnapshotSets(covSnapshots, snapshots);
+
+// ~8 days so there's a "today" and a "week ago" point even when a check
+// was missed on the exact 7-day mark.
+const overview = overviewSeries(primary, merged, 8);
+const today = overview.length ? overview[overview.length - 1] : null;
+const weekAgoOverview = overview.length > 1 ? overview[0] : null;
+const visNow = today?.visibility ?? null;
+const visThen = weekAgoOverview?.visibility ?? null;
+const visDelta = visNow != null && visThen != null ? Math.round((visNow - visThen) * 10) / 10 : null;
+
+const chart = chartTrend(primary, snapshots, 8);
+const chartHistory = (chart.history || []).filter((p): p is number => p != null);
+const rankNow = chart.position;
+const rankThen = chartHistory.length > 1 ? chartHistory[0] : null;
+// Positive = improved (a LOWER chart position is better, so "then minus now").
+const rankDelta = rankNow != null && rankThen != null ? rankThen - rankNow : null;
+
+const ratingHistoryAll = loadRatingHistory(t.userId)[primary.key] || [];
+const ratingWindow = ratingHistoryAll.slice(-8);
+const ratingNow = ratingWindow.length ? ratingWindow[ratingWindow.length - 1] : null;
+const ratingThen = ratingWindow.length > 1 ? ratingWindow[0] : null;
+const negShareDelta =
+  ratingNow?.negativeShare != null && ratingThen?.negativeShare != null
+    ? Math.round((ratingNow.negativeShare - ratingThen.negativeShare) * 10) / 10
+    : null;
+const reviewCountDelta =
+  ratingNow?.total != null && ratingThen?.total != null ? ratingNow.total - ratingThen.total : null;
+
+const fmtDay = (dateKey: string) => new Date(dateKey + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const rangeLabel = today && weekAgoOverview ? `${fmtDay(weekAgoOverview.dateKey)} – ${fmtDay(today.dateKey)}` : 'This week';
+
+// A 0-28-tall sparkline from whatever real points we have — skips nulls
+// rather than guessing at them. `invert` flips the mapping for metrics
+// where a SMALLER number is the good direction (chart position, 1-2★ share).
+function sparkline(values: (number | null)[], invert = false): string {
+  const nums = values.filter((v): v is number => v != null);
+  if (nums.length < 2) return '';
+  const vals = invert ? nums.map((v) => -v) : nums;
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 1;
+  const stepX = 120 / (vals.length - 1);
+  return vals.map((v, i) => `${Math.round(i * stepX)},${Math.round(26 - ((v - min) / range) * 24)}`).join(' ');
+}
+const visSpark = sparkline(overview.map((d) => d.visibility));
+const rankSpark = sparkline(chartHistory, true);
+const negShareSpark = sparkline(ratingWindow.map((p) => p.negativeShare ?? null), true);
+const reviewSpark = sparkline(ratingWindow.map((p) => p.total ?? null));
+
+type DykCard = { tag: string; tone: 'bad' | 'ok' | 'info'; title: string; desc: string; href: string };
+const cards: DykCard[] = [];
+
+if (negShareDelta != null) {
+  if (negShareDelta > 0.3) {
+    cards.push({
+      tag: 'Your rating dipped', tone: 'bad',
+      title: 'Your star average hides more than it shows',
+      desc: `Your 1–2★ share rose ${negShareDelta}pt this week — here's what the review text tells you that a star average never will.`,
+      href: '/blog/what-app-reviews-tell-you-that-ratings-cant',
+    });
+  } else if (negShareDelta < -0.3) {
+    cards.push({
+      tag: 'Your rating improved', tone: 'ok',
+      title: 'What actually moves a rating trend',
+      desc: `Your 1–2★ share fell ${Math.abs(negShareDelta)}pt this week. Here's what usually keeps a trend like this going.`,
+      href: '/blog/what-app-reviews-tell-you-that-ratings-cant',
+    });
+  }
+}
+if (rankDelta != null && rankDelta !== 0) {
+  cards.push(
+    rankDelta > 0
+      ? {
+          tag: 'Category rank jumped', tone: 'ok',
+          title: "Category rank and keyword rank aren't the same signal",
+          desc: `You climbed ${rankDelta} spot${rankDelta === 1 ? '' : 's'} this week. Here's what that number actually means for discovery.`,
+          href: '/blog/category-rank-vs-keyword-rank',
+        }
+      : {
+          tag: 'Category rank slipped', tone: 'bad',
+          title: "Category rank and keyword rank aren't the same signal",
+          desc: `You dropped ${Math.abs(rankDelta)} spot${Math.abs(rankDelta) === 1 ? '' : 's'} this week. Here's what that number actually means for discovery.`,
+          href: '/blog/category-rank-vs-keyword-rank',
+        }
+  );
+}
+if (visDelta != null && visDelta !== 0) {
+  cards.push(
+    visDelta > 0
+      ? {
+          tag: 'Visibility is climbing', tone: 'info',
+          title: 'A weekly glance misses what a daily check catches',
+          desc: "Your visibility is trending up — here's why checking daily is what actually keeps it that way.",
+          href: '/blog/why-you-should-automate-your-aso-tracking',
+        }
+      : {
+          tag: 'Visibility dipped', tone: 'bad',
+          title: 'Why did my app ranking drop?',
+          desc: "Your visibility slipped this week. Here's how to rule out the confirmed causes before the speculative ones.",
+          href: '/blog/why-did-my-app-ranking-drop',
+        }
+  );
+}
+// Always at least 2 cards, even for a brand-new app or a flat, quiet week.
+const fallbacks: DykCard[] = [
+  {
+    tag: 'ASO basics', tone: 'info', title: 'What actually moves your rank',
+    desc: 'A grounded look at which ASO levers are documented, and which are just industry folklore.',
+    href: '/blog/aso-101-what-actually-moves-your-rank',
+  },
+  {
+    tag: 'Did you know?', tone: 'info', title: 'Does your screenshot pass the 3-second test?',
+    desc: "Apple's own guidance names exactly which images carry the weight in search results.",
+    href: '/blog/does-your-screenshot-pass-the-3-second-test',
+  },
+];
+for (const f of fallbacks) { if (cards.length < 2) cards.push(f); }
+const dykCards = cards.slice(0, 4);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    {product && <GoogleAnalytics />}
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{product ? `${BRAND} — Welcome back` : 'Welcome back'}</title>
+    <meta name="robots" content="noindex, nofollow" />
+    {product && <link rel="canonical" href={`${SITE_URL}/welcome`} />}
+    <style>
+      :root {
+        /* Matched to the dashboard's own palette (see rank.astro) —
+           near-monochrome: black/white/grey, with ok/bad/warn as the only
+           real color, used purely as status signal, never as brand accent. */
+        --accent: #16181d; --accent-dark: #000000; --accent-2: #3a3d47;
+        --ink: #16181d; --muted: #6b7280; --faint: #9498a8;
+        --line: #e5e7eb; --bg: #f7f8fa; --card: #ffffff;
+        --ok: #0a8a5f; --ok-tint: #e6f5ef;
+        --bad: #c0392b; --bad-tint: #fdecec;
+        --warn: #b8790a; --warn-tint: #fdf3e0;
+        --shadow: 0 1px 2px rgba(22,24,29,0.04), 0 8px 24px rgba(22,24,29,0.06);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.5; font-size: 14.5px;
+      }
+      .wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 64px; }
+
+      .hero {
+        background: linear-gradient(125deg, var(--accent) 0%, var(--accent-2) 100%);
+        border-radius: 20px; padding: 34px 32px 30px; color: #fff;
+        box-shadow: var(--shadow); position: relative; overflow: hidden;
+      }
+      .hero.band-night { background: radial-gradient(ellipse at 85% -10%, #2c2f3a 0%, #000000 65%); }
+      .hero::after {
+        content: ""; position: absolute; right: -40px; top: -60px;
+        width: 260px; height: 260px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,255,255,0.16), transparent 70%);
+      }
+      .hero-stars { display: none; position: absolute; inset: 0; pointer-events: none; }
+      .hero.band-night .hero-stars { display: block; }
+      .hero-stars i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,0.7); }
+      .hero-inner { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; position: relative; }
+      .hero-copy { flex: 1; min-width: 0; }
+      .hero-eyebrow {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+        opacity: 0.85; margin: 0 0 10px;
+      }
+      .hero-icon { font-size: 15px; letter-spacing: 0; }
+      .hero h1 { margin: 0 0 8px; font-size: 29px; font-weight: 800; letter-spacing: -0.01em; text-wrap: balance; }
+      .hero p { margin: 0; font-size: 15px; opacity: 0.92; max-width: 460px; }
+      .hero-range {
+        display: inline-flex; align-items: center; gap: 6px;
+        margin-top: 18px; padding: 6px 12px; border-radius: 999px;
+        background: rgba(255,255,255,0.16); font-size: 12.5px; font-weight: 600;
+      }
+      .hero-char { flex: 0 0 auto; width: 100px; height: 200px; position: relative; z-index: 1; align-self: flex-end; }
+      .hero-char svg { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
+      .hero-char svg.active { display: block; }
+      @media (max-width: 560px) { .hero-char { width: 74px; height: 148px; } }
+
+      .section-label { font-size: 11.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 34px 0 12px; }
+      .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+      @media (max-width: 700px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+      .tile { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+      .tile-lbl { font-size: 12px; font-weight: 600; color: var(--muted); }
+      .tile-num-row { display: flex; align-items: baseline; gap: 8px; }
+      .tile-num { font-size: 25px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+      .delta { font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+      .delta.up { color: var(--ok); background: var(--ok-tint); }
+      .delta.down { color: var(--bad); background: var(--bad-tint); }
+      .delta.na { color: var(--faint); background: var(--line); }
+      .tile-sub { font-size: 12px; color: var(--faint); }
+      .spark { display: block; margin-top: 2px; }
+
+      .dyk-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 34px 0 12px; }
+      .dyk-head .section-label { margin: 0; }
+      .dyk-head .hint { font-size: 12.5px; color: var(--faint); margin: 0; }
+      .carousel { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 10px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+      .carousel::-webkit-scrollbar { height: 7px; }
+      .carousel::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+      .dyk-card { scroll-snap-align: start; flex: 0 0 268px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 10px; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+      .dyk-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(29,31,43,0.06), 0 14px 28px rgba(29,31,43,0.09); }
+      .dyk-tag { align-self: flex-start; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; }
+      .dyk-tag.tag-bad { color: var(--bad); background: var(--bad-tint); }
+      .dyk-tag.tag-ok { color: var(--ok); background: var(--ok-tint); }
+      .dyk-tag.tag-info { color: var(--muted); background: var(--line); }
+      .dyk-q { font-size: 12.5px; font-weight: 700; color: var(--accent-dark); margin: 0; }
+      .dyk-title { font-size: 15px; font-weight: 700; margin: 0; line-height: 1.32; text-wrap: balance; }
+      .dyk-desc { font-size: 12.5px; color: var(--muted); margin: 0; }
+      .dyk-cta { font-size: 12.5px; font-weight: 700; color: var(--accent-dark); margin-top: auto; }
+
+      .cta-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+      .cta-copy .k { font-size: 15px; font-weight: 700; margin: 0 0 3px; }
+      .cta-copy .v { font-size: 12.5px; color: var(--muted); margin: 0; }
+      .cta-btn { appearance: none; border: none; cursor: pointer; background: var(--ink); color: var(--bg); font-family: inherit; font-size: 14px; font-weight: 700; padding: 12px 22px; border-radius: 11px; display: inline-flex; align-items: center; gap: 8px; box-shadow: var(--shadow); text-decoration: none; }
+      .cta-btn:hover { opacity: 0.92; }
+      .cta-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="hero" id="hero">
+        <div class="hero-stars">
+          <i style="left:38%; top:14%;"></i>
+          <i style="left:46%; top:32%;"></i>
+          <i style="left:58%; top:10%;"></i>
+          <i style="left:52%; top:52%; width:2px; height:2px;"></i>
+          <i style="left:66%; top:24%; width:2px; height:2px;"></i>
+        </div>
+        <div class="hero-inner">
+          <div class="hero-copy">
+            <p class="hero-eyebrow"><span class="hero-icon" id="hero-icon">☀️</span> {product ? BRAND : 'CiteRank'}</p>
+            <h1 id="hero-title">Good morning, {userName}.</h1>
+            <p id="hero-sub">Coffee's brewing — so is your 7-day analysis. Here's how {primary.title} did while you were asleep.</p>
+            <span class="hero-range">📅 {rangeLabel}</span>
+          </div>
+
+          <div class="hero-char" aria-hidden="true">
+            <svg class="active" data-char="morning" viewBox="0 0 120 240">
+              <ellipse cx="50" cy="223" rx="10" ry="5.5" fill="#16181d"/>
+              <ellipse cx="70" cy="223" rx="10" ry="5.5" fill="#16181d"/>
+              <rect x="44" y="132" width="13" height="92" rx="5" fill="#23252c"/>
+              <rect x="63" y="132" width="13" height="92" rx="5" fill="#23252c"/>
+              <path d="M42 62 Q34 80 36 126" fill="none" stroke="#2f313d" stroke-width="11" stroke-linecap="round"/>
+              <circle cx="36" cy="126" r="6.5" fill="#c9895d"/>
+              <path d="M40 58 Q40 50 60 50 Q80 50 80 58 L77 132 Q60 140 43 132 Z" fill="#2f313d"/>
+              <path d="M52 54 L60 80 L68 54 Z" fill="#f5f5fa"/>
+              <path d="M78 62 Q92 76 90 104" fill="none" stroke="#2f313d" stroke-width="11" stroke-linecap="round"/>
+              <circle cx="90" cy="107" r="6.5" fill="#c9895d"/>
+              <rect x="85" y="100" width="13" height="15" rx="3" fill="#ffffff"/>
+              <path d="M98 103 q5 2 3 7 q-2 3 -5 2" fill="none" stroke="#ffffff" stroke-width="2"/>
+              <path d="M88 95 q-2 -4 0 -7" stroke="#c9cbd4" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+              <path d="M93 95 q-2 -4 0 -7" stroke="#c9cbd4" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+              <rect x="53" y="43" width="14" height="11" fill="#c9895d"/>
+              <circle cx="60" cy="28" r="17" fill="#c9895d"/>
+              <path d="M43 26 Q41 9 60 9 Q79 9 77 26 Q77 14 60 14 Q43 14 43 26 Z" fill="#2b1b12"/>
+              <circle cx="60" cy="7" r="6" fill="#2b1b12"/>
+              <circle cx="54" cy="29" r="1.6" fill="#2b1b12"/>
+              <circle cx="66" cy="29" r="1.6" fill="#2b1b12"/>
+              <path d="M55 35 Q60 38 65 35" stroke="#8a5230" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+            </svg>
+            <svg data-char="afternoon" viewBox="0 0 120 240">
+              <ellipse cx="50" cy="223" rx="10" ry="5.5" fill="#3a3d47"/>
+              <ellipse cx="70" cy="223" rx="10" ry="5.5" fill="#3a3d47"/>
+              <rect x="44" y="132" width="13" height="92" rx="5" fill="#4a4d59"/>
+              <rect x="63" y="132" width="13" height="92" rx="5" fill="#4a4d59"/>
+              <path d="M42 62 Q34 80 36 126" fill="none" stroke="#8a8d99" stroke-width="11" stroke-linecap="round"/>
+              <circle cx="36" cy="126" r="6.5" fill="#c9895d"/>
+              <path d="M40 58 Q40 50 60 50 Q80 50 80 58 L77 132 Q60 140 43 132 Z" fill="#8a8d99"/>
+              <path d="M78 62 Q94 74 96 96" fill="none" stroke="#8a8d99" stroke-width="11" stroke-linecap="round"/>
+              <circle cx="96" cy="99" r="6.5" fill="#c9895d"/>
+              <rect x="90" y="92" width="21" height="27" rx="3" fill="#16181d"/>
+              <rect x="93" y="95" width="15" height="21" rx="1.5" fill="#e9eaee"/>
+              <rect x="53" y="43" width="14" height="11" fill="#c9895d"/>
+              <circle cx="60" cy="28" r="17" fill="#c9895d"/>
+              <path d="M44 24 Q42 9 60 9 Q78 9 76 24 Q73 14 60 13 Q47 14 44 24 Z" fill="#2b1b12"/>
+              <path d="M75 22 Q90 26 87 52 Q81 56 78 47 Q82 34 75 22 Z" fill="#2b1b12"/>
+              <circle cx="54" cy="29" r="1.6" fill="#2b1b12"/>
+              <circle cx="66" cy="29" r="1.6" fill="#2b1b12"/>
+              <path d="M55 35 Q60 38 65 35" stroke="#8a5230" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+            </svg>
+            <svg data-char="evening" viewBox="0 0 120 240">
+              <ellipse cx="50" cy="223" rx="9" ry="5" fill="#7a5540"/>
+              <ellipse cx="70" cy="223" rx="9" ry="5" fill="#7a5540"/>
+              <rect x="45" y="172" width="12" height="52" rx="5" fill="#c9895d"/>
+              <rect x="63" y="172" width="12" height="52" rx="5" fill="#c9895d"/>
+              <path d="M42 132 Q42 128 60 128 Q78 128 78 132 L76 176 Q60 182 44 176 Z" fill="#23252c"/>
+              <path d="M42 62 Q33 82 36 128" fill="none" stroke="#9c9690" stroke-width="12" stroke-linecap="round"/>
+              <circle cx="36" cy="128" r="6.5" fill="#c9895d"/>
+              <path d="M38 58 Q38 50 60 50 Q82 50 82 58 L80 140 Q60 148 40 140 Z" fill="#9c9690"/>
+              <path d="M78 62 Q94 74 92 100" fill="none" stroke="#9c9690" stroke-width="12" stroke-linecap="round"/>
+              <circle cx="92" cy="103" r="6.5" fill="#c9895d"/>
+              <rect x="87" y="96" width="14" height="13" rx="3" fill="#e9eaee"/>
+              <path d="M101 99 q5 2 3 6 q-2 3 -5 2" fill="none" stroke="#e9eaee" stroke-width="2"/>
+              <rect x="53" y="43" width="14" height="11" fill="#c9895d"/>
+              <circle cx="60" cy="28" r="17" fill="#c9895d"/>
+              <path d="M42 24 Q39 8 60 7 Q81 8 78 24 Q80 40 72 48 Q77 30 68 18 Q64 12 56 13 Q48 15 45 24 Q42 40 50 48 Q40 40 42 24 Z" fill="#3a2416"/>
+              <circle cx="54" cy="29" r="1.6" fill="#2b1b12"/>
+              <circle cx="66" cy="29" r="1.6" fill="#2b1b12"/>
+              <path d="M55 35 Q60 38 65 35" stroke="#8a5230" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+            </svg>
+            <svg data-char="night" viewBox="0 0 120 240">
+              <path d="M108 18 A9 9 0 1 1 102 10 A7 7 0 1 0 108 18 Z" fill="#ffe9a8"/>
+              <ellipse cx="50" cy="223" rx="9" ry="5" fill="#7a5540"/>
+              <ellipse cx="70" cy="223" rx="9" ry="5" fill="#7a5540"/>
+              <rect x="45" y="172" width="12" height="52" rx="5" fill="#c9895d"/>
+              <rect x="63" y="172" width="12" height="52" rx="5" fill="#c9895d"/>
+              <path d="M42 132 Q42 128 60 128 Q78 128 78 132 L76 176 Q60 182 44 176 Z" fill="#1c1d23"/>
+              <path d="M42 62 Q33 82 36 128" fill="none" stroke="#4a4d59" stroke-width="12" stroke-linecap="round"/>
+              <circle cx="36" cy="128" r="6.5" fill="#c9895d"/>
+              <path d="M38 58 Q38 50 60 50 Q82 50 82 58 L80 140 Q60 148 40 140 Z" fill="#4a4d59"/>
+              <path d="M46 54 Q60 44 74 54 Q80 68 74 76 Q60 82 46 76 Q40 68 46 54 Z" fill="#3a3d47"/>
+              <path d="M56 76 L54 96 M64 76 L66 96" stroke="#23252c" stroke-width="2.2" stroke-linecap="round"/>
+              <path d="M78 62 Q94 74 92 100" fill="none" stroke="#4a4d59" stroke-width="12" stroke-linecap="round"/>
+              <circle cx="92" cy="103" r="6.5" fill="#c9895d"/>
+              <rect x="87" y="96" width="14" height="13" rx="3" fill="#e9eaee"/>
+              <rect x="53" y="43" width="14" height="11" fill="#c9895d"/>
+              <circle cx="60" cy="28" r="17" fill="#c9895d"/>
+              <path d="M44 24 Q42 8 60 7 Q78 8 76 24 Q76 14 60 13 Q44 14 44 24 Z" fill="#2b1b12"/>
+              <circle cx="73" cy="15" r="6.5" fill="#2b1b12"/>
+              <rect x="46" y="15" width="28" height="8" rx="4" fill="#a5b4fc"/>
+              <path d="M46 19 Q39 19 37 13 M74 19 Q81 19 83 13" stroke="#a5b4fc" stroke-width="2" fill="none" stroke-linecap="round"/>
+              <path d="M55 33 Q60 31 65 33" stroke="#2b1b12" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+              <path d="M55 38 Q60 40 65 38" stroke="#8a5230" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label">7-day snapshot</div>
+      <div class="tiles">
+        <div class="tile">
+          <div class="tile-lbl">Search visibility</div>
+          <div class="tile-num-row">
+            <span class="tile-num">{visNow != null ? visNow.toFixed(1) : '–'}</span>
+            {visDelta == null
+              ? <span class="delta na">–</span>
+              : visDelta > 0 ? <span class="delta up">▲ {visDelta}</span>
+              : visDelta < 0 ? <span class="delta down">▼ {Math.abs(visDelta)}</span>
+              : <span class="delta na">＝ 0</span>}
+          </div>
+          {visSpark && <svg class="spark" width="100%" height="28" viewBox="0 0 120 28" preserveAspectRatio="none"><polyline points={visSpark} fill="none" stroke={visDelta != null && visDelta < 0 ? 'var(--bad)' : 'var(--ok)'} stroke-width="2" /></svg>}
+          <div class="tile-sub">{visNow != null ? `Since ${rangeLabel.split(' – ')[0]}` : 'No checks yet — hit Check now on the dashboard'}</div>
+        </div>
+        <div class="tile">
+          <div class="tile-lbl">Category rank</div>
+          <div class="tile-num-row">
+            <span class="tile-num">{rankNow != null ? `#${rankNow}` : '–'}</span>
+            {rankDelta == null
+              ? <span class="delta na">–</span>
+              : rankDelta > 0 ? <span class="delta up">▲ {rankDelta}</span>
+              : rankDelta < 0 ? <span class="delta down">▼ {Math.abs(rankDelta)}</span>
+              : <span class="delta na">＝ 0</span>}
+          </div>
+          {rankSpark && <svg class="spark" width="100%" height="28" viewBox="0 0 120 28" preserveAspectRatio="none"><polyline points={rankSpark} fill="none" stroke={rankDelta != null && rankDelta < 0 ? 'var(--bad)' : 'var(--ok)'} stroke-width="2" /></svg>}
+          <div class="tile-sub">{chart.chart ? (rankThen != null ? `${chart.chart}, from #${rankThen}` : chart.chart) : 'Not currently in a top chart'}</div>
+        </div>
+        <div class="tile">
+          <div class="tile-lbl">1&ndash;2★ review share</div>
+          <div class="tile-num-row">
+            <span class="tile-num">{ratingNow?.negativeShare != null ? `${ratingNow.negativeShare}%` : '–'}</span>
+            {negShareDelta == null
+              ? <span class="delta na">–</span>
+              : negShareDelta < 0 ? <span class="delta up">▼ {Math.abs(negShareDelta)}</span>
+              : negShareDelta > 0 ? <span class="delta down">▲ {negShareDelta}</span>
+              : <span class="delta na">＝ 0</span>}
+          </div>
+          {negShareSpark && <svg class="spark" width="100%" height="28" viewBox="0 0 120 28" preserveAspectRatio="none"><polyline points={negShareSpark} fill="none" stroke={negShareDelta != null && negShareDelta > 0 ? 'var(--bad)' : 'var(--ok)'} stroke-width="2" /></svg>}
+          <div class="tile-sub">{ratingNow ? `${ratingNow.total} reviews in the sample` : 'No rating data yet'}</div>
+        </div>
+        <div class="tile">
+          <div class="tile-lbl">Reviews sampled</div>
+          <div class="tile-num-row">
+            <span class="tile-num">{ratingNow?.total ?? '–'}</span>
+            {reviewCountDelta == null
+              ? <span class="delta na">–</span>
+              : reviewCountDelta > 0 ? <span class="delta up">▲ {reviewCountDelta}</span>
+              : reviewCountDelta < 0 ? <span class="delta down">▼ {Math.abs(reviewCountDelta)}</span>
+              : <span class="delta na">＝ 0</span>}
+          </div>
+          {reviewSpark && <svg class="spark" width="100%" height="28" viewBox="0 0 120 28" preserveAspectRatio="none"><polyline points={reviewSpark} fill="none" stroke="var(--ok)" stroke-width="2" /></svg>}
+          <div class="tile-sub">{ratingThen ? `vs ${ratingThen.total} a week ago` : 'No rating history yet'}</div>
+        </div>
+      </div>
+
+      <div class="dyk-head">
+        <div class="section-label">Did you know?</div>
+        <p class="hint">Picked from what actually moved this week &middot; scroll for more →</p>
+      </div>
+      <div class="carousel">
+        {dykCards.map((c) => (
+          <a class="dyk-card" href={c.href}>
+            <span class={`dyk-tag tag-${c.tone}`}>{c.tag}</span>
+            <p class="dyk-q">Did you know?</p>
+            <p class="dyk-title">{c.title}</p>
+            <p class="dyk-desc">{c.desc}</p>
+            <span class="dyk-cta">Read the post →</span>
+          </a>
+        ))}
+      </div>
+
+      <div class="cta-row">
+        <div class="cta-copy">
+          <p class="k">Ready to dig into the details?</p>
+          <p class="v">Full charts, keyword-by-keyword rankings, and every app you track.</p>
+        </div>
+        <a class="cta-btn" href="/rank">Go to my dashboard →</a>
+      </div>
+    </div>
+
+    <script define:vars={{ name: userName }}>
+      // Picks the greeting band from the VISITOR's own clock, not the
+      // server's — a login at 11pm IST shouldn't get a UTC "good morning".
+      var BANDS = {
+        morning: { icon: '☀️', title: `Good morning, ${name}.`, sub: `Coffee's brewing — so is your 7-day analysis. Here's how it went while you were asleep.` },
+        afternoon: { icon: '🌤️', title: `Good afternoon, ${name}.`, sub: `Quick check between meetings? Here's what's moved since this morning.` },
+        evening: { icon: '🌆', title: `Good evening, ${name}.`, sub: `Wrapping up the day? Here's your scorecard before you log off.` },
+        night: { icon: '🌙', title: `Whatsup ${name}? Late-night brewing?`, sub: `What made you check in at this hour? Either way, here's what happened while most people were asleep.` },
+      };
+      function bandForHour(h) {
+        if (h >= 5 && h < 12) return 'morning';
+        if (h >= 12 && h < 17) return 'afternoon';
+        if (h >= 17 && h < 21) return 'evening';
+        return 'night';
+      }
+      function applyBand(id) {
+        var b = BANDS[id];
+        document.getElementById('hero-icon').textContent = b.icon;
+        document.getElementById('hero-title').textContent = b.title;
+        document.getElementById('hero-sub').textContent = b.sub;
+        document.getElementById('hero').classList.toggle('band-night', id === 'night');
+        document.querySelectorAll('.hero-char svg').forEach(function (el) {
+          el.classList.toggle('active', el.getAttribute('data-char') === id);
+        });
+      }
+      applyBand(bandForHour(new Date().getHours()));
+    </script>
+  </body>
+</html>
