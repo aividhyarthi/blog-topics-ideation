@@ -147,7 +147,8 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
       .sidenav {
         flex: none; width: 236px; display: flex; flex-direction: column; gap: 2px;
         background: #fff; border-right: 1px solid var(--line);
-        position: sticky; top: 60px; align-self: stretch; padding: 14px 10px;
+        position: sticky; top: 60px; padding: 14px 10px;
+        min-height: calc(100vh - 60px);
       }
       .appmain { flex: 1; min-width: 0; }
 

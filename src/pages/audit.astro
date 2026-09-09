@@ -747,27 +747,27 @@ import App from '../layouts/App.astro';
         const sigDelta = history.length >= 2 ? history[history.length - 1].overall - history[0].overall : null;
         const engineEntries = r.engines ? Object.entries(r.engines).filter(([, v]) => typeof v === 'number') : [];
         const likelyCiteN = engineEntries.filter(([, v]) => v >= 60).length;
-        const signalsHtml = `<div class="signalgrid">
-          <div class="signal">
-            <div class="signal-label">Score vs. first audit</div>
+        const signalsHtml = `<div class="kpigrid">
+          <div class="kpi">
+            <div class="kpi-label">Score vs. first audit</div>
             ${sigDelta === null
-              ? `<div class="signal-value">—</div><div class="signal-cap">Run this URL again to see it move</div>`
-              : `<div class="signal-value ${sigDelta >= 0 ? 'up' : 'down'}">${sigDelta >= 0 ? '▲' : '▼'} ${Math.abs(sigDelta)}</div><div class="signal-cap">${r.overall}% today, was ${history[0].overall}%</div>`}
+              ? `<div class="kpi-value">—</div><div class="kpi-cap">Run this URL again to see it move</div>`
+              : `<div class="kpi-value ${sigDelta >= 0 ? 'up' : 'down'}">${sigDelta >= 0 ? '▲' : '▼'} ${Math.abs(sigDelta)}</div><div class="kpi-cap">${r.overall}% today, was ${history[0].overall}%</div>`}
           </div>
-          <div class="signal">
-            <div class="signal-label">Checks passed</div>
-            <div class="signal-value">${cl ? `${cl.passed}<small>/${cl.applicable}</small>` : `${(r.pillars || []).length ? 'n/a' : '—'}`}</div>
-            <div class="signal-cap">${nFix} open fix${nFix === 1 ? '' : 'es'} remaining</div>
+          <div class="kpi">
+            <div class="kpi-label">Checks passed</div>
+            <div class="kpi-value">${cl ? `${cl.passed}<small>/${cl.applicable}</small>` : `${(r.pillars || []).length ? 'n/a' : '—'}`}</div>
+            <div class="kpi-cap">${nFix} open fix${nFix === 1 ? '' : 'es'} remaining</div>
           </div>
-          <div class="signal">
-            <div class="signal-label">Engines likely to cite</div>
-            <div class="signal-value">${engineEntries.length ? `${likelyCiteN}<small>/${engineEntries.length}</small>` : '—'}</div>
-            <div class="signal-cap">${engineEntries.length ? 'Estimated, 60%+ predicted score' : 'Not estimated for this audit'}</div>
+          <div class="kpi">
+            <div class="kpi-label">Engines likely to cite</div>
+            <div class="kpi-value">${engineEntries.length ? `${likelyCiteN}<small>/${engineEntries.length}</small>` : '—'}</div>
+            <div class="kpi-cap">${engineEntries.length ? 'Estimated, 60%+ predicted score' : 'Not estimated for this audit'}</div>
           </div>
-          <div class="signal">
-            <div class="signal-label">Tracking history</div>
-            <div class="signal-value">${history.length}<small>${history.length === 1 ? ' check' : ' checks'}</small></div>
-            <div class="signal-cap">${history.length ? `Since ${esc(new Date(history[0].createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }))}` : 'First audit of this URL'}</div>
+          <div class="kpi">
+            <div class="kpi-label">Tracking history</div>
+            <div class="kpi-value">${history.length}<small>${history.length === 1 ? ' check' : ' checks'}</small></div>
+            <div class="kpi-cap">${history.length ? `Since ${esc(new Date(history[0].createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }))}` : 'First audit of this URL'}</div>
           </div>
         </div>`;
 
@@ -1398,16 +1398,21 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .trendchart { width: 100%; height: 200px; display: block; margin-top: 8px; }
 .chart-caption { font-size: 11.5px; color: var(--faint); margin-top: 8px; }
 
-/* ---- Key signals strip, visible above the tabs on every tab ---- */
-.signalgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-@media (max-width: 760px) { .signalgrid { grid-template-columns: repeat(2, 1fr); } }
-.signal { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 14px 16px; box-shadow: var(--shadow); }
-.signal-label { font-size: 11.5px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
-.signal-value { font-size: 22px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
-.signal-value small { font-size: 13px; font-weight: 700; color: var(--faint); }
-.signal-value.up { color: var(--ok); }
-.signal-value.down { color: var(--bad); }
-.signal-cap { font-size: 11.5px; color: var(--faint); margin-top: 4px; }
+/* ---- Key signals strip, visible above the tabs on every tab ----
+   Named .kpi*, NOT .signal* — .signal is already a class further down in
+   this file (a per-check row inside a pillar's expanded detail view, its
+   own unrelated flex layout). Reusing that name here was exactly the bug
+   just fixed: the later .signal rule silently won the cascade and forced
+   these cards into a flex row instead of stacking label/value/caption. */
+.kpigrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 760px) { .kpigrid { grid-template-columns: repeat(2, 1fr); } }
+.kpi { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 14px 16px; box-shadow: var(--shadow); }
+.kpi-label { font-size: 11.5px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+.kpi-value { font-size: 22px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.kpi-value small { font-size: 13px; font-weight: 700; color: var(--faint); }
+.kpi-value.up { color: var(--ok); }
+.kpi-value.down { color: var(--bad); }
+.kpi-cap { font-size: 11.5px; color: var(--faint); margin-top: 4px; }
 
 /* ---- Compact per-engine bars, Overview tab (full cards live in Engines tab) ---- */
 .minieng-list { display: flex; flex-direction: column; }
