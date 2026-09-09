@@ -13,6 +13,7 @@ import { runChecklist, type ChecklistResult } from '../../lib/checklists';
 import { getClient, getClientPageType } from '../../lib/clients';
 import { cached } from '../../lib/fetchcache';
 import { UA } from '../../lib/useragents';
+import { extractContent } from '../../lib/extract';
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -323,6 +324,18 @@ export const POST: APIRoute = async (ctx) => {
 
   const facts = analyzeHtml(html, { isUrl, host, brand, topic, category, robotsTxt, pageType: pageTypeChoice });
 
+  // Real content for the Keywords tab, not just a pass/fail count — the same
+  // extractor the standalone LLM Access Check tool uses, so "here are your
+  // actual FAQs / question headings" is the same content whichever tool
+  // pulled it. Question test kept identical to checklists.ts's
+  // u_question_headings check so a heading marked "question-shaped" here is
+  // exactly the ones that check counted.
+  const QUESTION_RE = /\?|^(how|what|why|when|which|where|who|is|are|can|should|does)\b/i;
+  const keywordContent = {
+    headings: facts.headings.slice(0, 40).map((h) => ({ level: h.level, text: h.text, isQuestion: QUESTION_RE.test(h.text) })),
+    faqs: extractContent(html).faqs.slice(0, 8),
+  };
+
   // Detect a JavaScript-rendered shell: URL fetched fine but almost no readable
   // text (the real content loads client-side). Tell the user to paste the HTML.
   if (isUrl && facts.wordCount < 120 && !fetchNote) {
@@ -435,6 +448,8 @@ export const POST: APIRoute = async (ctx) => {
     },
     // Fallback prompt set for Verify when the AI judge produced none (no key).
     fallbackPrompts: prompts.length ? [] : deterministicPrompts(facts, target, topic),
+    // Real headings + FAQ content for the Keywords tab — see keywordContent above.
+    keywordContent,
     fetchNote, aiError,
   };
 

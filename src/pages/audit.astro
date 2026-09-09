@@ -150,8 +150,6 @@ import App from '../layouts/App.astro';
             </div>
             <label class="fld" for="target">Target question this page should be the cited answer to <span class="opt">(optional)</span></label>
             <input id="target" type="text" placeholder="e.g. why did Virat Kohli retire?" />
-            <label class="fld" for="competitors">Competitors to track <span class="opt">(optional — domains, comma-separated; used in “Verify in real engines”)</span></label>
-            <input id="competitors" type="text" placeholder="e.g. sephora.com, sugarcosmetics.com" />
 
             <div class="row">
               <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit</button>
@@ -640,29 +638,6 @@ import App from '../layouts/App.astro';
           return `<div class="mineng"><span class="me-name">${label}</span><div class="me-track"><div class="me-fill" style="width:${s}%;background:${brand}"></div></div><span class="me-val" style="color:${brand}">${s}%</span></div>`;
         }).join('') : '';
 
-        // ---- Verify in real engines (predict -> measure) ----
-        const aiPrompts = (r.promptCoverage || []).map((p) => p.q).filter(Boolean);
-        const verifyPrompts = aiPrompts.length ? aiPrompts : (m.fallbackPrompts || []);
-        const usingFallback = aiPrompts.length === 0 && verifyPrompts.length > 0;
-        const verifyConfigured = SVC ? SVC.verify : true; // assume ok until health says otherwise
-        const canVerify = m.mode === 'url' && verifyPrompts.length > 0;
-        let verifyBody;
-        if (m.mode !== 'url') {
-          verifyBody = `<div class="note-warn">${IC.alert}<span>Verification needs a live domain. Audit a URL (not pasted HTML) to use this.</span></div>`;
-        } else if (!verifyPrompts.length) {
-          verifyBody = `<div class="note-warn">${IC.alert}<span>No prompts to verify. Add a <b>Topic</b> or a <b>Target question</b> in the form and re-run — AI Page Audit will use those to query the engines.</span></div>`;
-        } else if (!verifyConfigured) {
-          verifyBody = `<div class="note-warn">${IC.alert}<span><b>Live verification isn’t available right now.</b> We’re working on turning this back on — check back soon.</span></div>`;
-        } else {
-          verifyBody = `<button class="primary vfy-btn" id="verifybtn">${IC.bot} Verify against live engines</button><span class="hint">Queries ${verifyPrompts.length} prompt${verifyPrompts.length > 1 ? 's' : ''} · up to ~60s.</span>`;
-        }
-        const verifyPanel = sec(IC.shieldOk, 'Verify in real engines', 'run these prompts through live ChatGPT &amp; Perplexity and see who actually gets cited') + `
-          <div class="verifybox">
-            <div class="vfy-intro"><b>The scores above are a prediction.</b> This runs ${verifyPrompts.length || 'the'} of the page's likely prompts through real answer engines and checks whether <b>${esc(m.host || 'your domain')}</b> is actually cited — ground truth, not an estimate.${usingFallback ? ` <span class="vfy-fallback">Using prompts derived from your page (the AI judge is off).</span>` : ''}</div>
-            ${verifyBody}
-            <div id="verifyout"></div>
-          </div>`;
-
         const gauges = r.pillars.map((p) => {
           const measured = p.measured !== false;
           const col = measured ? hexFor(p.score) : '#9aa0ad';
@@ -709,6 +684,29 @@ import App from '../layouts/App.astro';
         const promptPanel = pc.length ? sec(IC.chat, 'Prompt coverage', `answers ${covered} of ${pc.length} likely AI questions (${covPct}%)`) + `
           <div class="covbar"><i style="width:${covPct}%"></i></div>
           <div class="prompts">${pc.map((p) => `<div class="prow"><span class="pmark ${p.covered ? 'yes' : 'no'}">${p.covered ? IC.check : IC.x}</span><div>${esc(p.q)}</div></div>`).join('')}</div>` : '';
+
+        // ---- Actual headings + FAQ content, not just a pass/fail count — the
+        // same data the "Headings phrased as real questions" / "FAQ block"
+        // checks above are scored from, shown so there's something concrete
+        // to look at and rewrite instead of only an abstract pass/fail line.
+        const kwc = m.keywordContent;
+        const headingRows = (kwc && kwc.headings.length) ? kwc.headings.map((h) => `
+          <div class="hqrow ${h.isQuestion ? 'yes' : 'no'}">
+            <span class="hqmark">${h.isQuestion ? IC.check : IC.dash}</span>
+            <span class="hqlvl">H${h.level}</span>
+            <span class="hqtext">${esc(h.text)}</span>
+          </div>`).join('') : '';
+        const qCount = kwc ? kwc.headings.filter((h) => h.isQuestion).length : 0;
+        const headingPanel = headingRows ? sec(IC.layers, 'Your headings', `${qCount} of ${kwc.headings.length} already phrased as a real question`) + `
+          <div class="hqlist">${headingRows}</div>
+          <p class="hint" style="margin:12px 0 0">Green = already matches how someone would ask an AI. Rewrite 2–3 of the rest as direct questions — "Benefits" → "What are the benefits of X?".</p>` : '';
+
+        const faqRows = (kwc && kwc.faqs.length) ? kwc.faqs.map((f) => `
+          <div class="faqrow"><div class="faqq">${esc(f.q)}</div><div class="faqa">${esc(f.a)}</div></div>`).join('') : '';
+        const faqContentPanel = faqRows
+          ? sec(IC.chat, 'FAQ content found on this page', `${kwc.faqs.length} question${kwc.faqs.length === 1 ? '' : 's'} from your FAQPage schema`) + `<div class="faqlist">${faqRows}</div>`
+          : (kwc ? sec(IC.chat, 'FAQ content found on this page', 'none found') + `
+            <p class="hint" style="margin:0">No FAQPage schema detected. An FAQ block with real questions and direct answers, marked up as FAQPage schema, is one of the highest-leverage things you can add for AI citation — a model can quote a Q&amp;A pair directly instead of extracting one from prose.</p>` : '');
 
         // Worst measured pillar starts open — the reader lands straight on the
         // thing most worth their time instead of an arbitrary first item.
@@ -791,7 +789,6 @@ import App from '../layouts/App.astro';
             <div class="reptab" data-tab="indexability">Indexability${indexIssueN ? ` <span class="repcnt bad">${indexIssueN}</span>` : ''}</div>
             <div class="reptab" data-tab="keywords">Keywords${kwIssueN ? ` <span class="repcnt bad">${kwIssueN}</span>` : ''}</div>
             <div class="reptab" data-tab="details">All checks</div>
-            <div class="reptab" data-tab="verify">Verify live</div>
           </div>
 
           <div class="tabbody">
@@ -831,7 +828,7 @@ import App from '../layouts/App.astro';
             </div>
 
             <div class="tabpane" data-pane="keywords" hidden>
-              ${topicTab(cl, 'keywords', 'Does this page match how people actually type or speak questions to an AI — headings phrased as real questions, an FAQ block, and the specific prompts this page ought to win?', promptPanel)}
+              ${topicTab(cl, 'keywords', 'Does this page match how people actually type or speak questions to an AI — headings phrased as real questions, an FAQ block, and the specific prompts this page ought to win?', promptPanel + headingPanel + faqContentPanel)}
             </div>
 
             <div class="tabpane" data-pane="details" hidden>
@@ -846,8 +843,6 @@ import App from '../layouts/App.astro';
               <div style="margin-top:14px;">${breakdown}</div>
               ${domainPanel ? `<div style="margin-top:14px;">${domainPanel}</div>` : ''}
             </div>
-
-            <div class="tabpane" data-pane="verify" hidden>${verifyPanel}</div>
           </div>
 
           <div class="caveat"><b>How to read this:</b> the score covers what an editor can change on the page before publishing. Your site's overall brand authority matters more than any single page, but it's the same for every page on the site, so we show it separately rather than in the score. Items marked <b>AI</b> are a model's judgement rather than a measurement. Engines differ in what they favour, so treat the score as a strong indicator, not a guarantee.</div>`;
@@ -927,9 +922,6 @@ import App from '../layouts/App.astro';
         const ssi = $('savesignin');
         if (ssi) ssi.addEventListener('click', () => openAuth('login'));
 
-        const verifyBtn = $('verifybtn');
-        if (verifyBtn) verifyBtn.addEventListener('click', () => runVerify(r, m, verifyPrompts, verifyBtn));
-
         root.querySelectorAll('.gauge[data-pill]').forEach((g) => {
           const openPill = () => {
             const d = document.getElementById('pill-' + g.dataset.pill);
@@ -943,79 +935,6 @@ import App from '../layouts/App.astro';
 
         root.style.display = 'block';
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-
-      // ---- Verify in real engines ----
-      async function runVerify(r, m, prompts, btn) {
-        const out = $('verifyout');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span>Querying live engines…';
-        out.innerHTML = '<div class="vfy-loading">Running ' + prompts.length + ' prompt' + (prompts.length > 1 ? 's' : '') + ' through real answer engines. This can take up to a minute…</div>';
-        try {
-          const competitors = ($('competitors').value || '').split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
-          const res = await fetch('/api/aeo-verify', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompts, url: m.url, host: m.host, brand: m.brand, competitors }),
-          });
-          const data = await res.json();
-          if (!res.ok) { out.innerHTML = '<div class="note-bad">' + IC.alert + '<span>' + esc(data.error || 'Verification failed.') + '</span></div>'; }
-          else renderVerify(data.result, out);
-        } catch (e) {
-          out.innerHTML = '<div class="note-bad">' + IC.alert + '<span>Network error: ' + esc(e && e.message ? e.message : e) + '</span></div>';
-        } finally {
-          btn.disabled = false;
-          btn.innerHTML = IC.bot + ' Re-run verification';
-        }
-      }
-
-      function renderVerify(v, out) {
-        if (!v || !v.ran) {
-          out.innerHTML = '<div class="note-warn">' + IC.alert + '<span>' + esc((v && v.note) || 'Verification could not run.') + '</span></div>';
-          return;
-        }
-        const rateCol = hexFor(v.citationRate);
-        // Group probes by prompt for a per-question view.
-        const byPrompt = {};
-        (v.probes || []).forEach((p) => { (byPrompt[p.q] = byPrompt[p.q] || []).push(p); });
-        const promptRows = Object.keys(byPrompt).map((q) => {
-          const chips = byPrompt[q].map((p) => {
-            const cls = p.error ? 'na' : p.cited ? 'pass' : 'fail';
-            const txt = p.error ? 'error' : p.cited ? 'Cited' : 'Not cited';
-            const ico = p.error ? IC.dash : p.cited ? IC.check : IC.x;
-            const srcN = !p.error ? ` · ${p.sources.length} src` : '';
-            return `<span class="vchip ${cls}" title="${esc(p.engine)}${p.error ? ': ' + esc(p.error) : ''}">${ico}${esc(p.engine)}: ${txt}${srcN}</span>`;
-          }).join('');
-          return `<div class="vrow"><div class="vq">${esc(q)}</div><div class="vchips">${chips}</div></div>`;
-        }).join('');
-
-        const maxSov = Math.max(1, ...(v.shareOfVoice || []).map((s) => s.count));
-        const sov = (v.shareOfVoice || []).map((s) => {
-          const cls = s.isYou ? 'you' : s.isCompetitor ? 'rival' : '';
-          const tag = s.isYou ? '<span class="youtag">YOU</span>' : s.isCompetitor ? '<span class="rivaltag">RIVAL</span>' : '';
-          const w = Math.round((s.count / maxSov) * 100);
-          return `<div class="sovrow ${cls}"><div class="sovdom">${esc(s.domain)}${tag}</div><div class="sovbar"><i style="width:${Math.max(w, s.count ? 6 : 0)}%"></i></div><div class="sovn">${s.count}</div></div>`;
-        }).join('');
-
-        const KIND_TINT = { Community: '#5b54e6', Encyclopedia: '#15915f', Video: '#d23c3c', Marketplace: '#b07900', Authority: '#20808d', Publisher: '#3c3f4a' };
-        const gaps = (v.sourceGaps || []).map((g) => {
-          const col = KIND_TINT[g.kind] || '#3c3f4a';
-          return `<div class="gaprow"><div class="gaptop"><span class="gapdom">${esc(g.domain)}</span><span class="gapkind" style="background:${col}1a;color:${col}">${esc(g.kind)} · cited ${g.count}×</span></div><div class="gapaction">${esc(g.action)}</div></div>`;
-        }).join('');
-
-        out.innerHTML = `
-          ${v.note ? `<div class="note-warn">${IC.alert}<span>${esc(v.note)}</span></div>` : ''}
-          <div class="vfy-stats">
-            <div class="vstat" style="--vc:${rateCol}"><div class="vnum" style="color:${rateCol}">${v.citationRate}<small>%</small></div><div class="vlbl">Citation rate<span>${esc(v.yourDomain)} cited in live answers</span></div></div>
-            <div class="vstat"><div class="vnum">${v.promptCitationRate}<small>%</small></div><div class="vlbl">Prompt coverage<span>prompts where you were cited at least once</span></div></div>
-            <div class="vstat"><div class="vnum">${v.brandMentionRate}<small>%</small></div><div class="vlbl">Brand mention<span>answers that named ${esc(v.brand || 'the brand')}</span></div></div>
-          </div>
-          <div class="vfy-engines">Measured live via ${v.engines.map((e) => `<span class="chip">${esc(e)}</span>`).join(' ')}</div>
-          <div class="vsub2">Per-prompt results</div>
-          <div class="vrows">${promptRows}</div>
-          ${sov ? `<div class="vsub2">Share of voice — who got cited across these prompts${v.competitors && v.competitors.length ? ' (your pinned rivals are always shown)' : ''}</div><div class="sovlist">${sov}</div>` : ''}
-          ${gaps ? `<div class="vsub2">Source gap — your off-page to-do list</div><div class="gaphint">These third-party sites get cited for your prompts and you don't. Earning a presence on them is the highest-leverage off-page work for AI citation.</div><div class="gaplist">${gaps}</div>` : ''}
-          <div class="caveat">This is a real-time sample of ${v.promptCount} prompt(s) on a single run — answer engines are non-deterministic, so treat it as a directional read, not a fixed ranking. Re-run for a fresh sample.</div>`;
-        out.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
 
       function showToast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1900); }
@@ -1704,54 +1623,6 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .eltag.partial { background: var(--warn-bg); color: var(--warn); }
 .eltag.missed { background: var(--bad-bg); color: var(--bad); }
 .eldetail { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
-/* ---- Verify in real engines ---- */
-      .verifybox { border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: linear-gradient(180deg, #fbfbff, #fff); box-shadow: var(--shadow); }
-.vfy-intro { font-size: 13.5px; color: var(--ink-2); line-height: 1.6; margin-bottom: 14px; }
-.vfy-intro b { color: var(--ink); font-weight: 700; }
-.vfy-fallback { color: var(--warn); font-weight: 600; }
-.verifybox code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
-.vfy-btn { font-size: 14px; }
-.vfy-loading { margin-top: 14px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
-.vfy-loading::before { content: ''; width: 15px; height: 15px; border: 2px solid var(--line-2); border-top-color: var(--accent); border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
-.vfy-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
-@media (max-width: 620px) { .vfy-stats { grid-template-columns: 1fr; } }
-.vstat { display: flex; align-items: center; gap: 13px; border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px; background: #fff; box-shadow: var(--shadow); }
-.vstat .vnum { font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1; color: var(--ink); }
-.vstat .vnum small { font-size: 15px; font-weight: 700; opacity: .55; }
-.vstat .vlbl { font-size: 12.5px; font-weight: 700; }
-.vstat .vlbl span { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 2px; line-height: 1.4; }
-.vfy-engines { margin-top: 14px; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.vsub2 { font-size: 13px; font-weight: 700; margin: 20px 0 10px; letter-spacing: -.01em; }
-.vrows { display: grid; gap: 9px; }
-.vrow { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; box-shadow: var(--shadow); }
-.vq { font-size: 13px; font-weight: 600; margin-bottom: 9px; }
-.vchips { display: flex; gap: 7px; flex-wrap: wrap; }
-.vchip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); }
-.vchip svg { width: 11px; height: 11px; }
-.vchip.pass { background: var(--ok-bg); color: var(--ok); border-color: #cdebdd; }
-.vchip.fail { background: var(--bad-bg); color: var(--bad); border-color: #f4cfcf; }
-.vchip.na { background: #eef0f5; color: var(--na); }
-.sovlist { display: grid; gap: 8px; }
-.sovrow { display: grid; grid-template-columns: 200px 1fr 36px; align-items: center; gap: 12px; }
-@media (max-width: 560px) { .sovrow { grid-template-columns: 120px 1fr 30px; } }
-.sovrow.you .sovdom { color: var(--accent-dark); font-weight: 800; }
-.sovdom { font-size: 12.5px; font-weight: 600; color: var(--ink-2); display: flex; align-items: center; gap: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.youtag { font-size: 9px; font-weight: 800; letter-spacing: .05em; background: var(--accent); color: #fff; padding: 1px 6px; border-radius: 5px; }
-.sovbar { height: 9px; border-radius: 999px; background: #edeef4; overflow: hidden; }
-.sovbar > i { display: block; height: 100%; border-radius: 999px; background: #b9bccb; }
-.sovrow.you .sovbar > i { background: var(--accent); }
-.sovrow.rival .sovdom { color: #b07900; font-weight: 700; }
-.sovrow.rival .sovbar > i { background: #d9a43a; }
-.rivaltag { font-size: 9px; font-weight: 800; letter-spacing: .05em; background: var(--warn); color: #fff; padding: 1px 6px; border-radius: 5px; }
-.sovn { font-size: 12.5px; font-weight: 700; text-align: right; color: var(--ink-2); }
-/* source gap to-do list */
-      .gaphint { font-size: 12.5px; color: var(--muted); margin: -4px 0 11px; line-height: 1.55; }
-.gaplist { display: grid; gap: 9px; }
-.gaprow { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; box-shadow: var(--shadow); }
-.gaptop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.gapdom { font-size: 13.5px; font-weight: 700; }
-.gapkind { font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
-.gapaction { font-size: 12.5px; color: var(--ink-2); margin-top: 7px; line-height: 1.55; }
 /* ---- pillar gauges ---- */
       .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
 @media (max-width: 760px) { .gauges { grid-template-columns: 1fr 1fr; } }
@@ -1783,6 +1654,22 @@ details[open] > summary .pplus::before, details[open] > summary .acc-plus::befor
 .prow .pmark svg { width: 12px; height: 12px; }
 .prow .pmark.yes { background: var(--ok-bg); color: var(--ok); }
 .prow .pmark.no { background: var(--bad-bg); color: var(--bad); }
+
+/* ---- Keywords tab: real headings + FAQ content, not just pass/fail ---- */
+.hqlist { display: grid; gap: 7px; margin-top: 10px; }
+.hqrow { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; background: #fff; font-size: 13px; }
+.hqrow.yes { border-left: 3px solid var(--ok); }
+.hqrow.no { border-left: 3px solid var(--line-2); }
+.hqmark { width: 18px; height: 18px; border-radius: 6px; display: grid; place-items: center; flex-shrink: 0; }
+.hqmark svg { width: 11px; height: 11px; }
+.hqrow.yes .hqmark { background: var(--ok-bg); color: var(--ok); }
+.hqrow.no .hqmark { background: #eef0f5; color: var(--faint); }
+.hqlvl { font-size: 10px; font-weight: 800; color: var(--faint); background: #f4f4f5; padding: 2px 6px; border-radius: 5px; flex-shrink: 0; }
+.hqtext { color: var(--ink-2); }
+.faqlist { display: grid; gap: 10px; margin-top: 10px; }
+.faqrow { border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; background: #fff; box-shadow: var(--shadow); }
+.faqq { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 5px; }
+.faqa { font-size: 13px; color: var(--ink-2); line-height: 1.55; }
 .fixlist { display: grid; gap: 10px; }
 .fixrow { display: flex; gap: 13px; align-items: flex-start; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: #fff; border-left: 3px solid var(--fc); box-shadow: var(--shadow); }
 .fixrow .fnum { font-weight: 800; color: var(--fc); font-size: 14px; min-width: 18px; }

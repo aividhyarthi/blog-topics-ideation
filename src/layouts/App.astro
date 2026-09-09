@@ -62,8 +62,8 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
       </div>
     </div>
 
-    <div class="tabbar">
-      <div class="wrap tabrow" role="tablist">
+    <div class="appshell">
+      <nav class="sidenav" role="tablist" aria-label="Sections">
         {TABS.map((t) => (
           <a
             href={t.href}
@@ -74,10 +74,11 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
             <span class="t-hint">{t.hint}</span>
           </a>
         ))}
+      </nav>
+      <div class="appmain">
+        <slot />
       </div>
     </div>
-
-    <slot />
 
     <script src="/js/citerank-auth.js" defer></script>
 
@@ -120,10 +121,9 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
 
     <style is:global>
       /* Column flex so a short page (an empty Reports tab, say) still pins the
-         footer to the bottom instead of leaving it floating mid-screen. */
+         footer to the bottom instead of leaving it floating mid-screen —
+         .app-footer's margin-top:auto does the actual pushing. */
       .appbody { background: var(--bg); min-height: 100vh; display: flex; flex-direction: column; }
-      .appbody > main, .appbody > section { flex: none; }
-      .appbody > main { flex: 1 0 auto; }
 
       .applink { font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-decoration: none; }
       .applink:hover { color: var(--accent); }
@@ -137,25 +137,41 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
       .usagepill.low { background: var(--warn-bg); color: var(--warn); border-color: #f0e2b8; }
       @media (max-width: 640px) { .usagepill, .applink { display: none; } }
 
-      /* The tool switcher. Always shows all three; the active one is marked by
-         weight, colour and an underline rather than by hiding the others. */
-      .tabbar { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 60px; z-index: 30; }
-      .tabrow { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
-      .tabrow::-webkit-scrollbar { display: none; }
+      /* The tool switcher. Always shows all four; the active one is marked by
+         weight, colour and a left accent bar rather than by hiding the
+         others. Vertical rail on desktop (frees up horizontal width for the
+         report itself, and stays visible while scrolling a long one) —
+         collapses to the original horizontal scroller under 780px, where a
+         fixed-width side rail would eat too much of a phone's screen. */
+      .appshell { flex: 1 0 auto; display: flex; align-items: flex-start; width: 100%; }
+      .sidenav {
+        flex: none; width: 236px; display: flex; flex-direction: column; gap: 2px;
+        background: #fff; border-right: 1px solid var(--line);
+        position: sticky; top: 60px; align-self: stretch; padding: 14px 10px;
+      }
+      .appmain { flex: 1; min-width: 0; }
 
       .apptab {
-        flex: none; display: grid; gap: 1px; padding: 13px 18px 12px;
-        border-bottom: 2.5px solid transparent; text-decoration: none;
+        display: grid; gap: 1px; padding: 10px 13px;
+        border-left: 2.5px solid transparent; border-radius: 0 9px 9px 0; text-decoration: none;
         color: var(--muted); transition: color .15s, border-color .15s, background .15s;
       }
       .apptab:hover { color: var(--ink); background: var(--accent-soft); }
       .apptab .t-label { font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
       .apptab .t-hint { font-size: 11.5px; color: var(--faint); }
-      .apptab.on { color: var(--accent); border-bottom-color: var(--accent); }
+      .apptab.on { color: var(--accent); background: var(--accent-soft); border-left-color: var(--accent); }
       .apptab.on .t-hint { color: var(--accent); opacity: .75; }
 
-      @media (max-width: 700px) {
-        .apptab { padding: 11px 14px 10px; }
+      @media (max-width: 780px) {
+        .appshell { flex-direction: column; }
+        .sidenav {
+          flex-direction: row; width: 100%; align-self: auto; position: sticky; top: 60px; z-index: 30;
+          border-right: none; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none;
+          padding: 0; gap: 4px;
+        }
+        .sidenav::-webkit-scrollbar { display: none; }
+        .apptab { flex: none; padding: 13px 16px 12px; border-left: none; border-bottom: 2.5px solid transparent; border-radius: 0; }
+        .apptab.on { background: transparent; border-left-color: transparent; border-bottom-color: var(--accent); }
         .apptab .t-hint { display: none; }
       }
 

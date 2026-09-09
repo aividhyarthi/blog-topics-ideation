@@ -503,6 +503,14 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3.5px rgba(0,0,0
 .gtag.warn { background: var(--warn-bg); color: var(--warn); }
 .gtag.info { background: #eef0f5; color: var(--muted); }
 .gdetail { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; word-break: break-word; }
+
+/* Every section label on this page (Access & rendering, Who sees what,
+   Are the AI crawlers allowed?, ...) shares this one class but had no rule
+   at all — it was rendering as unstyled browser default text throughout
+   the whole report. */
+.sectitle { font-size: 16px; font-weight: 800; letter-spacing: -.01em; color: var(--ink); margin: 26px 0 14px; }
+.sectitle:first-child { margin-top: 0; }
+
 .viewers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 @media (max-width: 680px) { .viewers { grid-template-columns: 1fr; } }
 .viewer { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: #fff; border-left: 3px solid var(--line-2); box-shadow: var(--shadow); }
