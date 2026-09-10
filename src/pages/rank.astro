@@ -191,16 +191,11 @@ const limitsText = product && plan
       .insight-t { font-size: 13.5px; font-weight: 700; margin-bottom: 3px; }
       .insight-d { font-size: 13px; color: var(--muted); line-height: 1.55; }
       .viztip { position: fixed; z-index: 60; pointer-events: none; background: var(--card2); border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); padding: 8px 11px; font-size: 12px; display: none; min-width: 130px; }
-      /* Annotation/auto-mark on the visibility chart: a full-height dashed
-         line for every one of these is a barcode across a long chart. Keep
-         only the small marker visible; the guide line appears on hover so
-         it highlights one mark at a time instead of always cluttering the
-         whole chart. */
-      .annmark line { opacity: 0; transition: opacity 0.1s; }
-      .annmark:hover line { opacity: 1; }
-      .annmark .annmarker { opacity: 0.55; transition: opacity 0.1s; }
-      .annmark:hover .annmarker { opacity: 1; }
-      .annmark .hcol { cursor: help; }
+      /* Annotation/auto-mark on the visibility chart: sits right at the
+         x-axis under its date, sharing that day's hover column instead of
+         its own full-height guide line — a barcode of dashed lines across
+         a long chart was more clutter than signal. */
+      .annmarker { opacity: 0.9; }
       .kwmodal-backdrop { display: none; position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; padding: 20px; }
       .kwmodal-backdrop.open { display: flex; }
       .kwmodal { background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 20px; max-width: 520px; width: 100%; max-height: 86vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.55); }
@@ -830,6 +825,41 @@ ai photo enhancer"></textarea>
 
       function tipId(html) { const id = 't' + (++tipSeq); TIPS[id] = html; return id; }
 
+      // Catmull-Rom-through-the-points, converted to cubic Beziers — smooth
+      // curve that still passes exactly through every real data point
+      // (unlike a fitted spline that can drift off the actual values).
+      // `points` may contain gaps (null) for missing days; each contiguous
+      // run is smoothed and moved-to separately, same as the old straight
+      // "L" version did with disconnected segments.
+      function smoothPath(points) {
+        let d = '', run = [];
+        const flushRun = () => {
+          if (run.length === 1) {
+            d += `${d ? ' ' : ''}M${run[0].x.toFixed(1)},${run[0].y.toFixed(1)}`;
+          } else if (run.length > 1) {
+            d += `${d ? ' ' : ''}M${run[0].x.toFixed(1)},${run[0].y.toFixed(1)}`;
+            for (let i = 0; i < run.length - 1; i++) {
+              const p0 = run[i - 1] || run[i];
+              const p1 = run[i];
+              const p2 = run[i + 1];
+              const p3 = run[i + 2] || p2;
+              const c1x = (p1.x + (p2.x - p0.x) / 6).toFixed(1);
+              const c1y = (p1.y + (p2.y - p0.y) / 6).toFixed(1);
+              const c2x = (p2.x - (p3.x - p1.x) / 6).toFixed(1);
+              const c2y = (p2.y - (p3.y - p1.y) / 6).toFixed(1);
+              d += ` C${c1x},${c1y} ${c2x},${c2y} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+            }
+          }
+          run = [];
+        };
+        points.forEach((p) => {
+          if (p == null) { flushRun(); return; }
+          run.push({ x: p.x, y: p.y });
+        });
+        flushRun();
+        return d;
+      }
+
       function tileHtml(label, val, prev, decimals) {
         let d = '<span class="d flat">–</span>';
         if (val != null && prev != null) {
@@ -903,7 +933,7 @@ ai photo enhancer"></textarea>
           ? `<defs><pattern id="ncHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                <rect width="6" height="6" fill="#f1f3f7"/><line x1="0" y1="0" x2="0" y2="6" stroke="#c8cdd9" stroke-width="2.5"/>
              </pattern></defs>` : '';
-        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${defs}${out}</svg>`;
+        return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;">${defs}${out}</svg>`;
       }
 
       /** Bucket legend, plus a "not checked" key when any day has one. */
@@ -963,24 +993,34 @@ ai photo enhancer"></textarea>
           out += `<line x1="${padL}" y1="${yPix}" x2="${W - 6}" y2="${yPix}" stroke="var(--line)" stroke-width="1"/>`;
         }
         out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - 6}" y2="${padT + plotH}" stroke="var(--line)" stroke-width="1"/>`;
-        const d = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+        const d = smoothPath(vals.map((v, i) => ({ x: x(i), y: y(v) })));
         const areaD = `${d} L${x(vals.length - 1).toFixed(1)},${(padT + plotH).toFixed(1)} L${x(0).toFixed(1)},${(padT + plotH).toFixed(1)} Z`;
         out += `<path d="${areaD}" fill="url(#${gradId})" stroke="none"/>`;
         // Competitor overlays under the primary line/fill — same layering
         // as ratingTrendChart's, so "you" always reads on top. Each drawn
         // against ITS OWN scale (compMaxY), not yours.
         for (const s of compLines) {
-          let cd = '', cStarted = false;
-          s.vals.forEach((v, i) => {
-            if (v == null) { cStarted = false; return; }
-            const cy = padT + plotH - (v / compMaxY) * plotH;
-            cd += `${cStarted ? 'L' : 'M'}${x(i).toFixed(1)},${cy.toFixed(1)} `;
-            cStarted = true;
-          });
+          const cd = smoothPath(s.vals.map((v, i) => (v == null ? null : { x: x(i), y: padT + plotH - (v / compMaxY) * plotH })));
           if (cd) out += `<path d="${cd}" fill="none" stroke="${s.color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4,3"/>`;
         }
         out += `<path d="${d}" fill="none" stroke="var(--ok)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(days.length / 6);
+        // Annotations and auto-marks fold into the SAME day's tooltip and
+        // hover column instead of getting their own narrow, overlapping
+        // hcol rect — two stacked hit-targets on one date used to show
+        // DIFFERENT tooltip content a few pixels apart, which read as
+        // "the same point showing two different things". One column, one
+        // tooltip, everything that happened that day in it.
+        const marksByDate = new Map();
+        (annotations || []).forEach((a) => {
+          if (!marksByDate.has(a.date)) marksByDate.set(a.date, []);
+          marksByDate.get(a.date).push({ kind: 'ann', ...a });
+        });
+        (autoMarks || []).forEach((m) => {
+          if (!marksByDate.has(m.date)) marksByDate.set(m.date, []);
+          marksByDate.get(m.date).push({ kind: 'auto', ...m });
+        });
+        let markSvg = '';
         days.forEach((day, i) => {
           const isLast = i === days.length - 1;
           // A day where a big chunk of the list never got a confirmed result
@@ -999,45 +1039,35 @@ ai photo enhancer"></textarea>
             ? `<div class="tt-r"><span>Keywords checked</span><b>${day.tracked} of ${totalForDay}</b></div>`
               + (lowConfidence ? '<div class="tt-warn">Low coverage — read this point as low-confidence, not a confirmed rank</div>' : '')
             : '';
-          const tid = tipId(`<div class="tt-d">${esc(fmtDay(day.dateKey))}</div><div class="tt-r"><span>Visibility score</span><b>${vals[i].toFixed(1)}</b></div>${covRow}`);
+          const marks = marksByDate.get(day.dateKey) || [];
+          const markRows = marks.map((m) => m.kind === 'ann'
+            ? `<div class="tt-r"><span>${esc(ANN_TYPE_LABEL[m.type] || m.type)}</span><b>${esc(m.label)}</b></div>`
+            : `<div class="tt-r"><span>Detected</span><b>${esc(m.label)}</b></div>`).join('');
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(day.dateKey))}</div><div class="tt-r"><span>Visibility score</span><b>${vals[i].toFixed(1)}</b></div>${covRow}${markRows}`);
           const cw = days.length === 1 ? plotW : plotW / (days.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(day.dateKey))}</text>`;
+          // Markers sit right above the date labels, at the x-axis, not up
+          // at the line's value — they flag WHEN something happened, the
+          // hover tooltip (same column) covers what and how it moved the line.
+          const my = padT + plotH - 3;
+          marks.forEach((m) => {
+            if (m.kind === 'ann') {
+              const color = m.type === 'paid' ? 'var(--blue)' : 'var(--ink)';
+              markSvg += `<circle class="annmarker" cx="${x(i).toFixed(1)}" cy="${my.toFixed(1)}" r="3.5" fill="${color}" stroke="var(--card)" stroke-width="1"/>`;
+            } else {
+              // System-detected marks (currently: a rating spike that
+              // visibility actually dropped after — see
+              // detectRatingSpikeDrop) use the same amber the insight
+              // banner above the chart already uses for this, instead of
+              // alarm red, so the two read as the same finding.
+              const ax = x(i);
+              markSvg += `<polygon class="annmarker" points="${ax.toFixed(1)},${(my - 3).toFixed(1)} ${(ax - 4).toFixed(1)},${(my + 4).toFixed(1)} ${(ax + 4).toFixed(1)},${(my + 4).toFixed(1)}" fill="var(--warn)" stroke="var(--card)" stroke-width="1"/>`;
+            }
+          });
         });
-        (annotations || []).forEach((a) => {
-          const idx = days.findIndex((d) => d.dateKey === a.date);
-          if (idx === -1) return;
-          const ax = x(idx);
-          // Sits just above where YOUR line actually is that day — a fixed
-          // spot at the top of the chart, disconnected from the data, was
-          // read as a stray floating shape rather than a marker on the line.
-          const my = Math.max(padT + 4, y(vals[idx]) - 10);
-          const color = a.type === 'paid' ? 'var(--blue)' : 'var(--ink)';
-          const tid = tipId(`<div class="tt-d">${esc(fmtDay(a.date))} · ${esc(ANN_TYPE_LABEL[a.type] || a.type)}</div><div class="tt-r"><span>${esc(a.label)}</span></div>`);
-          out += `<g class="annmark">
-            <line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,2"/>
-            <circle class="annmarker" cx="${ax.toFixed(1)}" cy="${my.toFixed(1)}" r="3.5" fill="${color}" stroke="var(--card)" stroke-width="1"/>
-            <rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${padT}" width="8" height="${(plotH + padB).toFixed(1)}" fill="transparent"/>
-          </g>`;
-        });
-        // System-detected marks (currently: a rating spike that visibility
-        // actually dropped after — see detectRatingSpikeDrop). Deliberately
-        // NOT drawn the same as a manually logged annotation: a triangle
-        // marker in the "bad" color, so it reads at a glance as "the system
-        // flagged this", distinct from something you logged yourself.
-        (autoMarks || []).forEach((m) => {
-          const idx = days.findIndex((d) => d.dateKey === m.date);
-          if (idx === -1) return;
-          const ax = x(idx);
-          const my = Math.max(padT + 6, y(vals[idx]) - 12);
-          const tid = tipId(`<div class="tt-d">${esc(fmtDay(m.date))} · Detected</div><div class="tt-r"><span>${esc(m.label)}</span></div>`);
-          out += `<g class="annmark">
-            <line x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${(padT + plotH).toFixed(1)}" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="1,2"/>
-            <polygon class="annmarker" points="${ax.toFixed(1)},${(my - 3).toFixed(1)} ${(ax - 4).toFixed(1)},${(my + 4).toFixed(1)} ${(ax + 4).toFixed(1)},${(my + 4).toFixed(1)}" fill="var(--bad)" stroke="var(--card)" stroke-width="1"/>
-            <rect class="hcol" data-tip="${tid}" x="${(ax - 4).toFixed(1)}" y="${padT}" width="8" height="${(plotH + padB).toFixed(1)}" fill="transparent"/>
-          </g>`;
-        });
-        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:hidden;">${out}</svg>`;
+        out += markSvg;
+        const svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;overflow:hidden;">${out}</svg>`;
         return svg + compareLegendHtml('You', 'var(--ok)', compLines, compMaxY != null);
       }
 
@@ -1073,7 +1103,7 @@ ai photo enhancer"></textarea>
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(dateKeys[i]))}</text>`;
         });
-        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+        return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;">${out}</svg>`;
       }
 
       // 1-2★ share trend — one cheap (no-AI) point per nightly check, shows
@@ -1113,13 +1143,13 @@ ai photo enhancer"></textarea>
           out += `<line x1="${padL}" y1="${yPix.toFixed(1)}" x2="${W - 6}" y2="${yPix.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`;
         }
         out += `<line x1="${padL}" y1="${(padT + plotH).toFixed(1)}" x2="${W - 6}" y2="${(padT + plotH).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`;
-        let d = '', started = false, areaD = '', areaStartX = null, lastX = null;
+        const d = smoothPath(pts.map((p, i) => (p.v == null ? null : { x: x(i), y: y(p.v) })));
+        let areaD = '', areaStartX = null, lastX = null, areaStarted = false;
         pts.forEach((p, i) => {
-          if (p.v == null) { started = false; return; }
-          if (!started) { areaD += `${areaD ? ' ' : ''}M${x(i).toFixed(1)},${y(p.v).toFixed(1)} `; areaStartX = x(i); }
+          if (p.v == null) { areaStarted = false; return; }
+          if (!areaStarted) { areaD += `${areaD ? ' ' : ''}M${x(i).toFixed(1)},${y(p.v).toFixed(1)} `; areaStartX = x(i); }
           else areaD += `L${x(i).toFixed(1)},${y(p.v).toFixed(1)} `;
-          d += `${started ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)} `;
-          started = true;
+          areaStarted = true;
           lastX = x(i);
         });
         if (areaD && lastX != null) out += `<path d="${areaD} L${lastX.toFixed(1)},${(padT + plotH).toFixed(1)} L${areaStartX.toFixed(1)},${(padT + plotH).toFixed(1)} Z" fill="url(#${gradId})" stroke="none"/>`;
@@ -1127,13 +1157,7 @@ ai photo enhancer"></textarea>
         // markers) so the primary "you" line + its area fill stay visually
         // on top — same layering compareTrendChart uses.
         for (const s of compLines) {
-          let cd = '', cStarted = false;
-          s.vals.forEach((v, i) => {
-            if (v == null) { cStarted = false; return; }
-            const cy = padT + plotH - (v / compMaxY) * plotH;
-            cd += `${cStarted ? 'L' : 'M'}${x(i).toFixed(1)},${cy.toFixed(1)} `;
-            cStarted = true;
-          });
+          const cd = smoothPath(s.vals.map((v, i) => (v == null ? null : { x: x(i), y: padT + plotH - (v / compMaxY) * plotH })));
           if (cd) out += `<path d="${cd}" fill="none" stroke="${s.color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4,3"/>`;
         }
         out += `<path d="${d}" fill="none" stroke="var(--bad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
@@ -1146,7 +1170,7 @@ ai photo enhancer"></textarea>
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(p.dateKey))}</text>`;
         });
-        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:hidden;">${out}</svg>`;
+        const svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;overflow:hidden;">${out}</svg>`;
         return svg + compareLegendHtml('You', 'var(--bad)', compLines, compMaxY != null);
       }
 
@@ -1210,7 +1234,7 @@ ai photo enhancer"></textarea>
         const changeLabel = change > 0 ? `<span class="delta up">▲ +${change} since ${esc(fmtDay(pts[0].dateKey))}</span>`
           : change < 0 ? `<span class="delta down">▼ ${change} since ${esc(fmtDay(pts[0].dateKey))}</span>`
           : `<span class="delta flat">＝ unchanged since ${esc(fmtDay(pts[0].dateKey))}</span>`;
-        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg><div class="hint" style="margin-top:6px;">${last} tracked today ${changeLabel}</div>`;
+        return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;">${out}</svg><div class="hint" style="margin-top:6px;">${last} tracked today ${changeLabel}</div>`;
       }
 
       // --- keyword discovery panel -------------------------------------------
@@ -2188,7 +2212,7 @@ ai photo enhancer"></textarea>
         }
         const legend = series.map((s) => `<span class="li"><span class="sw" style="background:${s.color}"></span>${s.titleHtml}</span>`).join('');
         return `<div class="chartbox"><h4>Visibility trend on your keywords — you vs competitors</h4>
-          <svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;">${out}</svg>
           <div class="legend">${legend}</div>
           <p class="hint" style="margin-top:6px;">0–100 score, same scale as the Overview visibility score — averaged across your keyword list for each app, using only that app's own tracked/coverage keywords (untracked keywords count as 0, same as "not ranking"). Trend direction matters more than the exact number on any single day.</p>
         </div>`;

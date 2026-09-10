@@ -291,10 +291,8 @@ const dykCards = cards.slice(0, 4);
       /* Portfolio row: one small card per owned app, sorted biggest-mover
          first (see the frontmatter sort) — the thing that used to not
          exist at all once an account tracked more than one app. */
-      .portfolio-row { display: flex; gap: 12px; overflow-x: auto; padding: 4px 4px 10px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
-      .portfolio-row::-webkit-scrollbar { height: 7px; }
-      .portfolio-row::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
-      .portfolio-card { scroll-snap-align: start; flex: 0 0 176px; display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; box-shadow: var(--shadow); text-decoration: none; color: inherit; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+      .portfolio-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 12px; padding: 4px 4px 10px; }
+      .portfolio-card { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; box-shadow: var(--shadow); text-decoration: none; color: inherit; transition: transform 0.15s ease, box-shadow 0.15s ease; }
       .portfolio-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(29,31,43,0.06), 0 14px 28px rgba(29,31,43,0.09); }
       .portfolio-icon { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; object-fit: cover; }
       .portfolio-icon-fallback { display: grid; place-items: center; background: var(--tint); color: var(--accent); font-weight: 800; font-size: 14px; }
