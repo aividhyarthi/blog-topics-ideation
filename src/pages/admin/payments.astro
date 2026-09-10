@@ -29,6 +29,19 @@ import Site from '../../layouts/Site.astro';
         <div id="bloggen-runs" style="margin-top:14px"></div>
       </div>
       <div class="dcard">
+        <div class="dcard-head"><b>Publish a post manually</b></div>
+        <p class="dcard-lead">Paste in an already-written post (no Anthropic/OpenAI call, no cost) — for whenever a post is drafted directly instead of sourced by the pipeline above.</p>
+        <div class="pubform">
+          <input type="text" id="pub-title" placeholder="Title" />
+          <input type="text" id="pub-desc" placeholder="Meta description (1-2 sentences)" />
+          <input type="text" id="pub-tags" placeholder="Tags, comma-separated (e.g. AEO, Guide)" />
+          <textarea id="pub-body" rows="14" placeholder="Full post body in Markdown. Start with:&#10;&lt;div class=&quot;callout&quot;&gt;&lt;span class=&quot;callout-label&quot;&gt;Quick answer&lt;/span&gt;&lt;p&gt;...&lt;/p&gt;&lt;/div&gt;&#10;&#10;Then ## headings, tables, etc."></textarea>
+          <textarea id="pub-faqs" rows="4" placeholder='Optional: FAQs as JSON, e.g. [{"q":"...","a":"..."}]'></textarea>
+          <button class="btn-primary sm" id="pub-go">Publish</button>
+        </div>
+        <p class="trialnote" id="pub-note"></p>
+      </div>
+      <div class="dcard">
         <div class="dcard-head"><b>Registered users</b><span id="users-count" class="muted"></span></div>
         <p class="dcard-lead">Everyone who has actually signed up — check here before granting a trial to make sure the account exists yet.</p>
         <div id="users-gate" class="gate-msg">Checking access…</div>
@@ -81,6 +94,35 @@ import Site from '../../layouts/Site.astro';
       } catch {}
     }
     loadRuns();
+
+    $('pub-go').addEventListener('click', async () => {
+      const title = $('pub-title').value.trim();
+      const description = $('pub-desc').value.trim();
+      const bodyMarkdown = $('pub-body').value.trim();
+      const tags = $('pub-tags').value.split(',').map((s) => s.trim()).filter(Boolean);
+      let faqs = [];
+      const faqsRaw = $('pub-faqs').value.trim();
+      if (faqsRaw) {
+        try { faqs = JSON.parse(faqsRaw); } catch { $('pub-note').textContent = 'FAQs field is not valid JSON — leave it blank or fix the JSON.'; return; }
+      }
+      if (!title || !description || !bodyMarkdown) { $('pub-note').textContent = 'Title, description and body are all required.'; return; }
+      $('pub-go').disabled = true;
+      $('pub-note').textContent = 'Publishing…';
+      try {
+        const res = await fetch('/api/admin/publish-post', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, description, bodyMarkdown, tags, faqs }),
+        });
+        const d = await res.json();
+        if (!res.ok) { $('pub-note').textContent = d.error || 'Failed.'; }
+        else {
+          $('pub-note').innerHTML = `Published — <a href="${d.url}" target="_blank">${d.url} →</a>`;
+          $('pub-title').value = ''; $('pub-desc').value = ''; $('pub-tags').value = ''; $('pub-body').value = ''; $('pub-faqs').value = '';
+        }
+      } catch { $('pub-note').textContent = 'Network error.'; }
+      $('pub-go').disabled = false;
+    });
+
     $('bloggen-go').addEventListener('click', async () => {
       $('bloggen-go').disabled = true;
       $('bloggen-note').textContent = 'Sourcing a topic and drafting the post — this can take up to a minute…';
@@ -203,5 +245,8 @@ import Site from '../../layouts/Site.astro';
     .runrow-detail { color: var(--ink-2); flex: 1; min-width: 160px; }
     .runrow-when { color: var(--faint); white-space: nowrap; }
     .runrow-link { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .pubform { display: grid; gap: 10px; }
+    .pubform input, .pubform textarea { border: 1px solid var(--line-2); border-radius: 9px; padding: 9px 12px; font-size: 13.5px; font-family: inherit; width: 100%; box-sizing: border-box; }
+    .pubform textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12.5px; line-height: 1.5; }
   </style>
 </Site>
