@@ -1005,6 +1005,17 @@ ai photo enhancer"></textarea>
         }
         out += `<path d="${d}" fill="none" stroke="var(--ok)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(days.length / 6);
+        // A point circle every single day reads fine at a couple of weeks,
+        // but on a long/"ALL" range they sit close enough together that
+        // their own white outlines chop the connecting line into what
+        // looks like a dashed/dotted line instead of one smooth curve —
+        // thinning them out (rather than dropping them) still left them
+        // dense enough to read as beaded. Past 45 days, skip routine
+        // per-day circles altogether: the smooth line carries the trend,
+        // every day is still hoverable via its full column, and the
+        // current value / low-confidence flags — the two markers that
+        // actually matter at a glance — still show.
+        const showAllMarkers = days.length <= 45;
         // Annotations and auto-marks fold into the SAME day's tooltip and
         // hover column instead of getting their own narrow, overlapping
         // hcol rect — two stacked hit-targets on one date used to show
@@ -1034,7 +1045,11 @@ ai photo enhancer"></textarea>
           const lowConfidence = totalForDay > 0 && day.tracked / totalForDay < 0.7;
           const fill = lowConfidence ? 'var(--card)' : 'var(--ok)';
           const stroke = lowConfidence ? 'var(--ok)' : 'var(--card)';
-          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="${isLast ? 4.5 : 2.6}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+          // Always show the last point (current value) and any low-confidence
+          // point (a real signal worth flagging even on a long range).
+          if (isLast || lowConfidence || showAllMarkers) {
+            out += `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="${isLast ? 4.5 : 2.6}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+          }
           const covRow = totalForDay
             ? `<div class="tt-r"><span>Keywords checked</span><b>${day.tracked} of ${totalForDay}</b></div>`
               + (lowConfidence ? '<div class="tt-warn">Low coverage — read this point as low-confidence, not a confirmed rank</div>' : '')
@@ -1162,9 +1177,16 @@ ai photo enhancer"></textarea>
         }
         out += `<path d="${d}" fill="none" stroke="var(--bad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
         const labelEvery = Math.ceil(pts.length / 6);
+        // Same as visChart — one circle per day chops a long range's line
+        // into what looks like a dashed/dotted line, so past 45 points
+        // only the current value gets a marker.
+        const showAllMarkers = pts.length <= 45;
         pts.forEach((p, i) => {
           if (p.v == null) return;
-          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3" fill="var(--bad)" stroke="var(--card)" stroke-width="2"/>`;
+          const isLast = i === pts.length - 1;
+          if (isLast || showAllMarkers) {
+            out += `<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3" fill="var(--bad)" stroke="var(--card)" stroke-width="2"/>`;
+          }
           const tid = tipId(`<div class="tt-d">${esc(fmtDay(p.dateKey))}</div><div class="tt-r"><span>1-2★ share${p.windowDays ? ` (last ${p.windowDays}d)` : ''}</span><b>${p.v}%</b></div>`);
           const cw = pts.length === 1 ? plotW : plotW / (pts.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
