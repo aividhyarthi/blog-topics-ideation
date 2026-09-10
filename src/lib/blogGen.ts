@@ -7,10 +7,14 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { TopicCandidate } from './blogSources';
 import type { ChartSpec, NewPostInput } from './blogPosts';
 
-const MODEL = process.env.BLOG_GEN_MODEL || (import.meta as any).env?.BLOG_GEN_MODEL || 'claude-sonnet-5';
+const ANTHROPIC_MODEL = process.env.BLOG_GEN_MODEL || (import.meta as any).env?.BLOG_GEN_MODEL || 'claude-sonnet-5';
+const OPENAI_MODEL = process.env.BLOG_GEN_OPENAI_MODEL || (import.meta as any).env?.BLOG_GEN_OPENAI_MODEL || 'gpt-4o';
 
-function apiKey(): string | null {
+function anthropicKey(): string | null {
   return process.env.ANTHROPIC_API_KEY || (import.meta as any).env?.ANTHROPIC_API_KEY || null;
+}
+function openaiKey(): string | null {
+  return process.env.OPENAI_API_KEY || (import.meta as any).env?.OPENAI_API_KEY || null;
 }
 
 export interface LinkTarget { slug: string; title: string }
@@ -57,21 +61,56 @@ function stripCodeFence(s: string): string {
   return fence ? fence[1] : trimmed;
 }
 
-export async function generatePostFromTopic(topic: TopicCandidate, links: LinkTarget[]): Promise<NewPostInput> {
-  const key = apiKey();
-  if (!key) throw new Error('ANTHROPIC_API_KEY is not configured');
+async function draftWithAnthropic(prompt: string, key: string): Promise<string> {
   const client = new Anthropic({ apiKey: key });
   const res = await client.messages.create({
-    model: MODEL,
+    model: ANTHROPIC_MODEL,
     max_tokens: 4000,
-    messages: [{ role: 'user', content: buildPrompt(topic, links) }],
+    messages: [{ role: 'user', content: prompt }],
   });
-  const text = res.content.map((b: any) => (b.type === 'text' ? b.text : '')).join('');
+  return res.content.map((b: any) => (b.type === 'text' ? b.text : '')).join('');
+}
+
+async function draftWithOpenAI(prompt: string, key: string): Promise<string> {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: OPENAI_MODEL, response_format: { type: 'json_object' }, temperature: 0.7,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text().catch(() => '')).slice(0, 240)}`);
+  const data: any = await res.json();
+  return data?.choices?.[0]?.message?.content ?? '';
+}
+
+export async function generatePostFromTopic(topic: TopicCandidate, links: LinkTarget[]): Promise<NewPostInput> {
+  const aKey = anthropicKey();
+  const oKey = openaiKey();
+  if (!aKey && !oKey) throw new Error('No AI key configured — set ANTHROPIC_API_KEY or OPENAI_API_KEY');
+  const prompt = buildPrompt(topic, links);
+
+  // Same provider order as the main audit tool's AI judge (aeo-audit.ts):
+  // whichever key is present tries first, the other is the fallback — so
+  // one provider being out of credit (or down) doesn't stop the pipeline.
+  const providers: Array<[string, () => Promise<string>]> = [];
+  if (aKey) providers.push(['Claude', () => draftWithAnthropic(prompt, aKey)]);
+  if (oKey) providers.push(['OpenAI', () => draftWithOpenAI(prompt, oKey)]);
+
+  let text = '';
+  let lastErr = '';
+  for (const [name, run] of providers) {
+    try { text = await run(); lastErr = ''; break; }
+    catch (err) { lastErr = `${name}: ${err instanceof Error ? err.message : String(err)}`; }
+  }
+  if (lastErr) throw new Error(lastErr);
+
   let parsed: any;
   try {
     parsed = JSON.parse(stripCodeFence(text));
   } catch (err) {
-    throw new Error(`Claude did not return valid JSON: ${(err as Error).message}`);
+    throw new Error(`Model did not return valid JSON: ${(err as Error).message}`);
   }
   if (!parsed.title || !parsed.bodyMarkdown) throw new Error('Generated post is missing title or bodyMarkdown');
 
