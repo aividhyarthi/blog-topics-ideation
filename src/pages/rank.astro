@@ -920,8 +920,8 @@ ai photo enhancer"></textarea>
       // the run ran out of time before reaching them). NOT a ranking outcome.
       const notCheckedOn = (d) => (d.failed || 0) + (d.unchecked || 0);
 
-      function stackChart(days) {
-        const W = 560, H = 170, padL = 26, padB = 18, padT = 6;
+      function stackChart(days, W = 560) {
+        const H = 170, padL = 26, padB = 18, padT = 6;
         const plotW = W - padL - 6, plotH = H - padT - padB;
         // Scale to the whole LIST, not just the part that got checked. With
         // the axis topping out at the checked count, a day where half the
@@ -975,7 +975,11 @@ ai photo enhancer"></textarea>
           ? `<defs><pattern id="ncHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                <rect width="6" height="6" fill="#f1f3f7"/><line x1="0" y1="0" x2="0" y2="6" stroke="#c8cdd9" stroke-width="2.5"/>
              </pattern></defs>` : '';
-        return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;">${defs}${out}</svg>`;
+        // W is the real measured container pixel width (see chartWidth()),
+        // so default uniform scaling lands on exactly 1 viewBox unit = 1
+        // real pixel — no preserveAspectRatio override needed, and no
+        // anisotropic stretch on the axis numbers / date labels.
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${defs}${out}</svg>`;
       }
 
       /** Bucket legend, plus a "not checked" key when any day has one. */
@@ -1138,10 +1142,10 @@ ai photo enhancer"></textarea>
 
       // Category (top-chart) position trend — top = best rank, same
       // low-is-good inversion as the per-keyword sparkline.
-      function chartPositionTrend(dateKeys, history, label = 'Category rank', emptyMsg = 'No category chart data yet.') {
+      function chartPositionTrend(dateKeys, history, label = 'Category rank', emptyMsg = 'No category chart data yet.', W = 400) {
         const known = history.filter((v) => v != null);
         if (!known.length) return `<p class="hint">${esc(emptyMsg)}</p>`;
-        const W = 400, H = 170, padL = 34, padB = 18, padT = 8;
+        const H = 170, padL = 34, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
         const minV = Math.min(...known), maxV = Math.max(...known);
         const span = Math.max(1, maxV - minV);
@@ -1168,7 +1172,7 @@ ai photo enhancer"></textarea>
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(dateKeys[i]))}</text>`;
         });
-        return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;">${out}</svg>`;
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
       }
 
       // 1-2★ share trend — one cheap (no-AI) point per nightly check, shows
@@ -1279,10 +1283,10 @@ ai photo enhancer"></textarea>
       // checked — answers "is my keyword universe growing over time" with
       // real historical sizes (see universeSizeSeries server-side), not
       // today's count re-applied to every past day.
-      function universeSizeChart(points, color = 'var(--ink)') {
+      function universeSizeChart(points, color = 'var(--ink)', W = 400) {
         const pts = points || [];
         if (pts.length < 2) return '<p class="hint">Not enough history yet to show a trend — check back after a few more days of checks.</p>';
-        const W = 400, H = 170, padL = 34, padB = 18, padT = 8;
+        const H = 170, padL = 34, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
         const counts = pts.map((p) => p.count);
         const maxY = Math.max(4, Math.ceil(Math.max(...counts) * 1.1));
@@ -1309,7 +1313,7 @@ ai photo enhancer"></textarea>
         const changeLabel = change > 0 ? `<span class="delta up">▲ +${change} since ${esc(fmtDay(pts[0].dateKey))}</span>`
           : change < 0 ? `<span class="delta down">▼ ${change} since ${esc(fmtDay(pts[0].dateKey))}</span>`
           : `<span class="delta flat">＝ unchanged since ${esc(fmtDay(pts[0].dateKey))}</span>`;
-        return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;">${out}</svg><div class="hint" style="margin-top:6px;">${last} tracked today ${changeLabel}</div>`;
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg><div class="hint" style="margin-top:6px;">${last} tracked today ${changeLabel}</div>`;
       }
 
       // --- keyword discovery panel -------------------------------------------
@@ -1639,8 +1643,8 @@ ai photo enhancer"></textarea>
         if (!cov || !cov.total || !cov.days || !cov.days.length) return '';
         const legend = bucketLegend(cov.days);
         const covToday = cov.days[cov.days.length - 1];
-        return `<div class="chartbox"><h4>Keyword universe size over time</h4>${universeSizeChart(cov.universeTrend)}</div>
-          <div class="chartbox"><h4>Coverage distribution by check</h4>${stackChart(cov.days)}<div class="legend">${legend}</div>${coverageCaption(covToday)}</div>`;
+        return `<div class="chartbox"><h4>Keyword universe size over time</h4>${universeSizeChart(cov.universeTrend, undefined, chartWidth(400))}</div>
+          <div class="chartbox"><h4>Coverage distribution by check</h4>${stackChart(cov.days, chartWidth(560))}<div class="legend">${legend}</div>${coverageCaption(covToday)}</div>`;
       }
 
       function overviewHtml(app) {
@@ -1703,7 +1707,7 @@ ai photo enhancer"></textarea>
           <div class="glancecards">${moversHtml(app)}${competitorPulseHtml(app)}${ratingPulseHtml(app)}</div>
           ${trendChartsHtml(app)}
           ${categoryChartTrendHtml(app)}
-          <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days)}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>
+          <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days, chartWidth(560))}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>
         </div>`;
       }
 
@@ -1785,7 +1789,7 @@ ai photo enhancer"></textarea>
           ? `Not in the top ${depth || '?'} of ${esc(chartName)}.`
           : 'Not ranked in a top chart yet.';
         return isChartRanking
-          ? `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist)}${overallNote}${depthNote}</div>`
+          ? `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist, undefined, undefined, chartWidth(400))}${overallNote}${depthNote}</div>`
           : `<div class="chartbox"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : notRankedText}</p>${overallNote}${depthNote}</div>`;
       }
 
@@ -1828,7 +1832,7 @@ ai photo enhancer"></textarea>
       // instead of Insights being text-only while everywhere else has one).
       function insightGroupChart(kind, app) {
         if (kind === 'reviews') return (app.ratingHistory || []).length ? ratingTrendChart(app.ratingHistory, null, chartWidth(700)) : '';
-        if (kind === 'chart') return (app.chart && (app.chart.history || []).some((v) => v != null)) ? chartPositionTrend(app.chart.dateKeys, app.chart.history) : '';
+        if (kind === 'chart') return (app.chart && (app.chart.history || []).some((v) => v != null)) ? chartPositionTrend(app.chart.dateKeys, app.chart.history, undefined, undefined, chartWidth(400)) : '';
         return '';
       }
       function insightsHtml(app) {
@@ -2267,7 +2271,7 @@ ai photo enhancer"></textarea>
         const n = Math.max(...series.map((s) => s.vals.length));
         if (n < 2) return '';
         const dates = dateKeys.slice(-n);
-        const W = 720, H = 200, padL = 32, padB = 20, padT = 10;
+        const W = chartWidth(720), H = 200, padL = 32, padB = 20, padT = 10;
         const plotW = W - padL - 8, plotH = H - padT - padB;
         const x = (i) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
         const y = (v) => padT + plotH - (v / 100) * plotH;
@@ -2296,7 +2300,7 @@ ai photo enhancer"></textarea>
         }
         const legend = series.map((s) => `<span class="li"><span class="sw" style="background:${s.color}"></span>${s.titleHtml}</span>`).join('');
         return `<div class="chartbox"><h4>Visibility trend on your keywords — you vs competitors</h4>
-          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;">${out}</svg>
+          <svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>
           <div class="legend">${legend}</div>
           <p class="hint" style="margin-top:6px;">0–100 score, same scale as the Overview visibility score — averaged across your keyword list for each app, using only that app's own tracked/coverage keywords (untracked keywords count as 0, same as "not ranking"). Trend direction matters more than the exact number on any single day.</p>
         </div>`;
