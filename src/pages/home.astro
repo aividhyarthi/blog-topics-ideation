@@ -186,7 +186,48 @@ const candidates = [
 candidates.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 const lastUrl = candidates[0]?.url || null;
 
-const latestPosts = (await listPublishedPosts().catch(() => [])).slice(0, 3);
+// ---- "From the blog": suggest posts that match the user's actual weakest
+// pillar (a structure/indexability problem gets technical reading, a
+// content-quality problem gets content reading) rather than always just the
+// newest posts. Falls back to latest-first whenever there isn't a real
+// signal to go on — no saved audit yet, or none of the published posts
+// happen to talk about that pillar's problem (a real risk while the blog
+// only has a handful of posts; this gets more useful as it grows).
+const allPosts = await listPublishedPosts().catch(() => []);
+const PILLAR_BUCKET: Record<string, 'technical' | 'content' | 'query'> = {
+  structure: 'technical',
+  entity: 'content',
+  attribution: 'content',
+  answerability: 'content',
+  freshness: 'content',
+  query: 'query',
+};
+const BUCKET_KEYWORDS: Record<string, string[]> = {
+  technical: ['javascript', 'crawler', 'crawl', 'schema', 'indexability', 'technical', 'structured data', 'robots', 'render', 'html', 'access check'],
+  content: ['content', 'attribution', 'trust', 'answer', 'freshness', 'entity', 'quality', 'source'],
+  query: ['question', 'faq', 'query', 'prompt', 'keyword', 'phrase', 'ask'],
+};
+const pillars = (fullLatestAudit?.report?.pillars || []).filter((p: any) => p.measured !== false);
+const worstPillar = pillars.length ? pillars.reduce((a: any, b: any) => (b.score < a.score ? b : a)) : null;
+const pillarBucket = worstPillar ? PILLAR_BUCKET[worstPillar.id] : null;
+
+let latestPosts = allPosts.slice(0, 3);
+if (pillarBucket) {
+  const keywords = BUCKET_KEYWORDS[pillarBucket];
+  const scored = allPosts
+    .map((p) => {
+      // Search the full body too, not just title/description/tags — those
+      // are short marketing-style summaries that rarely contain a specific
+      // word like "schema" or "javascript" even when the post is actually
+      // about exactly that.
+      const haystack = `${p.title} ${p.description} ${p.tags.join(' ')} ${p.bodyMarkdown}`.toLowerCase();
+      const score = keywords.reduce((n, kw) => n + (haystack.includes(kw) ? 1 : 0), 0);
+      return { post: p, score };
+    })
+    .filter((s) => s.score >= 2)
+    .sort((a, b) => b.score - a.score);
+  if (scored.length) latestPosts = scored.slice(0, 3).map((s) => s.post);
+}
 
 function sparkPath(vals: number[]): string {
   if (vals.length < 2) return '';
