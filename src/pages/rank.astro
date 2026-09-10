@@ -932,14 +932,20 @@ ai photo enhancer"></textarea>
           ...s,
           vals: alignByDateKey(days, s.days, (d) => d.visibility),
         }));
-        // Shared scale across your own data AND any active competitor
-        // overlay — clipping a competitor to your own scale (tried earlier)
-        // made the comparison pointless when they score much higher, since
-        // their line just vanished off the top. A real side-by-side needs
-        // both fully visible, even if that means your own line reads
-        // smaller when a competitor scores well ahead of you.
-        const allVals = [...vals, ...compLines.flatMap((s) => s.vals.filter((v) => v != null))];
-        const maxY = Math.max(10, Math.ceil(Math.max(...allVals) / 10) * 10);
+        // Dual-axis: YOUR line is scaled to your own range (left axis) —
+        // never squashed by a competitor scoring higher. Competitor
+        // overlays share a SECOND, independent scale (right axis) sized to
+        // their own range — never clipped for scoring higher than you.
+        // Both scales map their own 0..max onto the exact same plot height,
+        // so the two axes' gridlines land at the same pixel rows and can
+        // share one set of horizontal lines with two labels (left = your
+        // value at that row, right = theirs) instead of needing a second
+        // grid. A shared single scale (tried earlier) either squashed your
+        // line flat or clipped theirs off the chart depending on which
+        // side "won" — this is the only version where neither happens.
+        const maxY = Math.max(10, Math.ceil(Math.max(...vals) / 10) * 10);
+        const compAllVals = compLines.flatMap((s) => s.vals.filter((v) => v != null));
+        const compMaxY = compAllVals.length ? Math.max(10, Math.ceil(Math.max(...compAllVals) / 10) * 10) : null;
         const x = (i) => padL + (days.length === 1 ? plotW / 2 : (i / (days.length - 1)) * plotW);
         const y = (v) => padT + plotH - (v / maxY) * plotH;
         const gradId = `visFill${++vizGradSeq}`;
@@ -947,21 +953,27 @@ ai photo enhancer"></textarea>
           <stop offset="0%" stop-color="var(--ok)" stop-opacity="0.25"/>
           <stop offset="100%" stop-color="var(--ok)" stop-opacity="0"/>
         </linearGradient></defs>`;
-        for (const v of [maxY, maxY / 2]) {
-          out += `<line x1="${padL}" y1="${y(v)}" x2="${W - 6}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>
-            <text x="${padL - 5}" y="${y(v) + 3.5}" text-anchor="end" font-size="9.5" fill="var(--muted)">${v}</text>`;
+        for (const frac of [1, 0.5]) {
+          const yPix = padT + plotH - frac * plotH;
+          out += `<line x1="${padL}" y1="${yPix}" x2="${W - 6}" y2="${yPix}" stroke="var(--line)" stroke-width="1"/>
+            <text x="${padL - 5}" y="${yPix + 3.5}" text-anchor="end" font-size="9.5" fill="var(--muted)">${Math.round(frac * maxY)}</text>`;
+          if (compMaxY != null) {
+            out += `<text x="${W - 4}" y="${yPix + 3.5}" text-anchor="end" font-size="9" fill="var(--muted)" opacity="0.8">${Math.round(frac * compMaxY)}</text>`;
+          }
         }
         out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - 6}" y2="${padT + plotH}" stroke="var(--line)" stroke-width="1"/>`;
         const d = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
         const areaD = `${d} L${x(vals.length - 1).toFixed(1)},${(padT + plotH).toFixed(1)} L${x(0).toFixed(1)},${(padT + plotH).toFixed(1)} Z`;
         out += `<path d="${areaD}" fill="url(#${gradId})" stroke="none"/>`;
         // Competitor overlays under the primary line/fill — same layering
-        // as ratingTrendChart's, so "you" always reads on top.
+        // as ratingTrendChart's, so "you" always reads on top. Each drawn
+        // against ITS OWN scale (compMaxY), not yours.
         for (const s of compLines) {
           let cd = '', cStarted = false;
           s.vals.forEach((v, i) => {
             if (v == null) { cStarted = false; return; }
-            cd += `${cStarted ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+            const cy = padT + plotH - (v / compMaxY) * plotH;
+            cd += `${cStarted ? 'L' : 'M'}${x(i).toFixed(1)},${cy.toFixed(1)} `;
             cStarted = true;
           });
           if (cd) out += `<path d="${cd}" fill="none" stroke="${s.color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4,3"/>`;
@@ -1025,7 +1037,7 @@ ai photo enhancer"></textarea>
           </g>`;
         });
         const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:hidden;">${out}</svg>`;
-        return svg + compareLegendHtml('You', 'var(--ok)', compLines);
+        return svg + compareLegendHtml('You', 'var(--ok)', compLines, compMaxY != null);
       }
 
       // Category (top-chart) position trend — top = best rank, same
@@ -1081,10 +1093,12 @@ ai photo enhancer"></textarea>
         }));
         const W = 400, H = 170, padL = 30, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
-        // Shared scale across your own data AND any active competitor
-        // overlay — see visChart's identical reasoning.
-        const allKnown = [...known.map((p) => p.v), ...compLines.flatMap((s) => s.vals.filter((v) => v != null))];
-        const maxY = Math.max(20, Math.ceil(Math.max(...allKnown) / 10) * 10);
+        // Dual-axis, same reasoning as visChart: your own scale on the
+        // left (never squashed by a competitor's higher share), theirs on
+        // a separate right-hand scale (never clipped for scoring higher).
+        const maxY = Math.max(20, Math.ceil(Math.max(...known.map((p) => p.v)) / 10) * 10);
+        const compAllVals = compLines.flatMap((s) => s.vals.filter((v) => v != null));
+        const compMaxY = compAllVals.length ? Math.max(20, Math.ceil(Math.max(...compAllVals) / 10) * 10) : null;
         const x = (i) => padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
         const y = (v) => padT + plotH - (v / maxY) * plotH;
         const gradId = `ratingFill${++ratingGradSeq}`;
@@ -1092,9 +1106,13 @@ ai photo enhancer"></textarea>
           <stop offset="0%" stop-color="var(--bad)" stop-opacity="0.16"/>
           <stop offset="100%" stop-color="var(--bad)" stop-opacity="0"/>
         </linearGradient></defs>`;
-        for (const v of [maxY, maxY / 2]) {
-          out += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - 6}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>
-            <text x="${padL - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--muted)">${v}%</text>`;
+        for (const frac of [1, 0.5]) {
+          const yPix = padT + plotH - frac * plotH;
+          out += `<line x1="${padL}" y1="${yPix.toFixed(1)}" x2="${W - 6}" y2="${yPix.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>
+            <text x="${padL - 5}" y="${(yPix + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--muted)">${Math.round(frac * maxY)}%</text>`;
+          if (compMaxY != null) {
+            out += `<text x="${W - 4}" y="${(yPix + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--muted)" opacity="0.8">${Math.round(frac * compMaxY)}%</text>`;
+          }
         }
         out += `<line x1="${padL}" y1="${(padT + plotH).toFixed(1)}" x2="${W - 6}" y2="${(padT + plotH).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`;
         let d = '', started = false, areaD = '', areaStartX = null, lastX = null;
@@ -1114,7 +1132,8 @@ ai photo enhancer"></textarea>
           let cd = '', cStarted = false;
           s.vals.forEach((v, i) => {
             if (v == null) { cStarted = false; return; }
-            cd += `${cStarted ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+            const cy = padT + plotH - (v / compMaxY) * plotH;
+            cd += `${cStarted ? 'L' : 'M'}${x(i).toFixed(1)},${cy.toFixed(1)} `;
             cStarted = true;
           });
           if (cd) out += `<path d="${cd}" fill="none" stroke="${s.color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4,3"/>`;
@@ -1130,7 +1149,7 @@ ai photo enhancer"></textarea>
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(p.dateKey))}</text>`;
         });
         const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:hidden;">${out}</svg>`;
-        return svg + compareLegendHtml('You', 'var(--bad)', compLines);
+        return svg + compareLegendHtml('You', 'var(--bad)', compLines, compMaxY != null);
       }
 
       // Raw 1★/2★/5★ counts for the most recent check — the % trend above
@@ -2070,10 +2089,15 @@ ai photo enhancer"></textarea>
         return primaryPts.map((p) => (map.has(p.dateKey) ? map.get(p.dateKey) : null));
       }
 
-      function compareLegendHtml(youLabel, youColor, compLines) {
+      // `dualAxis`: true when the competitor lines are drawn on their own
+      // right-hand scale (see visChart/ratingTrendChart) rather than yours
+      // — the note stops the two side-by-side axes from silently implying
+      // the raw numbers are on the same scale when they aren't.
+      function compareLegendHtml(youLabel, youColor, compLines, dualAxis) {
         if (!compLines.length) return '';
         const chip = (label, color, dashed) => `<span class="li"><span class="sw" style="background:${color};${dashed ? 'opacity:0.85;' : ''}"></span>${esc(label)}</span>`;
-        return `<div class="legend">${chip(youLabel, youColor)}${compLines.map((s) => chip(s.label, s.color, true)).join('')}</div>`;
+        const note = dualAxis ? `<span class="li" style="color:var(--muted);">Right axis is competitors&rsquo; own scale — compare trend, not the raw numbers.</span>` : '';
+        return `<div class="legend">${chip(youLabel, youColor)}${compLines.map((s) => chip(s.label, s.color, true)).join('')}${note}</div>`;
       }
 
       // Icon + short name instead of the full store title in comparison
