@@ -215,6 +215,16 @@ const SPEC = {
     { art: 'diverge', takeaway: 'Apple documents the revenue effect and stays silent on rank', a: 'redemptions', b: 'rank' },
   'does-apple-featuring-move-long-term-ranking':
     { art: 'diverge', takeaway: 'A huge reported spike, and a separate question of what sticks', a: 'feature-week spike', b: 'lasting rank' },
+  'does-memory-usage-affect-google-play-ranking':
+    { art: 'threshold', takeaway: "Google's new memory metric carries a real February 2027 deadline", band: 'bad behaviour threshold' },
+  'custom-product-pages-now-rank-in-search':
+    { art: 'chips', takeaway: 'Apple confirms custom pages can now win organic search too',
+      chips: ['up to 70 custom pages', 'keyword-to-page match', 'organic, not just ads'] },
+  'apple-search-ads-new-placements-organic-impact':
+    { art: 'bars', takeaway: 'A second ad slot means less of the page is organic at all',
+      bars: [['1 ad slot (before)', 100], ['2 ad slots (after)', 200]] },
+  'does-app-content-show-up-in-google-ai-overviews':
+    { art: 'qa', takeaway: 'Third-party lists win 63% of AI Overview citations, not brand pages' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
