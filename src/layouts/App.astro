@@ -6,9 +6,15 @@
 // Deliberately NOT the marketing layout: no feature grid, no four-column
 // marketing footer. A logged-in workspace should look like a workspace.
 import '../styles/base.css';
+import { getUser } from '../lib/auth';
+import { isAdmin } from '../lib/billing';
 
 interface Props { title?: string; description?: string; tab: 'home' | 'check' | 'audit' | 'reports' }
 const { title = 'AI Page Audit', description = 'Your AI visibility workspace.', tab } = Astro.props as Props;
+
+// Admin-only link into /admin/payments — there was previously no way to
+// reach it from the UI at all, only by knowing the raw URL.
+const admin = isAdmin(await getUser(Astro as any).catch(() => null));
 
 const TABS = [
   { id: 'home', href: '/home', label: 'Home', hint: 'Welcome back, and what to do next' },
@@ -79,6 +85,7 @@ const MARK = `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" 
              nav bar itself stays uncluttered — plan/billing, the signed-in
              email and sign-out live with the rest of account-scoped nav. -->
         <div class="sidefoot">
+          {admin && <a href="/admin/payments" class="sidefoot-link">Admin</a>}
           <a href="/pricing" class="sidefoot-link">Plan &amp; billing</a>
           <span id="cr-navauth"></span>
         </div>
