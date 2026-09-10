@@ -29,6 +29,12 @@ import Site from '../../layouts/Site.astro';
         <div id="bloggen-runs" style="margin-top:14px"></div>
       </div>
       <div class="dcard">
+        <div class="dcard-head"><b>Topics from Reddit &amp; provider news</b></div>
+        <p class="dcard-lead">What the auto-publish pipeline would draft from right now — sourcing only, no AI call, no cost. Already-used ones are greyed out.</p>
+        <button class="btn-ghost sm" id="topics-go">Fetch current topics</button>
+        <div id="topics-list" style="margin-top:14px"></div>
+      </div>
+      <div class="dcard">
         <div class="dcard-head"><b>Publish a post manually</b></div>
         <p class="dcard-lead">Paste in an already-written post (no Anthropic/OpenAI call, no cost) — for whenever a post is drafted directly instead of sourced by the pipeline above.</p>
         <div class="pubform">
@@ -94,6 +100,31 @@ import Site from '../../layouts/Site.astro';
       } catch {}
     }
     loadRuns();
+
+    function renderTopics(list) {
+      if (!list.length) { $('topics-list').innerHTML = '<p class="empty">No candidates right now — try again later.</p>'; return; }
+      $('topics-list').innerHTML = list.map((c) => `
+        <div class="topicrow${c.alreadyUsed ? ' used' : ''}">
+          <div class="topicrow-main">
+            <div class="topicrow-label">${esc(c.label)}${c.alreadyUsed ? ' · already covered' : ''}</div>
+            <a href="${esc(c.url)}" target="_blank" class="topicrow-title">${esc(c.title)}</a>
+            ${c.summary ? `<div class="topicrow-summary">${esc(c.summary.slice(0, 220))}${c.summary.length > 220 ? '…' : ''}</div>` : ''}
+          </div>
+        </div>`).join('');
+    }
+    $('topics-go').addEventListener('click', async () => {
+      $('topics-go').disabled = true;
+      $('topics-go').textContent = 'Fetching…';
+      $('topics-list').innerHTML = '';
+      try {
+        const res = await fetch('/api/admin/blog-topics');
+        const d = await res.json();
+        if (!res.ok) { $('topics-list').innerHTML = `<p class="empty">${esc(d.error || 'Failed.')}</p>`; }
+        else renderTopics(d.candidates || []);
+      } catch { $('topics-list').innerHTML = '<p class="empty">Network error.</p>'; }
+      $('topics-go').disabled = false;
+      $('topics-go').textContent = 'Fetch current topics';
+    });
 
     $('pub-go').addEventListener('click', async () => {
       const title = $('pub-title').value.trim();
@@ -245,6 +276,12 @@ import Site from '../../layouts/Site.astro';
     .runrow-detail { color: var(--ink-2); flex: 1; min-width: 160px; }
     .runrow-when { color: var(--faint); white-space: nowrap; }
     .runrow-link { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .topicrow { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; background: #fff; }
+    .topicrow.used { opacity: .5; }
+    .topicrow-label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 4px; }
+    .topicrow-title { display: block; font-size: 13.5px; font-weight: 700; color: var(--ink); text-decoration: none; margin-bottom: 4px; }
+    .topicrow-title:hover { color: var(--accent); }
+    .topicrow-summary { font-size: 12px; color: var(--muted); line-height: 1.5; }
     .pubform { display: grid; gap: 10px; }
     .pubform input, .pubform textarea { border: 1px solid var(--line-2); border-radius: 9px; padding: 9px 12px; font-size: 13.5px; font-family: inherit; width: 100%; box-sizing: border-box; }
     .pubform textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 12.5px; line-height: 1.5; }
