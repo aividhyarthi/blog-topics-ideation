@@ -41,17 +41,18 @@ const visible = t.appKeys
       mode: 'shared', canSwitch: Boolean(t.canSwitch), granteeEmail: t.granteeEmail ?? null,
     })
   : cfg.apps;
-// The account's own app, not a tracked competitor — the one thing this
-// screen greets you with a number for. An account with several apps still
-// gets the full breakdown one click away on /rank; picking one here keeps
-// the snapshot readable instead of trying to summarize a whole portfolio
-// in four tiles.
-const primary = visible.find((a) => !a.competitorOf) || visible[0] || null;
+// Every owned app (not a tracked competitor) gets a card in the portfolio
+// row below — an account with 7 apps used to only ever see the first one
+// here, with the other 6 invisible on this page. "Primary" is now just
+// "whichever app moved the most this week", picked after the loop below,
+// since that's the one worth leading the greeting and the Did-you-know
+// picks with.
+const owned = visible.filter((a) => !a.competitorOf);
 
 // Nothing to show a snapshot for yet (brand-new account, or every tracked
 // app is somehow a competitor entry) — the dashboard's own empty state
 // already explains how to add a first app, no need for a second one here.
-if (!primary) return Astro.redirect('/rank');
+if (!owned.length) return Astro.redirect('/rank');
 
 const snapshots = loadSnapshots(14, t.userId);
 const covSnapshots = loadCoverageSnapshots(14, t.userId);
@@ -59,12 +60,32 @@ const merged = mergeSnapshotSets(covSnapshots, snapshots);
 
 // ~8 days so there's a "today" and a "week ago" point even when a check
 // was missed on the exact 7-day mark.
+type PortfolioCard = { key: string; title: string; icon: string | null; visNow: number | null; visDelta: number | null };
+const portfolio: PortfolioCard[] = owned.map((app) => {
+  const ov = overviewSeries(app, merged, 8);
+  const t0 = ov.length ? ov[ov.length - 1] : null;
+  const tWeekAgo = ov.length > 1 ? ov[0] : null;
+  const vNow = t0?.visibility ?? null;
+  const vThen = tWeekAgo?.visibility ?? null;
+  return {
+    key: app.key, title: app.title, icon: app.icon || null,
+    visNow: vNow,
+    visDelta: vNow != null && vThen != null ? Math.round((vNow - vThen) * 10) / 10 : null,
+  };
+});
+// Biggest mover (either direction) first — a flat week sorts by nothing in
+// particular, which is fine since there's no real "lead" story that week.
+portfolio.sort((a, b) => Math.abs(b.visDelta ?? 0) - Math.abs(a.visDelta ?? 0));
+
+// The rest of this page (hero copy, Did-you-know picks) is built around
+// whichever app actually moved the most — the one story worth telling,
+// out of however many apps are tracked.
+const primary = owned.find((a) => a.key === portfolio[0].key)!;
 const overview = overviewSeries(primary, merged, 8);
 const today = overview.length ? overview[overview.length - 1] : null;
 const weekAgoOverview = overview.length > 1 ? overview[0] : null;
-const visNow = today?.visibility ?? null;
-const visThen = weekAgoOverview?.visibility ?? null;
-const visDelta = visNow != null && visThen != null ? Math.round((visNow - visThen) * 10) / 10 : null;
+const visNow = portfolio[0].visNow;
+const visDelta = portfolio[0].visDelta;
 
 const chart = chartTrend(primary, snapshots, 8);
 const chartHistory = (chart.history || []).filter((p): p is number => p != null);
@@ -267,6 +288,20 @@ const dykCards = cards.slice(0, 4);
       @media (max-width: 560px) { .hero-char { width: 74px; height: 148px; } }
 
       .section-label { font-size: 11.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 34px 0 12px; }
+      /* Portfolio row: one small card per owned app, sorted biggest-mover
+         first (see the frontmatter sort) — the thing that used to not
+         exist at all once an account tracked more than one app. */
+      .portfolio-row { display: flex; gap: 12px; overflow-x: auto; padding: 4px 4px 10px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+      .portfolio-row::-webkit-scrollbar { height: 7px; }
+      .portfolio-row::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+      .portfolio-card { scroll-snap-align: start; flex: 0 0 176px; display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; box-shadow: var(--shadow); text-decoration: none; color: inherit; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+      .portfolio-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(29,31,43,0.06), 0 14px 28px rgba(29,31,43,0.09); }
+      .portfolio-icon { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; object-fit: cover; }
+      .portfolio-icon-fallback { display: grid; place-items: center; background: var(--tint); color: var(--accent); font-weight: 800; font-size: 14px; }
+      .portfolio-info { min-width: 0; flex: 1; }
+      .portfolio-name { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+      .portfolio-num-row { display: flex; align-items: baseline; gap: 6px; }
+      .portfolio-num { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
       .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
       @media (max-width: 700px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
       .tile { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -344,7 +379,7 @@ const dykCards = cards.slice(0, 4);
           <div class="hero-copy">
             <p class="hero-eyebrow"><span class="hero-icon" id="hero-icon">☀️</span> {product ? BRAND : 'CiteRank'}</p>
             <h1 id="hero-title">Good morning, {userName}.</h1>
-            <p id="hero-sub">Coffee's brewing — so is your 7-day analysis. Here's how {primary.title} did while you were asleep.</p>
+            <p id="hero-sub">Coffee's brewing — so is your 7-day analysis. {owned.length > 1 ? `Here's how your ${owned.length} apps did` : `Here's how ${primary.title} did`} while you were asleep.</p>
             <span class="hero-range">📅 {rangeLabel}</span>
           </div>
 
@@ -440,7 +475,33 @@ const dykCards = cards.slice(0, 4);
         </div>
       </div>
 
-      <div class="section-label">7-day snapshot</div>
+      {owned.length > 1 && (
+        <>
+          <div class="section-label">Your apps</div>
+          <div class="portfolio-row">
+            {portfolio.map((p) => (
+              <a class="portfolio-card" href={`/rank?app=${encodeURIComponent(p.key)}`}>
+                {p.icon
+                  ? <img class="portfolio-icon" src={p.icon} alt="" />
+                  : <div class="portfolio-icon portfolio-icon-fallback">{p.title.slice(0, 1).toUpperCase()}</div>}
+                <div class="portfolio-info">
+                  <div class="portfolio-name">{p.title}</div>
+                  <div class="portfolio-num-row">
+                    <span class="portfolio-num">{p.visNow != null ? p.visNow.toFixed(1) : '–'}</span>
+                    {p.visDelta == null
+                      ? <span class="delta na">–</span>
+                      : p.visDelta > 0 ? <span class="delta up">▲ {p.visDelta}</span>
+                      : p.visDelta < 0 ? <span class="delta down">▼ {Math.abs(p.visDelta)}</span>
+                      : <span class="delta na">＝ 0</span>}
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div class="section-label">{owned.length > 1 ? `7-day spotlight: ${primary.title}` : '7-day snapshot'}</div>
       <div class="tiles">
         <div class="tile">
           <div class="tile-lbl">Search visibility</div>

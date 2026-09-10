@@ -3468,6 +3468,13 @@ ai photo enhancer"></textarea>
       });
       document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeKeywordHistory(); });
 
+      // A deep link (e.g. from the Welcome portfolio row) can open straight
+      // on one app instead of always landing on the first one — render()'s
+      // own fallback (state.apps[0].key) only kicks in if this key turns
+      // out not to exist once state actually loads.
+      const deepLinkApp = new URLSearchParams(location.search).get('app');
+      if (deepLinkApp) selectedAppKey = deepLinkApp;
+
       refresh().catch((e) => showErr('Could not load tracker state: ' + (e && e.message ? e.message : e)));
     </script>
   </body>
