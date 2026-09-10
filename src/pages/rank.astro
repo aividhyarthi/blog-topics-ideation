@@ -825,6 +825,21 @@ ai photo enhancer"></textarea>
 
       function tipId(html) { const id = 't' + (++tipSeq); TIPS[id] = html; return id; }
 
+      // Real, measured pixel width for the chart about to be drawn — NOT a
+      // fixed coordinate count. Every chart below sizes its viewBox to this
+      // exact number, so the browser's default (uniform) SVG scaling always
+      // lands on a 1:1 pixel match: correct height, full container width,
+      // and no anisotropic stretch on date-label text (a mismatched viewBox
+      // width forcing that stretch is what actually made labels unreadable —
+      // not their font-size). `#apps` already sits in the page's real grid
+      // column before any chart HTML is generated, so its width is accurate
+      // even on the very first render.
+      function chartWidth(fallback) {
+        const el = $('apps');
+        const w = el && el.clientWidth;
+        return w && w > 100 ? Math.max(280, w - 24) : fallback;
+      }
+
       // Monotone cubic Hermite interpolation (Fritsch-Carlson), converted to
       // cubic Beziers — a smooth curve through every real data point that
       // CANNOT overshoot past the value range of its two neighbors. A plain
@@ -981,8 +996,8 @@ ai photo enhancer"></textarea>
       // `compareSeries` (optional): [{ label, color, days }], each `days` a
       // competitor's own overview.days array — aligned onto the primary's
       // dateKeys by date, same mechanism as ratingTrendChart's overlay.
-      function visChart(days, annotations, autoMarks, compareSeries) {
-        const W = 400, H = 190, padL = 10, padB = 18, padT = 8;
+      function visChart(days, annotations, autoMarks, compareSeries, W = 400) {
+        const H = 190, padL = 10, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
         const vals = days.map((d) => d.visibility);
         const compLines = (compareSeries || []).map((s) => ({
@@ -1109,7 +1124,15 @@ ai photo enhancer"></textarea>
           });
         });
         out += markSvg;
-        const svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;overflow:hidden;">${out}</svg>`;
+        // No preserveAspectRatio override here: W is the REAL measured pixel
+        // width of the chart's container (see chartWidth()), not an
+        // arbitrary coordinate count, so the browser's default uniform
+        // scaling lands on exactly 1 viewBox unit = 1 real pixel — full
+        // width, correct height, AND no non-uniform stretch on the date
+        // labels (an anisotropic scale like preserveAspectRatio="none"
+        // warps glyph shapes sideways, not just their size, which is what
+        // was actually being reported as the dates looking "dragged").
+        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:hidden;">${out}</svg>`;
         return svg + compareLegendHtml('You', 'var(--ok)', compLines, compMaxY != null);
       }
 
@@ -1156,7 +1179,7 @@ ai photo enhancer"></textarea>
       // to the primary's dateKeys by matching date, not index, since two
       // apps' rating-check days don't line up 1:1. Same shape/role as
       // visChart's compareSeries below — one overlay mechanism, reused.
-      function ratingTrendChart(history, compareSeries) {
+      function ratingTrendChart(history, compareSeries, W = 400) {
         const pts = (history || []).map((h) => ({ dateKey: h.dateKey, v: h.tone === 'na' ? null : h.negativeShare, windowDays: h.windowDays }));
         const known = pts.filter((p) => p.v != null);
         if (!known.length) return '<p class="hint">Not enough rating history yet — check back after a few nightly checks.</p>';
@@ -1164,7 +1187,7 @@ ai photo enhancer"></textarea>
           ...s,
           vals: alignByDateKey(pts, s.history, (h) => (h.tone === 'na' ? null : h.negativeShare)),
         }));
-        const W = 400, H = 170, padL = 10, padB = 18, padT = 8;
+        const H = 170, padL = 10, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
         // Dual-axis, same reasoning as visChart: your own scale on the
         // left (never squashed by a competitor's higher share), theirs on
@@ -1219,7 +1242,10 @@ ai photo enhancer"></textarea>
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(p.dateKey))}</text>`;
         });
-        const svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;overflow:hidden;">${out}</svg>`;
+        // See visChart's identical comment: W is a real measured pixel
+        // width, so default uniform scaling is exact (scale 1:1) and never
+        // stretches the date-label glyphs sideways.
+        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:hidden;">${out}</svg>`;
         return svg + compareLegendHtml('You', 'var(--bad)', compLines, compMaxY != null);
       }
 
@@ -1671,7 +1697,7 @@ ai photo enhancer"></textarea>
             ${coverageCaption(todayDay)}
             ${spikeBannerHtml}
             ${visPicker.picker}
-            <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks, visCompSeries)}</div>
+            <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks, visCompSeries, chartWidth(700))}</div>
           </div>
           ${keyStatsTilesHtml(app)}
           <div class="glancecards">${moversHtml(app)}${competitorPulseHtml(app)}${ratingPulseHtml(app)}</div>
@@ -1772,7 +1798,7 @@ ai photo enhancer"></textarea>
           color: COMPARE_COLORS[i + 1],
           history: c.ratingHistory || [],
         }));
-        return `<div class="chartbox"><h4>1-2★ rating share trend</h4>${picker.picker}${ratingTrendChart(app.ratingHistory, compSeries)}${ratingCountBars(app.ratingHistory)}</div>`;
+        return `<div class="chartbox"><h4>1-2★ rating share trend</h4>${picker.picker}${ratingTrendChart(app.ratingHistory, compSeries, chartWidth(700))}${ratingCountBars(app.ratingHistory)}</div>`;
       }
 
       // Daily-tracked + coverage keywords, deduped (daily wins on overlap —
@@ -1801,7 +1827,7 @@ ai photo enhancer"></textarea>
       // types, just attaching the existing visual to the text explaining it,
       // instead of Insights being text-only while everywhere else has one).
       function insightGroupChart(kind, app) {
-        if (kind === 'reviews') return (app.ratingHistory || []).length ? ratingTrendChart(app.ratingHistory) : '';
+        if (kind === 'reviews') return (app.ratingHistory || []).length ? ratingTrendChart(app.ratingHistory, null, chartWidth(700)) : '';
         if (kind === 'chart') return (app.chart && (app.chart.history || []).some((v) => v != null)) ? chartPositionTrend(app.chart.dateKeys, app.chart.history) : '';
         return '';
       }
@@ -2018,6 +2044,15 @@ ai photo enhancer"></textarea>
         const vw = window.innerWidth, rect = viztip.getBoundingClientRect();
         viztip.style.left = Math.min(ev.clientX + 14, vw - rect.width - 10) + 'px';
         viztip.style.top = Math.max(8, ev.clientY - rect.height - 12) + 'px';
+      });
+
+      // Charts are sized to the real, measured pixel width of their
+      // container (see chartWidth()) — re-render on resize so that stays
+      // true instead of drifting stale between actions.
+      let resizeTimer = null;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => { if (state.apps.length) render(); }, 200);
       });
 
       function deltaCell(t) {
