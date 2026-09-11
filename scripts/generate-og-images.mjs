@@ -225,6 +225,13 @@ const SPEC = {
       bars: [['1 ad slot (before)', 100], ['2 ad slots (after)', 200]] },
   'does-app-content-show-up-in-google-ai-overviews':
     { art: 'qa', takeaway: 'Third-party lists win 63% of AI Overview citations, not brand pages' },
+  'google-play-guided-search-broad-keywords':
+    { art: 'chips', takeaway: 'Broad searches now get routed into AI-picked subcategories first',
+      chips: ['broad term', 'AI subcategories', 'narrower phrases'] },
+  'ask-play-gemini-chatbot-store-listing':
+    { art: 'qa', takeaway: "Google's new chatbot reads your listing, not just its keywords" },
+  'app-intents-siri-discovery':
+    { art: 'diverge', takeaway: 'Siri discovery and App Store rank are two separate paths now', a: 'Siri discovery', b: 'App Store rank' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
