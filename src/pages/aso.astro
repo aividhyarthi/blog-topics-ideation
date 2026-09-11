@@ -328,7 +328,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
             </div>
             <div>
               <label class="fld" for="competitors">Competitor apps <span style="font-weight:400">(optional)</span></label>
-              <input id="competitors" type="text" placeholder="package ids or URLs, comma-separated — blank = no comparison shown" />
+              <input id="competitors" type="text" placeholder="package ids or URLs, comma-separated — blank = uses this app's tracked Rank Tracker competitors, if any" />
             </div>
           </div>
 
@@ -700,6 +700,15 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         const compErr = (m.competitorErrors || []).length ? `<div class="note-warn">⚠ Some competitors couldn't be read: ${esc((m.competitorErrors || []).join('; '))}</div>` : '';
         const noComps = m.noCompetitorsGiven
           ? `<div class="hint" style="padding:6px 0;">No competitors added — paste rival apps above, or track them as competitors in Rank Tracker, to see a comparison here.</div>` : '';
+        // Nothing was typed into the box, so this ran against whatever's
+        // already tracked as a competitor for this app in Rank Tracker —
+        // say so, and reflect the actual ids back into the field so a
+        // re-check (or editing the list) starts from what was really used.
+        if (m.competitorSource === 'tracked' && (m.competitorIds || []).length) {
+          $('competitors').value = m.competitorIds.join(', ');
+        }
+        const trackedNote = m.competitorSource === 'tracked'
+          ? `<div class="hint" style="padding:6px 0;">Using the competitor(s) already tracked for this app in Rank Tracker — edit the field above and re-check to compare against different apps instead.</div>` : '';
 
         root.innerHTML = `
           <div class="resbar"><button class="ghostbtn" id="pdfbtn">⬇️ Download PDF</button></div>
@@ -713,6 +722,7 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
           ${headToHead}
           ${leaderCard}
           ${compTable}
+          ${trackedNote}
           ${noComps}
           ${compErr}
           ${variantSection}

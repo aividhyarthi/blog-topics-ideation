@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { parseAppId, fetchApp, fetchCompetitors, fetchRecentReviews, type AsoAppData } from '../../lib/aso/fetch';
 import { auditListing, competitorRow, keywordCoverage, keywordGap, keywordMatrix, type AsoReport, type CompetitorRow, type GapKeyword } from '../../lib/aso/audit';
-import { saveAsoCacheEntry } from '../../lib/rank/store';
+import { saveAsoCacheEntry, loadConfig } from '../../lib/rank/store';
 import { isGuest } from '../../lib/saas/grants';
 
 const json = (data: unknown, status = 200) =>
@@ -156,8 +156,31 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const lang = (body.lang || 'en').trim() || 'en';
   const country = (body.country || 'us').trim() || 'us';
   const focusKeyword = (body.focusKeyword || '').trim();
-  const competitorIds = (body.competitors || '')
+  let competitorIds = (body.competitors || '')
     .split(/[\n,]+/).map((s) => parseAppId(s.trim())).filter((v): v is string => Boolean(v));
+
+  // Nothing pasted in — fall back to whatever this app already has tracked
+  // as competitors in Rank Tracker, the rivals the owner actually picked,
+  // not a scraper's "similar apps" guess (see fetchCompetitors' comment on
+  // why that auto-discovery was removed). `body.key` (the tracked app's own
+  // key, set by Rank Tracker's deep-link) is the reliable match; falling
+  // back to store+appId+country covers a direct /aso visit with no key.
+  let competitorSource: 'given' | 'tracked' | 'none' = competitorIds.length ? 'given' : 'none';
+  if (!competitorIds.length && locals.productMode && locals.user) {
+    try {
+      const cfg = loadConfig(locals.user.id);
+      const primary = body.key
+        ? cfg.apps.find((a) => a.key === body.key)
+        : cfg.apps.find((a) => a.store === 'play' && a.appId === appId && a.country === country && !a.competitorOf);
+      if (primary) {
+        const tracked = cfg.apps
+          .filter((a) => a.competitorOf === primary.key)
+          .map((a) => a.url || a.appId)
+          .filter((v): v is string => Boolean(v));
+        if (tracked.length) { competitorIds = tracked; competitorSource = 'tracked'; }
+      }
+    } catch { /* best-effort — a config read failure just means no auto-fill */ }
+  }
 
   // 1) Fetch the primary app (hard failure if this can't be read).
   let app: AsoAppData;
@@ -254,7 +277,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     matrix,
     leader: leader ? { title: leader.title, appId: leader.appId, url: leader.url, score: leader.score, installs: leader.installs } : null,
     ai,
-    meta: { appId, lang, country, evalFocus, userGaveFocus: Boolean(focusKeyword), competitorErrors, noCompetitorsGiven, aiError },
+    meta: { appId, lang, country, evalFocus, userGaveFocus: Boolean(focusKeyword), competitorErrors, noCompetitorsGiven, aiError, competitorSource, competitorIds },
     checkedAt,
   };
 
