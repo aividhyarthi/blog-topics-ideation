@@ -3539,7 +3539,12 @@ ai photo enhancer"></textarea>
 
       $('csv-btn').addEventListener('click', () => {
         const rows = [['App', 'Store', 'Country', 'Keyword', 'Rank', 'Δ vs last check', 'Best', '#1 for keyword']];
-        for (const app of state.apps) {
+        // Scoped to whatever's actually on screen: every app only in the
+        // "All apps" portfolio view, otherwise just the one app selected —
+        // exporting every tracked app's (and every competitor's) keywords
+        // while looking at a single app's tab read as a bug, not a feature.
+        const exportApps = portfolioMode ? state.apps : state.apps.filter((a) => a.key === selectedAppKey);
+        for (const app of exportApps) {
           for (const t of app.trends || []) {
             rows.push([
               app.title, app.store === 'play' ? 'Google Play' : 'App Store', (app.country || '').toUpperCase(),
@@ -3553,7 +3558,8 @@ ai photo enhancer"></textarea>
         const blob = new Blob(['﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `app-rankings-${new Date().toISOString().slice(0, 10)}.csv`;
+        const scopeSlug = portfolioMode ? 'all-apps' : (exportApps[0]?.title || 'app').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        a.download = `${scopeSlug}-rankings-${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
         URL.revokeObjectURL(a.href);
         showToast('CSV downloaded');
