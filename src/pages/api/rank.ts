@@ -8,7 +8,7 @@
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets, curateTopKeywords, parseQualityMetricsInput, snapshotsInRange } from '../../lib/rank/track';
-import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, loadQualityMetrics, mergeQualityMetrics, ConfigReadError } from '../../lib/rank/store';
+import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, loadQualityMetrics, mergeQualityMetrics, listConfigBackups, restoreConfigBackup, ConfigReadError } from '../../lib/rank/store';
 import { analyzeReviewThemes } from '../../lib/rank/themes';
 import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/rank/check';
 import { withTenantLock } from '../../lib/rank/lock';
@@ -420,7 +420,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // owner's account — that scoping never existed before since write access
   // used to be all-or-nothing.
   const GUEST_SAFE_ACTIONS = new Set([
-    'add-keywords', 'set-keywords', 'set-coverage-keywords',
+    'add-keywords', 'set-keywords', 'set-coverage-keywords', 'add-coverage-keywords',
     'add-annotation', 'remove-annotation',
     'save-quality-metrics', 'set-report-emails', 'set-alert',
     'add-app', 'remove-app',
@@ -436,6 +436,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // corrupt file turns into a permanently empty one. Surface it instead.
     if (e instanceof ConfigReadError) return json({ error: e.message }, 500);
     throw e;
+  }
+
+  // Account-wide safety net, not app-scoped — every save backs up the prior
+  // config.json first (see saveConfig), but until now there was no way for
+  // an owner to actually reach one of those backups after a mistake (e.g.
+  // pasting a shorter keyword list into a "replace the whole list" box and
+  // only noticing afterward that it dropped keywords that were already
+  // there). Deliberately absent from GUEST_SAFE_ACTIONS — a guest is scoped
+  // to specific apps, and a restore rewrites the owner's entire config.
+  if (action === 'list-config-backups') {
+    return json({ ok: true, backups: listConfigBackups(userId) });
+  }
+  if (action === 'restore-config-backup') {
+    const filename = String(body.filename || '');
+    try {
+      const restored = restoreConfigBackup(filename, userId);
+      return json({ ok: true, appCount: restored.apps.length, ...statePayload(userId) });
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : String(e) }, 400);
+    }
   }
 
   if (action === 'add-app') {
@@ -740,12 +760,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ ok: true, note, ...statePayload(userId) });
   }
 
-  if (action === 'set-coverage-keywords') {
+  if (action === 'set-coverage-keywords' || action === 'add-coverage-keywords') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
     if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
     const parsedCov = parseKeywordsWithVolumes(body.keywords, MAX_COVERAGE_KEYWORDS);
-    app.coverageKeywords = parsedCov.keywords;
+    // 'set' replaces the whole list (the Settings "edit the full list" box);
+    // 'add' merges in — pasting a fresh batch of keyword research shouldn't
+    // require re-pasting every keyword already tracked just to avoid
+    // dropping them, which is exactly the shape of mistake a full replace
+    // silently invites.
+    app.coverageKeywords = action === 'add-coverage-keywords'
+      ? [...new Set([...(app.coverageKeywords || []), ...parsedCov.keywords])].slice(0, MAX_COVERAGE_KEYWORDS)
+      : parsedCov.keywords;
     app.keywordVolumes = { ...(app.keywordVolumes || {}), ...parsedCov.volumes };
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });

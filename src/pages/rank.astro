@@ -2614,6 +2614,15 @@ ai photo enhancer"></textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-coverage">Save coverage list</button>
             </div>
+            <p class="hint" style="margin-top:8px;">This box shows and REPLACES the whole list — editing it and saving drops any keyword you don't leave in. Pasting a fresh batch of keyword research? Use "Add to coverage list" below instead so nothing already tracked gets dropped.</p>
+          </div>
+          <div class="settings-block no-print">
+            <h4>Add to all keywords list</h4>
+            <p class="hint" style="margin:0 0 8px;">Paste a new batch of keyword research here — this merges into the list above, it never removes or replaces anything already tracked. Same paste formats work: one per line, or "keyword, volume".</p>
+            <textarea data-role="covaddtext" placeholder="One keyword per line, or 'keyword, volume' per line — adds to the list above without touching anything else"></textarea>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="add-coverage">Add to coverage list</button>
+            </div>
           </div>
           <div class="settings-block no-print">
             <h4>Daily email report</h4>
@@ -2730,6 +2739,14 @@ ai photo enhancer"></textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-competitor-of">Save</button>
             </div>
+          </div>
+          <div class="settings-block no-print" data-guest-hide>
+            <h4>Account backups <span class="hint" style="display:inline;">— covers every app, not just this one</span></h4>
+            <p class="hint" style="margin:0 0 8px;">Every save anywhere in your account backs up what was there right before it — so a paste that accidentally dropped keywords you meant to keep is always recoverable. Restoring replaces your <b>entire account's current data</b> with that backup's, across all apps — anything saved after that point is lost, so double-check the timestamp before restoring.</p>
+            <div class="row" style="margin-top:4px;">
+              <button class="ghost" data-act="list-backups">Show available backups</button>
+            </div>
+            <div data-role="backup-list" style="margin-top:10px;"></div>
           </div>
           <div class="dangerzone no-print" data-guest-hide>
             <h4>Danger zone</h4>
@@ -3002,6 +3019,15 @@ ai photo enhancer"></textarea>
           if (addBtn) addBtn.style.display = 'none';
           applyReadOnly();
         }
+      }
+
+      // 'config.backup.2026-09-11T12-34-56-789Z.json' -> Date, or null if the
+      // filename doesn't match the stamp format saveConfig() writes.
+      function backupStampToDate(filename) {
+        const m = /^config\.backup\.(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d+)Z\.json$/.exec(filename || '');
+        if (!m) return null;
+        const d = new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`);
+        return Number.isNaN(d.getTime()) ? null : d;
       }
 
       async function api(body) {
@@ -3284,6 +3310,48 @@ ai photo enhancer"></textarea>
           withBusy(btn, 'Saving…', async () => {
             const data = await api({ action: 'set-coverage-keywords', key, keywords: card.querySelector('[data-role="covtext"]').value });
             showToast('Coverage list saved — click "Check all keyword rankings" to run the first check, or wait for the nightly automatic check');
+            return data;
+          });
+          return;
+        }
+        if (act === 'add-coverage') {
+          const box = card.querySelector('[data-role="covaddtext"]');
+          const before = (app.coverageKeywords || []).length;
+          withBusy(btn, 'Adding…', async () => {
+            const data = await api({ action: 'add-coverage-keywords', key, keywords: box.value });
+            const after = (data.apps.find((a) => a.key === key)?.coverageKeywords || []).length;
+            box.value = '';
+            showToast(`Added ${after - before} new keyword(s) — ${after} total in the coverage list now`);
+            return data;
+          });
+          return;
+        }
+        if (act === 'list-backups') {
+          const list = card.querySelector('[data-role="backup-list"]');
+          withBusy(btn, 'Loading…', async () => {
+            const data = await api({ action: 'list-config-backups' });
+            if (!data.backups || !data.backups.length) {
+              list.innerHTML = '<p class="hint">No backups yet — one is created automatically the next time anything is saved.</p>';
+            } else {
+              list.innerHTML = data.backups.map((f) => {
+                const stamp = backupStampToDate(f);
+                return `<div class="row" style="justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--line);">
+                  <span>${stamp ? esc(stamp.toLocaleString()) : esc(f)}</span>
+                  <button class="ghost small" data-act="restore-backup" data-filename="${escAttr(f)}">Restore this</button>
+                </div>`;
+              }).join('');
+            }
+            return null;
+          });
+          return;
+        }
+        if (act === 'restore-backup') {
+          const filename = btn.getAttribute('data-filename');
+          const stamp = backupStampToDate(filename);
+          if (!confirm(`Restore your ENTIRE account to how it was ${stamp ? 'at ' + stamp.toLocaleString() : 'at this backup'}? Every app's current keywords and settings will be replaced with what's in that backup. (This itself creates a fresh backup first, so restoring is reversible if you pick the wrong one.)`)) return;
+          withBusy(btn, 'Restoring…', async () => {
+            const data = await api({ action: 'restore-config-backup', filename });
+            showToast(`Restored — ${data.appCount} app(s) in your account now match that backup`);
             return data;
           });
           return;
