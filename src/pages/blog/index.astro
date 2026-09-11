@@ -20,13 +20,13 @@ const schema = {
 ---
 <Site
   schema={schema}
-  title="AEO Blog | AI Page Audit"
+  title="AEO &amp; GEO Blog | AI Page Audit"
   description="How to get cited by ChatGPT, Perplexity, Claude and Google AI Overviews. Practical AEO and GEO guides, not vague theory."
 >
   <section class="pagehead">
     <div class="wrap">
-      <span class="eyebrow">The AEO blog</span>
-      <h1>Answer Engine Optimization, explained plainly</h1>
+      <span class="eyebrow">The AEO &amp; GEO blog</span>
+      <h1>Answer &amp; Generative Engine Optimization, explained plainly</h1>
       <p>How AI answer engines actually read, weigh and cite pages, and what to do about it. No vague theory, just what changes when you check it.</p>
     </div>
   </section>
@@ -44,7 +44,7 @@ const schema = {
                   <time datetime={new Date(p.publishDate).toISOString()}>
                     {new Date(p.publishDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </time>
-                  {p.tags[0] && <span class="posttag">{p.tags[0]}</span>}
+                  {p.tags.slice(0, 2).map((t) => <span class="posttag">{t}</span>)}
                 </div>
                 <h2>{p.title}</h2>
                 <p>{p.description}</p>

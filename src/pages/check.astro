@@ -15,7 +15,7 @@ const accountsDown = !dbEnabled;
   <section class="toolhead">
     <div class="wrap">
       <h1>LLM Access Check</h1>
-      <p>Enter a URL and see exactly what Googlebot, ChatGPT, Perplexity, Claude and Copilot each receive — element by element.</p>
+      <p>Enter a URL and see exactly what Googlebot, ChatGPT, Perplexity, Claude and Copilot each receive — element by element. This is the crawlability layer both AEO and GEO depend on: if a crawler can't reach or read your content, neither discipline's other work matters.</p>
     </div>
   </section>
 
@@ -217,7 +217,7 @@ const accountsDown = !dbEnabled;
           html += `<div class="sectitle">Are the AI crawlers allowed? (robots.txt)</div><div class="bots">${d.bots.map((b) => `<div class="botrow"><span class="botname">${esc(b.label)}</span><span class="botbadge ${b.status}">${BOT_IC[b.status]} ${b.status === 'blocked' ? 'Blocked' : b.status === 'partial' ? 'Partial' : 'Allowed'}</span></div>`).join('')}</div>`;
         }
 
-        html += `<div class="note">Googlebot runs JavaScript, so it sees your full page. The AI answer crawlers (ChatGPT, Claude, Perplexity) do <b>not</b> run JavaScript — they read only the raw HTML, so anything injected by JS is invisible to them. Want scores, fixes and a real-engine citation check? <a href="/audit">Run the full AEO audit →</a></div>`;
+        html += `<div class="note">Googlebot runs JavaScript, so it sees your full page. The AI answer crawlers (ChatGPT, Claude, Perplexity) do <b>not</b> run JavaScript — they read only the raw HTML, so anything injected by JS is invisible to them. Want scores, fixes and a real-engine citation check? <a href="/audit">Run the full AEO &amp; GEO audit →</a></div>`;
 
         out.innerHTML = html;
         out.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {

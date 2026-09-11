@@ -26,7 +26,7 @@ const clientOptions = visibleClients.map((c) => ({
 }));
 import App from '../layouts/App.astro';
 ---
-<App tab="audit" title="Full AEO Audit | AI Page Audit" description="Score how likely a page is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews.">
+<App tab="audit" title="Full AEO & GEO Audit | AI Page Audit" description="Score how likely a page is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews — the AEO and GEO fundamentals in one audit.">
 
     <!-- Auth + history overlay -->
     <div class="modal" id="modal" style="display:none">
@@ -38,7 +38,7 @@ import App from '../layouts/App.astro';
 
     <section class="hero">
       <div class="wrap">
-        <span class="eyebrow">Answer Engine Optimization</span>
+        <span class="eyebrow">AEO &amp; GEO Audit</span>
         <h1>Is your content ready to rank in LLMs?</h1>
         <p>Check your content quality <strong>before you publish.</strong> Paste a URL or your draft and AI Page Audit scores how ready it is to be cited by ChatGPT, Perplexity, Gemini and Google AI Overviews — then tells you exactly what to fix.</p>
         <div class="enginerow">
@@ -152,7 +152,7 @@ import App from '../layouts/App.astro';
             <input id="target" type="text" placeholder="e.g. why did Virat Kohli retire?" />
 
             <div class="row">
-              <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit</button>
+              <button class="primary" id="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO &amp; GEO audit</button>
               <span class="hint">Takes 15–30 seconds.</span>
             </div>
 
@@ -773,7 +773,7 @@ import App from '../layouts/App.astro';
 
         root.innerHTML = `
           <div class="printhead">
-            <div class="pt-brand">AI Page Audit — AEO Audit</div>
+            <div class="pt-brand">AI Page Audit — AEO &amp; GEO Audit</div>
             <div class="pt-sub">${esc(m.mode === 'url' ? (m.url || 'Audited page') : 'Pasted content')}${m.pageTypeLabel ? ` · ${esc(m.pageTypeLabel)}` : ''} · ${esc(new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }))}</div>
           </div>
           ${hero}
@@ -948,12 +948,12 @@ import App from '../layouts/App.astro';
         const cl = m.checklist;
         const vis = r.visibility;
         const L = [];
-        L.push('AI Page Audit: AEO audit · An initiative by AI Vidhyarthi');
+        L.push('AI Page Audit: AEO & GEO audit · An initiative by AI Vidhyarthi');
         L.push(m.mode === 'url' ? (m.url || '') : 'Pasted content');
         if (m.client) L.push(`Client: ${m.client.name}${m.client.pageType ? ` — ${m.client.pageType.label} checklist` : ''}`);
         L.push(`Graded as: ${cl ? cl.kindLabel : (m.pageTypeLabel || 'Page')}${cl ? ` in ${cl.verticalLabel}` : ''}`);
         const VHEAD = { High: 'Ready to be cited', Medium: 'Not ready yet', Low: 'Will not get cited as it stands' };
-        L.push(`AEO score: ${r.overall}/100 — ${VHEAD[r.citationBand]}`);
+        L.push(`AEO & GEO score: ${r.overall}/100 — ${VHEAD[r.citationBand]}`);
         if (r.coverage && !r.coverage.complete) {
           L.push(`Note: covers ${Math.round((r.coverage.measuredWeight / r.coverage.totalWeight) * 100)}% of what we normally grade. Not checked: ${r.coverage.unmeasured.join(', ')}.`);
         }
@@ -1037,7 +1037,7 @@ import App from '../layouts/App.astro';
         } finally {
           $('info').style.display = 'none';
           btn.disabled = false;
-          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO audit';
+          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Run AEO &amp; GEO audit';
         }
       }
       // An account is required to run an audit — gate the button up front.

@@ -16,7 +16,7 @@ const homeSchema = {
   operatingSystem: 'Web',
   url: origin,
   description:
-    'The AI page audit and AI site audit tool (AEO audit, AEO site audit) that fetches your pages as Googlebot, GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot, then scores exactly what each crawler can and cannot read, with ranked fixes.',
+    'The AI page audit and AI site audit tool (AEO audit and GEO audit) that fetches your pages as Googlebot, GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot, then scores exactly what each crawler can and cannot read, with ranked fixes.',
   offers: {
     '@type': 'Offer',
     price: '0',
@@ -49,8 +49,8 @@ const ICO_CHART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const ICO_CHECKLIST = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>';
 const tools = [
   { icon: ICO_SEARCH, h: 'LLM Access Check', p: 'Fetch any URL as Googlebot, ChatGPT, Perplexity, Claude, Copilot and Google AI, desktop and mobile, see exactly what each one can and can’t read, element by element.', href: '/check' },
-  { icon: ICO_CHART, h: 'Full AEO Audit', p: 'A weighted score built from the same checklist across every tab, content, indexability, keyword match, with ranked, page-specific fixes, not a generic checklist.', href: '/audit' },
-  { icon: ICO_CHECKLIST, h: 'The AEO Checklist', p: 'Every check we run, and why it affects whether an AI engine cites the page, published openly so you know exactly what "the score" means.', href: '/checklist' },
+  { icon: ICO_CHART, h: 'Full AEO & GEO Audit', p: 'A weighted score built from the same checklist across every tab, content, indexability, keyword match, with ranked, page-specific fixes, not a generic checklist.', href: '/audit' },
+  { icon: ICO_CHECKLIST, h: 'The AEO & GEO Checklist', p: 'Every check we run, and why it affects whether an AI engine cites the page, published openly so you know exactly what "the score" means.', href: '/checklist' },
 ];
 
 const faqs = [
@@ -58,12 +58,13 @@ const faqs = [
   { q: 'What does the AEO score actually measure?', a: 'Every pillar score is built from the same named checklist shown on the report’s Content, Indexability and Keywords tabs, not a separate black-box number. See the full checklist at /checklist.' },
   { q: 'Do I need to install anything on my site?', a: 'No. Paste a URL and we fetch it the same way the crawlers do. Nothing to install, no tag, no waiting for a crawl.' },
   { q: 'Is this an AI page audit tool or an AI site audit tool?', a: 'Both. Run it against a single URL for a page-level AEO audit, or work through your key templates (home, product, article) one by one for a practical AI site audit, since AI crawlers can treat pages on the same site very differently depending on how each template renders.' },
+  { q: 'Does this cover GEO (Generative Engine Optimization) too, or just AEO?', a: 'Both, in one audit. AEO and GEO overlap almost completely in practice, so we don’t split them into two separate reports. The same checklist covers the AEO fundamentals (structured data, direct answers, crawlability) and the GEO-specific factors research has shown move citation rate, like naming and linking your sources, and using concrete numbers instead of vague claims, plus a per-engine citation-likelihood estimate for ChatGPT, Gemini, Perplexity and AI Overviews.' },
 ];
 ---
 <Site
   schema={homeSchema}
-  title="AI Page Audit: AI Site Audit &amp; AEO Audit Tool for AI Search Visibility"
-  description="AI Page Audit is an AI page audit and AI site audit tool (AEO audit, AEO site audit) that fetches any page as Googlebot, ChatGPT, Perplexity and Claude, and shows exactly what each AI crawler can and cannot read. Then it scores the page and tells you what to fix. First check free."
+  title="AI Page Audit: AEO &amp; GEO Audit Tool for AI Search Visibility"
+  description="AI Page Audit is an AI page audit and AI site audit tool (AEO audit and GEO audit) that fetches any page as Googlebot, ChatGPT, Perplexity and Claude, and shows exactly what each AI crawler can and cannot read. Then it scores the page and tells you what to fix. First check free."
 >
   <!-- ── hero ───────────────────────────────────────────────── -->
   <section class="hero">
@@ -74,7 +75,7 @@ const faqs = [
         <p>
           Google renders your JavaScript. ChatGPT, Perplexity and Claude don't: they read raw HTML. A page can rank beautifully and still be invisible
           to every AI answer at the same time. As an AI page audit tool built
-          specifically for AEO, we show you which, and why, then exactly what to fix, ranked by impact, whether you're checking one page or running a full AI site audit across your key templates.
+          specifically for AEO and GEO, we show you which, and why, then exactly what to fix, ranked by impact, whether you're checking one page or running a full AI site audit across your key templates.
         </p>
         <div class="herocta">
           <button class="btn-primary lg" id="cta-signup">Start free, no card required</button>
@@ -94,7 +95,7 @@ const faqs = [
         <div class="dashstats">
           <div class="dashstat">
             <span class="ds-n">83<small>%</small></span>
-            <span class="ds-l">AEO score</span>
+            <span class="ds-l">AEO &amp; GEO score</span>
           </div>
           <div class="dashstat">
             <span class="ds-n">24<small>/31</small></span>
@@ -206,7 +207,7 @@ const faqs = [
     <div class="wrap">
       <div class="sec-eyebrow">How it works</div>
       <h2 class="sec-h2">Three steps, about twenty seconds</h2>
-      <p class="sec-sub">This AEO tool needs no install and no tag on your site, and there's no waiting for a crawl. Paste a URL and read the answer.</p>
+      <p class="sec-sub">This AEO &amp; GEO tool needs no install and no tag on your site, and there's no waiting for a crawl. Paste a URL and read the answer.</p>
       <div class="steps">
         <div class="step">
           <span class="st-n">1</span>
@@ -234,7 +235,7 @@ const faqs = [
       <h2 class="sec-h2">Understand the "why" before you run a check</h2>
       <div class="rgrid">
         <a class="rcard" href="/checklist">
-          <h3>The full AEO checklist</h3>
+          <h3>The full AEO &amp; GEO checklist</h3>
           <p>Every check the tool runs, grouped by page type and vertical, with the reasoning behind each one.</p>
           <span class="t-go">Browse the checklist →</span>
         </a>
@@ -244,7 +245,7 @@ const faqs = [
           <span class="t-go">Read the glossary →</span>
         </a>
         <a class="rcard" href="/blog">
-          <h3>The AEO blog</h3>
+          <h3>The AEO &amp; GEO blog</h3>
           <p>Practical guides on getting cited by ChatGPT, Perplexity, Claude and Google AI Overviews, not vague theory.</p>
           <span class="t-go">Read the blog →</span>
         </a>
@@ -257,7 +258,7 @@ const faqs = [
     <section class="fromblog">
       <div class="wrap">
         <div class="sec-eyebrow">From the blog</div>
-        <h2 class="sec-h2">Practical AEO guides, not vague theory</h2>
+        <h2 class="sec-h2">Practical AEO &amp; GEO guides, not vague theory</h2>
         <div class="fbgrid">
           {latestPosts.map((p) => (
             <a class="fbcard" href={`/blog/${p.slug}`}>
@@ -267,7 +268,7 @@ const faqs = [
                   <time datetime={new Date(p.publishDate).toISOString()}>
                     {new Date(p.publishDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </time>
-                  {p.tags[0] && <span class="fbtag">{p.tags[0]}</span>}
+                  {p.tags.slice(0, 2).map((t) => <span class="fbtag">{t}</span>)}
                 </div>
                 <h3>{p.title}</h3>
                 <p>{p.description}</p>

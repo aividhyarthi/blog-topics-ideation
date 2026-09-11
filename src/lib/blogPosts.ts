@@ -138,7 +138,7 @@ For the full list of terms that come up once you start digging into this (GPTBot
     title: "AEO vs SEO vs GEO: What's the Difference (and Do You Need All Three)?",
     description:
       "SEO, AEO and GEO overlap but aren't the same thing. Here's what each one actually optimizes for, in plain terms, and why most sites need all three.",
-    tags: ['AEO', 'Comparison'],
+    tags: ['GEO', 'AEO', 'Comparison'],
     image: '/blog/aeo-vs-seo-vs-geo.png',
     author: 'AI Page Audit Team',
     sourceUrl: null,

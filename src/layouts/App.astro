@@ -19,7 +19,7 @@ const admin = isAdmin(await getUser(Astro as any).catch(() => null));
 const TABS = [
   { id: 'home', href: '/home', label: 'Home', hint: 'Welcome back, and what to do next' },
   { id: 'check', href: '/check', label: 'LLM Access Check', hint: 'What each AI crawler can read' },
-  { id: 'audit', href: '/audit', label: 'Full AEO Audit', hint: 'Weighted score and ranked fixes' },
+  { id: 'audit', href: '/audit', label: 'Full AEO & GEO Audit', hint: 'Weighted score and ranked fixes' },
   { id: 'reports', href: '/dashboard', label: 'Reports', hint: 'Saved audits, usage and plan' },
 ] as const;
 
