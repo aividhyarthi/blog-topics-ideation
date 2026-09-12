@@ -3357,7 +3357,7 @@ ai photo enhancer"></textarea>
         }
         if (act === 'add-coverage') {
           const box = card.querySelector('[data-role="covaddtext"]');
-          const before = (app.coverageKeywords || []).length;
+          const before = (state.apps.find((a) => a.key === key)?.coverageKeywords || []).length;
           withBusy(btn, 'Adding…', async () => {
             const data = await api({ action: 'add-coverage-keywords', key, keywords: box.value });
             const after = (data.apps.find((a) => a.key === key)?.coverageKeywords || []).length;
