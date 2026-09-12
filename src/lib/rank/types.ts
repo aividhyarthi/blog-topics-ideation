@@ -58,6 +58,13 @@ export interface TrackedApp {
    * keyword discovery. Keyed by keyword text so it survives independent of
    * which list (tracked vs coverage) that keyword happens to be in. */
   keywordVolumes?: Record<string, number>;
+  /** Optional companion to keywordVolumes: raw WEB search volume (e.g. from
+   * SEMrush/Ahrefs) for the same keyword, kept separate because it's on a
+   * completely different scale (real monthly searches, often in the
+   * thousands) from the 0-100 app-search popularity number above — shown
+   * side by side, never merged into one number. Display-only: sorting,
+   * curation and the volume estimator all still key off keywordVolumes. */
+  keywordWebVolumes?: Record<string, number>;
   /** Comma-separated email addresses for the daily rank report — sent by the
    * nightly scheduler after this app's check completes. Blank/unset means no
    * report is sent for this app. */

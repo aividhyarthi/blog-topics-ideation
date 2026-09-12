@@ -1927,8 +1927,9 @@ ai photo enhancer"></textarea>
       function coverageTableHtml(app, trends) {
         if (!trends.length) return '<p class="hint" style="margin-top:10px;">No keywords in this category.</p>';
         const volumes = app.keywordVolumes || {};
+        const webVolumes = app.keywordWebVolumes || {};
         const covDiff = app.difficulty || {};
-        const rows = trends.map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, difficulty: covDiff[t.keyword] || null }));
+        const rows = trends.map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, webVolume: webVolumes[t.keyword] ?? null, difficulty: covDiff[t.keyword] || null }));
         // Default to highest-volume-first — the whole point of this table is
         // seeing where you rank on the keywords that matter most, not just
         // the plan-limited 60 that happen to be in the daily-tracked list.
@@ -1947,7 +1948,7 @@ ai photo enhancer"></textarea>
         const body = rows.map((t) => `
           <tr>
             <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(t.keyword)}" data-list="coverage">${esc(t.keyword)}</button></td>
-            <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
+            <td class="pos">${volCell(t.volume, t.webVolume)}</td>
             <td class="pos">${posCell(t)}</td>
             <td>${deltaCell(t)}</td>
             <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
@@ -2059,6 +2060,16 @@ ai photo enhancer"></textarea>
         resizeTimer = setTimeout(() => { if (state.apps.length) render(); }, 200);
       });
 
+      // App search volume stays the primary number (unchanged from before
+      // web volume existed) — a web number only ever adds a small second
+      // line beneath it, so keywords with no web data paste look exactly
+      // as they always have.
+      function volCell(vol, webVol) {
+        const appPart = vol != null ? esc(vol.toLocaleString()) : '<span class="un">–</span>';
+        if (webVol == null) return appPart;
+        return `${appPart}<div class="hint" style="font-size:10.5px;line-height:1.3;margin-top:1px;white-space:nowrap;">web ${esc(webVol.toLocaleString())}</div>`;
+      }
+
       function deltaCell(t) {
         // A failed check (see posCell's "err" case) has no real position to
         // compare — showing "out" here would read as a confirmed rank drop
@@ -2104,6 +2115,7 @@ ai photo enhancer"></textarea>
         const dateKeys = (listType === 'coverage' ? (app.coverageOverview && app.coverageOverview.days) : (app.overview && app.overview.days)) || [];
         const dks = dateKeys.map((d) => d.dateKey);
         const volume = (app.keywordVolumes || {})[keyword];
+        const webVolume = (app.keywordWebVolumes || {})[keyword];
         const chart = chartPositionTrend(dks, t.history || [], 'Rank', 'No history yet for this keyword — check back after the next check.');
         $('kwmodal').innerHTML = `
           <div class="kwmodal-head">
@@ -2115,7 +2127,8 @@ ai photo enhancer"></textarea>
             <div class="kwmodal-stat">Current<b>${t.position != null ? `#${t.position}` : (t.checked === false ? 'not checked yet' : `>${t.depth || 200}`)}</b></div>
             <div class="kwmodal-stat">Best ever<b>${t.best != null ? `#${t.best}` : '–'}</b></div>
             <div class="kwmodal-stat">Δ vs last check<b>${t.delta != null ? (t.delta > 0 ? `▲ ${t.delta}` : t.delta < 0 ? `▼ ${-t.delta}` : '＝ 0') : '–'}</b></div>
-            <div class="kwmodal-stat">Volume<b>${volume != null ? volume.toLocaleString() : '–'}</b></div>
+            <div class="kwmodal-stat">${webVolume != null ? 'App volume' : 'Volume'}<b>${volume != null ? volume.toLocaleString() : '–'}</b></div>
+            ${webVolume != null ? `<div class="kwmodal-stat">Web volume<b>${webVolume.toLocaleString()}</b></div>` : ''}
           </div>
           ${chart}
           ${(t.top || []).length ? `<p class="hint" style="margin-top:10px;">Currently #1 for this keyword: <b>${esc(t.top[0].title)}</b></p>` : ''}
@@ -2356,6 +2369,7 @@ ai photo enhancer"></textarea>
         if (!comps.length) return picker + '<p class="hint">Tick at least one competitor above.</p>';
 
         const volumes = app.keywordVolumes || {};
+        const webVolumes = app.keywordWebVolumes || {};
         const mine = trendMap(app);
         const maps = comps.map(trendMap);
 
@@ -2378,7 +2392,7 @@ ai photo enhancer"></textarea>
           });
           const all = [myPos, ...compCells.map((c) => c.pos)].filter((p) => p != null);
           const best = all.length ? Math.min(...all) : null;
-          return { kw, volume: volumes[kw] ?? null, myPos, myChecked: myT ? myT.checked !== false : false, myError: myT ? myT.error : null, compCells, best };
+          return { kw, volume: volumes[kw] ?? null, webVolume: webVolumes[kw] ?? null, myPos, myChecked: myT ? myT.checked !== false : false, myError: myT ? myT.error : null, compCells, best };
         });
 
         const sort = compareSortState[app.key] || {};
@@ -2413,7 +2427,7 @@ ai photo enhancer"></textarea>
         };
         const rowsHtml = rows.map((r) => `<tr>
             <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(r.kw)}" data-list="daily">${esc(r.kw)}</button></td>
-            <td class="pos">${r.volume != null ? r.volume.toLocaleString() : '<span class="un">–</span>'}</td>
+            <td class="pos">${volCell(r.volume, r.webVolume)}</td>
             ${cell(r.myPos, true, r.myChecked, r.best, r.myError)}
             ${r.compCells.map((c) => cell(c.pos, c.tracked, c.checked, r.best, c.error)).join('')}
           </tr>`).join('');
@@ -2500,8 +2514,9 @@ ai photo enhancer"></textarea>
         const sectionKeywordsFn = () => {
           const sort = sortState[app.key] || {};
           const volumes = app.keywordVolumes || {};
+          const webVolumes = app.keywordWebVolumes || {};
           const diffMap = app.difficulty || {};
-          const trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
+          const trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, webVolume: webVolumes[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
           if (sort.col) {
             trends.sort((a, b) => {
               const av = sortVal(a, sort.col), bv = sortVal(b, sort.col);
@@ -2516,7 +2531,7 @@ ai photo enhancer"></textarea>
           const rows = trends.map((t) => `
             <tr>
               <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(t.keyword)}" data-list="daily">${esc(t.keyword)}</button></td>
-              <td class="pos">${t.volume != null ? t.volume.toLocaleString() : '<span class="un">–</span>'}</td>
+              <td class="pos">${volCell(t.volume, t.webVolume)}</td>
               <td class="pos">${posCell(t)}</td>
               <td>${deltaCell(t)}</td>
               <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
@@ -2649,6 +2664,11 @@ ai photo enhancer"></textarea>
             <h4>Keyword volumes</h4>
             <p class="hint" style="margin:0 0 8px;">If you already have search volume data (e.g. from AppRadar or your own research), paste it in alongside your keywords and we'll use it as-is. This button estimates the <b>missing</b> ones for you on a 0–100 popularity scale. Click again if some keywords are still blank after the first pass.</p>
             <button class="ghost" data-act="estimate-volumes">Estimate missing volumes</button>
+            <p class="hint" style="margin:12px 0 8px;">Have both a <b>web search</b> volume (e.g. SEMrush/Ahrefs) and an <b>app search</b> number for the same keywords? Keep them separate here instead of overwriting one with the other — both show up side by side wherever volume is shown. One per line, "keyword, volume" — merges in, never replaces.</p>
+            <textarea data-role="webvoltext" placeholder="e.g.&#10;emi calculator, 40500&#10;loan calculator, 33200"></textarea>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-web-volumes">Save web search volumes</button>
+            </div>
           </div>
           <div class="settings-block no-print" data-guest-hide>
             <h4>Daily check window <span class="hint" style="display:inline;">— IST</span></h4>
@@ -3506,6 +3526,16 @@ ai photo enhancer"></textarea>
         }
         if (act === 'estimate-volumes') {
           withBusy(btn, 'Estimating… up to ~1 min', () => api({ action: 'estimate-volumes', key }));
+          return;
+        }
+        if (act === 'save-web-volumes') {
+          const box = card.querySelector('[data-role="webvoltext"]');
+          withBusy(btn, 'Saving…', async () => {
+            const data = await api({ action: 'set-web-volumes', key, keywords: box.value });
+            box.value = '';
+            showToast('Web search volumes saved');
+            return data;
+          });
           return;
         }
         if (act === 'check-one') {

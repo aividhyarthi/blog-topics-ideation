@@ -420,7 +420,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // owner's account — that scoping never existed before since write access
   // used to be all-or-nothing.
   const GUEST_SAFE_ACTIONS = new Set([
-    'add-keywords', 'set-keywords', 'set-coverage-keywords', 'add-coverage-keywords',
+    'add-keywords', 'set-keywords', 'set-coverage-keywords', 'add-coverage-keywords', 'set-web-volumes',
     'add-annotation', 'remove-annotation',
     'save-quality-metrics', 'set-report-emails', 'set-alert',
     'add-app', 'remove-app',
@@ -774,6 +774,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ? [...new Set([...(app.coverageKeywords || []), ...parsedCov.keywords])].slice(0, MAX_COVERAGE_KEYWORDS)
       : parsedCov.keywords;
     app.keywordVolumes = { ...(app.keywordVolumes || {}), ...parsedCov.volumes };
+    saveConfig(cfg, userId);
+    return json({ ok: true, ...statePayload(userId) });
+  }
+
+  if (action === 'set-web-volumes') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
+    // Reuses the same "keyword, volume" paste parser as the other keyword
+    // boxes, but only the volumes are kept — this is a companion number
+    // for keywords already tracked elsewhere, not a third place new
+    // keywords can be added from, so always merges and never touches
+    // `keywords`/`coverageKeywords`.
+    const parsedWeb = parseKeywordsWithVolumes(body.keywords, MAX_COVERAGE_KEYWORDS);
+    app.keywordWebVolumes = { ...(app.keywordWebVolumes || {}), ...parsedWeb.volumes };
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });
   }
