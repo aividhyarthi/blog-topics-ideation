@@ -232,6 +232,13 @@ const SPEC = {
     { art: 'qa', takeaway: "Google's new chatbot reads your listing, not just its keywords" },
   'app-intents-siri-discovery':
     { art: 'diverge', takeaway: 'Siri discovery and App Store rank are two separate paths now', a: 'Siri discovery', b: 'App Store rank' },
+  'apple-ai-generated-app-store-tags':
+    { art: 'chips', takeaway: "AI-generated, human-reviewed, and still beta-only as of Sept 2026",
+      chips: ['LLM-generated', 'human-reviewed', 'beta only'] },
+  'google-play-trusted-contributor-badge':
+    { art: 'stars', takeaway: "Invite-only, and not a documented rating or ranking change" },
+  'google-play-third-party-app-stores-us':
+    { art: 'diverge', takeaway: 'Your listing now reaches rival stores by default, not just Google Play', a: 'Google Play', b: 'rival US app stores' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
