@@ -764,18 +764,36 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
     if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
+    // Parsed once uncapped just to detect + report truncation — hitting the
+    // 2000 hard cap used to silently drop whatever didn't fit, with nothing
+    // telling the owner which keywords from their paste never made it in.
+    const totalParsed = parseKeywordsWithVolumes(body.keywords, Infinity).keywords;
     const parsedCov = parseKeywordsWithVolumes(body.keywords, MAX_COVERAGE_KEYWORDS);
+    let coverageTruncated: { pasted: number; added: number; dropped: string[] } | null = null;
     // 'set' replaces the whole list (the Settings "edit the full list" box);
     // 'add' merges in — pasting a fresh batch of keyword research shouldn't
     // require re-pasting every keyword already tracked just to avoid
     // dropping them, which is exactly the shape of mistake a full replace
     // silently invites.
-    app.coverageKeywords = action === 'add-coverage-keywords'
-      ? [...new Set([...(app.coverageKeywords || []), ...parsedCov.keywords])].slice(0, MAX_COVERAGE_KEYWORDS)
-      : parsedCov.keywords;
+    if (action === 'add-coverage-keywords') {
+      const existing = app.coverageKeywords || [];
+      // Existing keywords are listed first into the Set, so only newly
+      // pasted ones can ever fall past the cap — an already-tracked keyword
+      // never gets silently bumped off by a fresh paste.
+      const merged = [...new Set([...existing, ...parsedCov.keywords])];
+      app.coverageKeywords = merged.slice(0, MAX_COVERAGE_KEYWORDS);
+      const kept = new Set(app.coverageKeywords);
+      const dropped = totalParsed.filter((k) => !kept.has(k));
+      if (dropped.length) coverageTruncated = { pasted: totalParsed.length, added: totalParsed.length - dropped.length, dropped };
+    } else {
+      app.coverageKeywords = parsedCov.keywords;
+      if (totalParsed.length > parsedCov.keywords.length) {
+        coverageTruncated = { pasted: totalParsed.length, added: parsedCov.keywords.length, dropped: totalParsed.slice(MAX_COVERAGE_KEYWORDS) };
+      }
+    }
     app.keywordVolumes = { ...(app.keywordVolumes || {}), ...parsedCov.volumes };
     saveConfig(cfg, userId);
-    return json({ ok: true, ...statePayload(userId) });
+    return json({ ok: true, coverageTruncated, ...statePayload(userId) });
   }
 
   if (action === 'set-web-volumes') {
