@@ -15,7 +15,7 @@ import { withTenantLock } from '../../lib/rank/lock';
 import { discoverKeywords } from '../../lib/rank/discover';
 import { fetchTrendsScores } from '../../lib/rank/trends';
 import type { Annotation, TrackedApp, TrackerConfig, RankSnapshot } from '../../lib/rank/types';
-import { parseKeywordsWithVolumes } from '../../lib/rank/keywords';
+import { parseKeywordsWithVolumes, parseKeywordsWithTwoVolumes } from '../../lib/rank/keywords';
 import { buildInsights } from '../../lib/rank/insights';
 import { parseReportEmails } from '../../lib/rank/email';
 import { randomUUID } from 'node:crypto';
@@ -507,23 +507,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // A pasted keyword list always wins; otherwise inherit from likeApp.
     const hasOwnKeywords = String(body.keywords || '').trim().length > 0;
-    let keywords: string[]; let keywordVolumes: Record<string, number>; let keywordsTruncated: { saved: number; total: number } | null;
+    let keywords: string[]; let keywordVolumes: Record<string, number>; let keywordWebVolumes: Record<string, number>; let keywordsTruncated: { saved: number; total: number } | null;
     if (hasOwnKeywords) {
       // Parsed once uncapped just to detect + report truncation — this box is
       // the daily-tracked list (checked automatically, capped by plan); a
       // paste bigger than the cap silently lost everything past it before,
       // with no indication anything was dropped.
-      const totalParsed = parseKeywordsWithVolumes(body.keywords, Infinity).keywords.length;
-      const parsedKw = parseKeywordsWithVolumes(body.keywords, maxKeywords);
+      const totalParsed = parseKeywordsWithTwoVolumes(body.keywords, Infinity).keywords.length;
+      const parsedKw = parseKeywordsWithTwoVolumes(body.keywords, maxKeywords);
       keywords = parsedKw.keywords;
       keywordVolumes = parsedKw.volumes;
+      keywordWebVolumes = parsedKw.webVolumes;
       keywordsTruncated = totalParsed > parsedKw.keywords.length ? { saved: parsedKw.keywords.length, total: totalParsed } : null;
     } else if (likeApp) {
       keywords = likeApp.keywords.slice(0, maxKeywords);
       keywordVolumes = { ...(likeApp.keywordVolumes || {}) };
+      keywordWebVolumes = { ...(likeApp.keywordWebVolumes || {}) };
       keywordsTruncated = likeApp.keywords.length > keywords.length ? { saved: keywords.length, total: likeApp.keywords.length } : null;
     } else {
-      keywords = []; keywordVolumes = {}; keywordsTruncated = null;
+      keywords = []; keywordVolumes = {}; keywordWebVolumes = {}; keywordsTruncated = null;
     }
     const coverageKeywords = !hasOwnKeywords && likeApp
       ? [...new Set([...(likeApp.coverageKeywords || []), ...likeApp.keywords])].slice(0, MAX_COVERAGE_KEYWORDS)
@@ -537,7 +539,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       icon: meta?.icon || null,
       url: meta?.url || null,
       genreId: meta?.genreId || null,
-      keywords, keywordVolumes,
+      keywords, keywordVolumes, keywordWebVolumes,
       ...(coverageKeywords ? { coverageKeywords } : {}),
       ...(likeApp ? { competitorOf: likeApp.key } : {}),
       addedAt: new Date().toISOString(),
@@ -689,12 +691,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // "track selected" flow) already reports its own more precise
     // before/after count client-side, which correctly excludes keywords
     // skipped for already being tracked (not truncated by the cap).
-    const totalParsed = action === 'set-keywords' ? parseKeywordsWithVolumes(body.keywords, Infinity).keywords.length : 0;
-    const incoming = parseKeywordsWithVolumes(body.keywords, maxKeywords);
+    const totalParsed = action === 'set-keywords' ? parseKeywordsWithTwoVolumes(body.keywords, Infinity).keywords.length : 0;
+    const incoming = parseKeywordsWithTwoVolumes(body.keywords, maxKeywords);
     app.keywords = action === 'add-keywords'
       ? [...app.keywords, ...incoming.keywords.filter((k) => !app.keywords.includes(k))].slice(0, maxKeywords)
       : incoming.keywords;
     app.keywordVolumes = { ...(app.keywordVolumes || {}), ...incoming.volumes };
+    app.keywordWebVolumes = { ...(app.keywordWebVolumes || {}), ...incoming.webVolumes };
     saveConfig(cfg, userId);
     const checkError = await checkAfterEdit(app, userId);
     const keywordsTruncated = action === 'set-keywords' && totalParsed > app.keywords.length
@@ -767,8 +770,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Parsed once uncapped just to detect + report truncation — hitting the
     // 2000 hard cap used to silently drop whatever didn't fit, with nothing
     // telling the owner which keywords from their paste never made it in.
-    const totalParsed = parseKeywordsWithVolumes(body.keywords, Infinity).keywords;
-    const parsedCov = parseKeywordsWithVolumes(body.keywords, MAX_COVERAGE_KEYWORDS);
+    const totalParsed = parseKeywordsWithTwoVolumes(body.keywords, Infinity).keywords;
+    const parsedCov = parseKeywordsWithTwoVolumes(body.keywords, MAX_COVERAGE_KEYWORDS);
     let coverageTruncated: { pasted: number; added: number; dropped: string[] } | null = null;
     // 'set' replaces the whole list (the Settings "edit the full list" box);
     // 'add' merges in — pasting a fresh batch of keyword research shouldn't
@@ -792,6 +795,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
     app.keywordVolumes = { ...(app.keywordVolumes || {}), ...parsedCov.volumes };
+    app.keywordWebVolumes = { ...(app.keywordWebVolumes || {}), ...parsedCov.webVolumes };
     saveConfig(cfg, userId);
     return json({ ok: true, coverageTruncated, ...statePayload(userId) });
   }

@@ -2634,7 +2634,7 @@ ai photo enhancer"></textarea>
           <div class="section-head"><h2>Settings</h2><p class="hint">${state.readOnly ? 'A shared view can edit keywords, annotations, Android vitals, competitors and rank-drop alerts — everything else here is the account owner\'s.' : 'Everything you can edit for this app lives here.'}</p></div>
           <div class="settings-block no-print">
             <h4>Daily-tracked keywords</h4>
-            <p class="hint" style="margin:0 0 8px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line. Saving re-checks this app's rankings right away. <b>This list is checked daily and capped by your plan</b> — bigger lists go in the All keywords list below.</p>
+            <p class="hint" style="margin:0 0 8px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line, or 3 columns (keyword, web volume, app volume) if you have both. Saving re-checks this app's rankings right away. <b>This list is checked daily and capped by your plan</b> — bigger lists go in the All keywords list below.</p>
             <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
@@ -2644,7 +2644,7 @@ ai photo enhancer"></textarea>
           </div>
           <div class="settings-block no-print">
             <h4>All keywords list <span class="hint" style="display:inline;">— your full keyword universe, up to ${MAX_COVERAGE}</span></h4>
-            <p class="hint" style="margin:0 0 8px;">Separate from the daily list above and not capped by your plan. Checked automatically by the nightly check; "Check all keyword rankings" on the All Keywords Snapshot section runs it on demand.</p>
+            <p class="hint" style="margin:0 0 8px;">Separate from the daily list above and not capped by your plan. Checked automatically by the nightly check; "Check all keyword rankings" on the All Keywords Snapshot section runs it on demand. A 3-column spreadsheet paste (keyword, web volume, app volume) sets both volumes at once — see the hint below.</p>
             <textarea data-role="covtext" placeholder="One keyword per line or comma-separated — up to ${MAX_COVERAGE}">${esc((app.coverageKeywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-coverage">Save coverage list</button>
@@ -2653,8 +2653,8 @@ ai photo enhancer"></textarea>
           </div>
           <div class="settings-block no-print">
             <h4>Add to all keywords list</h4>
-            <p class="hint" style="margin:0 0 8px;">Paste a new batch of keyword research here — this merges into the list above, it never removes or replaces anything already tracked. Same paste formats work: one per line, or "keyword, volume".</p>
-            <textarea data-role="covaddtext" placeholder="One keyword per line, or 'keyword, volume' per line — adds to the list above without touching anything else"></textarea>
+            <p class="hint" style="margin:0 0 8px;">Paste a new batch of keyword research here — this merges into the list above, it never removes or replaces anything already tracked. One keyword per line, or "keyword, volume" for a single number. Have <b>both</b> a web search volume and an app search index for the same keywords? Paste all three columns straight from a spreadsheet (keyword, then web volume, then app volume, tab-separated — how Excel/Sheets pastes a row) and both numbers are read in one go, no need to paste them separately.</p>
+            <textarea data-role="covaddtext" placeholder="One keyword per line, or 'keyword, volume' — or paste 3 columns from a spreadsheet: keyword, web volume, app volume"></textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="add-coverage">Add to coverage list</button>
             </div>
@@ -2684,7 +2684,7 @@ ai photo enhancer"></textarea>
             <h4>Keyword volumes</h4>
             <p class="hint" style="margin:0 0 8px;">If you already have search volume data (e.g. from AppRadar or your own research), paste it in alongside your keywords and we'll use it as-is. This button estimates the <b>missing</b> ones for you on a 0–100 popularity scale. Click again if some keywords are still blank after the first pass.</p>
             <button class="ghost" data-act="estimate-volumes">Estimate missing volumes</button>
-            <p class="hint" style="margin:12px 0 8px;">Have both a <b>web search</b> volume (e.g. SEMrush/Ahrefs) and an <b>app search</b> number for the same keywords? Keep them separate here instead of overwriting one with the other — both show up side by side wherever volume is shown. One per line, "keyword, volume" — merges in, never replaces.</p>
+            <p class="hint" style="margin:12px 0 8px;">Have both a <b>web search</b> volume (e.g. SEMrush/Ahrefs) and an <b>app search</b> number for keywords already tracked? Use this box to add or update just the web number without touching the app number — one per line, "keyword, volume", merges in, never replaces. Adding brand-new keywords with both numbers at once? Paste all 3 columns straight into the All Keywords box above instead — no need to come back here.</p>
             <textarea data-role="webvoltext" placeholder="e.g.&#10;emi calculator, 40500&#10;loan calculator, 33200"></textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-web-volumes">Save web search volumes</button>
