@@ -222,7 +222,12 @@ const limitsText = product && plan
       .cthead b { overflow: hidden; text-overflow: ellipsis; }
       .cticon { width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0; }
       table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 13px; }
-      th, td { text-align: left; padding: 8px 12px; vertical-align: middle; border-bottom: 1px solid var(--line); }
+      /* The table already scrolls horizontally on a narrow viewport (see
+         .table-wrap and the "swipe to see all columns" hint) — without
+         nowrap, a browser wraps long cell text vertically instead of
+         triggering that scroll, which made keyword and competitor-title
+         cells wrap into jagged multi-line text and blew up row heights. */
+      th, td { text-align: left; padding: 8px 12px; vertical-align: middle; border-bottom: 1px solid var(--line); white-space: nowrap; }
       th { background: var(--card2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 700; }
       th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
       th.sortable:hover { color: var(--accent); }
@@ -237,7 +242,7 @@ const limitsText = product && plan
       .delta.up { color: var(--ok); }
       .delta.down { color: var(--bad); }
       .delta.flat, .delta.na { color: var(--muted); font-weight: 600; }
-      .who { font-size: 12.5px; color: var(--muted); }
+      .who { font-size: 12.5px; color: var(--muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
       .kwedit { margin-top: 12px; display: none; }
       .kwedit.open { display: block; }
       .annedit { margin-top: 12px; display: none; }
@@ -1966,7 +1971,7 @@ ai photo enhancer"></textarea>
             <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
             <td>${diffCell(t.difficulty)}</td>
             <td>${spark(t.history || [])}</td>
-            <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
+            <td class="who" title="${(t.top || []).length ? escAttr(t.top[0].title) : ''}">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
         return `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap covtable"><table>
             <thead><tr><th>Keyword</th>${th('webVolume', 'Search Volume')}${th('volume', 'App Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
@@ -2557,7 +2562,7 @@ ai photo enhancer"></textarea>
               <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
               <td>${diffCell(t.difficulty)}</td>
               <td>${spark(t.history || [])}</td>
-              <td class="who">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
+              <td class="who" title="${(t.top || []).length ? escAttr(t.top[0].title) : ''}">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
             </tr>`).join('');
           const errCount = trends.filter((t) => t.error).length;
           // A checked-but-failed row (store rate-limit/block) still reads as
