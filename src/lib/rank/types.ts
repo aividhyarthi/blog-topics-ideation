@@ -65,6 +65,12 @@ export interface TrackedApp {
    * side by side, never merged into one number. Display-only: sorting,
    * curation and the volume estimator all still key off keywordVolumes. */
   keywordWebVolumes?: Record<string, number>;
+  /** Optional cost-per-click per keyword (e.g. from SEMrush/Ahrefs paid-search
+   * data) — a third number alongside the two volumes above, for teams that
+   * track paid-search cost alongside organic app-search demand. Display-only,
+   * same as keywordWebVolumes: never used in sorting, curation, or the
+   * volume estimator. */
+  keywordCpc?: Record<string, number>;
   /** Comma-separated email addresses for the daily rank report — sent by the
    * nightly scheduler after this app's check completes. Blank/unset means no
    * report is sent for this app. */

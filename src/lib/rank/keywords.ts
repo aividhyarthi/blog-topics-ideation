@@ -2,20 +2,25 @@
 
 export interface ParsedKeywords { keywords: string[]; volumes: Record<string, number> }
 export interface ParsedKeywordsTwoVolumes { keywords: string[]; volumes: Record<string, number>; webVolumes: Record<string, number> }
+export interface ParsedKeywordsThreeValues {
+  keywords: string[]; volumes: Record<string, number>; webVolumes: Record<string, number>; cpc: Record<string, number>;
+}
 
 // Handles plain numbers ("5400", "1,200") and abbreviated ones ("40K",
 // "1.2M", "2b") — many keyword-research exports report high-volume terms
 // this way, and silently dropping the volume for those (vs a plain 5-digit
-// number) would be a confusing, data-dependent gap. Shared by both parsers
-// below.
+// number) would be a confusing, data-dependent gap. An optional leading
+// currency symbol is stripped too, since a CPC column commonly carries one
+// ("$0.45", "₹12.50") even though volume columns never do. Shared by every
+// parser below.
 const SUFFIX_MULT: Record<string, number> = { k: 1e3, m: 1e6, b: 1e9 };
 function parseNum(s: string): number | undefined {
-  const m = s.trim().match(/^(\d[\d,]*(?:\.\d+)?)\s*([kKmMbB]?)$/);
+  const m = s.trim().replace(/^[$₹€£]\s*/, '').match(/^(\d[\d,]*(?:\.\d+)?)\s*([kKmMbB]?)$/);
   if (!m) return undefined;
   const base = Number(m[1].replace(/,/g, ''));
   if (!Number.isFinite(base)) return undefined;
   const mult = m[2] ? SUFFIX_MULT[m[2].toLowerCase()] : 1;
-  return Math.round(base * mult);
+  return Math.round(base * mult * 100) / 100;
 }
 
 /**
@@ -127,4 +132,78 @@ export function parseKeywordsWithTwoVolumes(blob: unknown, max: number): ParsedK
     for (const part of line.split(',').map((s) => s.trim()).filter(Boolean)) add(part);
   }
   return { keywords, volumes, webVolumes };
+}
+
+/**
+ * Same idea one level further: a line carrying THREE numbers — web search
+ * volume, a 0-100 app search demand index, and cost-per-click. A client's
+ * own keyword-research export routinely has all three side by side, and
+ * this reads that directly instead of asking for it split into separate
+ * pastes.
+ *
+ * "keyword<TAB>webVolume<TAB>appVolume<TAB>cpc" is the reliable format —
+ * copy all four columns straight out of a spreadsheet. Fewer columns still
+ * work: 3 tab-separated falls back to keyword+web+app (no CPC), 2 falls
+ * back to keyword+app volume only, matching parseKeywordsWithTwoVolumes.
+ * A plain-digit comma form, "keyword, webVolume, appVolume, cpc", also
+ * works, but only when none of the three numbers use thousands-commas —
+ * see parseKeywordsWithTwoVolumes's doc comment for why that's an
+ * unavoidable ambiguity with commas doing double duty as both a column and
+ * a thousands separator. Tab-separated has no such limit and is always the
+ * safer route for a real spreadsheet paste.
+ */
+export function parseKeywordsWithThreeValues(blob: unknown, max: number): ParsedKeywordsThreeValues {
+  const keywords: string[] = [];
+  const volumes: Record<string, number> = {};
+  const webVolumes: Record<string, number> = {};
+  const cpc: Record<string, number> = {};
+  const seen = new Set<string>();
+
+  const add = (raw: string, webVol?: number, appVol?: number, cpcVal?: number) => {
+    const kw = raw.trim().toLowerCase();
+    if (!kw || seen.has(kw) || keywords.length >= max) return;
+    seen.add(kw);
+    keywords.push(kw);
+    if (webVol != null && Number.isFinite(webVol)) webVolumes[kw] = webVol;
+    if (appVol != null && Number.isFinite(appVol)) volumes[kw] = appVol;
+    if (cpcVal != null && Number.isFinite(cpcVal)) cpc[kw] = cpcVal;
+  };
+
+  for (const rawLine of String(blob || '').split(/\r?\n/)) {
+    if (keywords.length >= max) break;
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // Spreadsheet paste, 4 columns: "keyword<TAB>webVolume<TAB>appVolume<TAB>cpc".
+    const tabParts = line.split('\t').map((s) => s.trim()).filter(Boolean);
+    if (tabParts.length >= 4) { add(tabParts[0], parseNum(tabParts[1]), parseNum(tabParts[2]), parseNum(tabParts[3])); continue; }
+    // 3 columns, tab-separated: web + app volume, no CPC.
+    if (tabParts.length === 3) { add(tabParts[0], parseNum(tabParts[1]), parseNum(tabParts[2])); continue; }
+    // 2 columns, tab-separated: back-compat, single number = app volume.
+    if (tabParts.length === 2) { add(tabParts[0], undefined, parseNum(tabParts[1])); continue; }
+
+    // "keyword, webVolume, appVolume, cpc" — only safe when none of the
+    // three numbers has an internal comma (see doc comment above).
+    const commaParts = line.split(',').map((s) => s.trim()).filter(Boolean);
+    if (commaParts.length === 4) {
+      const webVol = parseNum(commaParts[1]);
+      const appVol = parseNum(commaParts[2]);
+      const cpcVal = parseNum(commaParts[3]);
+      if (webVol != null && appVol != null && cpcVal != null) { add(commaParts[0], webVol, appVol, cpcVal); continue; }
+    }
+    if (commaParts.length === 3) {
+      const webVol = parseNum(commaParts[1]);
+      const appVol = parseNum(commaParts[2]);
+      if (webVol != null && appVol != null) { add(commaParts[0], webVol, appVol); continue; }
+    }
+
+    // "keyword, 1234" / "keyword, 1,234" (comma-grouped) / "keyword, 40K" —
+    // one number, treated as the app volume.
+    const kwVol = line.match(/^(.+?),\s*(\d[\d,]*(?:\.\d+)?[kKmMbB]?)\s*$/);
+    if (kwVol) { add(kwVol[1], undefined, parseNum(kwVol[2])); continue; }
+
+    // Back-compat: comma-separated multiple keywords on one line, no volume.
+    for (const part of line.split(',').map((s) => s.trim()).filter(Boolean)) add(part);
+  }
+  return { keywords, volumes, webVolumes, cpc };
 }

@@ -770,6 +770,7 @@ ai photo enhancer"></textarea>
         if (col === 'delta') return t.delta;
         if (col === 'volume') return t.volume;
         if (col === 'webVolume') return t.webVolume;
+        if (col === 'cpc') return t.cpc;
         if (col === 'difficulty') return t.difficulty ? t.difficulty.score : null;
         return null;
       }
@@ -1944,8 +1945,9 @@ ai photo enhancer"></textarea>
         if (!trends.length) return '<p class="hint" style="margin-top:10px;">No keywords in this category.</p>';
         const volumes = app.keywordVolumes || {};
         const webVolumes = app.keywordWebVolumes || {};
+        const cpcs = app.keywordCpc || {};
         const covDiff = app.difficulty || {};
-        const rows = trends.map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, webVolume: webVolumes[t.keyword] ?? null, difficulty: covDiff[t.keyword] || null }));
+        const rows = trends.map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, webVolume: webVolumes[t.keyword] ?? null, cpc: cpcs[t.keyword] ?? null, difficulty: covDiff[t.keyword] || null }));
         // Default to highest-volume-first — the whole point of this table is
         // seeing where you rank on the keywords that matter most, not just
         // the plan-limited 60 that happen to be in the daily-tracked list.
@@ -1966,6 +1968,7 @@ ai photo enhancer"></textarea>
             <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(t.keyword)}" data-list="coverage">${esc(t.keyword)}</button></td>
             <td class="pos">${volNumCell(t.webVolume)}</td>
             <td class="pos">${volNumCell(t.volume)}</td>
+            <td class="pos">${cpcCell(t.cpc)}</td>
             <td class="pos">${posCell(t)}</td>
             <td>${deltaCell(t)}</td>
             <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
@@ -1974,7 +1977,7 @@ ai photo enhancer"></textarea>
             <td class="who" title="${(t.top || []).length ? escAttr(t.top[0].title) : ''}">${(t.top || []).length ? esc(t.top[0].title) : '–'}</td>
           </tr>`).join('');
         return `<p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap covtable"><table>
-            <thead><tr><th>Keyword</th>${th('webVolume', 'Search Volume')}${th('volume', 'App Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
+            <thead><tr><th>Keyword</th>${th('webVolume', 'Search Volume')}${th('volume', 'App Volume')}${th('cpc', 'CPC')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
             <tbody>${body}</tbody>
           </table></div>`;
       }
@@ -2094,6 +2097,12 @@ ai photo enhancer"></textarea>
         return v != null ? esc(v.toLocaleString()) : '<span class="un">NA</span>';
       }
 
+      // CPC is a small decimal (cost, not a count), so it's shown to 2
+      // places rather than with volume's thousands grouping.
+      function cpcCell(v) {
+        return v != null ? esc(v.toFixed(2)) : '<span class="un">NA</span>';
+      }
+
       function deltaCell(t) {
         // A failed check (see posCell's "err" case) has no real position to
         // compare — showing "out" here would read as a confirmed rank drop
@@ -2140,6 +2149,7 @@ ai photo enhancer"></textarea>
         const dks = dateKeys.map((d) => d.dateKey);
         const volume = (app.keywordVolumes || {})[keyword];
         const webVolume = (app.keywordWebVolumes || {})[keyword];
+        const cpc = (app.keywordCpc || {})[keyword];
         const chart = chartPositionTrend(dks, t.history || [], 'Rank', 'No history yet for this keyword — check back after the next check.');
         $('kwmodal').innerHTML = `
           <div class="kwmodal-head">
@@ -2153,6 +2163,7 @@ ai photo enhancer"></textarea>
             <div class="kwmodal-stat">Δ vs last check<b>${t.delta != null ? (t.delta > 0 ? `▲ ${t.delta}` : t.delta < 0 ? `▼ ${-t.delta}` : '＝ 0') : '–'}</b></div>
             <div class="kwmodal-stat">${webVolume != null ? 'App volume' : 'Volume'}<b>${volume != null ? volume.toLocaleString() : '–'}</b></div>
             ${webVolume != null ? `<div class="kwmodal-stat">Web volume<b>${webVolume.toLocaleString()}</b></div>` : ''}
+            ${cpc != null ? `<div class="kwmodal-stat">CPC<b>${cpc.toFixed(2)}</b></div>` : ''}
           </div>
           ${chart}
           ${(t.top || []).length ? `<p class="hint" style="margin-top:10px;">Currently #1 for this keyword: <b>${esc(t.top[0].title)}</b></p>` : ''}
@@ -2539,8 +2550,9 @@ ai photo enhancer"></textarea>
           const sort = sortState[app.key] || {};
           const volumes = app.keywordVolumes || {};
           const webVolumes = app.keywordWebVolumes || {};
+          const cpcs = app.keywordCpc || {};
           const diffMap = app.difficulty || {};
-          const trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, webVolume: webVolumes[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
+          const trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, webVolume: webVolumes[t.keyword] ?? null, cpc: cpcs[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
           if (sort.col) {
             trends.sort((a, b) => {
               const av = sortVal(a, sort.col), bv = sortVal(b, sort.col);
@@ -2557,6 +2569,7 @@ ai photo enhancer"></textarea>
               <td class="kw"><button class="kwlink" data-kwhistory="${escAttr(t.keyword)}" data-list="daily">${esc(t.keyword)}</button></td>
               <td class="pos">${volNumCell(t.webVolume)}</td>
               <td class="pos">${volNumCell(t.volume)}</td>
+              <td class="pos">${cpcCell(t.cpc)}</td>
               <td class="pos">${posCell(t)}</td>
               <td>${deltaCell(t)}</td>
               <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
@@ -2574,7 +2587,7 @@ ai photo enhancer"></textarea>
           const table = (app.keywords || []).length
             ? `${errBanner}
               <p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
-                <thead><tr><th>Keyword</th>${th('webVolume', 'Search Volume')}${th('volume', 'App Volume')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
+                <thead><tr><th>Keyword</th>${th('webVolume', 'Search Volume')}${th('volume', 'App Volume')}${th('cpc', 'CPC')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
                 <tbody>${rows}</tbody>
               </table></div>
               <h4 class="covhead" style="margin-top:14px;">Daily-tracked keywords <span class="hint" style="display:inline;margin:0;">— ${app.keywords.length} keyword${app.keywords.length === 1 ? '' : 's'}, checked automatically every day</span></h4>
@@ -2639,7 +2652,7 @@ ai photo enhancer"></textarea>
           <div class="section-head"><h2>Settings</h2><p class="hint">${state.readOnly ? 'A shared view can edit keywords, annotations, Android vitals, competitors and rank-drop alerts — everything else here is the account owner\'s.' : 'Everything you can edit for this app lives here.'}</p></div>
           <div class="settings-block no-print">
             <h4>Daily-tracked keywords</h4>
-            <p class="hint" style="margin:0 0 8px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line, or 3 columns (keyword, web volume, app volume) if you have both. Saving re-checks this app's rankings right away. <b>This list is checked daily and capped by your plan</b> — bigger lists go in the All keywords list below.</p>
+            <p class="hint" style="margin:0 0 8px;">One keyword per line (or comma-separated). Pasting straight from a spreadsheet with search volume in the next column works too — "keyword&nbsp;&nbsp;&nbsp;1234" or "keyword, 1234" per line, or up to 4 columns (keyword, web volume, app volume, CPC) if you have all of it. Saving re-checks this app's rankings right away. <b>This list is checked daily and capped by your plan</b> — bigger lists go in the All keywords list below.</p>
             <textarea data-role="kwtext">${esc((app.keywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-kw">Save keywords &amp; check ranks</button>
@@ -2649,7 +2662,7 @@ ai photo enhancer"></textarea>
           </div>
           <div class="settings-block no-print">
             <h4>All keywords list <span class="hint" style="display:inline;">— your full keyword universe, up to ${MAX_COVERAGE}</span></h4>
-            <p class="hint" style="margin:0 0 8px;">Separate from the daily list above and not capped by your plan. Checked automatically by the nightly check; "Check all keyword rankings" on the All Keywords Snapshot section runs it on demand. A 3-column spreadsheet paste (keyword, web volume, app volume) sets both volumes at once — see the hint below.</p>
+            <p class="hint" style="margin:0 0 8px;">Separate from the daily list above and not capped by your plan. Checked automatically by the nightly check; "Check all keyword rankings" on the All Keywords Snapshot section runs it on demand. A spreadsheet paste with up to 4 columns (keyword, web volume, app volume, CPC) sets all of it at once — see the hint below.</p>
             <textarea data-role="covtext" placeholder="One keyword per line or comma-separated — up to ${MAX_COVERAGE}">${esc((app.coverageKeywords || []).join('\n'))}</textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-coverage">Save coverage list</button>
@@ -2658,8 +2671,8 @@ ai photo enhancer"></textarea>
           </div>
           <div class="settings-block no-print">
             <h4>Add to all keywords list</h4>
-            <p class="hint" style="margin:0 0 8px;">Paste a new batch of keyword research here — this merges into the list above, it never removes or replaces anything already tracked. One keyword per line, or "keyword, volume" for a single number. Have <b>both</b> a web search volume and an app search index for the same keywords? Paste all three columns straight from a spreadsheet (keyword, then web volume, then app volume, tab-separated — how Excel/Sheets pastes a row) and both numbers are read in one go, no need to paste them separately.</p>
-            <textarea data-role="covaddtext" placeholder="One keyword per line, or 'keyword, volume' — or paste 3 columns from a spreadsheet: keyword, web volume, app volume"></textarea>
+            <p class="hint" style="margin:0 0 8px;">Paste a new batch of keyword research here — this merges into the list above, it never removes or replaces anything already tracked. One keyword per line, or "keyword, volume" for a single number. Have <b>web search volume</b>, an <b>app search index</b>, and <b>CPC</b> for the same keywords? Paste all 4 columns straight from a spreadsheet (keyword, then web volume, then app volume, then CPC, tab-separated — how Excel/Sheets pastes a row) and every number is read in one go, no need to paste them separately. A shorter 2 or 3-column paste still works too.</p>
+            <textarea data-role="covaddtext" placeholder="One keyword per line, or 'keyword, volume' — or paste up to 4 columns from a spreadsheet: keyword, web volume, app volume, CPC"></textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="add-coverage">Add to coverage list</button>
             </div>
@@ -2689,7 +2702,7 @@ ai photo enhancer"></textarea>
             <h4>Keyword volumes</h4>
             <p class="hint" style="margin:0 0 8px;">If you already have search volume data (e.g. from AppRadar or your own research), paste it in alongside your keywords and we'll use it as-is. This button estimates the <b>missing</b> ones for you on a 0–100 popularity scale. Click again if some keywords are still blank after the first pass.</p>
             <button class="ghost" data-act="estimate-volumes">Estimate missing volumes</button>
-            <p class="hint" style="margin:12px 0 8px;">Have both a <b>web search</b> volume (e.g. SEMrush/Ahrefs) and an <b>app search</b> number for keywords already tracked? Use this box to add or update just the web number without touching the app number — one per line, "keyword, volume", merges in, never replaces. Adding brand-new keywords with both numbers at once? Paste all 3 columns straight into the All Keywords box above instead — no need to come back here.</p>
+            <p class="hint" style="margin:12px 0 8px;">Have both a <b>web search</b> volume (e.g. SEMrush/Ahrefs) and an <b>app search</b> number for keywords already tracked? Use this box to add or update just the web number without touching the app number — one per line, "keyword, volume", merges in, never replaces. Adding brand-new keywords with web volume, app volume, and CPC all at once? Paste up to 4 columns straight into the All Keywords box above instead — no need to come back here.</p>
             <textarea data-role="webvoltext" placeholder="e.g.&#10;emi calculator, 40500&#10;loan calculator, 33200"></textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-web-volumes">Save web search volumes</button>
