@@ -239,6 +239,13 @@ const SPEC = {
     { art: 'stars', takeaway: "Invite-only, and not a documented rating or ranking change" },
   'google-play-third-party-app-stores-us':
     { art: 'diverge', takeaway: 'Your listing now reaches rival stores by default, not just Google Play', a: 'Google Play', b: 'rival US app stores' },
+  'apple-social-media-capability-disclosure':
+    { art: 'threshold', takeaway: 'One "yes" on a new form pushes your minimum age rating to 13+', band: 'minimum age rating: 13+' },
+  'apple-app-store-creative-assets':
+    { art: 'chips', takeaway: 'Rich images and video now reach the header and search results too',
+      chips: ['product page header', 'search results', 'In-App Events'] },
+  'android-developer-verification-deadline':
+    { art: 'drop', takeaway: 'Unverified apps stop installing normally in 4 countries on this date', mark: 'Sept 30, 2026' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
