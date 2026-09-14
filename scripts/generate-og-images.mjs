@@ -246,6 +246,14 @@ const SPEC = {
       chips: ['product page header', 'search results', 'In-App Events'] },
   'android-developer-verification-deadline':
     { art: 'drop', takeaway: 'Unverified apps stop installing normally in 4 countries on this date', mark: 'Sept 30, 2026' },
+  'apple-low-value-apps-rejection-risk':
+    { art: 'chips', takeaway: "Apple's own guidelines name these categories directly",
+      chips: ['dating', 'flashlight', 'wallpaper', 'simple timers'] },
+  'google-play-alternative-billing-fee-deadline':
+    { art: 'drop', takeaway: 'Reporting and fee duties start for enrolled US developers', mark: 'Oct 1, 2026' },
+  'google-play-july-2026-policy-update':
+    { art: 'chips', takeaway: 'Three separate changes, one policy update, one deadline',
+      chips: ['chat app rules', 'call log permission', 'third-party AI data'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
