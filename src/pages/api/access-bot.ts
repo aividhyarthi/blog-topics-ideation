@@ -33,6 +33,20 @@ async function fetchAs(url: string, ua: string, timeoutMs: number): Promise<Fetc
 }
 const wc = (html: string): number => { const t = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return t ? t.split(' ').length : 0; };
 
+// Real crawlers are verified by bot-management vendors (Cloudflare, Akamai,
+// Imperva/Incapsula, DataDome…) by checking the REQUEST'S SOURCE IP against
+// the crawler's published IP ranges, not just the User-Agent string. Our
+// probe sends the right UA but fetches from this server's own IP, which is
+// not OpenAI's / Perplexity's / Anthropic's real range — so a site using
+// IP-verified bot management can 403 or challenge OUR request even though
+// the genuine crawler, hitting from its real IP, would sail through. This
+// fingerprints the common vendor challenge/block pages so that case gets
+// reported as inconclusive rather than as a confirmed block.
+const CHALLENGE_RE = /Just a moment\.\.\.|Checking your browser before accessing|cf-browser-verification|cf_chl_|Attention Required! \| Cloudflare|Please verify you are a human|Pardon Our Interruption|used by our security service|Access denied\b.{0,80}\bCloudflare|reference #[\d.]+ (?:error|for this request)/i;
+function isBotChallenge(body: string): boolean {
+  return CHALLENGE_RE.test(body.slice(0, 4000));
+}
+
 // Run ONE crawler against the URL (on-demand, so the client can space them out).
 // Login required (no separate charge — this is a bonus deep-dive within a
 // page the account already ran the main check on).
@@ -65,6 +79,8 @@ export const POST: APIRoute = async (ctx) => {
 
   const status = f.ok ? 'ok' : (f.status >= 400 ? 'blocked' : 'noresponse');
   const words = f.ok ? wc(f.body) : 0;
+  const challenged = !f.ok && isBotChallenge(f.body);
+  const ipCaveat = ' Bot-management services (Cloudflare, Akamai, Imperva…) usually verify a crawler by its real source IP, not just this header — our check can send the right user-agent but not the real GPTBot/PerplexityBot/ClaudeBot IP, so this may be a false block that the genuine crawler never hits. Treat it as inconclusive rather than a confirmed block, and check your bot-management vendor’s dashboard for the real crawler’s traffic if you can.';
 
   let note: string;
   if (cfg.google) {
@@ -72,12 +88,18 @@ export const POST: APIRoute = async (ctx) => {
   } else if (status === 'ok') {
     note = `Served ${words} words (HTTP ${f.status}) — this crawler can read the page.`;
   } else if (status === 'blocked') {
-    note = `Blocked (HTTP ${f.status})${robotsAllowed ? ' at the server/CDN — robots.txt allows it, so this is a WAF/edge block on the user-agent.' : ' — matches your robots.txt disallow.'}`;
+    if (!robotsAllowed) {
+      note = `Blocked (HTTP ${f.status}) — matches your robots.txt disallow.`;
+    } else if (challenged) {
+      note = `Hit an automated bot-verification wall (HTTP ${f.status}), not a plain block — robots.txt allows this crawler.${ipCaveat}`;
+    } else {
+      note = `Blocked (HTTP ${f.status}) at the server/CDN — robots.txt allows it, so this is a WAF/edge rule on the user-agent.${ipCaveat}`;
+    }
   } else {
-    note = `No response (timeout or connection dropped, twice).${robotsAllowed ? ' robots.txt allows it, so if it persists it’s likely an edge/CDN block on this user-agent, not robots.' : ''}`;
+    note = `No response (timeout or connection dropped, twice).${robotsAllowed ? ` robots.txt allows it, so if it persists it’s likely an edge/CDN block on this user-agent, not robots.${ipCaveat}` : ''}`;
   }
 
-  const out: any = { bot: body.bot, label: cfg.label, engine: cfg.engine, status: cfg.google && f.ok && !googleExtended ? 'partial' : status, httpStatus: f.status, words, note };
+  const out: any = { bot: body.bot, label: cfg.label, engine: cfg.engine, status: cfg.google && f.ok && !googleExtended ? 'partial' : status, httpStatus: f.status, words, note, inconclusive: challenged };
   if (f.ok) {
     const facts = analyzeHtml(f.body, { isUrl: true, host, robotsTxt });
     out.render = renderInfo(f.body, facts);
