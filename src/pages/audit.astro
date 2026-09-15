@@ -199,6 +199,7 @@ import App from '../layouts/App.astro';
         shieldA: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="M12 9v3m0 3h.01"/></svg>',
         shieldOk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 11.5 2 2 4-4"/></svg>',
         trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M9 19h6M10 15v4M14 15v4"/></svg>',
+        info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 11v5"/><path d="M12 8h.01"/></svg>',
       };
       const STATUS_IC = { pass: IC.check, warn: IC.alert, fail: IC.x, na: IC.dash };
       const GATE_IC = { block: IC.shieldX, warn: IC.shieldA, strong: IC.shieldOk, optimized: IC.trophy };
@@ -626,7 +627,7 @@ import App from '../layouts/App.astro';
             <button class="primary" id="botrunbtn" type="button">${IC.bot} Run check</button>
           </div>
           <div id="botresult"></div>
-        </div>` : '';
+        </div>` : (m.mode !== 'url' ? `<div class="pasted-note" style="margin-bottom:14px">${IC.info} <div>Checking a specific engine (ChatGPT, Perplexity, Gemini…) needs a live <b>URL</b> — we fetch the real page with that crawler's user-agent, which isn't possible from pasted HTML or a draft with no address to fetch. Run this audit again with the page's URL to unlock it.</div></div>` : '');
 
         const engineMeta = [['chatgpt', 'ChatGPT', '#10a37f'], ['gemini', 'Gemini', '#4285f4'], ['perplexity', 'Perplexity', '#20808d'], ['aiOverviews', 'AI Overviews', '#a855f7']];
         // Shown once, on Overview — used to also have a second, bigger-card
@@ -1288,6 +1289,8 @@ button.primary svg { width: 17px; height: 17px; }
 button.primary:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -10px rgba(20,21,26,.7); }
 button.primary:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
 .hint { font-size: 12.5px; color: var(--muted); }
+.pasted-note { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--accent-dark); background: var(--accent-soft); border: 1px solid #c7ddff; border-radius: 11px; padding: 10px 13px; line-height: 1.5; }
+.pasted-note svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
 .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .alert { margin-top: 16px; padding: 12px 14px; border-radius: 11px; font-size: 13.5px; display: none; align-items: center; gap: 9px; }
