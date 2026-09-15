@@ -254,6 +254,13 @@ const SPEC = {
   'google-play-july-2026-policy-update':
     { art: 'chips', takeaway: 'Three separate changes, one policy update, one deadline',
       chips: ['chat app rules', 'call log permission', 'third-party AI data'] },
+  'google-play-gemini-localization-tool':
+    { art: 'growth', takeaway: 'One uploaded file, listings pre-populated for review', label: 'markets covered' },
+  'google-play-shorts-video-discovery':
+    { art: 'funnel', takeaway: 'A user can install straight from the scrolling feed', steps: ['scroll', 'watch', 'install'] },
+  'app-store-connect-analytics-peer-benchmarks':
+    { art: 'bars', takeaway: 'A steady climb can still sit below the real peer benchmark',
+      bars: [['your rate', 45], ['peer benchmark', 68]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
