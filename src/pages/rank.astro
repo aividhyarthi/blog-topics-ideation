@@ -28,6 +28,7 @@ const limitsText = product && plan
     <meta name="description" content="Track where your apps rank in Google Play and App Store search for your keywords, with daily history and trends." />
     {product && <meta name="robots" content="noindex, nofollow" />}
     {product && <link rel="canonical" href={`${SITE_URL}/rank`} />}
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style is:global>
       /* Console layout (card-based, KPI chips, dense tables) on a light
          ground — every surface/border/text color is a token, so this is
@@ -445,7 +446,7 @@ const limitsText = product && plan
                 <option value="shared">Shared with me</option>
               </select>
               <button class="ghost" id="portfolio-btn" title="See every app's current ranking at once">All apps</button>
-              <button class="ghost" id="csv-btn">Export CSV</button>
+              <button class="ghost" id="csv-btn">Export Excel</button>
               <button class="primary" id="checkall-btn">Check all rankings now</button>
             </div>
           </div>
@@ -3676,31 +3677,46 @@ ai photo enhancer"></textarea>
       });
 
       $('csv-btn').addEventListener('click', () => {
-        const rows = [['App', 'Store', 'Country', 'Keyword', 'Rank', 'Δ vs last check', 'Best', '#1 for keyword']];
         // Scoped to whatever's actually on screen: every app only in the
         // "All apps" portfolio view, otherwise just the one app selected —
         // exporting every tracked app's (and every competitor's) keywords
         // while looking at a single app's tab read as a bug, not a feature.
         const exportApps = portfolioMode ? state.apps : state.apps.filter((a) => a.key === selectedAppKey);
-        for (const app of exportApps) {
-          for (const t of app.trends || []) {
-            rows.push([
-              app.title, app.store === 'play' ? 'Google Play' : 'App Store', (app.country || '').toUpperCase(),
-              t.keyword, t.position != null ? t.position : '', t.delta != null ? t.delta : '',
-              t.best != null ? t.best : '', (t.top && t.top[0] && t.top[0].title) || '',
-            ]);
+        const header = ['App', 'Store', 'Country', 'Keyword', 'Search Volume', 'App Volume', 'CPC', 'Rank', 'Δ vs last check', 'Best', '#1 for keyword'];
+        // One export used to only ever pull the daily-tracked list (plan
+        // capped, e.g. 100 keywords) no matter which tab you asked from —
+        // "export all keywords" from the All Keywords tab silently came back
+        // short. Both real lists now go out together, each in its own sheet,
+        // so neither one is ever the list quietly left out.
+        const sheetRows = (listKey) => {
+          const rows = [header];
+          for (const app of exportApps) {
+            const webVols = app.keywordWebVolumes || {};
+            const appVols = app.keywordVolumes || {};
+            const cpcs = app.keywordCpc || {};
+            for (const t of app[listKey] || []) {
+              rows.push([
+                app.title, app.store === 'play' ? 'Google Play' : 'App Store', (app.country || '').toUpperCase(),
+                t.keyword,
+                webVols[t.keyword] != null ? webVols[t.keyword] : '',
+                appVols[t.keyword] != null ? appVols[t.keyword] : '',
+                cpcs[t.keyword] != null ? cpcs[t.keyword] : '',
+                t.position != null ? t.position : '', t.delta != null ? t.delta : '',
+                t.best != null ? t.best : '', (t.top && t.top[0] && t.top[0].title) || '',
+              ]);
+            }
           }
-        }
-        if (rows.length === 1) { showToast('Nothing to export yet'); return; }
-        const cell = (v) => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-        const blob = new Blob(['﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
+          return rows;
+        };
+        const allKeywordsRows = sheetRows('coverageTrends');
+        const dailyRows = sheetRows('trends');
+        if (allKeywordsRows.length === 1 && dailyRows.length === 1) { showToast('Nothing to export yet'); return; }
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(allKeywordsRows), 'All Keywords');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dailyRows), 'Daily Tracked');
         const scopeSlug = portfolioMode ? 'all-apps' : (exportApps[0]?.title || 'app').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        a.download = `${scopeSlug}-rankings-${new Date().toISOString().slice(0, 10)}.csv`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-        showToast('CSV downloaded');
+        XLSX.writeFile(wb, `${scopeSlug}-rankings-${new Date().toISOString().slice(0, 10)}.xlsx`);
+        showToast('Excel downloaded — All Keywords and Daily Tracked are separate sheets');
       });
 
       const logoutBtn = document.getElementById('logout');
