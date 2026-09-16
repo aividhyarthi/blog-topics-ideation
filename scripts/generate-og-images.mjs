@@ -261,6 +261,13 @@ const SPEC = {
   'app-store-connect-analytics-peer-benchmarks':
     { art: 'bars', takeaway: 'A steady climb can still sit below the real peer benchmark',
       bars: [['your rate', 45], ['peer benchmark', 68]] },
+  'iphone-duo-screenshot-specifications':
+    { art: 'chips', takeaway: 'Two displays, four confirmed sizes, no upload slot yet',
+      chips: ['1398x2034 outer', '2007x2853 inner'] },
+  'google-play-similar-apps-description-line':
+    { art: 'diverge', takeaway: 'A rating moves slowly; a line of copy you can test today', a: 'icon & rating', b: 'feature description' },
+  'apple-search-ads-attribution-change-september-2026':
+    { art: 'diverge', takeaway: 'Fewer attributed installs is not the same as fewer real ones', a: 'real installs', b: 'attributed installs' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
