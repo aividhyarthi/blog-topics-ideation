@@ -268,6 +268,13 @@ const SPEC = {
     { art: 'diverge', takeaway: 'A rating moves slowly; a line of copy you can test today', a: 'icon & rating', b: 'feature description' },
   'apple-search-ads-attribution-change-september-2026':
     { art: 'diverge', takeaway: 'Fewer attributed installs is not the same as fewer real ones', a: 'real installs', b: 'attributed installs' },
+  'apple-brazil-app-distribution-changes':
+    { art: 'bars', takeaway: 'Four paths, four very different fee rates',
+      bars: [['alt marketplace', 5], ['AS: own payment', 5], ['AS: out-of-app', 15], ['AS: alt in-app', 21]] },
+  'apple-live-activities-spam-guideline':
+    { art: 'threshold', takeaway: 'A real live update is fine; a marketing nudge disguised as one crosses the line', band: 'spam & phishing threshold' },
+  'google-play-subscription-recovery-period-60-days':
+    { art: 'growth', takeaway: 'The default window doubled, but your own settings decide the real gain', label: 'recovery window (days)' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
