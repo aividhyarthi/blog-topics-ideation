@@ -183,7 +183,8 @@ const schema = {
     .prose code { background: #f1f5f9; padding: 1px 6px; border-radius: 5px; font-size: 14px; }
     .prose pre { background: var(--ink-900); color: #e2e8f0; padding: 16px 18px; border-radius: 12px; overflow-x: auto; font-size: 13.5px; }
     .prose pre code { background: none; padding: 0; }
-    .prose blockquote { margin: 0 0 18px; padding: 4px 20px; border-left: 3px solid var(--accent-line); color: var(--muted); font-style: italic; }
+    .prose blockquote { margin: 28px 0; padding: 4px 0 4px 24px; border-left: 3px solid var(--ink); color: var(--ink); font-style: italic; font-size: 19px; line-height: 1.5; font-weight: 600; }
+    .prose blockquote p { margin: 0; }
     .prose a { color: var(--accent-dark); text-decoration: underline; text-underline-offset: 2px; }
     .prose table { width: 100%; border-collapse: collapse; margin: 0 0 22px; font-size: 14.5px; }
     .prose th, .prose td { border: 1px solid var(--line); padding: 9px 13px; text-align: left; }
@@ -198,6 +199,16 @@ const schema = {
     .prose .callout p:last-child { margin-bottom: 0; }
     .prose .callout-label { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin-bottom: 8px; }
     .prose .stat { font-weight: 800; color: var(--ink); }
+
+    /* Second, distinct visual box — a scannable checklist rather than the
+       callout's tinted prose block, so a post has two different shapes to
+       look at instead of one style repeated. */
+    .prose .takeaways { border: 1px solid var(--line); border-left: 4px solid var(--ink); border-radius: 10px; background: #fafafa; padding: 18px 22px; margin: 8px 0 28px; }
+    .prose .takeaways .callout-label { color: var(--ink); }
+    .prose .takeaways ul { margin: 0; padding: 0; list-style: none; }
+    .prose .takeaways li { position: relative; padding-left: 26px; margin-bottom: 10px; }
+    .prose .takeaways li:last-child { margin-bottom: 0; }
+    .prose .takeaways li::before { content: '✓'; position: absolute; left: 0; top: 0; font-weight: 800; color: var(--ok, #12855a); }
 
     /* Inline chart figures — see blogCharts.ts. */
     .prose .postchart { border: 1px solid var(--line); border-radius: 14px; background: #fafafa; padding: 20px 22px 16px; margin: 8px 0 28px; }

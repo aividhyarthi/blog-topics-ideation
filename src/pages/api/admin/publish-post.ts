@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getUser } from '../../../lib/auth';
 import { dbEnabled } from '../../../lib/db';
 import { isAdmin } from '../../../lib/billing';
-import { createPost } from '../../../lib/blogPosts';
+import { createPost, type ChartSpec } from '../../../lib/blogPosts';
 import { coverDataUri } from '../../../lib/blogCover';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
@@ -19,7 +19,7 @@ export const POST: APIRoute = async (ctx) => {
 
   let body: {
     title?: string; description?: string; bodyMarkdown?: string;
-    tags?: unknown; faqs?: unknown;
+    tags?: unknown; faqs?: unknown; charts?: unknown;
   };
   try { body = await ctx.request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
@@ -33,10 +33,22 @@ export const POST: APIRoute = async (ctx) => {
   const faqs = Array.isArray(body.faqs)
     ? body.faqs.filter((f: any) => f && typeof f.q === 'string' && typeof f.a === 'string').slice(0, 6)
     : [];
+  const charts: ChartSpec[] = Array.isArray(body.charts)
+    ? body.charts
+        .filter((c: any) => c && typeof c.title === 'string' && Array.isArray(c.items) && c.items.length)
+        .slice(0, 2)
+        .map((c: any) => ({
+          type: c.type === 'gauge' ? 'gauge' : 'bar',
+          title: String(c.title),
+          unit: c.unit ? String(c.unit) : undefined,
+          caption: c.caption ? String(c.caption) : 'Illustrative, based on this post’s own reasoning.',
+          items: c.items.slice(0, 6).map((it: any) => ({ label: String(it.label), value: Number(it.value) || 0 })),
+        }))
+    : [];
 
   try {
     const post = await createPost({
-      title, description, bodyMarkdown, tags, faqs,
+      title, description, bodyMarkdown, tags, faqs, charts,
       image: coverDataUri(title, tags[0] || 'AEO'),
     });
     return json({ ok: true, slug: post.slug, url: `/blog/${post.slug}` });
