@@ -14,7 +14,24 @@ if (!post) return Astro.redirect('/blog');
 // auto-generated posts comes from an unreviewed LLM call.
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+// Inline signup CTA, injected into every post from this one template rather
+// than authored per-post — so it applies to already-published posts too, not
+// just future ones, and can't be forgotten when a post is written or
+// generated. Placed in the main content flow (not the sidebar .ctacard),
+// since the sidebar collapses to BELOW the whole article on mobile
+// (.postlayout goes single-column under 820px), where most blog traffic
+// actually is — a sidebar-only CTA is effectively invisible until a mobile
+// reader scrolls past 900+ words.
+const SIGNUP_BANNER = `<div class="postcta-banner">
+  <div>
+    <b>See exactly what AI sees on your own page</b>
+    <p>Run a free check, no card required. Takes about 20 seconds.</p>
+  </div>
+  <a class="btn-primary" href="/check">Check my page free →</a>
+</div>`;
+
 let bodyHtml = injectCharts(await marked.parse(post.bodyMarkdown), post.charts);
+bodyHtml += SIGNUP_BANNER;
 if (post.faqs.length > 0) {
   bodyHtml += '<h2>FAQ</h2>' + post.faqs.map((f) => `<h3>${esc(f.q)}</h3><p>${esc(f.a)}</p>`).join('');
 }
@@ -215,5 +232,14 @@ const schema = {
     .prose .postchart-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 14px; }
     .prose .postchart-svg { display: flex; justify-content: center; }
     .prose .postchart figcaption { margin-top: 12px; font-size: 12px; color: var(--faint); text-align: center; }
+
+    /* Inline signup CTA — see SIGNUP_BANNER above for why this lives in the
+       main content flow instead of only the sidebar .ctacard. */
+    .prose .postcta-banner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; background: var(--ink-900); border-radius: 16px; padding: 26px 28px; margin: 12px 0 34px; }
+    .prose .postcta-banner b { display: block; font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -.01em; }
+    .prose .postcta-banner p { margin: 6px 0 0; font-size: 13.5px; color: #cbd5e1; }
+    .prose .postcta-banner .btn-primary { flex-shrink: 0; background: #fff; color: var(--ink-900); white-space: nowrap; }
+    .prose .postcta-banner .btn-primary:hover { background: #f1f5f9; }
+    @media (max-width: 480px) { .prose .postcta-banner { padding: 22px 22px; } .prose .postcta-banner .btn-primary { width: 100%; text-align: center; } }
   </style>
 </Site>
