@@ -5,16 +5,15 @@
 // If SITE_PASSWORD is NOT set, the site stays open (handy for local dev) — so
 // always set it on the deployed (Railway) environment.
 import { defineMiddleware } from 'astro:middleware';
-import { startBlogScheduler } from './lib/blogScheduler';
 
-// Runs once, when this module is first imported at process boot — not
-// per-request. Astro loads middleware once at startup, which makes this the
-// natural place for one-time process-lifetime setup like arming the blog
-// auto-publish timer (see blogScheduler.ts). Needs a funded ANTHROPIC_API_KEY
-// or OPENAI_API_KEY on this deploy — without one, each cycle just logs a
-// skipped/error run and nothing publishes (see the "Blog auto-publish" panel
-// on /admin/payments for run history and a manual "Generate now").
-startBlogScheduler();
+// Automatic blog auto-publish has been removed (again) — the Anthropic key
+// on this deploy never had a working credit balance, so every scheduled
+// cycle just failed with the same "credit balance too low" error, once/day
+// instead of 5x/day but still failing every time. Blog posts are written
+// and published manually via the "Publish a post manually" panel on
+// /admin/payments instead. If a funded ANTHROPIC_API_KEY or OPENAI_API_KEY
+// is ever added, this is restorable from git history (see blogGen.ts,
+// blogPipeline.ts, blogScheduler.ts in an earlier commit).
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const password = process.env.SITE_PASSWORD;
