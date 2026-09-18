@@ -64,6 +64,18 @@ export function getDb(): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS idx_grants_email ON app_grants(grantee_email);
     CREATE INDEX IF NOT EXISTS idx_grants_owner ON app_grants(owner_id);
+    -- How many ASO Inspector checks a read-only guest has run against a
+    -- given owner's workspace this calendar month (see api/aso.ts). Guests
+    -- ride on the owner's Anthropic budget, so this caps it per guest
+    -- rather than blocking them outright.
+    CREATE TABLE IF NOT EXISTS guest_aso_usage (
+      owner_id TEXT NOT NULL,
+      grantee_email TEXT NOT NULL,
+      month TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (owner_id, grantee_email, month)
+    );
   `);
   return db;
 }
@@ -193,4 +205,25 @@ export function deleteGrantee(ownerId: string, granteeEmail: string): void {
  * so a re-added app never silently inherits an old share. */
 export function deleteGrantsForApp(ownerId: string, appKey: string): void {
   getDb().prepare('DELETE FROM app_grants WHERE owner_id = ? AND app_key = ?').run(ownerId, appKey);
+}
+
+/* ---------------------------- guest ASO quota ---------------------------- */
+
+/** How many ASO Inspector checks this guest has already run against this
+ * owner's workspace in the given month ("YYYY-MM"). */
+export function getGuestAsoUsage(ownerId: string, granteeEmail: string, month: string): number {
+  const r = getDb().prepare(
+    'SELECT count FROM guest_aso_usage WHERE owner_id = ? AND grantee_email = ? AND month = ?',
+  ).get(ownerId, granteeEmail.toLowerCase(), month) as { count: number } | undefined;
+  return r ? r.count : 0;
+}
+
+/** Records one more check and returns the new total for the month. */
+export function incrementGuestAsoUsage(ownerId: string, granteeEmail: string, month: string): number {
+  getDb().prepare(
+    `INSERT INTO guest_aso_usage (owner_id, grantee_email, month, count, updated_at)
+     VALUES (?, ?, ?, 1, ?)
+     ON CONFLICT(owner_id, grantee_email, month) DO UPDATE SET count = count + 1, updated_at = excluded.updated_at`,
+  ).run(ownerId, granteeEmail.toLowerCase(), month, new Date().toISOString());
+  return getGuestAsoUsage(ownerId, granteeEmail, month);
 }

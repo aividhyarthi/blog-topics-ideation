@@ -3,7 +3,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import { parseAppId, fetchApp, fetchCompetitors, fetchRecentReviews, type AsoAppData } from '../../lib/aso/fetch';
 import { auditListing, competitorRow, keywordCoverage, keywordGap, keywordMatrix, type AsoReport, type CompetitorRow, type GapKeyword } from '../../lib/aso/audit';
 import { saveAsoCacheEntry, loadConfig } from '../../lib/rank/store';
-import { isGuest } from '../../lib/saas/grants';
+import { isGuest, resolveWorkspace } from '../../lib/saas/grants';
+import { getGuestAsoUsage, incrementGuestAsoUsage } from '../../lib/saas/db';
+
+// A read-only guest can run real ASO checks against the apps shared with
+// them, but they're spending the account owner's Anthropic budget to do it —
+// capped per guest per calendar month rather than blocked outright.
+const GUEST_ASO_MONTHLY_LIMIT = 3;
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -140,10 +146,20 @@ Give ONE focusVerdicts entry for EACH focus keyword listed above (so ${fkList.le
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  // Read-only guests (see lib/saas/grants.ts) can't run an audit — it spends
-  // the owner's Anthropic budget and overwrites the owner's cached report.
-  if (locals.productMode && locals.user && isGuest(locals.user, locals.wsMode)) {
-    return json({ error: 'This is a read-only shared view — ask the account owner to run an ASO check.' }, 403);
+  // Read-only guests (see lib/saas/grants.ts) can run real checks against the
+  // apps shared with them, capped per month since it spends the owner's
+  // Anthropic budget and writes into the owner's cached report (by design —
+  // that's what keeps the owner's dashboard showing the guest's latest check).
+  const guest = Boolean(locals.productMode && locals.user && isGuest(locals.user, locals.wsMode));
+  const ws = locals.productMode && locals.user ? resolveWorkspace(locals.user, locals.wsMode) : null;
+  const month = new Date().toISOString().slice(0, 7);
+  if (guest) {
+    const used = getGuestAsoUsage(ws!.ownerId, locals.user!.email, month);
+    if (used >= GUEST_ASO_MONTHLY_LIMIT) {
+      return json({
+        error: `This shared view has used all ${GUEST_ASO_MONTHLY_LIMIT} ASO checks allowed this month. Ask the account owner to run more, or check back next month.`,
+      }, 403);
+    }
   }
   let body: { url?: string; focusKeyword?: string; competitors?: string; lang?: string; country?: string; key?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
@@ -168,7 +184,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   let competitorSource: 'given' | 'tracked' | 'none' = competitorIds.length ? 'given' : 'none';
   if (!competitorIds.length && locals.productMode && locals.user) {
     try {
-      const cfg = loadConfig(locals.user.id);
+      const cfg = loadConfig(ws ? ws.ownerId : locals.user.id);
       const primary = body.key
         ? cfg.apps.find((a) => a.key === body.key)
         : cfg.apps.find((a) => a.store === 'play' && a.appId === appId && a.country === country && !a.competitorOf);
@@ -283,10 +299,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   // Cache this (paid, AI-backed) result against the tracked app so viewing
   // the dashboard again later never silently re-triggers the Anthropic call
-  // — only a real trigger (keyword change, explicit re-check) does.
+  // — only a real trigger (keyword change, explicit re-check) does. Scoped to
+  // the workspace owner (not the raw session id) so a guest's check lands in
+  // the same cache the owner's own dashboard reads.
   if (body.key) {
-    const userId = locals.productMode && locals.user ? locals.user.id : undefined;
+    const userId = ws ? ws.ownerId : (locals.productMode && locals.user ? locals.user.id : undefined);
     try { saveAsoCacheEntry(body.key, { focusList: evalFocusList, data: payload, checkedAt }, userId); } catch { /* cache is best-effort */ }
+  }
+
+  // Only count a genuinely completed check against the guest's monthly quota
+  // — a bad URL or a fetch failure returns earlier and never reaches here.
+  if (guest) {
+    try { incrementGuestAsoUsage(ws!.ownerId, locals.user!.email, month); } catch { /* best-effort */ }
   }
 
   return json(payload);
