@@ -275,6 +275,12 @@ const SPEC = {
     { art: 'threshold', takeaway: 'A real live update is fine; a marketing nudge disguised as one crosses the line', band: 'spam & phishing threshold' },
   'google-play-subscription-recovery-period-60-days':
     { art: 'growth', takeaway: 'The default window doubled, but your own settings decide the real gain', label: 'recovery window (days)' },
+  'apple-app-store-personalized-collections':
+    { art: 'diverge', takeaway: 'This surface runs on usage and downloads, not on anything you can type', a: 'search terms', b: 'usage & downloads' },
+  'google-play-contacts-permission-declaration':
+    { art: 'threshold', takeaway: 'Broad contacts access now needs a written reason to clear review', band: 'declaration required' },
+  'apple-subscription-12-month-commitment':
+    { art: 'growth', takeaway: 'A cancel tap does not erase the payments still owed', label: 'completed payments (of 12)' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
