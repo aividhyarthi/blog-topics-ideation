@@ -2,6 +2,7 @@
 title: "Does Your App's Download Size Actually Affect Conversion Rate?"
 description: "Google published a real number on this back in 2017. Apple never has. Here's the actual data, how old it is, and why the same logic doesn't automatically carry over to iOS."
 theme: "Conversion & Growth"
+keyword: "app size conversion rate"
 image: "/blog/og/does-app-size-affect-conversion-rate.png"
 publishDate: 2026-09-07
 faqs:

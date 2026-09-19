@@ -2,6 +2,7 @@
 title: "Why Google Play's 'Most Relevant' Review Is Often Your Worst One"
 description: "Your average rating is healthy, but the first review a visitor sees on Google Play is a detailed 1-star complaint. Here's why 'Most relevant' optimizes for something other than your average."
 theme: "Reviews & Ratings"
+keyword: "most relevant review 1-star"
 image: "/blog/og/most-relevant-review-shows-a-1-star.png"
 publishDate: 2026-08-05
 faqs:

@@ -2,6 +2,7 @@
 title: "Google Play Shorts: A New Video Discovery Feed, and What It Requires Now"
 description: "Google Play's new short-form video feed lets users install straight from a scrolling clip. Here's what Google's own pages confirm about rollout, and a real workflow change developers need to know."
 theme: "Google Play"
+keyword: "Google Play Shorts video discovery"
 image: "/blog/og/google-play-shorts-video-discovery.png"
 publishDate: 2026-09-15
 faqs:

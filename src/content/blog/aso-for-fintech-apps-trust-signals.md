@@ -2,6 +2,7 @@
 title: "ASO for Fintech Apps: Trust Signals Over Screenshots"
 description: "A finance app's store listing has to clear a trust bar a game or utility app never faces. Here's why a regulatory badge often converts harder than a polished UI tour."
 theme: "Conversion & Growth"
+keyword: "ASO for fintech apps"
 image: "/blog/og/aso-for-fintech-apps-trust-signals.png"
 publishDate: 2026-07-20
 faqs:

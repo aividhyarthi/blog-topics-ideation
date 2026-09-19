@@ -2,6 +2,7 @@
 title: "Does Getting Featured by Apple Actually Move Your Long-Term Ranking?"
 description: "Sensor Tower data reported by TechCrunch shows a huge short-term download spike from Apple features. Whether that turns into a lasting rank lift is a separate, less certain question."
 theme: "Conversion & Growth"
+keyword: "Apple featuring long-term ranking"
 image: "/blog/og/does-apple-featuring-move-long-term-ranking.png"
 publishDate: 2026-09-09
 faqs:

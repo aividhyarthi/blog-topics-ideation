@@ -2,6 +2,7 @@
 title: "Google Play's 60-Day Recovery Window: A Real Lever Against Subscription Churn"
 description: "Google extended its default subscription payment recovery period from 30 to 60 days. Here's how grace period and account hold actually split that window, and why your own settings still matter."
 theme: "Conversion & Growth"
+keyword: "60-day subscription recovery window"
 image: "/blog/og/google-play-subscription-recovery-period-60-days.png"
 publishDate: 2026-09-17
 faqs:

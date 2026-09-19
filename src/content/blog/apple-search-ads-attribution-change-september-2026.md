@@ -2,6 +2,7 @@
 title: "Apple Search Ads' September 2026 Attribution Change: What It Means for Your Numbers"
 description: "Reporting says Apple Ads dropped attribution for age and gender targeted ad groups starting September 1, 2026, and added a touchpoint timestamp. Here's what that likely does to your reported numbers."
 theme: "App Store"
+keyword: "Apple Search Ads attribution change"
 image: "/blog/og/apple-search-ads-attribution-change-september-2026.png"
 publishDate: 2026-09-16
 faqs:

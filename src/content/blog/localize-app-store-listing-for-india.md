@@ -2,6 +2,7 @@
 title: "How to Localize Your App Store Listing for India: Hindi, Hinglish, and Regional Keywords"
 description: "India isn't one market. Localizing for it well means Hindi, Hinglish, and regional-language keywords together, not a straight English-to-Hindi translation."
 theme: "Conversion & Growth"
+keyword: "localize app store listing India"
 image: "/blog/og/localize-app-store-listing-for-india.png"
 publishDate: 2026-07-26
 faqs:

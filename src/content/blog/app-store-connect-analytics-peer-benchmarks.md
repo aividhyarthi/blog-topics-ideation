@@ -2,6 +2,7 @@
 title: "App Store Connect's New Peer Benchmarks: Comparing Your Conversion to Similar Apps"
 description: "Apple's biggest Analytics update yet adds peer-group benchmarks for download-to-paid conversion and proceeds per download. Here's exactly what Apple's own announcement confirms."
 theme: "Conversion & Growth"
+keyword: "App Store Connect peer benchmarks"
 image: "/blog/og/app-store-connect-analytics-peer-benchmarks.png"
 publishDate: 2026-09-15
 faqs:

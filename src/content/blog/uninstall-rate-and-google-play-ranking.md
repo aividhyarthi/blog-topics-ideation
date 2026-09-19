@@ -2,6 +2,7 @@
 title: "Uninstall Rate and Google Play Ranking: What's Confirmed vs Assumed"
 description: "Google has never named uninstall rate as a ranking factor the way it has crash rate. Here's what's actually documented, what's inferred, and what to do about it either way."
 theme: "App Quality & Vitals"
+keyword: "uninstall rate Google Play ranking"
 image: "/blog/og/uninstall-rate-and-google-play-ranking.png"
 publishDate: 2026-08-18
 faqs:

@@ -2,6 +2,7 @@
 title: "Do Search Ads Affect Your App's Organic Ranking?"
 description: "Running Apple Search Ads or Google Ads for App campaigns doesn't buy you organic rank, but the two aren't unrelated either. Here's what actually connects them."
 theme: "Fundamentals"
+keyword: "search ads organic ranking impact"
 image: "/blog/og/do-search-ads-affect-organic-ranking.png"
 publishDate: 2026-08-18
 faqs:

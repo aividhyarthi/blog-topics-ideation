@@ -2,6 +2,7 @@
 title: "Why a Competitor Outranks You When Someone Searches Your Own App Name"
 description: "Someone searches your app's exact name and a rival shows up above you. That's not a fluke — it's a competitor stuffing your brand name into their own metadata, and both platforms actually ban it."
 theme: "Keywords"
+keyword: "competitor using your app name"
 image: "/blog/og/competitor-using-your-app-name-in-their-keywords.png"
 publishDate: 2026-09-03
 faqs:

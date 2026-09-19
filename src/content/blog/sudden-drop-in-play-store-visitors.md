@@ -2,6 +2,7 @@
 title: "Sudden Drop in Play Store Visitors: Is It Your Rank, or Demand?"
 description: "A visitor/impression cliff and a keyword-rank cliff look identical on a traffic dashboard but come from different causes. Here's the checklist real developers use to tell them apart."
 theme: "Fundamentals"
+keyword: "sudden drop in Play Store visitors"
 image: "/blog/og/sudden-drop-in-play-store-visitors.png"
 publishDate: 2026-09-01
 faqs:

@@ -2,6 +2,7 @@
 title: "Apple's Low-Value App Rule: Which Categories Now Risk Rejection or Removal"
 description: "Apple's own App Store guidelines name specific app categories that face rejection or removal unless they're meaningfully different. Here's the exact wording, and what it means if your app is one of them."
 theme: "App Store"
+keyword: "low-value app rejection risk"
 image: "/blog/og/apple-low-value-apps-rejection-risk.png"
 publishDate: 2026-09-14
 faqs:

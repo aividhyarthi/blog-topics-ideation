@@ -2,6 +2,7 @@
 title: "Ask Play: Google's New AI Chatbot in the Play Store, and What It Means for Your Listing"
 description: "Google Play now has a Gemini-powered chatbot called Ask Play that recommends apps in conversation. Here's what it is, what it reads, and what that means for your store listing copy."
 theme: "Google Play"
+keyword: "Ask Play Gemini chatbot"
 image: "/blog/og/ask-play-gemini-chatbot-store-listing.png"
 publishDate: 2026-09-11
 faqs:

@@ -2,6 +2,7 @@
 title: "Does Deep Linking Actually Affect Your App Store Ranking?"
 description: "Apple's own documentation talks about search ranking and deep links in the same breath. It's easy to misread as an App Store ranking claim. Here's what it actually means."
 theme: "Fundamentals"
+keyword: "deep linking app store ranking"
 image: "/blog/og/does-deep-linking-affect-app-store-ranking.png"
 publishDate: 2026-09-07
 faqs:

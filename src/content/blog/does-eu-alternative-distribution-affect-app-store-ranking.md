@@ -2,6 +2,7 @@
 title: "If You Distribute Outside the App Store in the EU, Does Your App Still Rank in App Store Search?"
 description: "Apple's EU rules let you distribute through alternative marketplaces or the web. Here's what Apple's own docs say about your App Store search visibility if you do."
 theme: "Fundamentals"
+keyword: "EU alternative distribution app ranking"
 image: "/blog/og/does-eu-alternative-distribution-affect-app-store-ranking.png"
 publishDate: 2026-09-08
 faqs:

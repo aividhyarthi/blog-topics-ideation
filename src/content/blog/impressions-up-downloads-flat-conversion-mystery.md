@@ -2,6 +2,7 @@
 title: "Impressions Are Up, Downloads Aren't: Fixing a Stuck App Store Conversion Rate"
 description: "Your listing is getting seen more than ever. Installs haven't moved. Here's what Apple and Google actually measure when they say conversion rate, and where a stuck listing usually breaks."
 theme: "Conversion & Growth"
+keyword: "impressions up downloads flat"
 image: "/blog/og/impressions-up-downloads-flat-conversion-mystery.png"
 publishDate: 2026-09-04
 faqs:

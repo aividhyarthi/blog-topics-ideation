@@ -2,6 +2,7 @@
 title: "Your Google Play Listing Is Now Shared With Rival US App Stores by Default"
 description: "Since July 22, 2026, Google Play automatically shares US app listings with third-party Android app stores unless developers opt out. Here's what Google's own page confirms."
 theme: "Google Play"
+keyword: "third-party app stores US"
 image: "/blog/og/google-play-third-party-app-stores-us.png"
 publishDate: 2026-09-12
 faqs:

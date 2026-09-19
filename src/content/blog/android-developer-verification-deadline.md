@@ -2,6 +2,7 @@
 title: "Android Developer Verification: What the September 30 Deadline Actually Blocks"
 description: "Google starts blocking normal installs of unverified developers' apps in four countries on September 30, 2026. Here's what Google's own page confirms, across every store it covers, not just Google Play."
 theme: "Google Play"
+keyword: "Android developer verification deadline"
 image: "/blog/og/android-developer-verification-deadline.png"
 publishDate: 2026-09-13
 faqs:

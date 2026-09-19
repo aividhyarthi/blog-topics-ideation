@@ -2,6 +2,7 @@
 title: "Apple Added More Ad Slots to App Store Search: What It Means If You Don't Advertise"
 description: "Starting March 2026, App Store search results carry more than one ad slot per query. Here's what's confirmed about the rollout, and what it means for organic-only apps."
 theme: "App Store"
+keyword: "App Store search ad placements"
 image: "/blog/og/apple-search-ads-new-placements-organic-impact.png"
 publishDate: 2026-09-10
 faqs:

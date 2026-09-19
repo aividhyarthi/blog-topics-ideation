@@ -2,6 +2,7 @@
 title: "Why Your Ranking Doesn't Bounce Back After Your App Is Reinstated"
 description: "Your app got suspended, you appealed, Google or Apple reinstated it — but your search ranking never came back to where it was. Here's what's documented, what isn't, and what to actually check."
 theme: "Google Play"
+keyword: "ranking after app reinstated"
 image: "/blog/og/ranking-doesnt-recover-after-app-reinstated.png"
 publishDate: 2026-09-03
 faqs:

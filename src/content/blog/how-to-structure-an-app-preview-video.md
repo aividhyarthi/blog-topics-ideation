@@ -2,6 +2,7 @@
 title: "How to Structure an App Preview Video That Actually Converts"
 description: "Apple's App Previews autoplay muted. Google Play videos have to live on YouTube. Here's what the actual technical specs require, and how to structure a video around both."
 theme: "Store Listing Experiments"
+keyword: "app preview video structure"
 image: "/blog/og/how-to-structure-an-app-preview-video.png"
 publishDate: 2026-09-06
 faqs:

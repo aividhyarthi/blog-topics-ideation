@@ -2,6 +2,7 @@
 title: "Why You Should Stop Doing ASO Manually (And What to Automate)"
 description: "Checking rankings by hand once a week feels manageable, until it isn't. Here's why manual tracking misses real regressions, and what to actually hand off to automation."
 theme: "Fundamentals"
+keyword: "automate your ASO tracking"
 image: "/blog/og/why-you-should-automate-your-aso-tracking.png"
 publishDate: 2026-09-06
 faqs:

@@ -2,6 +2,7 @@
 title: "Does Your 'What's New' Release Notes Text Actually Matter for ASO?"
 description: "Apple requires it. Google caps it at a tenth of Apple's length. Neither confirms it's searchable. Here's what's actually documented about release notes and ASO, and what's just industry consensus."
 theme: "Fundamentals"
+keyword: "release notes text ASO impact"
 image: "/blog/og/does-what-new-release-notes-affect-aso.png"
 publishDate: 2026-09-07
 faqs:

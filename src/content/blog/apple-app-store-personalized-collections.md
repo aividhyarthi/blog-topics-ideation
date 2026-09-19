@@ -2,6 +2,7 @@
 title: "Apple's Personalized Collections: A Discovery Surface You Can't Directly Target"
 description: "Apple's own page confirms Personalized Collections now surface apps based on usage and downloads, not search terms. Here's what's live, and what it means if you can't target it directly."
 theme: "App Store"
+keyword: "App Store personalized collections"
 image: "/blog/og/apple-app-store-personalized-collections.png"
 publishDate: 2026-09-18
 faqs:

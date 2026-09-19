@@ -2,6 +2,7 @@
 title: "Google Play's Similar Apps Cards Now Show a Line of Copy, Not Just a Rating"
 description: "A September 2026 Play Store update adds a short description to Similar Apps cards. Here's what's reported, and why it turns a passive discovery surface into one worth testing."
 theme: "Google Play"
+keyword: "Google Play similar apps"
 image: "/blog/og/google-play-similar-apps-description-line.png"
 publishDate: 2026-09-16
 faqs:

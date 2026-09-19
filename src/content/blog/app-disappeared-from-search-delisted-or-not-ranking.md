@@ -2,6 +2,7 @@
 title: "My App Disappeared From Search — Delisted, or Just Not Ranking?"
 description: "Real developer-community reports split into two very different problems: an app pulled from the store, and an app still live but invisible in search. Here's how to tell which one you have in under five minutes."
 theme: "Fundamentals"
+keyword: "app disappeared from search"
 image: "/blog/og/app-disappeared-from-search-delisted-or-not-ranking.png"
 publishDate: 2026-09-01
 faqs:

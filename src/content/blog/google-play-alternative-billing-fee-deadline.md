@@ -2,6 +2,7 @@
 title: "Google Play's October 1 Fee Deadline for Alternative Billing and External Links"
 description: "Developers using Google Play's US alternative billing or external content links programs must start reporting transactions and paying fees on October 1, 2026. Here's what that actually requires."
 theme: "Google Play"
+keyword: "alternative billing fee deadline"
 image: "/blog/og/google-play-alternative-billing-fee-deadline.png"
 publishDate: 2026-09-14
 faqs:

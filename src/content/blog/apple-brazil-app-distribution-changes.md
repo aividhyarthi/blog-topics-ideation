@@ -2,6 +2,7 @@
 title: "Apple's Brazil Changes: Alternative Stores, Alternative Payments, Real Fee Numbers"
 description: "Following a CADE settlement, Apple's own page lists exact new fees for alternative marketplaces and payments in Brazil. Here's what's confirmed, not a rumor or a guess."
 theme: "App Store"
+keyword: "Apple Brazil app distribution"
 image: "/blog/og/apple-brazil-app-distribution-changes.png"
 publishDate: 2026-09-17
 faqs:

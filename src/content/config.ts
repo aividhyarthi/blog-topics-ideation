@@ -8,6 +8,14 @@ const blog = defineCollection({
     // Theme groups posts on the /blog index (e.g. "Fundamentals", "Google
     // Play", "App Store", "Keywords", "Reviews & Ratings").
     theme: z.string(),
+    // The one phrase this post targets — real search/AI-assistant phrasing,
+    // not the post's own title verbatim. Used as anchor text in the "Most
+    // Searched Topics" interlinking widget (see BlogSidebar.astro), so it
+    // needs to read naturally as a link, not as a headline fragment.
+    keyword: z.string().refine(
+      (k) => k.trim().split(/\s+/).length <= 6,
+      { message: 'keyword must be 6 words or fewer' },
+    ),
     // Nothing here schedules posts — every post in the collection is live the
     // moment it's built — so a future date is always a mistake, and a bad one:
     // Google can suppress or mis-sort a page dated in the future, and readers

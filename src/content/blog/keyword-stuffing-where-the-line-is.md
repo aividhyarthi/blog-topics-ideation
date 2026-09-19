@@ -2,6 +2,7 @@
 title: "Keyword Stuffing: Where the Line Is on Google Play and App Store"
 description: "Repeating a keyword helps until it doesn't. Here's the actual difference between a well-optimized listing and one that reads as stuffed, on each store."
 theme: "Keywords"
+keyword: "keyword stuffing app store"
 image: "/blog/og/keyword-stuffing-where-the-line-is.png"
 publishDate: 2026-08-15
 faqs:

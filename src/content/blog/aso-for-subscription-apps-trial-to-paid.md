@@ -2,6 +2,7 @@
 title: "ASO for Subscription Apps: What Trial-to-Paid Signals Actually Do to Your Rank"
 description: "Your trial-to-paid conversion rate is a business metric the store algorithm never sees directly. Here's what it sees instead, and why that gap changes how you should optimize."
 theme: "Conversion & Growth"
+keyword: "ASO for subscription apps"
 image: "/blog/og/aso-for-subscription-apps-trial-to-paid.png"
 publishDate: 2026-08-02
 faqs:

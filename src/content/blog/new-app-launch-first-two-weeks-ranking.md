@@ -2,6 +2,7 @@
 title: "New App Launch: How Rankings Actually Behave in the First Two Weeks"
 description: "A new listing doesn't rank like an established one, and the volatility in the first two weeks isn't a sign anything's wrong. Here's what's actually happening and what to check instead of panicking."
 theme: "Fundamentals"
+keyword: "new app launch first weeks"
 image: "/blog/og/new-app-launch-first-two-weeks-ranking.png"
 publishDate: 2026-08-17
 faqs:

@@ -2,6 +2,7 @@
 title: "Google Play's Trusted Contributor Badge: What It Means for the Reviews on Your App"
 description: "Google now marks some Play Store reviewers with a Trusted Contributor badge. Here's what Google's own help page says about how it works and what it means for the reviews you see."
 theme: "Reviews & Ratings"
+keyword: "Play trusted contributor badge"
 image: "/blog/og/google-play-trusted-contributor-badge.png"
 publishDate: 2026-09-12
 faqs:

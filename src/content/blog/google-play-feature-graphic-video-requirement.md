@@ -2,6 +2,7 @@
 title: "Google Play's Feature Graphic: Does It Only Matter If You Have a Video?"
 description: "Google Play requires a feature graphic to publish any store listing at all, video or not. Here's what it actually does, and the one rule that ties it to your promo video."
 theme: "Google Play"
+keyword: "Google Play feature graphic"
 image: "/blog/og/google-play-feature-graphic-video-requirement.png"
 publishDate: 2026-09-19
 faqs:

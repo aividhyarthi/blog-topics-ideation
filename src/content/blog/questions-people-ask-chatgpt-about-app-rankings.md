@@ -2,6 +2,7 @@
 title: "The Questions Everyone Asks ChatGPT About App Rankings, Answered With Real Data"
 description: "The app-ranking questions people now ask an AI assistant instead of a search engine, answered directly, with the actual mechanics behind each answer."
 theme: "Fundamentals"
+keyword: "ChatGPT questions about app rankings"
 image: "/blog/og/questions-people-ask-chatgpt-about-app-rankings.png"
 publishDate: 2026-07-28
 faqs:

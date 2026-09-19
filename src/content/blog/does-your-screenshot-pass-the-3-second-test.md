@@ -2,6 +2,7 @@
 title: "Does Your App Store Screenshot Pass the 3-Second Test?"
 description: "Apple's own guidance says your first screenshot is what shows up in search results. Here's what that actually means for how you order and design your screenshot set."
 theme: "Store Listing Experiments"
+keyword: "screenshot 3-second test"
 image: "/blog/og/does-your-screenshot-pass-the-3-second-test.png"
 publishDate: 2026-09-06
 faqs:

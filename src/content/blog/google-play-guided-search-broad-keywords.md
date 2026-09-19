@@ -2,6 +2,7 @@
 title: "Google Play's Guided Search Means #1 for a Broad Keyword Isn't Enough Anymore"
 description: "Google Play now sorts broad search queries with an AI-organized results layer before showing plain rankings. Here's what actually changed and what it means for your keyword list."
 theme: "Google Play"
+keyword: "Google Play guided search"
 image: "/blog/og/google-play-guided-search-broad-keywords.png"
 publishDate: 2026-09-11
 faqs:

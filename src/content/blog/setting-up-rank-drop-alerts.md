@@ -2,6 +2,7 @@
 title: "Setting Up Rank-Drop Alerts: How to Know the Moment It Happens"
 description: "Finding out a keyword fell out of range during next week's manual check means it already cost you days of visibility. Here's how to set up alerts that catch it same-day instead."
 theme: "Fundamentals"
+keyword: "setting up rank-drop alerts"
 image: "/blog/og/setting-up-rank-drop-alerts.png"
 publishDate: 2026-08-03
 faqs:

@@ -2,6 +2,7 @@
 title: "Does Your App's Age Rating Affect Search Visibility?"
 description: "Apple says age rating drives visibility and parental controls directly. Apple also just expanded its rating tiers, with a 2026 deadline attached. Here's what's confirmed."
 theme: "App Store"
+keyword: "age rating search visibility"
 image: "/blog/og/does-age-rating-affect-search-visibility.png"
 publishDate: 2026-09-09
 faqs:

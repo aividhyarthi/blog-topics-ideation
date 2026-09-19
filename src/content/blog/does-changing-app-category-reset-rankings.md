@@ -2,6 +2,7 @@
 title: "Does Changing Your App's Category Reset Your Rankings?"
 description: "Apple's own docs explain how to set a category. They stay quiet on what happens to your rank when you switch one. Here's what real developers have reported."
 theme: "App Store"
+keyword: "changing app category reset rankings"
 image: "/blog/og/does-changing-app-category-reset-rankings.png"
 publishDate: 2026-09-09
 faqs:

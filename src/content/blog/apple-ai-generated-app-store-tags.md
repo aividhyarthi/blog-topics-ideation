@@ -2,6 +2,7 @@
 title: "Apple's AI-Generated App Store Tags: What They Are and What They Aren't Yet"
 description: "Apple is using its own LLMs to generate descriptive tags for apps in App Store search. Here's what's confirmed, what's still beta-only, and what it means for ASO."
 theme: "App Store"
+keyword: "AI-generated App Store tags"
 image: "/blog/og/apple-ai-generated-app-store-tags.png"
 publishDate: 2026-09-12
 faqs:

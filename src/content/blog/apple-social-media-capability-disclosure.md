@@ -2,6 +2,7 @@
 title: "Apple's New Social Media Capability Disclosure: What It Actually Changes"
 description: "Apple now requires apps to declare social media capabilities in the age rating questionnaire. Here's Apple's own definition, and what a wrong answer can do to your age rating."
 theme: "App Store"
+keyword: "social media capability disclosure"
 image: "/blog/og/apple-social-media-capability-disclosure.png"
 publishDate: 2026-09-13
 faqs:

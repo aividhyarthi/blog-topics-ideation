@@ -2,6 +2,7 @@
 title: "Apple's New Rule 4.5.3: Live Activities Can't Be Used to Spam Users"
 description: "Apple's own App Store Review Guidelines now name Live Activities directly in its anti-spam rule. Here's the exact wording, and what still counts as a legitimate use."
 theme: "App Store"
+keyword: "Live Activities spam guideline"
 image: "/blog/og/apple-live-activities-spam-guideline.png"
 publishDate: 2026-09-17
 faqs:

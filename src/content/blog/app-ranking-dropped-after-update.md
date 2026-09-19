@@ -2,6 +2,7 @@
 title: "App Store Ranking Dropped After an Update: What to Check First"
 description: "A rank dip right after you ship a new version has its own short list of causes, separate from the usual ones. Here's what to rule out first."
 theme: "App Store"
+keyword: "app ranking dropped after update"
 image: "/blog/og/app-ranking-dropped-after-update.png"
 publishDate: 2026-07-22
 faqs:

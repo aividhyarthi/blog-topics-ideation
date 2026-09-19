@@ -2,6 +2,7 @@
 title: "App Icon A/B Testing: What to Test and How to Read the Result"
 description: "The icon is the one element shown before someone even reaches your listing. Here's how to design an icon test that isolates the variable and produces a readable answer."
 theme: "Store Listing Experiments"
+keyword: "app icon A/B testing"
 image: "/blog/og/app-icon-ab-testing.png"
 publishDate: 2026-08-16
 faqs:

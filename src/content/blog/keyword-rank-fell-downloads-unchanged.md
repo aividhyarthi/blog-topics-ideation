@@ -2,6 +2,7 @@
 title: "My Keyword Rank Fell But Downloads Didn't Change: What's Going On?"
 description: "Rank and downloads are related, not identical. Here's why a keyword position can drop with no visible change to installs, and when that's actually fine."
 theme: "Keywords"
+keyword: "keyword rank fell downloads unchanged"
 image: "/blog/og/keyword-rank-fell-downloads-unchanged.png"
 publishDate: 2026-07-23
 faqs:

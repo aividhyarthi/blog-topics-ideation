@@ -2,6 +2,7 @@
 title: "What Thousands of App Reviews Can Tell You That Star Ratings Can't"
 description: "A star average tells you how people feel. It doesn't tell you why. Here's how real teams mine review text for product, pricing, and roadmap signal, and what the academic research behind it actually found."
 theme: "Reviews & Ratings"
+keyword: "app reviews vs star ratings"
 image: "/blog/og/what-app-reviews-tell-you-that-ratings-cant.png"
 publishDate: 2026-09-04
 faqs:

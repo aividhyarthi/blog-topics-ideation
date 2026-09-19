@@ -2,6 +2,7 @@
 title: "Does Responding to App Store Reviews Actually Improve Your Rating or Ranking?"
 description: "Apple's own guidance links review responses to a better rating and better discoverability. Here's exactly what Apple says, and how to actually respond through App Store Connect."
 theme: "Reviews & Ratings"
+keyword: "responding to reviews improve rating"
 image: "/blog/og/does-responding-to-app-store-reviews-improve-rating.png"
 publishDate: 2026-09-08
 faqs:

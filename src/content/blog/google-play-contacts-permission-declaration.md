@@ -2,6 +2,7 @@
 title: "Google Play's Contact Picker Switch: What Your READ_CONTACTS Permission Now Requires"
 description: "Android's own Contact Picker page confirms a privacy-preserving alternative to broad contacts access. Reporting says Play Console is now prompting a declaration for apps that still request READ_CONTACTS. Here's what's confirmed and what's still reported."
 theme: "Google Play"
+keyword: "Google Play contacts permission"
 image: "/blog/og/google-play-contacts-permission-declaration.png"
 publishDate: 2026-09-18
 faqs:

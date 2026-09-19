@@ -1,15 +1,17 @@
 ---
 // Right-hand sidebar for both /blog and /blog/[slug] — a subscribe/signup
-// CTA for the tool itself, an ad slot, and (optionally) a short "recent
-// posts" list so a reader on one article has somewhere else to go. Both
-// blog pages are prerendered static content, so this never depends on
-// request-scoped data (login state etc.) — see the note in those pages.
+// CTA for the tool itself, an ad slot, a "Most Searched Topics" interlinking
+// widget keyed off each post's target keyword, and a short "recent posts"
+// list so a reader on one article has somewhere else to go. Both blog pages
+// are prerendered static content, so this never depends on request-scoped
+// data (login state etc.) — see the note in those pages.
 import { BRAND, ADSENSE_SLOTS } from '../lib/saas/plans';
 import AdSlot from './AdSlot.astro';
 
 interface RecentPost { slug: string; title: string }
-interface Props { recentPosts?: RecentPost[] }
-const { recentPosts = [] } = Astro.props as Props;
+interface KeywordLink { slug: string; keyword: string; theme?: string }
+interface Props { recentPosts?: RecentPost[]; keywordLinks?: KeywordLink[]; mixedCategories?: boolean }
+const { recentPosts = [], keywordLinks = [], mixedCategories = false } = Astro.props as Props;
 ---
 <aside class="blog-sidebar">
   <div class="cta-card">
@@ -19,6 +21,20 @@ const { recentPosts = [] } = Astro.props as Props;
   </div>
 
   <AdSlot slot={ADSENSE_SLOTS.blog} label="Advertisement" />
+
+  {keywordLinks.length > 0 && (
+    <div class="kw-card">
+      <div class="kw-title">Most Searched Topics:</div>
+      <ul>
+        {keywordLinks.map((k) => (
+          <li>
+            <a href={`/blog/${k.slug}`}>{k.keyword}</a>
+            {mixedCategories && k.theme && <span class="kw-theme">{k.theme}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )}
 
   {recentPosts.length > 0 && (
     <div class="recent-card">
@@ -42,4 +58,16 @@ const { recentPosts = [] } = Astro.props as Props;
   .recent-card ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   .recent-card a { color: #16181d; text-decoration: none; font-size: 13.5px; font-weight: 600; line-height: 1.4; }
   .recent-card a:hover { color: #111; text-decoration: underline; }
+
+  .kw-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px; }
+  .kw-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #6b7280; margin-bottom: 10px; }
+  .kw-card ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .kw-card li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; }
+  .kw-card a { color: #16181d; text-decoration: none; font-size: 13.5px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+  .kw-card a:hover { text-decoration: underline; }
+  .kw-theme { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #9aa0ad; white-space: nowrap; }
+
+  @media (max-width: 380px) {
+    .kw-card a { font-size: 13px; }
+  }
 </style>

@@ -2,6 +2,7 @@
 title: "Apple's New App Store Creative Assets: A Discovery Surface Beyond Screenshots"
 description: "Apple is adding rich image and video placements to product page headers and search results this fall. Here's what Apple's own page confirms, and what's still just a preview."
 theme: "App Store"
+keyword: "App Store creative assets"
 image: "/blog/og/apple-app-store-creative-assets.png"
 publishDate: 2026-09-13
 faqs:

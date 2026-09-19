@@ -2,6 +2,7 @@
 title: "Google Play's New AI Localization Tool: Upload a Spreadsheet, Get Listings in 80+ Markets"
 description: "Google Play Console now uses Gemini to pre-populate store listings across languages from one uploaded file. Here's what Google's own I/O 2026 announcement confirms."
 theme: "Google Play"
+keyword: "Google Play AI localization tool"
 image: "/blog/og/google-play-gemini-localization-tool.png"
 publishDate: 2026-09-15
 faqs:

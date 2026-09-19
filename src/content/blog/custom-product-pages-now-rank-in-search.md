@@ -2,6 +2,7 @@
 title: "Apple's Custom Product Pages Can Now Rank in App Store Search: Here's What Changed"
 description: "Custom product pages used to be an ad-only tool. Apple's own docs now confirm they can appear directly in organic search results for keywords you assign. Here's what that actually means."
 theme: "Store Listing Experiments"
+keyword: "custom product pages rank search"
 image: "/blog/og/custom-product-pages-now-rank-in-search.png"
 publishDate: 2026-09-10
 faqs:

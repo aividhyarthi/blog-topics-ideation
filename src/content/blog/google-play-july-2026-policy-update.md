@@ -2,6 +2,7 @@
 title: "Google Play's July 2026 Policy Update: Chat Apps, Call Log Permissions, and AI Data"
 description: "Google's July 15, 2026 policy update changes rules for anonymous chat apps, removes a common use for the Call Log permission, and confirms user data rules cover third-party AI too. Here's what's actually required."
 theme: "Google Play"
+keyword: "Google Play July policy update"
 image: "/blog/og/google-play-july-2026-policy-update.png"
 publishDate: 2026-09-14
 faqs:

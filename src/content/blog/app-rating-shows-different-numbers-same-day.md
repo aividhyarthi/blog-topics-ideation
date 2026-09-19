@@ -2,6 +2,7 @@
 title: "3.8, 4.0, 4.5: Why Your App's Rating Looks Different Every Time You Check It"
 description: "Same app, same region, same afternoon — and the star rating shown seems to change depending on where you're looking. Here's what's actually different about each place you're checking it."
 theme: "Reviews & Ratings"
+keyword: "app rating shows different numbers"
 image: "/blog/og/app-rating-shows-different-numbers-same-day.png"
 publishDate: 2026-08-07
 faqs:

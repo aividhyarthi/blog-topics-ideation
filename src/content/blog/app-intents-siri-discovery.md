@@ -2,6 +2,7 @@
 title: "What Apple's App Intents Framework Means for Getting Found by Siri"
 description: "Apple's App Intents framework lets Siri and Spotlight surface specific actions inside your app, not just the app itself. Here's what it actually does and why it matters for discovery."
 theme: "App Store"
+keyword: "App Intents Siri discovery"
 image: "/blog/og/app-intents-siri-discovery.png"
 publishDate: 2026-09-11
 faqs:

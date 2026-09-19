@@ -2,6 +2,7 @@
 title: "How to Find and Use Seasonal Keywords for Your App"
 description: "Search terms for the same app category swing hard by calendar date, tax-saving searches in February, gifting searches before a festival. Most keyword lists never account for it."
 theme: "Keywords"
+keyword: "seasonal keywords for apps"
 image: "/blog/og/seasonal-keywords-for-apps.png"
 publishDate: 2026-07-15
 faqs:

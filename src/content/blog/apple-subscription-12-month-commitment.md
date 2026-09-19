@@ -2,6 +2,7 @@
 title: "Apple's 12-Month Commitment Subscriptions: A Real Retention Lever, Not Just a Price Trick"
 description: "Apple's own developer news confirms monthly subscriptions with a 12-month commitment are live outside the US and Singapore. Here's what it actually does to cancellations, and what it doesn't."
 theme: "Conversion & Growth"
+keyword: "12-month subscription commitment"
 image: "/blog/og/apple-subscription-12-month-commitment.png"
 publishDate: 2026-09-18
 faqs:

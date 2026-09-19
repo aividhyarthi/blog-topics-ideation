@@ -2,6 +2,7 @@
 title: "iPhone Duo Screenshot Specs: Two Displays, Two Full Sets of Assets"
 description: "Apple's own App Store Connect docs already list exact screenshot sizes for iPhone Duo's outer and inner displays. Here's what's confirmed, and why upload isn't live yet."
 theme: "App Store"
+keyword: "iPhone Duo screenshot specs"
 image: "/blog/og/iphone-duo-screenshot-specifications.png"
 publishDate: 2026-09-16
 faqs:

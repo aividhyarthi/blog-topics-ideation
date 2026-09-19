@@ -2,6 +2,7 @@
 title: "The Arithmetic Behind Why 100 New 5-Star Ratings Barely Move Your Average"
 description: "You're getting more reviews and ratings than ever, but the number on your listing hasn't moved. It's not a delay or a bug — it's what averaging a batch of new ratings into a huge existing pool actually does."
 theme: "Reviews & Ratings"
+keyword: "more ratings barely move average"
 image: "/blog/og/why-more-ratings-doesnt-move-your-average.png"
 publishDate: 2026-08-06
 faqs:

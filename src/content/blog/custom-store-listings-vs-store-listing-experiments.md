@@ -2,6 +2,7 @@
 title: "Custom Store Listings vs. Store Listing Experiments: When to Use Which"
 description: "Google Play gives you two separate tools that sound similar and do different jobs. One targets who sees your listing. The other tests what converts best. Here's the real distinction."
 theme: "Store Listing Experiments"
+keyword: "custom store listings vs experiments"
 image: "/blog/og/custom-store-listings-vs-store-listing-experiments.png"
 publishDate: 2026-09-07
 faqs:

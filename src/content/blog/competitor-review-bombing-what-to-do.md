@@ -2,6 +2,7 @@
 title: "Competitor Review Bombing: How to Spot It and What You Can Actually Do"
 description: "A sudden burst of fake 1-star reviews, all around the same time, often traces to a rival — not a real product problem. Here's how to tell the difference and what to do about it on Google Play and the App Store."
 theme: "Reviews & Ratings"
+keyword: "competitor review bombing"
 image: "/blog/og/competitor-review-bombing-what-to-do.png"
 publishDate: 2026-09-03
 faqs:

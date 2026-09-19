@@ -2,6 +2,7 @@
 title: "How Do You Get Your App Listed in ChatGPT's App Directory?"
 description: "OpenAI opened its App Directory to outside developers. Here's what the actual submission rules require, and what OpenAI itself says about ranking inside it."
 theme: "Fundamentals"
+keyword: "ChatGPT app directory listing"
 image: "/blog/og/how-to-get-listed-in-chatgpt-app-directory.png"
 publishDate: 2026-09-08
 faqs:

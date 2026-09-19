@@ -2,6 +2,7 @@
 title: "Do Apple Offer Codes Affect Your App Store Ranking, or Just Revenue?"
 description: "Apple documents offer code rules and limits in real detail. It stays quiet on whether a redemption counts toward ranking. Here's the honest gap."
 theme: "Conversion & Growth"
+keyword: "Apple offer codes ranking impact"
 image: "/blog/og/do-apple-offer-codes-affect-app-store-ranking.png"
 publishDate: 2026-09-09
 faqs:

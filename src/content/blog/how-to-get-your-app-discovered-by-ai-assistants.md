@@ -2,6 +2,7 @@
 title: "How to Get Your App Discovered by ChatGPT and AI Assistants"
 description: "A growing share of app recommendations happen inside a chat, not a store search bar. Here's what's real, what's vendor marketing, and what you can actually do about being the app an AI assistant mentions."
 theme: "Fundamentals"
+keyword: "app discovery by AI assistants"
 image: "/blog/og/how-to-get-your-app-discovered-by-ai-assistants.png"
 publishDate: 2026-09-04
 faqs:

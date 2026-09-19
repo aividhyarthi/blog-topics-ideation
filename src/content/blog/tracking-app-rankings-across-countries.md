@@ -2,6 +2,7 @@
 title: "Tracking App Rankings Across Countries: What Actually Changes Market to Market"
 description: "A #4 in India and a #180 in the US can be the exact same keyword, same listing, same day. Here's what genuinely differs between markets, and what doesn't."
 theme: "Fundamentals"
+keyword: "tracking rankings across countries"
 image: "/blog/og/tracking-app-rankings-across-countries.png"
 publishDate: 2026-08-04
 faqs:

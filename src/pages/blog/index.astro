@@ -22,6 +22,16 @@ const posts = (await getCollection('blog')).sort(
   (a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf(),
 );
 const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+// "Most Searched Topics" widget — no single theme applies on the index, so
+// this mixes one (the most recent) keyword per theme instead, tagged with
+// its category since the list spans several.
+const keywordLinks = Object.values(
+  posts.reduce<Record<string, (typeof posts)[number]>>((acc, p) => {
+    if (!acc[p.data.theme]) acc[p.data.theme] = p;
+    return acc;
+  }, {}),
+).map((p) => ({ slug: p.slug, keyword: p.data.keyword, theme: p.data.theme }));
 ---
 
 <!doctype html>
@@ -112,7 +122,7 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
         </div>
 
         <div class="sidebar-slot">
-          <BlogSidebar />
+          <BlogSidebar keywordLinks={keywordLinks} mixedCategories />
         </div>
       </div>
     </main>

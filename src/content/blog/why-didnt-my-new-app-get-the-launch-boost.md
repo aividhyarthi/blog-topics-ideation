@@ -2,6 +2,7 @@
 title: "Why Didn't My New App Get the Launch Boost?"
 description: "You've seen other new apps, even weaker ones, get a visibility bump in their first days that yours never got. Here's what's actually documented about new-app treatment, and what isn't."
 theme: "Fundamentals"
+keyword: "new app launch boost"
 image: "/blog/og/why-didnt-my-new-app-get-the-launch-boost.png"
 publishDate: 2026-09-04
 faqs:

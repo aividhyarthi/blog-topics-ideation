@@ -2,6 +2,7 @@
 title: "How to Read Google Play Store Listing Experiment Results"
 description: "What the numbers in a Play Console store listing experiment actually mean (conversion rate, lift, confidence) and how to avoid the most common misreadings."
 theme: "Store Listing Experiments"
+keyword: "reading Google Play experiment results"
 image: "/blog/og/how-to-read-google-play-experiment-results.png"
 publishDate: 2026-07-09
 faqs:

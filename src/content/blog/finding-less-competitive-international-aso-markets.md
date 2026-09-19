@@ -2,6 +2,7 @@
 title: "Finding Less Competitive Keywords in International App Store Markets"
 description: "Most developers localize into English and stop. Here's what Apple and Google actually let you do with per-country storefronts, and why the competition outside the US and UK is often thinner."
 theme: "Keywords"
+keyword: "less competitive international ASO markets"
 image: "/blog/og/finding-less-competitive-international-aso-markets.png"
 publishDate: 2026-09-06
 faqs:

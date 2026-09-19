@@ -2,6 +2,7 @@
 title: "Do In-App Events Help Your App Get Discovered on the App Store?"
 description: "Apple's In-App Events surface on search, Today, and product pages. Here's what they actually are, where they show up, and what they realistically do for discovery."
 theme: "App Store"
+keyword: "in-app events App Store discovery"
 image: "/blog/og/in-app-events-app-store-discovery.png"
 publishDate: 2026-08-18
 faqs:

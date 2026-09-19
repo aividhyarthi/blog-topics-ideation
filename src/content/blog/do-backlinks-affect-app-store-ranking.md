@@ -2,6 +2,7 @@
 title: "Do Backlinks Actually Affect Your App Store Ranking?"
 description: "Web SEO agencies sell 'app backlink' packages promising a ranking boost. Here's what Google's and Apple's own ranking documentation actually lists as factors — and what it never mentions."
 theme: "Fundamentals"
+keyword: "backlinks app store ranking"
 image: "/blog/og/do-backlinks-affect-app-store-ranking.png"
 publishDate: 2026-09-03
 faqs:

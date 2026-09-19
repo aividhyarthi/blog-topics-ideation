@@ -2,6 +2,7 @@
 title: "Why Does Google Play Remove Some of My App's Ratings?"
 description: "A drop in your rating count that you didn't cause usually traces to one of a few documented causes: policy enforcement, a platform migration, or a ratings recalculation. Here's how to tell which."
 theme: "Reviews & Ratings"
+keyword: "Google Play removing app ratings"
 image: "/blog/og/why-does-google-play-remove-my-app-ratings.png"
 publishDate: 2026-09-01
 faqs:

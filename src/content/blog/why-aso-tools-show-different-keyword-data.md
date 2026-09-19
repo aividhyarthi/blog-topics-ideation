@@ -2,6 +2,7 @@
 title: "Why Do ASO Tools Show Different Keyword Data? (And How to Pick One to Trust)"
 description: "AppTweak says one thing. Sensor Tower says another. Appfigures disagrees with both. Here's the real reason ASO tools never match on keyword volume, and how to actually use the numbers anyway."
 theme: "Keywords"
+keyword: "ASO tools different keyword data"
 image: "/blog/og/why-aso-tools-show-different-keyword-data.png"
 publishDate: 2026-09-04
 faqs:

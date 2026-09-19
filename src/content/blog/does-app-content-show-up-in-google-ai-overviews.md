@@ -2,6 +2,7 @@
 title: "Does Your App Ever Show Up in Google's AI Overviews? What the Data Actually Shows"
 description: "Google's AI Overviews now appear on a huge share of searches. Here's what independent research actually shows about which content gets cited, and where that leaves an app's own listing."
 theme: "Fundamentals"
+keyword: "app content Google AI Overviews"
 image: "/blog/og/does-app-content-show-up-in-google-ai-overviews.png"
 publishDate: 2026-09-10
 faqs:

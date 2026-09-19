@@ -28,6 +28,15 @@ const recentPosts = allPosts
   .slice(0, 5)
   .map((p) => ({ slug: p.slug, title: p.data.title }));
 
+// "Most Searched Topics" widget — same-category keyword links carry the
+// tightest topical relevance a link can have, so this stays inside the
+// current post's own theme rather than mixing in unrelated categories.
+const keywordLinks = allPosts
+  .filter((p) => p.slug !== post.slug && p.data.theme === post.data.theme)
+  .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
+  .slice(0, 6)
+  .map((p) => ({ slug: p.slug, keyword: p.data.keyword }));
+
 const canonicalUrl = `${SITE_URL}/blog/${post.slug}`;
 const imageUrl = `${SITE_URL}${post.data.image}?${OG_IMAGE_VERSION}`;
 const faqs = post.data.faqs || [];
@@ -178,7 +187,7 @@ const breadcrumbJsonLd = {
         </div>
 
         <div class="sidebar-slot">
-          <BlogSidebar recentPosts={recentPosts} />
+          <BlogSidebar recentPosts={recentPosts} keywordLinks={keywordLinks} />
         </div>
       </div>
     </main>

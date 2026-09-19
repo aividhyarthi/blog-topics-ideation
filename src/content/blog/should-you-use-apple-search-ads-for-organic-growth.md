@@ -2,6 +2,7 @@
 title: "Should You Use Apple Search Ads to Kickstart Organic Growth?"
 description: "A common pitch says paid installs jumpstart your organic ranking too. Here's what Apple and Google actually publish about paid installs, and what's really just industry theory."
 theme: "Conversion & Growth"
+keyword: "Apple Search Ads organic growth"
 image: "/blog/og/should-you-use-apple-search-ads-for-organic-growth.png"
 publishDate: 2026-09-06
 faqs:

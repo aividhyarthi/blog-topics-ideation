@@ -2,6 +2,7 @@
 title: "Does Memory Usage Affect Your Google Play Ranking? Google's New Vitals Metric, Explained"
 description: "Google just added memory usage as a real Android vitals metric, with store visibility impact starting February 2027. Here's what's actually confirmed, not guessed."
 theme: "App Quality & Vitals"
+keyword: "memory usage Google Play ranking"
 image: "/blog/og/does-memory-usage-affect-google-play-ranking.png"
 publishDate: 2026-09-10
 faqs:

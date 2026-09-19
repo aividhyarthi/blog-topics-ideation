@@ -2,6 +2,7 @@
 title: "Does Your Privacy Nutrition Label Actually Affect App Store Conversion Rate?"
 description: "Apple made privacy labels mandatory years ago. Academic research has since checked how well they hold up and how many apps even fill them in right. Here's the real data."
 theme: "Conversion & Growth"
+keyword: "privacy nutrition label conversion rate"
 image: "/blog/og/does-privacy-nutrition-label-affect-conversion-rate.png"
 publishDate: 2026-09-08
 faqs:

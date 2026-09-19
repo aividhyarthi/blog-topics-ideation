@@ -2,6 +2,7 @@
 title: "How to Measure Conversion Rate by Acquisition Channel"
 description: "Why a single blended conversion rate hides more than it tells you, and how to break install conversion down by organic search, browse, paid, and referral traffic."
 theme: "Conversion & Growth"
+keyword: "conversion rate by acquisition channel"
 image: "/blog/og/measuring-conversion-rate-by-acquisition-channel.png"
 publishDate: 2026-07-10
 faqs:
