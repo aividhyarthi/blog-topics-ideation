@@ -19,7 +19,7 @@ export const POST: APIRoute = async (ctx) => {
 
   let body: {
     title?: string; description?: string; bodyMarkdown?: string;
-    tags?: unknown; faqs?: unknown; charts?: unknown;
+    tags?: unknown; faqs?: unknown; charts?: unknown; focusKeyword?: string;
   };
   try { body = await ctx.request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
@@ -29,6 +29,9 @@ export const POST: APIRoute = async (ctx) => {
   if (!title || !description || !bodyMarkdown) {
     return json({ error: 'title, description and bodyMarkdown are all required.' }, 400);
   }
+  // Optional, but capped generously past "3-5 words" rather than hard-capped
+  // at word count — a real reader's search phrase, not enforced grammar.
+  const focusKeyword = (body.focusKeyword || '').trim().slice(0, 60) || null;
   const tags = Array.isArray(body.tags) ? body.tags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0).slice(0, 3) : ['AEO'];
   const faqs = Array.isArray(body.faqs)
     ? body.faqs.filter((f: any) => f && typeof f.q === 'string' && typeof f.a === 'string').slice(0, 6)
@@ -48,7 +51,7 @@ export const POST: APIRoute = async (ctx) => {
 
   try {
     const post = await createPost({
-      title, description, bodyMarkdown, tags, faqs, charts,
+      title, description, bodyMarkdown, tags, faqs, charts, focusKeyword,
       image: coverDataUri(title, tags[0] || 'AEO'),
     });
     return json({ ok: true, slug: post.slug, url: `/blog/${post.slug}` });

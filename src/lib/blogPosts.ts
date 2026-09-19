@@ -32,6 +32,14 @@ export interface BlogPost {
   image: string | null;
   sourceUrl: string | null;
   sourceLabel: string | null;
+  // The 3-5 word phrase this post is written to rank/be cited for — assigned
+  // deliberately when a post is published (see publish-post.ts), not
+  // extracted from the title. Used as the anchor text in the "Most Searched
+  // Topics" interlinking widget on /blog, so it needs to be the real phrase
+  // a reader would search or ask an AI, not a topic label. Null for any post
+  // published before this field existed; such a post just doesn't appear in
+  // the widget until one is added.
+  focusKeyword: string | null;
   publishDate: string;
   createdAt: string;
 }
@@ -50,6 +58,7 @@ function rowToPost(r: any): BlogPost {
     image: r.image || null,
     sourceUrl: r.source_url || null,
     sourceLabel: r.source_label || null,
+    focusKeyword: r.focus_keyword || null,
     publishDate: r.publish_date,
     createdAt: r.created_at,
   };
@@ -76,6 +85,7 @@ const SEED_POSTS: Array<Omit<BlogPost, 'id' | 'createdAt'>> = [
     description:
       "AEO is the practice of making a page easy for ChatGPT, Perplexity, Claude and Google AI Overviews to read, extract, trust and cite. Here's what actually changes.",
     tags: ['AEO', 'Basics'],
+    focusKeyword: 'answer engine optimization',
     image: '/blog/what-is-aeo.png',
     author: 'AI Page Audit Team',
     sourceUrl: null,
@@ -139,6 +149,7 @@ For the full list of terms that come up once you start digging into this (GPTBot
     description:
       "SEO, AEO and GEO overlap but aren't the same thing. Here's what each one actually optimizes for, in plain terms, and why most sites need all three.",
     tags: ['GEO', 'AEO', 'Comparison'],
+    focusKeyword: 'AEO vs SEO vs GEO',
     image: '/blog/aeo-vs-seo-vs-geo.png',
     author: 'AI Page Audit Team',
     sourceUrl: null,
@@ -202,6 +213,7 @@ See also: [What Is AEO? A Practical Guide](/blog/what-is-aeo) and the full [AEO 
     description:
       'A step-by-step walkthrough of checking whether ChatGPT, Perplexity, Claude and Google AI can actually read and cite your page, using a free AEO audit tool.',
     tags: ['AEO', 'Guide'],
+    focusKeyword: 'AI citation readiness audit',
     image: '/blog/how-to-audit-a-page-for-ai-citation.png',
     author: 'AI Page Audit Team',
     sourceUrl: null,
@@ -279,12 +291,12 @@ async function ensureSeeded(): Promise<void> {
   if ((rows[0] as any)?.c > 0) return;
   for (const p of SEED_POSTS) {
     await query(
-      `INSERT INTO blog_posts (slug, title, description, body_markdown, tags, faqs, charts, author, image, source_url, source_label, publish_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      `INSERT INTO blog_posts (slug, title, description, body_markdown, tags, faqs, charts, author, image, source_url, source_label, focus_keyword, publish_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         p.slug, p.title, p.description, p.bodyMarkdown,
         JSON.stringify(p.tags), JSON.stringify(p.faqs), JSON.stringify(p.charts),
-        p.author, p.image, p.sourceUrl, p.sourceLabel, p.publishDate,
+        p.author, p.image, p.sourceUrl, p.sourceLabel, p.focusKeyword, p.publishDate,
       ],
     );
   }
@@ -326,6 +338,7 @@ export interface NewPostInput {
   image?: string | null;
   sourceUrl?: string | null;
   sourceLabel?: string | null;
+  focusKeyword?: string | null;
   publishDate?: string;
 }
 
@@ -337,12 +350,13 @@ export async function createPost(input: NewPostInput): Promise<BlogPost> {
   while (await getPostBySlug(slug)) { slug = `${base}-${n++}`; }
   const publishDate = input.publishDate || new Date().toISOString();
   await query(
-    `INSERT INTO blog_posts (slug, title, description, body_markdown, tags, faqs, charts, author, image, source_url, source_label, publish_date)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    `INSERT INTO blog_posts (slug, title, description, body_markdown, tags, faqs, charts, author, image, source_url, source_label, focus_keyword, publish_date)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
     [
       slug, input.title, input.description, input.bodyMarkdown,
       JSON.stringify(input.tags), JSON.stringify(input.faqs), JSON.stringify(input.charts || []),
-      input.author || 'AI Page Audit Team', input.image || null, input.sourceUrl || null, input.sourceLabel || null, publishDate,
+      input.author || 'AI Page Audit Team', input.image || null, input.sourceUrl || null, input.sourceLabel || null,
+      input.focusKeyword || null, publishDate,
     ],
   );
   return (await getPostBySlug(slug))!;

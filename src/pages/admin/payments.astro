@@ -29,11 +29,12 @@ import Site from '../../layouts/Site.astro';
       </div>
       <div class="dcard">
         <div class="dcard-head"><b>Publish a post manually</b></div>
-        <p class="dcard-lead">Paste in an already-written post (no Anthropic/OpenAI call, no cost) — for whenever a post is drafted directly instead of sourced by the pipeline above.</p>
+        <p class="dcard-lead">Paste in an already-written post (no Anthropic/OpenAI call, no cost).</p>
         <div class="pubform">
           <input type="text" id="pub-title" placeholder="Title" />
           <input type="text" id="pub-desc" placeholder="Meta description (1-2 sentences)" />
           <input type="text" id="pub-tags" placeholder="Tags, comma-separated (e.g. AEO, GEO, Guide) — tag GEO too if the post is about generative-engine citation" />
+          <input type="text" id="pub-keyword" placeholder="Focus keyword, 3-5 words — the real phrase a reader would search or ask an AI (e.g. mobile site AI search visibility). Powers the Most Searched Topics widget on /blog." />
           <textarea id="pub-body" rows="14" placeholder="Full post body in Markdown. Start with:&#10;&lt;div class=&quot;callout&quot;&gt;&lt;span class=&quot;callout-label&quot;&gt;Quick answer&lt;/span&gt;&lt;p&gt;...&lt;/p&gt;&lt;/div&gt;&#10;&#10;For visual variety, add a takeaways box further down:&#10;&lt;div class=&quot;takeaways&quot;&gt;&lt;span class=&quot;callout-label&quot;&gt;Key takeaways&lt;/span&gt;&lt;ul&gt;&lt;li&gt;...&lt;/li&gt;&lt;/ul&gt;&lt;/div&gt;&#10;&#10;And a chart placeholder on its own line where relevant: [[chart:0]]&#10;&#10;Then ## headings, tables, etc."></textarea>
           <textarea id="pub-faqs" rows="4" placeholder='Optional: FAQs as JSON, e.g. [{"q":"...","a":"..."}]'></textarea>
           <textarea id="pub-charts" rows="4" placeholder='Optional: charts as JSON, matched to [[chart:N]] markers in the body, e.g. [{"type":"bar","title":"Checks passed before vs after","unit":"%","caption":"Illustrative","items":[{"label":"Before","value":45},{"label":"After","value":88}]}]'></textarea>
@@ -104,6 +105,7 @@ import Site from '../../layouts/Site.astro';
       const description = $('pub-desc').value.trim();
       const bodyMarkdown = $('pub-body').value.trim();
       const tags = $('pub-tags').value.split(',').map((s) => s.trim()).filter(Boolean);
+      const focusKeyword = $('pub-keyword').value.trim();
       let faqs = [];
       const faqsRaw = $('pub-faqs').value.trim();
       if (faqsRaw) {
@@ -120,13 +122,13 @@ import Site from '../../layouts/Site.astro';
       try {
         const res = await fetch('/api/admin/publish-post', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, description, bodyMarkdown, tags, faqs, charts }),
+          body: JSON.stringify({ title, description, bodyMarkdown, tags, faqs, charts, focusKeyword }),
         });
         const d = await res.json();
         if (!res.ok) { $('pub-note').textContent = d.error || 'Failed.'; }
         else {
           $('pub-note').innerHTML = `Published — <a href="${d.url}" target="_blank">${d.url} →</a>`;
-          $('pub-title').value = ''; $('pub-desc').value = ''; $('pub-tags').value = ''; $('pub-body').value = ''; $('pub-faqs').value = ''; $('pub-charts').value = '';
+          $('pub-title').value = ''; $('pub-desc').value = ''; $('pub-tags').value = ''; $('pub-keyword').value = ''; $('pub-body').value = ''; $('pub-faqs').value = ''; $('pub-charts').value = '';
         }
       } catch { $('pub-note').textContent = 'Network error.'; }
       $('pub-go').disabled = false;

@@ -185,6 +185,7 @@ function ensureSchema(): void {
       image          TEXT,
       source_url     TEXT,
       source_label   TEXT,
+      focus_keyword  TEXT,
       publish_date   TEXT NOT NULL,
       created_at     TEXT NOT NULL DEFAULT ${ISO_NOW}
     );
@@ -204,6 +205,15 @@ function ensureSchema(): void {
     );
     CREATE INDEX IF NOT EXISTS blog_gen_runs_created_idx ON blog_gen_runs(created_at DESC);
   `);
+
+  // blog_posts.focus_keyword was added after this table already existed on
+  // deployed databases with real posts in them — CREATE TABLE IF NOT EXISTS
+  // above is a no-op against an existing table, so it can't retroactively add
+  // a column. ALTER TABLE is the one safe way to do that without touching
+  // existing rows; guarded because SQLite throws if the column is already
+  // there (true for every fresh DB, where CREATE TABLE just added it).
+  try { d.exec('ALTER TABLE blog_posts ADD COLUMN focus_keyword TEXT'); } catch { /* already exists */ }
+
   schemaReady = true;
 }
 

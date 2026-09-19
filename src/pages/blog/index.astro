@@ -17,6 +17,43 @@ const schema = {
     datePublished: new Date(p.publishDate).toISOString(),
   })),
 };
+
+// Curated, not every tag in use (Basics/Comparison/News stay as card pills,
+// not top-level filters) — a handful of meaningful categories reads better
+// than a tab for every one-off tag.
+const CATEGORIES = ['AEO', 'GEO', 'Technical', 'Guide'] as const;
+
+// "Most Searched Topics" widget — every post's own target keyword as the
+// link's anchor text, not a generic "read more". A post only appears here
+// once it has a focusKeyword set (see the admin publish form); older posts
+// without one just don't show up yet rather than showing an empty label.
+const withKeyword = posts.filter((p) => p.focusKeyword);
+function widgetItemsFor(cat: string) {
+  return withKeyword.filter((p) => p.tags.includes(cat)).slice(0, 6);
+}
+// "All" mixes one post per category rather than dumping every post into one
+// list — pick the first unseen match per category in turn, then fill any
+// remaining slots (up to 6) from whatever's left.
+const mixedItems = (() => {
+  const seen = new Set<string>();
+  const out: typeof posts = [];
+  for (const cat of CATEGORIES) {
+    const match = withKeyword.find((p) => p.tags.includes(cat) && !seen.has(p.slug));
+    if (match) { seen.add(match.slug); out.push(match); }
+    if (out.length >= 6) break;
+  }
+  if (out.length < 6) {
+    for (const p of withKeyword) {
+      if (!seen.has(p.slug)) { seen.add(p.slug); out.push(p); }
+      if (out.length >= 6) break;
+    }
+  }
+  return out;
+})();
+const WIDGET_GROUPS = [
+  { cat: 'All', items: mixedItems },
+  ...CATEGORIES.map((cat) => ({ cat, items: widgetItemsFor(cat) })),
+];
 ---
 <Site
   schema={schema}
@@ -35,33 +72,99 @@ const schema = {
       {posts.length === 0 ? (
         <p class="empty">No posts yet. Check back soon.</p>
       ) : (
-        <div class="postgrid">
-          {posts.map((p) => (
-            <a class="postcard" href={`/blog/${p.slug}`}>
-              {p.image && <img class="postthumb" src={p.image} alt={p.title} width="1200" height="630" loading="lazy" />}
-              <div class="postcard-body">
-                <div class="postmeta">
-                  <time datetime={new Date(p.publishDate).toISOString()}>
-                    {new Date(p.publishDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                  </time>
-                  {p.tags.slice(0, 2).map((t) => <span class="posttag">{t}</span>)}
-                </div>
-                <h2>{p.title}</h2>
-                <p>{p.description}</p>
-                <span class="t-go">Read →</span>
+        <>
+          <div class="catrail" role="tablist" aria-label="Filter by topic">
+            <button class="catpill active" data-cat="All" type="button">All</button>
+            {CATEGORIES.map((c) => <button class="catpill" data-cat={c} type="button">{c}</button>)}
+          </div>
+
+          <div class="bloglayout">
+            <div class="postgrid" id="postgrid">
+              {posts.map((p) => (
+                <a class="postcard" href={`/blog/${p.slug}`} data-cats={p.tags.join(' ')}>
+                  {p.image && <img class="postthumb" src={p.image} alt={p.title} width="1200" height="630" loading="lazy" />}
+                  <div class="postcard-body">
+                    <div class="postmeta">
+                      <time datetime={new Date(p.publishDate).toISOString()}>
+                        {new Date(p.publishDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </time>
+                      {p.tags.slice(0, 2).map((t) => <span class="posttag">{t}</span>)}
+                    </div>
+                    <h2>{p.title}</h2>
+                    <p>{p.description}</p>
+                    <span class="t-go">Read →</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+
+            <aside class="widget">
+              <div class="widget-head"><span class="widget-dot"></span><span class="widget-title">Most Searched Topics</span></div>
+              <p class="widget-sub">Each link's text is that post's target keyword, not a generic "read more" — the anchor itself signals what the page is about.</p>
+              <div class="wlist" id="wlist">
+                {WIDGET_GROUPS.map((g) => (
+                  <div class="wgroup" data-group={g.cat} hidden={g.cat !== 'All'}>
+                    {g.items.length === 0 ? (
+                      <p class="empty" style="font-size:12px">No keyword-tagged posts in this topic yet.</p>
+                    ) : g.items.map((p) => (
+                      <a class="witem" href={`/blog/${p.slug}`}>
+                        <span class="wkw">{p.focusKeyword}</span>
+                        <span class="wmeta"><span class="wcat">{p.tags[0]}</span><span class="wdiv">&middot;</span><span class="wtitle">{p.title.length > 34 ? p.title.slice(0, 34) + '…' : p.title}</span></span>
+                      </a>
+                    ))}
+                  </div>
+                ))}
               </div>
-            </a>
-          ))}
-        </div>
+              <div class="widget-foot" id="wfoot">Mixed view — one keyword per topic across the whole blog.</div>
+            </aside>
+          </div>
+        </>
       )}
     </div>
   </main>
 
+  <script>
+    (function () {
+      const FOOT: Record<string, string> = {
+        All: 'Mixed view — one keyword per topic across the whole blog.',
+      };
+      const pills = document.querySelectorAll<HTMLButtonElement>('.catpill');
+      const cards = document.querySelectorAll<HTMLAnchorElement>('.postcard');
+      const groups = document.querySelectorAll<HTMLDivElement>('.wgroup');
+      const foot = document.getElementById('wfoot');
+      pills.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const cat = btn.dataset.cat || 'All';
+          pills.forEach((b) => b.classList.toggle('active', b === btn));
+          cards.forEach((c) => {
+            const cats = (c.dataset.cats || '').split(' ');
+            c.hidden = cat !== 'All' && !cats.includes(cat);
+          });
+          groups.forEach((g) => { g.hidden = g.dataset.group !== cat; });
+          if (foot) foot.textContent = FOOT[cat] || `Filtered to ${cat} — every ${cat} post's target keyword.`;
+        });
+      });
+    })();
+  </script>
+
   <style>
     .empty { color: var(--muted); font-size: 15px; }
+
+    .catrail { display: flex; gap: 8px; flex-wrap: wrap; padding: 22px 0 0; }
+    .catpill { appearance: none; border: 1px solid var(--line-2); background: var(--card); color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 999px; cursor: pointer; transition: .15s; }
+    .catpill:hover { border-color: var(--accent-line); }
+    .catpill.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+    .bloglayout { display: grid; grid-template-columns: 1fr 300px; gap: 30px; align-items: start; padding-top: 20px; }
+    @media (max-width: 880px) { .bloglayout { grid-template-columns: 1fr; } }
+
     .postgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-    @media (max-width: 720px) { .postgrid { grid-template-columns: 1fr; } }
-    .postcard { display: block; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--card); text-decoration: none; transition: border-color .15s, transform .15s, box-shadow .15s; }
+    @media (max-width: 620px) { .postgrid { grid-template-columns: 1fr; } }
+    /* :not([hidden]) for the same reason as .wgroup below — otherwise this
+       display:block ties with the browser's [hidden]{display:none} on
+       specificity and wins by cascade order, so the category filter's
+       hidden cards keep rendering anyway. */
+    .postcard:not([hidden]) { display: block; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--card); text-decoration: none; transition: border-color .15s, transform .15s, box-shadow .15s; }
     .postcard:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
     .postthumb { display: block; width: 100%; height: 220px; object-fit: cover; }
     .postcard-body { padding: 22px 24px 26px; }
@@ -71,5 +174,27 @@ const schema = {
     .postcard h2 { margin: 0 0 8px; font-size: 19px; font-weight: 800; letter-spacing: -.015em; color: var(--ink); line-height: 1.3; }
     .postcard p { margin: 0 0 14px; font-size: 14px; color: var(--muted); line-height: 1.6; }
     .t-go { font-size: 12.5px; font-weight: 700; color: var(--accent); }
+
+    .widget { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px 20px 16px; position: sticky; top: 20px; }
+    .widget-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .widget-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+    .widget-title { font-size: 13px; font-weight: 800; letter-spacing: -.005em; }
+    .widget-sub { font-size: 11.5px; color: var(--faint); line-height: 1.5; margin: 4px 0 14px; }
+    .wlist { display: flex; flex-direction: column; }
+    /* :not([hidden]) — plain ".wgroup { display: flex }" would tie with the
+       browser's built-in "[hidden] { display: none }" on specificity and win
+       by being later in the cascade, silently defeating the JS toggle below
+       (confirmed via a real click-through test: every group rendered at
+       once instead of just the active one). */
+    .wgroup:not([hidden]) { display: flex; flex-direction: column; }
+    .witem { display: block; padding: 11px 0; border-top: 1px solid var(--line); text-decoration: none; transition: .15s; }
+    .witem:first-child { border-top: none; padding-top: 2px; }
+    .witem:hover .wkw { color: var(--accent-dark); }
+    .wkw { display: block; font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1.35; margin-bottom: 4px; }
+    .wmeta { display: flex; align-items: center; gap: 6px; }
+    .wcat { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .wdiv { color: var(--faint); font-size: 9px; }
+    .wtitle { font-size: 10.5px; color: var(--faint); }
+    .widget-foot { margin-top: 6px; padding-top: 12px; border-top: 1px dashed var(--line-2); font-size: 10.5px; color: var(--faint); line-height: 1.5; }
   </style>
 </Site>
