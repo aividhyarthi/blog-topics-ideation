@@ -281,6 +281,13 @@ const SPEC = {
     { art: 'threshold', takeaway: 'Broad contacts access now needs a written reason to clear review', band: 'declaration required' },
   'apple-subscription-12-month-commitment':
     { art: 'growth', takeaway: 'A cancel tap does not erase the payments still owed', label: 'completed payments (of 12)' },
+  'google-play-feature-graphic-video-requirement':
+    { art: 'diverge', takeaway: 'The feature graphic is required either way; the video is the one that depends on it', a: 'feature graphic', b: 'promo video' },
+  'google-play-app-transfer-ranking-impact':
+    { art: 'chips', takeaway: 'These move with the app; only your reports stay behind',
+      chips: ['ratings & reviews', 'download stats', 'store listing'] },
+  'app-icon-change-ctr-drop-brand-name':
+    { art: 'drop', takeaway: 'Lost recognition, not a weaker design, is what dents the click-through', mark: 'icon changed' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
