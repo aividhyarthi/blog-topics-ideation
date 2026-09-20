@@ -281,6 +281,14 @@ const SPEC = {
     { art: 'threshold', takeaway: 'Broad contacts access now needs a written reason to clear review', band: 'declaration required' },
   'apple-subscription-12-month-commitment':
     { art: 'growth', takeaway: 'A cancel tap does not erase the payments still owed', label: 'completed payments (of 12)' },
+  'app-title-change-after-acquisition-ranking':
+    { art: 'diverge', takeaway: 'The same lever that can tank installs can also lift them fast', a: 'old title', b: 'new title' },
+  'google-play-games-level-up-program':
+    { art: 'chips', takeaway: 'Three real rule groups sit behind the rate-card reward',
+      chips: ['consistent experience', 'cross-screen reach', 'stable gameplay'] },
+  'localized-screenshots-conversion-lift':
+    { art: 'bars', takeaway: 'Captions alone capture most of a full localization’s lift',
+      bars: [['description only', 30], ['+ localized captions', 78], ['full localization', 100]] },
   'google-play-feature-graphic-video-requirement':
     { art: 'diverge', takeaway: 'The feature graphic is required either way; the video is the one that depends on it', a: 'feature graphic', b: 'promo video' },
   'google-play-app-transfer-ranking-impact':
