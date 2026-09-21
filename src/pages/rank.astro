@@ -1722,6 +1722,7 @@ ai photo enhancer"></textarea>
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks, visCompSeries, chartWidth(700))}</div>
           </div>
           ${keyStatsTilesHtml(app)}
+          <p class="hint" style="margin:-6px 0 12px;">Top-3 score: weighted by position (#1 counts most, #3 least) across only your daily-tracked keywords with App Volume ≥ ${TOP3_VOLUME_THRESHOLD} — meant to track more closely with real store listing page views than the overall visibility score above.</p>
           <div class="glancecards">${moversHtml(app)}${competitorPulseHtml(app)}${ratingPulseHtml(app)}</div>
           ${trendChartsHtml(app)}
           ${categoryChartTrendHtml(app)}
@@ -1734,15 +1735,44 @@ ai photo enhancer"></textarea>
       // "Unranked", which both inflated that bar and dragged the visibility
       // score down — making a throttled store look identical to a real
       // ranking loss. Now they're excluded and stated explicitly instead.
+      // Weighted top-3 score, restricted to high-App-Volume daily-tracked
+      // keywords — decreasing effectiveness by position (#1 counts 3x, #2
+      // 2x, #3 1x, everything else 0), since a #1 on a high-search-volume
+      // term drives far more real store listing page views than a #3 on the
+      // same term, or a #1 on a keyword nobody searches. Requested by
+      // Akshay (Cred) as a metric expected to correlate with page views
+      // more tightly than the general visibility score, which averages
+      // every tracked keyword equally regardless of volume or position.
+      // Volume has no daily history (see keywordVolumes' comment in
+      // types.ts), so `prev` reuses today's volumes against yesterday's
+      // positions — an approximation, not a claim that volume itself moved.
+      const TOP3_VOLUME_THRESHOLD = 50;
+      const TOP3_WEIGHTS = { 1: 3, 2: 2, 3: 1 };
+      function top3VolumeScore(trendsWithVolume, posField) {
+        const highVol = trendsWithVolume.filter((t) => t.volume != null && t.volume >= TOP3_VOLUME_THRESHOLD);
+        if (!highVol.length) return null;
+        const earned = highVol.reduce((sum, t) => sum + (TOP3_WEIGHTS[t[posField]] || 0), 0);
+        return Math.round((earned / (3 * highVol.length)) * 1000) / 10;
+      }
+
       // Overview's "Key Statistics" glance row — the same Top-N counts the
       // Coverage tab already tracks (see coverageHtml), surfaced a tab
       // earlier so a client sees ranking breadth alongside the visibility
       // score itself instead of needing to switch tabs for it.
       function keyStatsTilesHtml(app) {
+        const volumes = app.keywordVolumes || {};
+        const trendsWithVolume = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null }));
+        const top3Tile = tileHtml(
+          `Top-3 (App Volume ≥ ${TOP3_VOLUME_THRESHOLD})`,
+          top3VolumeScore(trendsWithVolume, 'position'),
+          top3VolumeScore(trendsWithVolume, 'prevPosition'),
+          true,
+        );
         const cov = app.coverageOverview;
-        if (!cov || !cov.total) return '';
+        if (!cov || !cov.total) return `<div class="tiles">${top3Tile}</div>`;
         const c = cov.counts || {}, p = cov.prevCounts || null;
         return `<div class="tiles">
+          ${top3Tile}
           ${tileHtml('Top 10', c.top10, p && p.top10)}
           ${tileHtml('Top 30', c.top30, p && p.top30)}
           ${tileHtml('Top 100', c.top100, p && p.top100)}
