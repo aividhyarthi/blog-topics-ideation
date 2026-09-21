@@ -296,6 +296,12 @@ const SPEC = {
       chips: ['ratings & reviews', 'download stats', 'store listing'] },
   'app-icon-change-ctr-drop-brand-name':
     { art: 'drop', takeaway: 'Lost recognition, not a weaker design, is what dents the click-through', mark: 'icon changed' },
+  'apple-multiseat-subscription-purchases-default':
+    { art: 'funnel', takeaway: 'Now the default, not something you opt into', steps: ['1 subscriber', 'buys seats', 'invites the team'] },
+  'eu-app-tracking-transparency-alternative-prompt':
+    { art: 'growth', takeaway: 'A real second ask, one year after the first, not a permanent no', label: 'months since the last ask' },
+  'google-play-contribution-hub-reviews':
+    { art: 'stars', takeaway: 'A more visible prompt to review, reported not confirmed' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
