@@ -1722,7 +1722,11 @@ ai photo enhancer"></textarea>
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks, visCompSeries, chartWidth(700))}</div>
           </div>
           ${keyStatsTilesHtml(app)}
-          <p class="hint" style="margin:-6px 0 12px;">Top-3 score: weighted by position (#1 counts most, #3 least) across only your daily-tracked keywords with App Volume ≥ ${TOP3_VOLUME_THRESHOLD} — meant to track more closely with real store listing page views than the overall visibility score above.</p>
+          <div class="chartbox">
+            <h4>Top-3 score trend — high search volume, top-3 rank only</h4>
+            <p class="hint" style="margin:0 0 8px;">Weighted by position (#1 counts most, #3 least), counting only daily-tracked keywords with App Volume ≥ ${TOP3_VOLUME_THRESHOLD} — meant to track more closely with real store listing page views than the overall visibility score above, which averages every tracked keyword equally.</p>
+            ${top3VolumeTrendChart(top3VolumeTrendSeries(app), chartWidth(560))}
+          </div>
           <div class="glancecards">${moversHtml(app)}${competitorPulseHtml(app)}${ratingPulseHtml(app)}</div>
           ${trendChartsHtml(app)}
           ${categoryChartTrendHtml(app)}
@@ -1753,6 +1757,81 @@ ai photo enhancer"></textarea>
         if (!highVol.length) return null;
         const earned = highVol.reduce((sum, t) => sum + (TOP3_WEIGHTS[t[posField]] || 0), 0);
         return Math.round((earned / (3 * highVol.length)) * 1000) / 10;
+      }
+
+      // Day-by-day series for the chart below — same score as top3VolumeScore
+      // above, replayed across each keyword's own position history. Volume
+      // itself has no daily history, so every day in the series is scored
+      // against TODAY's volume list; only the ranking side of the metric
+      // actually moves across the x-axis. `days` and each keyword's
+      // `history` are tail-aligned (both slice the same underlying
+      // snapshots, just to different window lengths — see keywordTrends
+      // and overviewSeries), so taking the last `n` of both lines them up
+      // by real calendar date without needing a separate date-key array.
+      let top3GradSeq = 0;
+      function top3VolumeTrendSeries(app) {
+        const volumes = app.keywordVolumes || {};
+        const highVol = (app.trends || []).filter((t) => (volumes[t.keyword] ?? null) != null && volumes[t.keyword] >= TOP3_VOLUME_THRESHOLD);
+        if (!highVol.length) return [];
+        const days = (app.overview && app.overview.days) || [];
+        const n = Math.min(days.length, ...highVol.map((t) => (t.history || []).length));
+        if (!n) return [];
+        return days.slice(-n).map((day, i) => {
+          let earned = 0;
+          for (const t of highVol) {
+            const h = t.history || [];
+            earned += TOP3_WEIGHTS[h[h.length - n + i]] || 0;
+          }
+          return { dateKey: day.dateKey, v: Math.round((earned / (3 * highVol.length)) * 1000) / 10 };
+        });
+      }
+
+      // Simplified sibling of ratingTrendChart — same smoothPath/gradient/
+      // hover-column approach, no dual-axis (this metric has no competitor
+      // overlay yet), since it's a plain single-line day-by-day trend.
+      function top3VolumeTrendChart(points, W = 400) {
+        if (points.length < 2) return '<p class="hint">Not enough history yet for this trend — check back after a few more daily checks.</p>';
+        const H = 170, padL = 10, padB = 18, padT = 8;
+        const plotW = W - padL - 8, plotH = H - padT - padB;
+        const knownVals = points.filter((p) => p.v != null).map((p) => p.v);
+        const maxY = Math.max(10, Math.ceil(Math.max(...knownVals, 0) / 10) * 10);
+        const x = (i) => padL + (points.length === 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
+        const y = (v) => padT + plotH - (v / maxY) * plotH;
+        const gradId = `top3Fill${++top3GradSeq}`;
+        let out = `<defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--blue)" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="var(--blue)" stop-opacity="0"/>
+        </linearGradient></defs>`;
+        for (const frac of [1, 0.5]) {
+          const yPix = padT + plotH - frac * plotH;
+          out += `<line x1="${padL}" y1="${yPix.toFixed(1)}" x2="${W - 6}" y2="${yPix.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`;
+        }
+        out += `<line x1="${padL}" y1="${(padT + plotH).toFixed(1)}" x2="${W - 6}" y2="${(padT + plotH).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`;
+        const d = smoothPath(points.map((p, i) => (p.v == null ? null : { x: x(i), y: y(p.v) })));
+        let areaD = '', areaStartX = null, lastX = null, areaStarted = false;
+        points.forEach((p, i) => {
+          if (p.v == null) { areaStarted = false; return; }
+          if (!areaStarted) { areaD += `${areaD ? ' ' : ''}M${x(i).toFixed(1)},${y(p.v).toFixed(1)} `; areaStartX = x(i); }
+          else areaD += `L${x(i).toFixed(1)},${y(p.v).toFixed(1)} `;
+          areaStarted = true;
+          lastX = x(i);
+        });
+        if (areaD && lastX != null) out += `<path d="${areaD} L${lastX.toFixed(1)},${(padT + plotH).toFixed(1)} L${areaStartX.toFixed(1)},${(padT + plotH).toFixed(1)} Z" fill="url(#${gradId})" stroke="none"/>`;
+        out += `<path d="${d}" fill="none" stroke="var(--blue)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>`;
+        const labelEvery = Math.ceil(points.length / 6);
+        const showAllMarkers = points.length <= 45;
+        points.forEach((p, i) => {
+          if (p.v == null) return;
+          const isLast = i === points.length - 1;
+          if (isLast || showAllMarkers) {
+            out += `<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="${isLast ? 4.5 : 2.6}" fill="var(--blue)" stroke="var(--card)" stroke-width="2"/>`;
+          }
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(p.dateKey))}</div><div class="tt-r"><span>Top-3 score (high-vol)</span><b>${p.v}</b></div>`);
+          const cw = points.length === 1 ? plotW : plotW / (points.length - 1);
+          out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
+          if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(p.dateKey))}</text>`;
+        });
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:hidden;">${out}</svg>`;
       }
 
       // Overview's "Key Statistics" glance row — the same Top-N counts the
