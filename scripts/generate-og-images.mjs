@@ -302,6 +302,10 @@ const SPEC = {
     { art: 'growth', takeaway: 'A real second ask, one year after the first, not a permanent no', label: 'months since the last ask' },
   'google-play-contribution-hub-reviews':
     { art: 'stars', takeaway: 'A more visible prompt to review, reported not confirmed' },
+  'app-store-missing-from-search-index-forum-reports':
+    { art: 'drop', takeaway: 'Live and installable, but gone from search, sometimes for weeks', mark: 'search visibility gone' },
+  'nps-prescreen-in-app-review-prompt':
+    { art: 'funnel', takeaway: 'Only likely 5-star raters ever reach the official prompt', steps: ['good moment', 'pre-screen', 'review prompt'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
