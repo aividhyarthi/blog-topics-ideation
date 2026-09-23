@@ -306,6 +306,12 @@ const SPEC = {
     { art: 'drop', takeaway: 'Live and installable, but gone from search, sometimes for weeks', mark: 'search visibility gone' },
   'nps-prescreen-in-app-review-prompt':
     { art: 'funnel', takeaway: 'Only likely 5-star raters ever reach the official prompt', steps: ['good moment', 'pre-screen', 'review prompt'] },
+  'apple-app-store-search-relevance-research-paper':
+    { art: 'chips', takeaway: 'A real Apple paper names the actual ranking signals',
+      chips: ['behavioral relevance', 'textual relevance', '+0.24% conversion'] },
+  'google-play-promotional-content-animated-multi-country':
+    { art: 'chips', takeaway: 'LiveOps events get an animated asset and per-country timing',
+      chips: ['animated asset', 'multi-country scheduling', 'same quarter only'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
