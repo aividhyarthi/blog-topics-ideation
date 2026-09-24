@@ -57,21 +57,33 @@ export async function fetchRedditTopics(limit = 15): Promise<TopicCandidate[]> {
   }
 }
 
-// Best-effort official feed list. Verify these against the real URLs before
-// relying on this in production — provider blogs change RSS paths without
-// notice, and this was written without live internet access to check them.
-// Override/replace via the BLOG_SOURCE_FEEDS env var (comma-separated URLs)
-// without needing a code change or redeploy.
-const DEFAULT_FEEDS = [
-  'https://openai.com/news/rss.xml',
-  'https://blog.google/technology/ai/rss/',
-  'https://www.anthropic.com/rss.xml',
+// Best-effort feed list, two kinds mixed together:
+//  1. Official AI-provider blogs — verify these against the real URLs before
+//     relying on this in production, provider blogs change RSS paths without
+//     notice, and this was written without live internet access to check them.
+//  2. Independent SEO/AEO/GEO trade press (Search Engine Land, Search Engine
+//     Roundtable, Search Engine Journal) — news/trends/buzz coverage of what
+//     Google, Bing and the AI providers are doing in search, NOT their
+//     original reporting or analysis. This pipeline only ever pulls a
+//     title + short excerpt for topic discovery; blogGen.ts's prompt already
+//     requires original analysis and forbids fabricating anything beyond the
+//     source material, so a candidate from here becomes our own commentary
+//     on the same news, never a rewrite of theirs.
+// Override/replace the whole list via the BLOG_SOURCE_FEEDS env var
+// (comma-separated URLs, generic labels) without needing a code change.
+const DEFAULT_FEEDS: { url: string; label: string }[] = [
+  { url: 'https://openai.com/news/rss.xml', label: 'Official update: OpenAI' },
+  { url: 'https://blog.google/technology/ai/rss/', label: 'Official update: Google AI' },
+  { url: 'https://www.anthropic.com/rss.xml', label: 'Official update: Anthropic' },
+  { url: 'https://searchengineland.com/feed', label: 'News: Search Engine Land' },
+  { url: 'https://www.seroundtable.com/index.xml', label: 'News: Search Engine Roundtable' },
+  { url: 'https://rss.searchenginejournal.com/', label: 'News: Search Engine Journal' },
 ];
 
 function feedList(): { url: string; label: string }[] {
   const env = (process.env.BLOG_SOURCE_FEEDS || (import.meta as any).env?.BLOG_SOURCE_FEEDS || '').trim();
-  const urls = env ? env.split(',').map((s) => s.trim()).filter(Boolean) : DEFAULT_FEEDS;
-  return urls.map((url) => ({ url, label: `Official update: ${new URL(url).hostname.replace(/^www\./, '')}` }));
+  if (!env) return DEFAULT_FEEDS;
+  return env.split(',').map((s) => s.trim()).filter(Boolean).map((url) => ({ url, label: `Update: ${new URL(url).hostname.replace(/^www\./, '')}` }));
 }
 
 function textBetween(xml: string, tag: string): string {
