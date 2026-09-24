@@ -312,6 +312,18 @@ const SPEC = {
   'google-play-promotional-content-animated-multi-country':
     { art: 'chips', takeaway: 'LiveOps events get an animated asset and per-country timing',
       chips: ['animated asset', 'multi-country scheduling', 'same quarter only'] },
+  'google-play-experiment-how-long-to-run':
+    { art: 'threshold', takeaway: 'A week-one lead is the least reliable moment to trust it', band: 'statistical significance' },
+  'google-ads-app-not-showing-play-store-search':
+    { art: 'chips', takeaway: 'Check these before assuming the campaign is broken',
+      chips: ['app status', 'ad review', 'budget vs. bid'] },
+  'google-play-sponsored-ads-bidding-guide':
+    { art: 'chips', takeaway: 'Same App campaign, same tCPI bid, every placement',
+      chips: ['Play Store search', 'suggested-for-you', 'tCPI bidding'] },
+  'category-ranking-installs-vs-competitors':
+    { art: 'diverge', takeaway: 'Pace against your category beats a bigger lifetime total', a: 'install velocity', b: 'total installs' },
+  'paid-ads-ranking-drop-after-stopping':
+    { art: 'drop', takeaway: 'Rank climbs while ads run, then slides back once they stop', mark: 'campaign ends' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
