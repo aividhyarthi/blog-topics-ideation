@@ -14,23 +14,36 @@ function esc(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Label sits on its own line ABOVE its bar, full track width available to
+// it, instead of squeezed into a fixed 168px column beside the bar. A label
+// longer than that column used to get silently painted over by the bar
+// rect itself (SVG <text> never wraps or clips on its own) — confirmed via
+// a real published post whose longer labels ("Wikipedia (of ChatGPT's
+// citations)", "Sites cited by BOTH ChatGPT & Perplexity") rendered with
+// the bar cutting through the middle of the text. Truncating with an
+// ellipsis past ~46 chars is a second, independent safety net — the real
+// fix going forward is keeping chart labels short in the first place (see
+// CLAUDE.md), this just stops a too-long one from silently breaking layout.
+function fitLabel(s: string, max = 46): string {
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
+}
+
 function barChartSvg(spec: ChartSpec): string {
   const items = spec.items.slice(0, 6);
   const max = Math.max(1, ...items.map((i) => Math.abs(i.value)));
-  const rowH = 34;
+  const rowH = 46;
   const w = 560;
-  const labelW = 168;
-  const trackW = w - labelW - 46;
-  const h = items.length * rowH + 8;
+  const trackW = w - 70;
+  const h = items.length * rowH + 4;
   const bars = items
     .map((it, i) => {
-      const y = i * rowH + 4;
+      const y = i * rowH;
       const bw = Math.max(2, (Math.abs(it.value) / max) * trackW);
       return `
-        <text x="0" y="${y + 15}" font-size="12.5" font-weight="600" fill="#334155">${esc(it.label)}</text>
-        <rect x="${labelW}" y="${y + 4}" width="${trackW}" height="14" rx="7" fill="#eef0f5"/>
-        <rect x="${labelW}" y="${y + 4}" width="${bw.toFixed(1)}" height="14" rx="7" fill="#18181b"/>
-        <text x="${labelW + trackW + 10}" y="${y + 15}" font-size="12.5" font-weight="700" fill="#18181b">${esc(String(it.value))}${spec.unit ? esc(spec.unit) : ''}</text>`;
+        <text x="0" y="${y + 13}" font-size="12.5" font-weight="600" fill="#334155">${esc(fitLabel(it.label))}</text>
+        <rect x="0" y="${y + 20}" width="${trackW}" height="14" rx="7" fill="#eef0f5"/>
+        <rect x="0" y="${y + 20}" width="${bw.toFixed(1)}" height="14" rx="7" fill="#18181b"/>
+        <text x="${trackW + 10}" y="${y + 31}" font-size="12.5" font-weight="700" fill="#18181b">${esc(String(it.value))}${spec.unit ? esc(spec.unit) : ''}</text>`;
     })
     .join('');
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(spec.title)}" xmlns="http://www.w3.org/2000/svg" font-family="Inter, -apple-system, sans-serif">${bars}</svg>`;

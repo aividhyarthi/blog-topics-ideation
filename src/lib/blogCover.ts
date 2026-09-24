@@ -3,9 +3,15 @@
 // binary in the Alpine production image, the exact class of problem that
 // once took the whole app down when better-sqlite3's runtime lib was
 // missing — see the Dockerfile's notes). Renders natively as an <img src>
-// in every browser. Matches the look of the 3 hand-made PNG covers
-// (public/blog/*.png): dark background, an uppercase category pill, a
-// large wrapped title, and a small wordmark bottom-left.
+// in every browser.
+//
+// Deliberately does NOT render the post title. It used to (dark background,
+// category pill, the title wrapped across a few lines), but on the actual
+// post page that image sits directly under the real <h1>, which already
+// says the exact same words — a real published post showed this as two
+// back-to-back blocks repeating the same headline for no reason. The cover
+// now carries the category only, large, plus a bit of decorative texture,
+// so it reads as a section marker rather than a second, redundant title.
 //
 // This is used for the ON-PAGE image only (blog index card, post header,
 // homepage "From the blog" cards). It is deliberately NOT used as the
@@ -16,31 +22,12 @@ function esc(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function wrapTitle(title: string, maxChars = 21): string[] {
-  const words = title.split(/\s+/);
-  const lines: string[] = [];
-  let line = '';
-  for (const w of words) {
-    const candidate = line ? `${line} ${w}` : w;
-    if (candidate.length > maxChars && line) {
-      lines.push(line);
-      line = w;
-    } else {
-      line = candidate;
-    }
-  }
-  if (line) lines.push(line);
-  return lines.slice(0, 4);
-}
-
-export function renderCoverSvg(title: string, tag: string): string {
+export function renderCoverSvg(tag: string): string {
   const W = 1200, H = 630;
-  const lines = wrapTitle(title);
-  const lineH = 64;
-  const startY = H / 2 - ((lines.length - 1) * lineH) / 2 + 18;
-  const textLines = lines
-    .map((l, i) => `<text x="80" y="${startY + i * lineH}" font-size="52" font-weight="800" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">${esc(l)}</text>`)
-    .join('');
+  const label = tag.toUpperCase();
+  // Longer category words (Technical, Comparison) need a smaller size to
+  // still fit inside the canvas at the 80px left margin used below.
+  const fontSize = label.length <= 6 ? 168 : label.length <= 9 ? 130 : 104;
   return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -49,14 +36,15 @@ export function renderCoverSvg(title: string, tag: string): string {
       </linearGradient>
     </defs>
     <rect width="${W}" height="${H}" fill="url(#bg)"/>
-    <rect x="80" y="72" width="${Math.min(560, 40 + tag.length * 15)}" height="40" rx="20" fill="#ffffff" fill-opacity="0.12"/>
-    <text x="102" y="98" font-size="15" font-weight="800" letter-spacing="1.5" fill="#e2e8f0" font-family="Arial, Helvetica, sans-serif">${esc(tag.toUpperCase())}</text>
-    ${textLines}
+    <circle cx="${W - 140}" cy="120" r="230" fill="#ffffff" fill-opacity="0.045"/>
+    <circle cx="${W - 40}" cy="440" r="150" fill="#ffffff" fill-opacity="0.05"/>
+    <line x1="0" y1="${H - 190}" x2="${W}" y2="${H - 250}" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2"/>
+    <text x="80" y="${H / 2 + 55}" font-size="${fontSize}" font-weight="800" letter-spacing="-4" fill="#ffffff" fill-opacity="0.95" font-family="Arial, Helvetica, sans-serif">${esc(label)}</text>
     <text x="80" y="${H - 56}" font-size="20" font-weight="800" fill="#94a3b8" font-family="Arial, Helvetica, sans-serif">AI PAGE AUDIT</text>
   </svg>`;
 }
 
-export function coverDataUri(title: string, tag: string): string {
-  const svg = renderCoverSvg(title, tag);
+export function coverDataUri(tag: string): string {
+  const svg = renderCoverSvg(tag);
   return `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`;
 }

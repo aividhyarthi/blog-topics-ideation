@@ -238,7 +238,13 @@ const schema = {
     .prose .postcta-banner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; background: var(--ink-900); border-radius: 16px; padding: 26px 28px; margin: 12px 0 34px; }
     .prose .postcta-banner b { display: block; font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -.01em; }
     .prose .postcta-banner p { margin: 6px 0 0; font-size: 13.5px; color: #cbd5e1; }
-    .prose .postcta-banner .btn-primary { flex-shrink: 0; background: #fff; color: var(--ink-900); white-space: nowrap; }
+    /* text-decoration: none is required here, not just cosmetic — .prose a
+       sets underline globally, and since this button lives inside .prose
+       (it's injected into bodyHtml), it inherits that unless overridden
+       explicitly. Confirmed via a real render: this button showed an
+       underline while the identical sidebar button did not, because the
+       sidebar one sits outside .prose. */
+    .prose .postcta-banner .btn-primary { flex-shrink: 0; background: #fff; color: var(--ink-900); white-space: nowrap; text-decoration: none; }
     .prose .postcta-banner .btn-primary:hover { background: #f1f5f9; }
     @media (max-width: 480px) { .prose .postcta-banner { padding: 22px 22px; } .prose .postcta-banner .btn-primary { width: 100%; text-align: center; } }
   </style>

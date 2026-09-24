@@ -362,6 +362,39 @@ export async function createPost(input: NewPostInput): Promise<BlogPost> {
   return (await getPostBySlug(slug))!;
 }
 
+/** Slug, title and publish date only — for the admin "Manage posts" list, not the full body. */
+export async function listPostSummaries(limit = 200): Promise<{ slug: string; title: string; publishDate: string }[]> {
+  await ensureSeeded();
+  const { rows } = await query('SELECT slug, title, publish_date FROM blog_posts ORDER BY publish_date DESC LIMIT $1', [limit]);
+  return (rows as any[]).map((r) => ({ slug: r.slug, title: r.title, publishDate: r.publish_date }));
+}
+
+// Edits an existing post in place (same slug, same publish date) rather
+// than creating a new row — added after a published post needed a real fix
+// (a chart rendering bug) and there was no way to correct it short of
+// editing the database directly.
+export async function updatePost(slug: string, input: NewPostInput): Promise<BlogPost | null> {
+  const existing = await getPostBySlug(slug);
+  if (!existing) return null;
+  await query(
+    `UPDATE blog_posts SET title=$1, description=$2, body_markdown=$3, tags=$4, faqs=$5, charts=$6, author=$7, image=$8, source_url=$9, source_label=$10, focus_keyword=$11 WHERE slug=$12`,
+    [
+      input.title, input.description, input.bodyMarkdown,
+      JSON.stringify(input.tags), JSON.stringify(input.faqs), JSON.stringify(input.charts || []),
+      input.author || existing.author, input.image ?? existing.image, input.sourceUrl ?? existing.sourceUrl, input.sourceLabel ?? existing.sourceLabel,
+      input.focusKeyword ?? existing.focusKeyword, slug,
+    ],
+  );
+  return getPostBySlug(slug);
+}
+
+export async function deletePost(slug: string): Promise<boolean> {
+  const existing = await getPostBySlug(slug);
+  if (!existing) return false;
+  await query('DELETE FROM blog_posts WHERE slug = $1', [slug]);
+  return true;
+}
+
 export async function listGenRuns(limit = 30): Promise<{ id: number; status: string; detail: string | null; postSlug: string | null; createdAt: string }[]> {
   const { rows } = await query('SELECT * FROM blog_gen_runs ORDER BY created_at DESC LIMIT $1', [limit]);
   return (rows as any[]).map((r) => ({ id: r.id, status: r.status, detail: r.detail, postSlug: r.post_slug, createdAt: r.created_at }));

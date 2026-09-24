@@ -2,16 +2,16 @@ import type { APIRoute } from 'astro';
 import { getUser } from '../../../lib/auth';
 import { dbEnabled } from '../../../lib/db';
 import { isAdmin } from '../../../lib/billing';
-import { createPost, type ChartSpec } from '../../../lib/blogPosts';
+import { createPost, updatePost, getPostBySlug, type ChartSpec } from '../../../lib/blogPosts';
 import { coverDataUri } from '../../../lib/blogCover';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
 
-// Manual publish: takes an already-written post (no Anthropic/OpenAI call,
-// no cost) and inserts it straight into the DB via the same createPost()
-// the automated pipeline uses. For whenever a post is written directly
-// (by an admin, or drafted by Claude Code in a session) instead of sourced
-// and drafted by the scheduled pipeline in blogPipeline.ts.
+// Manual publish (and edit): takes an already-written post (no Anthropic/
+// OpenAI call, no cost) and inserts or updates it directly in the DB. Pass
+// `editSlug` to update that existing post in place instead of creating a
+// new one — added after a published post needed a real content fix and
+// there was no way to correct it short of editing the database directly.
 export const POST: APIRoute = async (ctx) => {
   if (!dbEnabled) return json({ error: 'Not configured.' }, 503);
   const user = await getUser(ctx);
@@ -20,6 +20,7 @@ export const POST: APIRoute = async (ctx) => {
   let body: {
     title?: string; description?: string; bodyMarkdown?: string;
     tags?: unknown; faqs?: unknown; charts?: unknown; focusKeyword?: string;
+    editSlug?: string;
   };
   try { body = await ctx.request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
@@ -34,7 +35,7 @@ export const POST: APIRoute = async (ctx) => {
   const focusKeyword = (body.focusKeyword || '').trim().slice(0, 60) || null;
   const tags = Array.isArray(body.tags) ? body.tags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0).slice(0, 3) : ['AEO'];
   const faqs = Array.isArray(body.faqs)
-    ? body.faqs.filter((f: any) => f && typeof f.q === 'string' && typeof f.a === 'string').slice(0, 6)
+    ? body.faqs.filter((f: any) => f && typeof f.q === 'string' && typeof f.a === 'string').slice(0, 8)
     : [];
   const charts: ChartSpec[] = Array.isArray(body.charts)
     ? body.charts
@@ -49,10 +50,21 @@ export const POST: APIRoute = async (ctx) => {
         }))
     : [];
 
+  const editSlug = (body.editSlug || '').trim();
+
   try {
+    if (editSlug) {
+      const existing = await getPostBySlug(editSlug);
+      if (!existing) return json({ error: `No post found with slug "${editSlug}".` }, 404);
+      // Only regenerate the cover if the category actually changed — keeps a
+      // manually-uploaded/real image untouched otherwise.
+      const image = existing.tags[0] === tags[0] ? existing.image : coverDataUri(tags[0] || 'AEO');
+      const post = await updatePost(editSlug, { title, description, bodyMarkdown, tags, faqs, charts, focusKeyword, image });
+      return json({ ok: true, slug: post!.slug, url: `/blog/${post!.slug}` });
+    }
     const post = await createPost({
       title, description, bodyMarkdown, tags, faqs, charts, focusKeyword,
-      image: coverDataUri(title, tags[0] || 'AEO'),
+      image: coverDataUri(tags[0] || 'AEO'),
     });
     return json({ ok: true, slug: post.slug, url: `/blog/${post.slug}` });
   } catch (e) {
