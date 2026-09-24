@@ -56,9 +56,14 @@ export const POST: APIRoute = async (ctx) => {
     if (editSlug) {
       const existing = await getPostBySlug(editSlug);
       if (!existing) return json({ error: `No post found with slug "${editSlug}".` }, 404);
-      // Only regenerate the cover if the category actually changed — keeps a
-      // manually-uploaded/real image untouched otherwise.
-      const image = existing.tags[0] === tags[0] ? existing.image : coverDataUri(tags[0] || 'AEO');
+      // Always regenerate an auto-generated cover (a data: SVG URI), even if
+      // the category didn't change — this is what lets a cover-design fix
+      // actually reach an already-published post on its next edit, instead
+      // of the old design being silently kept forever. A real uploaded
+      // image (the 3 seed posts' PNGs, e.g. /blog/what-is-aeo.png) is left
+      // alone either way, since that's a deliberate asset, not generated.
+      const isAutoCover = Boolean(existing.image && existing.image.startsWith('data:image/svg+xml'));
+      const image = isAutoCover ? coverDataUri(tags[0] || 'AEO') : existing.image;
       const post = await updatePost(editSlug, { title, description, bodyMarkdown, tags, faqs, charts, focusKeyword, image });
       return json({ ok: true, slug: post!.slug, url: `/blog/${post!.slug}` });
     }
