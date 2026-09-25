@@ -324,6 +324,12 @@ const SPEC = {
     { art: 'diverge', takeaway: 'Pace against your category beats a bigger lifetime total', a: 'install velocity', b: 'total installs' },
   'paid-ads-ranking-drop-after-stopping':
     { art: 'drop', takeaway: 'Rank climbs while ads run, then slides back once they stop', mark: 'campaign ends' },
+  'apple-search-ads-negative-keywords':
+    { art: 'chips', takeaway: 'Block the searches that were never going to convert',
+      chips: ['Search Match', 'wasted spend', 'negative keywords'] },
+  'google-play-new-developer-review-time':
+    { art: 'bars', takeaway: 'A new account waits days longer than an established one',
+      bars: [['new account', 90], ['established', 20]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
