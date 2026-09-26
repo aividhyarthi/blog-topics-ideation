@@ -330,6 +330,10 @@ const SPEC = {
   'google-play-new-developer-review-time':
     { art: 'bars', takeaway: 'A new account waits days longer than an established one',
       bars: [['new account', 90], ['established', 20]] },
+  'google-play-youtube-channel-playlist-showcase':
+    { art: 'threshold', band: 'Games tab eligibility window', takeaway: 'A channel gone quiet for 3 weeks loses its placement' },
+  'google-play-pre-registration-count-change':
+    { art: 'drop', takeaway: 'Same real interest, a smaller and more honest number', mark: 'counting method changes' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
