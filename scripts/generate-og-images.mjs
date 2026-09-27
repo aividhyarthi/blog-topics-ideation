@@ -334,6 +334,10 @@ const SPEC = {
     { art: 'threshold', band: 'Games tab eligibility window', takeaway: 'A channel gone quiet for 3 weeks loses its placement' },
   'google-play-pre-registration-count-change':
     { art: 'drop', takeaway: 'Same real interest, a smaller and more honest number', mark: 'counting method changes' },
+  'apple-eu-core-technology-fee-ends':
+    { art: 'diverge', takeaway: 'Tied to sales now, not to how many times you get installed', a: 'per-install fee (old)', b: '5% of sales (new)' },
+  'apple-search-ads-discovery-campaigns':
+    { art: 'funnel', takeaway: 'New keywords flow into your best-performing exact match campaign', steps: ['Broad + Search Match', 'real conversions found', 'to Exact Match'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
