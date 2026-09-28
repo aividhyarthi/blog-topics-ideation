@@ -229,6 +229,30 @@ function parseRobots(txt: string): RobotsGroup[] {
   return groups;
 }
 
+// Content-Signal is a newer, separate robots.txt line (Cloudflare-popularized,
+// Sept 2025, feeding the IETF's AIPREF standardization effort) — it's a
+// preference declaration, not an access rule: `search`/`ai-input`/`ai-train`
+// each yes/no. A crawler can be fully Allowed and still have `ai-input: no`,
+// meaning "you may fetch this, but don't use it in a generated answer" —
+// invisible to a plain Allow/Disallow check, so it needs its own parse.
+// Example line: `Content-Signal: search=yes, ai-input=yes, ai-train=no`.
+function parseContentSignal(txt: string): { search?: boolean; aiInput?: boolean; aiTrain?: boolean } | null {
+  const line = txt.split(/\r?\n/).map((l) => l.replace(/#.*$/, '').trim()).find((l) => /^content-signal\s*:/i.test(l));
+  if (!line) return null;
+  const value = line.slice(line.indexOf(':') + 1);
+  const out: { search?: boolean; aiInput?: boolean; aiTrain?: boolean } = {};
+  for (const pair of value.split(',')) {
+    const m = pair.trim().match(/^([\w-]+)\s*=\s*(yes|no)$/i);
+    if (!m) continue;
+    const key = m[1].toLowerCase();
+    const val = m[2].toLowerCase() === 'yes';
+    if (key === 'search') out.search = val;
+    else if (key === 'ai-input') out.aiInput = val;
+    else if (key === 'ai-train') out.aiTrain = val;
+  }
+  return out;
+}
+
 // Does robots.txt allow `ua` to fetch `path`? Most-specific UA group wins;
 // within it, the longest matching rule wins (Allow breaks ties), per the spec.
 function robotsAllows(groups: RobotsGroup[], ua: string, path = '/'): boolean {
@@ -258,7 +282,11 @@ const BOT_GROUPS: { id: string; label: string; engine: string; agents: string[];
   { id: 'bot_openai', label: 'ChatGPT (OpenAI)', engine: 'ChatGPT', agents: ['GPTBot', 'OAI-SearchBot', 'ChatGPT-User'], primary: ['OAI-SearchBot', 'ChatGPT-User'] },
   { id: 'bot_perplexity', label: 'Perplexity', engine: 'Perplexity', agents: ['PerplexityBot', 'Perplexity-User'], primary: ['PerplexityBot'] },
   { id: 'bot_google', label: 'Google AI (Gemini & AI Overviews)', engine: 'Google AI Overviews & Gemini', agents: ['Googlebot', 'Google-Extended'], primary: ['Googlebot'] },
-  { id: 'bot_anthropic', label: 'Claude (Anthropic)', engine: 'Claude', agents: ['ClaudeBot', 'anthropic-ai', 'Claude-Web'], primary: ['ClaudeBot'] },
+  // ClaudeBot is training-only (like GPTBot); Claude-User (a live user's question
+  // about this page) and Claude-SearchBot (search-index citations) are the ones
+  // that actually gate whether Claude cites this page today. Claude-Web and
+  // anthropic-ai are deprecated legacy names Anthropic no longer uses.
+  { id: 'bot_anthropic', label: 'Claude (Anthropic)', engine: 'Claude', agents: ['ClaudeBot', 'Claude-User', 'Claude-SearchBot'], primary: ['Claude-User', 'Claude-SearchBot'] },
   { id: 'bot_bing', label: 'Bing / Copilot', engine: 'Bing Chat & Microsoft Copilot', agents: ['Bingbot', 'BingPreview'], primary: ['Bingbot'] },
 ];
 
@@ -297,6 +325,28 @@ export function crawlabilitySignals(input: CrawlInput): Signal[] {
     score: hasLlms ? 100 : 55,
     detail: hasLlms ? 'An /llms.txt file was found — it points AI crawlers to your key content.' : 'No /llms.txt found (an emerging standard, not yet required).',
     fix: hasLlms ? undefined : 'Add an /llms.txt at your site root listing your most important pages in Markdown — an emerging standard some AI crawlers now read.',
+    source: 'auto',
+  }));
+
+  // Content Signal is a preference, not an access rule, so absence isn't a
+  // failure the way a blocked crawler is — most sites don't have one yet.
+  // An explicit ai-input=no is the one state actually worth flagging: the
+  // page can be fully crawlable and still be opted out of use in a
+  // generated answer, which quietly undercuts everything else this tool
+  // checks for.
+  const contentSignal = known ? parseContentSignal(input.robotsTxt as string) : null;
+  const aiInputBlocked = contentSignal?.aiInput === false;
+  out.push(sig({
+    id: 'content_signal', label: 'AI usage signal (Content-Signal: ai-input)', pillar: 'crawl', weight: 0,
+    score: !known || !contentSignal ? 60 : aiInputBlocked ? 20 : 100,
+    detail: !known
+      ? 'No robots.txt found, so no Content-Signal to check.'
+      : !contentSignal
+        ? 'No Content-Signal line in robots.txt (an emerging, Cloudflare-popularized preference signal, not yet required).'
+        : aiInputBlocked
+          ? 'robots.txt sets Content-Signal ai-input=no — this explicitly asks AI systems not to use this content in a generated answer (AI Overviews, RAG grounding), even though crawling itself may still be allowed.'
+          : 'robots.txt\'s Content-Signal allows ai-input, so crawled content here is permitted for use in AI-generated answers.',
+    fix: aiInputBlocked ? 'If you want this page eligible for AI Overviews and chatbot citations, remove ai-input=no (or set it to yes) in robots.txt\'s Content-Signal line.' : undefined,
     source: 'auto',
   }));
   return out;
