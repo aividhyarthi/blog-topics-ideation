@@ -3002,6 +3002,18 @@ ai photo enhancer"></textarea>
       // handling), so this table and the single-app charts always agree on
       // what window they're showing.
       function renderPortfolio() {
+        // Volume coverage on the app's DAILY-TRACKED keywords (app.keywords),
+        // the same set top3VolumeScore/top3VolumeTrendSeries read from — not
+        // coverageKeywords, which can carry volumes without ever feeding that
+        // tile. Surfaced here so "why is the Top-3 tile blank for this app"
+        // is answerable at a glance across every app, instead of clicking
+        // into each one's Settings one at a time.
+        const volCoverage = (app) => {
+          const kws = app.keywords || [];
+          const volumes = app.keywordVolumes || {};
+          const withVol = kws.filter((k) => (volumes[k] ?? null) != null && volumes[k] >= TOP3_VOLUME_THRESHOLD).length;
+          return { withVol, total: kws.length };
+        };
         const row = (app, isSub) => {
           const vis = app.overview && app.overview.visibility != null ? app.overview.visibility : null;
           const prevVis = app.overview && app.overview.prevVisibility != null ? app.overview.prevVisibility : null;
@@ -3015,13 +3027,18 @@ ai photo enhancer"></textarea>
           const nameCell = isSub
             ? `<span style="padding-left:20px;color:var(--muted);">↳ ${esc(app.title || app.appId)}</span>`
             : `<b>${esc(app.title || app.appId)}</b>`;
+          const { withVol, total } = volCoverage(app);
+          const volCell = total === 0 ? '<span class="hint">no keywords</span>'
+            : withVol === 0 ? `<span class="delta down">0/${total}</span>`
+            : `<span class="${withVol === total ? 'delta up' : ''}">${withVol}/${total}</span>`;
           return `<tr data-goto-app="${escAttr(app.key)}" style="cursor:pointer;">
             <td>${nameCell}${isSub ? ' <span class="pill cc">competitor</span>' : ''}</td>
             <td>${storePill} <span class="pill cc">${esc((app.country || '').toUpperCase())}</span></td>
             <td>${vis != null ? vis + '%' : '–'}</td>
             <td>${deltaHtml}</td>
             <td>${rank}</td>
-            <td>${(app.keywords || []).length}</td>
+            <td>${total}</td>
+            <td>${volCell}</td>
           </tr>`;
         };
         const { primaries, byPrimary } = groupAppsByPrimary(state.apps);
@@ -3029,10 +3046,10 @@ ai photo enhancer"></textarea>
           row(app, false) + (byPrimary[app.key] || []).map((c) => row(c, true)).join('')).join('');
         const rangeNote = (rangeFrom || rangeTo) ? ` for ${esc(rangeFrom || 'the start')} → ${esc(rangeTo || 'today')}` : '';
         return `
-          <div class="section-head"><h2>All apps</h2><p class="hint">Rankings across every app you can see${rangeNote} — competitors are nested under the app they're tracked against. Click a row to open that app.</p></div>
+          <div class="section-head"><h2>All apps</h2><p class="hint">Rankings across every app you can see${rangeNote} — competitors are nested under the app they're tracked against (look for the "competitor" pill if an app you expected to see standalone shows up indented instead). Click a row to open that app.</p></div>
           <div class="table-wrap"><table>
-            <thead><tr><th>App</th><th>Store</th><th>Visibility</th><th>Change</th><th>Category rank</th><th>Keywords</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="6" class="empty">No apps to show.</td></tr>'}</tbody>
+            <thead><tr><th>App</th><th>Store</th><th>Visibility</th><th>Change</th><th>Category rank</th><th>Keywords</th><th>Volume data (≥${TOP3_VOLUME_THRESHOLD})</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="7" class="empty">No apps to show.</td></tr>'}</tbody>
           </table></div>`;
       }
 
