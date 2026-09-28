@@ -338,6 +338,11 @@ const SPEC = {
     { art: 'diverge', takeaway: 'Tied to sales now, not to how many times you get installed', a: 'per-install fee (old)', b: '5% of sales (new)' },
   'apple-search-ads-discovery-campaigns':
     { art: 'funnel', takeaway: 'New keywords flow into your best-performing exact match campaign', steps: ['Broad + Search Match', 'real conversions found', 'to Exact Match'] },
+  'google-play-in-app-review-api-quota':
+    { art: 'threshold', band: 'quota kicks in, silently', takeaway: 'The second call in a short window often shows nothing' },
+  'apple-app-store-review-prompt-three-times-year':
+    { art: 'chips', takeaway: 'Three chances a year, no guarantee any of them show',
+      chips: ['3 per year', 'rolling 365 days', 'no confirmation'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
