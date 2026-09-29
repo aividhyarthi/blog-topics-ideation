@@ -343,6 +343,8 @@ const SPEC = {
   'apple-app-store-review-prompt-three-times-year':
     { art: 'chips', takeaway: 'Three chances a year, no guarantee any of them show',
       chips: ['3 per year', 'rolling 365 days', 'no confirmation'] },
+  'google-play-technical-quality-thresholds-2027':
+    { art: 'threshold', band: '1.09% crash / 0.47% ANR limit', takeaway: 'Real numbers now, not just "keep it low"' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
