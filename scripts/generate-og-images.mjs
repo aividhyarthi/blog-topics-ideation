@@ -345,6 +345,11 @@ const SPEC = {
       chips: ['3 per year', 'rolling 365 days', 'no confirmation'] },
   'google-play-technical-quality-thresholds-2027':
     { art: 'threshold', band: '1.09% crash / 0.47% ANR limit', takeaway: 'Real numbers now, not just "keep it low"' },
+  'google-play-developer-verification-global-removal':
+    { art: 'chips', takeaway: 'Most apps are covered, sideloaded ones are the real risk',
+      chips: ['99% auto-registered', 'sideloaded apps at risk', 'check Play Console today'] },
+  'apple-creative-assets-4-plus-rating-requirement':
+    { art: 'diverge', takeaway: "Your app's own age rating doesn't carry over to its assets", a: 'app rating', b: 'asset rating: always 4+' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
