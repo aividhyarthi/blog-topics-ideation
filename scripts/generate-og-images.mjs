@@ -350,6 +350,8 @@ const SPEC = {
       chips: ['99% auto-registered', 'sideloaded apps at risk', 'check Play Console today'] },
   'apple-creative-assets-4-plus-rating-requirement':
     { art: 'diverge', takeaway: "Your app's own age rating doesn't carry over to its assets", a: 'app rating', b: 'asset rating: always 4+' },
+  'google-play-contacts-location-pre-review-checks':
+    { art: 'threshold', band: 'full enforcement: Jan 27, 2027', takeaway: 'Warnings start Oct 27, three months of runway first' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
