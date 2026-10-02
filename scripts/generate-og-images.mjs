@@ -352,6 +352,12 @@ const SPEC = {
     { art: 'diverge', takeaway: "Your app's own age rating doesn't carry over to its assets", a: 'app rating', b: 'asset rating: always 4+' },
   'google-play-contacts-location-pre-review-checks':
     { art: 'threshold', band: 'full enforcement: Jan 27, 2027', takeaway: 'Warnings start Oct 27, three months of runway first' },
+  'apple-app-store-rejection-reasons-survey-2026':
+    { art: 'bars', takeaway: 'Two guidelines cover more than half of reported rejections',
+      bars: [['Guideline 2.1', 34], ['Guideline 5.1.1', 21], ['everything else', 45]] },
+  'google-play-games-pc-section-badge':
+    { art: 'chips', takeaway: 'A real discovery channel for cross-platform titles',
+      chips: ['PC section', 'PC badge', 'buy once, play anywhere'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
