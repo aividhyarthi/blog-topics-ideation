@@ -358,6 +358,10 @@ const SPEC = {
   'google-play-games-pc-section-badge':
     { art: 'chips', takeaway: 'A real discovery channel for cross-platform titles',
       chips: ['PC section', 'PC badge', 'buy once, play anywhere'] },
+  'apple-korea-age-rating-12-plus-change':
+    { art: 'threshold', band: '12+ threshold', takeaway: 'Infrequent profanity or mature themes now crosses the line' },
+  'google-play-for-you-default-tab-redesign':
+    { art: 'diverge', takeaway: 'The default screen shifted from a chart to a personal feed', a: 'For You (default)', b: 'Top charts (a tap away)' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
