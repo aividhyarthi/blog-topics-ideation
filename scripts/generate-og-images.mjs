@@ -362,6 +362,12 @@ const SPEC = {
     { art: 'threshold', band: '12+ threshold', takeaway: 'Infrequent profanity or mature themes now crosses the line' },
   'google-play-for-you-default-tab-redesign':
     { art: 'diverge', takeaway: 'The default screen shifted from a chart to a personal feed', a: 'For You (default)', b: 'Top charts (a tap away)' },
+  'google-play-pre-registration-auto-install-unified':
+    { art: 'chips', takeaway: 'One action now, where it used to take two separate steps',
+      chips: ['one combined step', 'fewer taps', 'higher Day 1 conversion'] },
+  'apple-app-store-connect-combined-submission':
+    { art: 'chips', takeaway: 'One package, one status, instead of juggling several',
+      chips: ['In-App Purchases', 'Events + product pages', 'one combined status'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
