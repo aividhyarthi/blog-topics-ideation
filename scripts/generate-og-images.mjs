@@ -368,6 +368,8 @@ const SPEC = {
   'apple-app-store-connect-combined-submission':
     { art: 'chips', takeaway: 'One package, one status, instead of juggling several',
       chips: ['In-App Purchases', 'Events + product pages', 'one combined status'] },
+  'google-play-muse-install-velocity-case-study':
+    { art: 'growth', takeaway: 'Real, reported install velocity moving a rank in one day', label: '#338 to #1 overnight' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
