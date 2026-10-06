@@ -370,6 +370,11 @@ const SPEC = {
       chips: ['In-App Purchases', 'Events + product pages', 'one combined status'] },
   'google-play-muse-install-velocity-case-study':
     { art: 'growth', takeaway: 'Real, reported install velocity moving a rank in one day', label: '#338 to #1 overnight' },
+  'iphone-duo-screenshots-required-april-2027':
+    { art: 'diverge', takeaway: 'Optional today, required for every submission by April 2027', a: 'optional (now)', b: 'required (April 2027)' },
+  'google-play-buyer-state-targeting':
+    { art: 'chips', takeaway: 'Four real segments to target, straight from Google’s own docs',
+      chips: ['non-buyer', 'one-time buyer', 'repeat buyer', 'lapsed (180d+)'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
