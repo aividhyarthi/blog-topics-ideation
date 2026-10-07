@@ -1544,7 +1544,7 @@ ai photo enhancer"></textarea>
         const comps = state.apps.filter((a) => a.competitorOf === app.key);
         const head = wnCardHead(ICO_RADAR, 'Competitor pulse');
         if (!comps.length) return '';
-        const kws = (app.keywords || []).length ? app.keywords : (app.coverageKeywords || []).slice(0, 60);
+        const kws = fullKeywordUniverse(app);
         if (!kws.length) return '';
         const mine = trendMap(app);
         const lines = comps.map((c) => {
@@ -2363,6 +2363,20 @@ ai photo enhancer"></textarea>
         return m;
       }
 
+      // Daily-tracked + All Keywords, merged and deduped — the FULL keyword
+      // universe a client cares about for this app. Used anywhere a
+      // competitor comparison shouldn't silently stop at the plan-capped
+      // daily list (Compare's table, the Overview "Competitor pulse" card,
+      // category strength) the way earlier versions of each did: an app with
+      // both lists populated had its All Keywords entirely invisible to
+      // every competitor-facing view, which read as "my competitor data
+      // disappeared" once a client had more than a handful of keywords.
+      function fullKeywordUniverse(app) {
+        const daily = app.keywords || [];
+        const coverage = app.coverageKeywords || [];
+        return coverage.length ? Array.from(new Set([...daily, ...coverage])) : daily;
+      }
+
       // "You" always in --ink (the same neutral used for every other
       // "your data" line elsewhere); competitors get distinct saturated
       // hues far enough apart to stay distinguishable on the trend chart,
@@ -2555,7 +2569,7 @@ ai photo enhancer"></textarea>
           </label>`).join('')}
         </div>`;
         const comps = sel.map((k) => others.find((o) => o.key === k)).filter(Boolean);
-        const kws = (app.keywords || []).length ? app.keywords : (app.coverageKeywords || []).slice(0, 60);
+        const kws = fullKeywordUniverse(app);
         if (!kws.length) return picker + '<p class="hint">Add keywords to this app first — the comparison uses your keyword list.</p>';
         if (!comps.length) return picker + '<p class="hint">Tick at least one competitor above.</p>';
 
@@ -2632,20 +2646,9 @@ ai photo enhancer"></textarea>
         const arrow = (col) => sort.col === col ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
         const th = (col, label) => `<th class="sortable" data-sort="${col}">${label}${arrow(col)}</th>`;
 
-        // Strength-by-category gets the FULL keyword universe (daily +
-        // coverage), not just the plan-capped daily list used for the
-        // keyword-by-keyword table below. A curated daily list can easily
-        // hold zero keywords for a whole category (e.g. "personal loan")
-        // even though the coverage list has real, checked history for
-        // dozens of them — the category rollup showed a flat 0 for every
-        // app in that case, indistinguishable from "genuinely not ranked",
-        // when the real number was sitting right there in coverage data.
-        const catKws = (app.coverageKeywords || []).length
-          ? Array.from(new Set([...kws, ...app.coverageKeywords]))
-          : kws;
         return `${picker}
           ${compareTrendChart(app, comps, kws)}
-          ${categoryStrengthHtml(app, comps, catKws)}
+          ${categoryStrengthHtml(app, comps, kws)}
           <p class="scrollhint no-print">↔ Swipe to see all columns</p>
           <div class="table-wrap comparetable"><table>
             <thead><tr>${th('kw', 'Keyword')}${th('volume', 'Volume')}${th('mine', compLabel(app, true))}${comps.map((c, i) => th(`comp:${i}`, compLabel(c, false))).join('')}</tr></thead>
@@ -3767,11 +3770,12 @@ ai photo enhancer"></textarea>
           const me = state.apps.find((a) => a.key === key);
           const comp = state.apps.find((a) => a.key === compKey);
           if (!me || !comp) return;
-          const kws = (me.keywords || []).length ? me.keywords : (me.coverageKeywords || []).slice(0, 60);
+          const kws = fullKeywordUniverse(me);
           const merged = [...new Set([...(comp.coverageKeywords || []), ...kws])];
           withBusy(btn, 'Adding…', async () => {
             const data = await api({ action: 'set-coverage-keywords', key: compKey, keywords: merged.join('\n') });
-            showToast(`Keywords added to ${comp.title}'s coverage list — ranks appear after its next check (nightly, or "Check all keyword rankings" on that app).`);
+            if (data.coverageTruncated) showInfo(coverageTruncationMsg(data.coverageTruncated));
+            else showToast(`Keywords added to ${comp.title}'s coverage list — ranks appear after its next check (nightly, or "Check all keyword rankings" on that app).`);
             return data;
           });
           return;
