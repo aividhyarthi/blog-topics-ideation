@@ -770,6 +770,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
     if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
+    // Captured before any mutation below, so it's easy to tell afterward
+    // which keywords in the saved list are actually new. Unlike the daily
+    // list (set-keywords/add-keywords), this handler used to never check
+    // anything itself: a freshly pasted
+    // keyword sat with a saved volume but no rank, no row in the All
+    // Keywords table, and no slot in any group tab, until the nightly cron
+    // or a manual "Check all keyword rankings" click reached it — which
+    // read as "my paste didn't do anything" even though it had saved fine.
+    const previousKeywords = new Set(app.coverageKeywords || []);
     // Parsed once uncapped just to detect + report truncation — hitting the
     // 2000 hard cap used to silently drop whatever didn't fit, with nothing
     // telling the owner which keywords from their paste never made it in.
@@ -801,7 +810,31 @@ export const POST: APIRoute = async ({ request, locals }) => {
     app.keywordWebVolumes = { ...(app.keywordWebVolumes || {}), ...parsedCov.webVolumes };
     app.keywordCpc = { ...(app.keywordCpc || {}), ...parsedCov.cpc };
     saveConfig(cfg, userId);
-    return json({ ok: true, coverageTruncated, ...statePayload(userId) });
+    // Best-effort immediate check of just the newly added keywords, time-
+    // boxed so this save never hangs waiting on a huge list — mirrors
+    // checkAfterEdit's "show real ranks right away" behavior for the daily
+    // list. Prioritizing the fresh keywords means even a big existing
+    // coverage list doesn't crowd out the ones the owner is actually
+    // waiting to see; whatever doesn't fit in the time budget still shows
+    // up the same way it always did, via the nightly check or a manual
+    // "Check all keyword rankings" click.
+    const freshlyAdded = app.coverageKeywords.filter((kw) => !previousKeywords.has(kw));
+    // newCount rides along separately from checkedNow: the batch is
+    // prioritized to check these new keywords FIRST, but if the time budget
+    // has room left over it keeps going into the rest of today's backlog —
+    // checkedNow can legitimately be larger than freshlyAdded.length, and
+    // reporting that raw number back to the owner as "N new keywords
+    // checked" would overstate it on an account with older unchecked
+    // keywords sitting in the same list.
+    let coverageCheckProgress: (Awaited<ReturnType<typeof checkCoverageBatch>> & { newCount: number }) | null = null;
+    if (freshlyAdded.length) {
+      try {
+        const progress = await withTenantLock(userId || '__internal__', () =>
+          checkCoverageBatch(app, userId, 20000, undefined, undefined, freshlyAdded));
+        coverageCheckProgress = { ...progress, newCount: freshlyAdded.length };
+      } catch { /* best-effort — the save itself already succeeded */ }
+    }
+    return json({ ok: true, coverageTruncated, coverageCheckProgress, ...statePayload(userId) });
   }
 
   if (action === 'set-web-volumes') {

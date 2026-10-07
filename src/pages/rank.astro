@@ -559,6 +559,13 @@ ai photo enhancer"></textarea>
       let printAll = false;
       // Which category sub-tab is active within the coverage view, per app.
       const catTabState = {};
+      // Live keyword search, per app — one for Daily Keywords, one for All
+      // Keywords. A non-empty All-Keywords search deliberately bypasses the
+      // category tabs (see categorizedCoverageHtml) and searches every
+      // bucket at once, since the whole point of a search box here is not
+      // having to know which tab a keyword landed in.
+      const dailySearchState = {};
+      const covSearchState = {};
 
       // Hardcoded category rules (not user-editable) — grouping a long
       // coverage list by topic instead of one flat list. "Brand + Comp" is
@@ -2051,6 +2058,15 @@ ai photo enhancer"></textarea>
       // "not checked yet" / "err" otherwise have to be inferred.
       const RANK_LEGEND = `<p class="hint" style="margin:2px 0 10px;"><b>#N</b> = found at position N &nbsp;·&nbsp; <b>&gt;200</b> = checked, not in the top 200 &nbsp;·&nbsp; <b>not checked yet</b> = hasn't been searched yet (just added, or waiting on the next check) &nbsp;·&nbsp; <b>⚠︎ err</b> (hover for why) = the check itself failed, not a real rank</p>`;
 
+      // Live keyword search box, shared by Daily Keywords and All Keywords —
+      // `role` is what the delegated 'input' listener below matches on to
+      // know which state object (and which rendering) to update.
+      function searchBoxHtml(role, value, placeholder) {
+        return `<div class="row no-print" style="margin:0 0 10px;">
+          <input type="text" data-role="${escAttr(role)}" value="${escAttr(value || '')}" placeholder="${escAttr(placeholder)}" style="max-width:280px;" autocomplete="off" />
+        </div>`;
+      }
+
       function coverageTableHtml(app, trends) {
         if (!trends.length) return '<p class="hint" style="margin-top:10px;">No keywords in this category.</p>';
         const volumes = app.keywordVolumes || {};
@@ -2110,6 +2126,16 @@ ai photo enhancer"></textarea>
         for (const t of (app.trends || [])) dailyMap[t.keyword] = t;
         const trends = (app.coverageTrends || []).map((t) => dailyMap[t.keyword] || t);
         if (!trends.length) return '';
+        // A non-empty search deliberately skips the category tabs below and
+        // searches every bucket at once — the tabs exist to make a long list
+        // scannable by topic, but that's the opposite of what's useful once
+        // you already know the keyword you're looking for and just don't
+        // know which tab it landed in.
+        const search = (covSearchState[app.key] || '').trim().toLowerCase();
+        if (search) {
+          const matches = trends.filter((t) => t.keyword.toLowerCase().includes(search));
+          return `<p class="hint" style="margin:0 0 8px;">${matches.length} of ${trends.length} keyword${trends.length === 1 ? '' : 's'} match "${esc(search)}" — searched across every category.</p>${coverageTableHtml(app, matches)}`;
+        }
         const byCat = {};
         for (const t of trends) {
           const cat = categorizeKeyword(t.keyword, app);
@@ -2161,6 +2187,7 @@ ai photo enhancer"></textarea>
               ${tileHtml('Top 30', c.top30, p && p.top30)}
               ${tileHtml('Top 100', c.top100, p && p.top100)}
             </div>
+            ${searchBoxHtml('covsearch', covSearchState[app.key], 'Search all keywords… (searches every category)')}
             ${categorizedCoverageHtml(app)}
           </div>
           <h4 class="covhead" style="margin-top:14px;">Every keyword you're monitoring here, ranking or not, sorted by volume</h4>
@@ -2662,7 +2689,9 @@ ai photo enhancer"></textarea>
           const webVolumes = app.keywordWebVolumes || {};
           const cpcs = app.keywordCpc || {};
           const diffMap = app.difficulty || {};
-          const trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, webVolume: webVolumes[t.keyword] ?? null, cpc: cpcs[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
+          let trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, webVolume: webVolumes[t.keyword] ?? null, cpc: cpcs[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
+          const search = (dailySearchState[app.key] || '').trim().toLowerCase();
+          if (search) trends = trends.filter((t) => t.keyword.toLowerCase().includes(search));
           if (sort.col) {
             trends.sort((a, b) => {
               const av = sortVal(a, sort.col), bv = sortVal(b, sort.col);
@@ -2694,15 +2723,18 @@ ai photo enhancer"></textarea>
           const errBanner = errCount
             ? `<div class="alert info" style="display:block;">⚠︎ ${errCount} of ${trends.length} keyword${trends.length === 1 ? '' : 's'} failed to check today (store rate-limit or a temporary block, not a real result) — hover the <b>⚠︎ err</b> tag in the table for details. These are <b>not</b> confirmed as "not ranking"; they're retried automatically on the next check.</div>`
             : '';
-          const table = (app.keywords || []).length
-            ? `${errBanner}
+          const table = !(app.keywords || []).length
+            ? '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>'
+            : search && !trends.length
+              ? `<p class="hint" style="margin-top:10px;">No daily-tracked keyword matches "${esc(search)}".</p>`
+              : `${errBanner}
+              ${search ? `<p class="hint" style="margin:0 0 8px;">${trends.length} of ${app.keywords.length} keyword${app.keywords.length === 1 ? '' : 's'} match "${esc(search)}".</p>` : ''}
               <p class="scrollhint no-print">↔ Swipe to see all columns</p><div class="table-wrap"><table>
                 <thead><tr><th>Keyword</th>${th('webVolume', 'Search Volume')}${th('volume', 'App Volume')}${th('cpc', 'CPC')}${th('pos', 'Rank')}${th('delta', 'Δ vs last')}${th('best', 'Best')}${th('difficulty', 'Difficulty')}<th>Trend</th><th>#1 for this keyword</th></tr></thead>
                 <tbody>${rows}</tbody>
               </table></div>
               <h4 class="covhead" style="margin-top:14px;">Daily-tracked keywords <span class="hint" style="display:inline;margin:0;">— ${app.keywords.length} keyword${app.keywords.length === 1 ? '' : 's'}, checked automatically every day</span></h4>
-              ${RANK_LEGEND}`
-            : '<p class="hint" style="margin-top:10px;">No keywords yet — click <b>Edit keywords</b> to add some, then check rankings.</p>';
+              ${RANK_LEGEND}`;
           const moversCard = moversHtml(app);
           const promoCard = promotableHtml(app);
           return `
@@ -2713,6 +2745,7 @@ ai photo enhancer"></textarea>
           ${promoCard ? `<div style="max-width:520px;margin-bottom:14px;">${promoCard}</div>` : ''}
           ${moversCard ? `<div style="max-width:520px;margin-bottom:14px;">${moversCard}</div>` : ''}
           <div class="no-print">${discoverHtml(app)}</div>
+          ${(app.keywords || []).length ? searchBoxHtml('dailysearch', dailySearchState[app.key], 'Search daily-tracked keywords…') : ''}
           ${table}
           <div class="no-print" style="margin-top:14px;">${asoSummaryHtml(app)}</div>`;
         };
@@ -3117,6 +3150,7 @@ ai photo enhancer"></textarea>
         'kwtext', 'covtext', 'report-emails', 'alert-select', 'quality-metrics-input',
         'add-competitor-input', 'add-competitor-country',
         'ann-date', 'ann-type', 'ann-label', 'ann-keywords',
+        'dailysearch', 'covsearch',
       ]);
       function applyReadOnly() {
         if (!state.readOnly) return;
@@ -3492,10 +3526,16 @@ ai photo enhancer"></textarea>
           return;
         }
         if (act === 'save-coverage') {
-          withBusy(btn, 'Saving…', async () => {
+          withBusy(btn, 'Saving & checking new ones…', async () => {
             const data = await api({ action: 'set-coverage-keywords', key, keywords: card.querySelector('[data-role="covtext"]').value });
+            const p = data.coverageCheckProgress;
+            const justChecked = p ? Math.min(p.checkedNow, p.newCount) : 0;
             if (data.coverageTruncated) showInfo(coverageTruncationMsg(data.coverageTruncated));
-            else showToast('Coverage list saved — click "Check all keyword rankings" to run the first check, or wait for the nightly automatic check');
+            else if (justChecked) {
+              showToast(`Coverage list saved — checked ${justChecked} new keyword${justChecked === 1 ? '' : 's'} right away.${p.done ? '' : ' Click "Check all keyword rankings" to finish the rest.'}`);
+            } else {
+              showToast('Coverage list saved — click "Check all keyword rankings" to run the first check, or wait for the nightly automatic check');
+            }
             return data;
           });
           return;
@@ -3503,12 +3543,19 @@ ai photo enhancer"></textarea>
         if (act === 'add-coverage') {
           const box = card.querySelector('[data-role="covaddtext"]');
           const before = (state.apps.find((a) => a.key === key)?.coverageKeywords || []).length;
-          withBusy(btn, 'Adding…', async () => {
+          withBusy(btn, 'Adding & checking…', async () => {
             const data = await api({ action: 'add-coverage-keywords', key, keywords: box.value });
             const after = (data.apps.find((a) => a.key === key)?.coverageKeywords || []).length;
             box.value = '';
             if (data.coverageTruncated) showInfo(coverageTruncationMsg(data.coverageTruncated));
-            else showToast(`Added ${after - before} new keyword(s) — ${after} total in the coverage list now`);
+            else {
+              const p = data.coverageCheckProgress;
+              const justChecked = p ? Math.min(p.checkedNow, p.newCount) : 0;
+              const checkedMsg = justChecked
+                ? ` — checked ${justChecked} of them right away${p.done ? '' : ', click "Check all keyword rankings" to finish the rest'}`
+                : '';
+              showToast(`Added ${after - before} new keyword(s) — ${after} total in the coverage list now${checkedMsg}`);
+            }
             return data;
           });
           return;
@@ -3772,6 +3819,25 @@ ai photo enhancer"></textarea>
           if (!confirm('Stop tracking this app? Its saved history stays on disk but will no longer be shown.')) return;
           withBusy(btn, 'Removing…', () => api({ action: 'remove-app', key }));
         }
+      });
+
+      // Live keyword search (Daily Keywords / All Keywords) — a full re-render
+      // on every keystroke (same data-driven approach as every other filter/
+      // sort/tab control here) would otherwise drop focus from the input the
+      // moment it fires, since render() regenerates the whole card's HTML; the
+      // explicit refocus + cursor restore below is what keeps typing feeling
+      // uninterrupted.
+      $('apps').addEventListener('input', (ev) => {
+        const role = ev.target.getAttribute && ev.target.getAttribute('data-role');
+        if (role !== 'dailysearch' && role !== 'covsearch') return;
+        const card = ev.target.closest('.appcard');
+        const key = card.getAttribute('data-key');
+        const store = role === 'dailysearch' ? dailySearchState : covSearchState;
+        store[key] = ev.target.value;
+        const pos = ev.target.selectionStart;
+        render();
+        const fresh = document.querySelector(`.appcard[data-key="${CSS.escape(key)}"] [data-role="${role}"]`);
+        if (fresh) { fresh.focus(); fresh.setSelectionRange(pos, pos); }
       });
 
       // Compare-section competitor checkboxes (change, not click — checkboxes).
