@@ -71,6 +71,17 @@ export interface TrackedApp {
    * same as keywordWebVolumes: never used in sorting, curation, or the
    * volume estimator. */
   keywordCpc?: Record<string, number>;
+  /** Known Custom Store Listing titles for this app (Google Play's CSL
+   * feature — and the iOS equivalent naming, if a developer ever uses one —
+   * can serve a different title than the main listing for a search matched
+   * by targeting rules such as country, so the title in a search hit for
+   * THIS app's own appId isn't always its main listing title). User-supplied
+   * because there's no store API that lists an app's own CSL titles — the
+   * owner knows them because they created them. Used purely to label a
+   * keyword's matched search result as "main listing" vs a named CSL vs an
+   * unrecognized title (see KeywordRank.matchedTitle), never to affect
+   * ranking itself. */
+  cslTitles?: string[];
   /** Comma-separated email addresses for the daily rank report — sent by the
    * nightly scheduler after this app's check completes. Blank/unset means no
    * report is sent for this app. */
@@ -209,6 +220,14 @@ export interface KeywordRank {
   depth: number;
   /** Top 3 apps holding the keyword (who owns the term right now). */
   top: { appId: string; title: string }[];
+  /** The title the store actually returned for THIS app's own matched hit —
+   * null when not ranked (nothing to match), undefined on a snapshot saved
+   * before this field existed. Distinct from `top[].title`, which is about
+   * whichever apps hold the top 3 spots, not this app's own listing. See
+   * TrackedApp.cslTitles for why this can differ from the app's main title:
+   * a Custom Store Listing targeted at this search's country can be what the
+   * store actually serves, not the main listing. */
+  matchedTitle?: string | null;
   error?: string;
 }
 
@@ -250,6 +269,8 @@ export interface KeywordTrend {
   /** Oldest→newest positions for the sparkline (null = unranked that day). */
   history: (number | null)[];
   top: { appId: string; title: string }[];
+  /** See KeywordRank.matchedTitle — carried through from the latest check. */
+  matchedTitle?: string | null;
   error?: string;
   /** Whether the latest snapshot actually searched this keyword at all — a
    * keyword can be absent from every snapshot (just added, or the coverage

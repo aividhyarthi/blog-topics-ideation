@@ -12,11 +12,16 @@ export function findPosition(appId: string, results: { appId: string }[]): numbe
 }
 
 export function keywordRank(appId: string, keyword: string, results: SearchHit[], depth: number): KeywordRank {
+  const position = findPosition(appId, results);
   return {
     keyword,
-    position: findPosition(appId, results),
+    position,
     depth,
     top: results.slice(0, 3).map((r) => ({ appId: r.appId, title: r.title })),
+    // The exact title the store served for THIS app's own hit — see
+    // TrackedApp.cslTitles for why this can be a Custom Store Listing's
+    // title rather than the main listing's.
+    matchedTitle: position != null ? results[position - 1].title : null,
   };
 }
 
@@ -93,6 +98,7 @@ export function keywordTrends(app: TrackedApp, snapshots: RankSnapshot[], histor
       best: ranked.length ? Math.min(...ranked) : null,
       history,
       top: cur?.top ?? [],
+      matchedTitle: cur?.matchedTitle ?? null,
       // cur is null both when the keyword was searched and ranked beyond
       // depth, AND when it was never included in the latest check at all
       // (just added, or a coverage list too large for the on-demand button,

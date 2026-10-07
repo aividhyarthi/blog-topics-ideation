@@ -2095,7 +2095,7 @@ ai photo enhancer"></textarea>
             <td class="pos">${volNumCell(t.webVolume)}</td>
             <td class="pos">${volNumCell(t.volume)}</td>
             <td class="pos">${cpcCell(t.cpc)}</td>
-            <td class="pos">${posCell(t)}</td>
+            <td class="pos">${posCell(t, app)}</td>
             <td>${deltaCell(t)}</td>
             <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
             <td>${diffCell(t.difficulty)}</td>
@@ -2253,9 +2253,28 @@ ai photo enhancer"></textarea>
         return '<span class="delta flat">＝ 0</span>';
       }
 
-      function posCell(t) {
+      // Which listing actually showed up in the search result matched to
+      // this app (see KeywordRank.matchedTitle) — the main listing, a named
+      // Custom Store Listing (per TrackedApp.cslTitles), or an unrecognized
+      // title the owner hasn't told us about yet. Returns '' for the common
+      // case (main listing, or no title captured at all — either unranked or
+      // a snapshot saved before this was tracked), so the table stays quiet
+      // except when there's actually something to flag.
+      function listingBadgeHtml(t, app) {
+        if (!t || t.position == null || !t.matchedTitle) return '';
+        const norm = (s) => (s || '').trim().toLowerCase();
+        const matched = norm(t.matchedTitle);
+        if (matched === norm(app.title)) return '';
+        const known = (app.cslTitles || []).find((c) => norm(c) === matched);
+        if (known) {
+          return ` <span class="pill cc" title="Store search showed this app under its &quot;${escAttr(known)}&quot; custom store listing for this keyword, not the main listing.">CSL: ${esc(known.length > 20 ? known.slice(0, 19) + '…' : known)}</span>`;
+        }
+        return ` <span class="pill cc" style="color:var(--warn);" title="Store search showed this app under the title &quot;${escAttr(t.matchedTitle)}&quot; for this keyword — that's neither your main listing title (&quot;${escAttr(app.title)}&quot;) nor one of the custom store listing titles you've saved under Settings. Could be a CSL you haven't added yet, or your saved title has drifted from the real one.">different title ⚠︎</span>`;
+      }
+
+      function posCell(t, app) {
         if (t.error) return `<span class="un" title="${escAttr(t.error)}">⚠︎ err</span>`;
-        if (t.position != null) return `#${t.position}`;
+        if (t.position != null) return `#${t.position}${listingBadgeHtml(t, app)}`;
         // Distinguish "searched, ranked beyond depth" from "never actually
         // checked yet" (just added, or a large coverage list still waiting
         // on the nightly cron) — showing ">200" for the latter would wrongly
@@ -2295,7 +2314,7 @@ ai photo enhancer"></textarea>
           </div>
           <div class="hint" style="margin:0 0 4px;">${listType === 'coverage' ? 'Coverage list' : 'Daily tracked'} · ${app.title ? esc(app.title) : ''}</div>
           <div class="kwmodal-stats">
-            <div class="kwmodal-stat">Current<b>${t.position != null ? `#${t.position}` : (t.checked === false ? 'not checked yet' : `>${t.depth || 200}`)}</b></div>
+            <div class="kwmodal-stat">Current<b>${t.position != null ? `#${t.position}${listingBadgeHtml(t, app)}` : (t.checked === false ? 'not checked yet' : `>${t.depth || 200}`)}</b></div>
             <div class="kwmodal-stat">Best ever<b>${t.best != null ? `#${t.best}` : '–'}</b></div>
             <div class="kwmodal-stat">Δ vs last check<b>${t.delta != null ? (t.delta > 0 ? `▲ ${t.delta}` : t.delta < 0 ? `▼ ${-t.delta}` : '＝ 0') : '–'}</b></div>
             <div class="kwmodal-stat">${webVolume != null ? 'App volume' : 'Volume'}<b>${volume != null ? volume.toLocaleString() : '–'}</b></div>
@@ -2709,7 +2728,7 @@ ai photo enhancer"></textarea>
               <td class="pos">${volNumCell(t.webVolume)}</td>
               <td class="pos">${volNumCell(t.volume)}</td>
               <td class="pos">${cpcCell(t.cpc)}</td>
-              <td class="pos">${posCell(t)}</td>
+              <td class="pos">${posCell(t, app)}</td>
               <td>${deltaCell(t)}</td>
               <td class="pos">${t.best != null ? `#${t.best}` : '<span class="un">–</span>'}</td>
               <td>${diffCell(t.difficulty)}</td>
@@ -2818,6 +2837,14 @@ ai photo enhancer"></textarea>
             <textarea data-role="covaddtext" placeholder="One keyword per line, or 'keyword, volume' — or paste up to 4 columns from a spreadsheet: keyword, web volume, app volume, CPC"></textarea>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="add-coverage">Add to coverage list</button>
+            </div>
+          </div>
+          <div class="settings-block no-print" data-guest-hide>
+            <h4>Custom store listing (CSL) titles</h4>
+            <p class="hint" style="margin:0 0 8px;">Google Play can serve a Custom Store Listing instead of your main listing for a search matched by targeting rules like country — same app, different title. When that happens, your keyword tables flag it instead of silently assuming it's your main listing. List every CSL title you've created for this app, one per line, so it can tell "main listing" from "a CSL you made" from "something unrecognized" (worth a second look). Purely informational — this never changes a rank, only how it's labeled. Takes effect on the next check for each keyword, not retroactively.</p>
+            <textarea data-role="csltext" placeholder="One custom store listing title per line, e.g.&#10;${esc(app.title || 'Your App')} - Diwali Offer&#10;${esc(app.title || 'Your App')} for Students">${esc((app.cslTitles || []).join('\n'))}</textarea>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-csl-titles">Save CSL titles</button>
             </div>
           </div>
           <div class="settings-block no-print">
@@ -3556,6 +3583,17 @@ ai photo enhancer"></textarea>
                 : '';
               showToast(`Added ${after - before} new keyword(s) — ${after} total in the coverage list now${checkedMsg}`);
             }
+            return data;
+          });
+          return;
+        }
+        if (act === 'save-csl-titles') {
+          withBusy(btn, 'Saving…', async () => {
+            const data = await api({ action: 'set-csl-titles', key, titles: card.querySelector('[data-role="csltext"]').value });
+            const saved = data.apps.find((a) => a.key === key);
+            showToast(saved && saved.cslTitles && saved.cslTitles.length
+              ? `Saved ${saved.cslTitles.length} custom store listing title${saved.cslTitles.length === 1 ? '' : 's'} — the next check for each keyword will label a match against these.`
+              : 'CSL titles cleared.');
             return data;
           });
           return;

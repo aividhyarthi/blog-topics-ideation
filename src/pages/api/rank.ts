@@ -852,6 +852,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ ok: true, ...statePayload(userId) });
   }
 
+  if (action === 'set-csl-titles') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app) return json({ error: 'App not found.' }, 404);
+    if (t.readOnly && !appAllowed(app.key)) return json({ error: 'That app is not shared with you.' }, 403);
+    // One title per line. A handful of named listing variants, not a
+    // keyword list — capped far lower than MAX_COVERAGE_KEYWORDS since a
+    // real CSL count in the dozens, not thousands, and a huge paste here is
+    // almost certainly the wrong box.
+    const MAX_CSL_TITLES = 50;
+    const seen = new Set<string>();
+    const titles: string[] = [];
+    for (const raw of String(body.titles || '').split(/\r?\n/)) {
+      const title = raw.trim();
+      if (!title || titles.length >= MAX_CSL_TITLES) continue;
+      const key = title.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      titles.push(title);
+    }
+    app.cslTitles = titles;
+    saveConfig(cfg, userId);
+    return json({ ok: true, ...statePayload(userId) });
+  }
+
   if (action === 'set-report-emails') {
     const app = cfg.apps.find((a) => a.key === String(body.key || ''));
     if (!app) return json({ error: 'App not found.' }, 404);
