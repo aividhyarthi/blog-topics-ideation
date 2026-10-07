@@ -375,6 +375,12 @@ const SPEC = {
   'google-play-buyer-state-targeting':
     { art: 'chips', takeaway: 'Four real segments to target, straight from Google’s own docs',
       chips: ['non-buyer', 'one-time buyer', 'repeat buyer', 'lapsed (180d+)'] },
+  'apple-creative-assets-asset-library-live':
+    { art: 'chips', takeaway: '"Coming this fall" is now actually live, per Apple’s own notes',
+      chips: ['Creative Assets', 'Asset Library', 'real-time preview'] },
+  'google-play-memory-zero-tap-signin-requirements':
+    { art: 'bars', takeaway: 'Two new bars, two different deadlines',
+      bars: [['memory checks: Feb 2027', 100], ['zero-tap sign-in: Apr 2027', 75]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
