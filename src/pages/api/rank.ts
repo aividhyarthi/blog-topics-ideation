@@ -8,7 +8,7 @@
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId, refreshListingMeta } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets, curateTopKeywords, parseQualityMetricsInput, snapshotsInRange } from '../../lib/rank/track';
-import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, loadQualityMetrics, mergeQualityMetrics, listConfigBackups, restoreConfigBackup, ConfigReadError } from '../../lib/rank/store';
+import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadWeeklyReviewScans, loadReviewThemes, loadQualityMetrics, mergeQualityMetrics, listConfigBackups, restoreConfigBackup, ConfigReadError } from '../../lib/rank/store';
 import { analyzeReviewThemes } from '../../lib/rank/themes';
 import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/rank/check';
 import { withTenantLock } from '../../lib/rank/lock';
@@ -225,6 +225,7 @@ function statePayload(
   const covLatest = covSnapshots.length ? covSnapshots[covSnapshots.length - 1] : null;
   const asoCache = loadAsoCache(userId);
   const ratingHistory = loadRatingHistory(userId);
+  const weeklyReviewScans = loadWeeklyReviewScans(userId);
   const qualityMetrics = loadQualityMetrics(userId);
   const reviewThemes = loadReviewThemes(userId);
   // Every keyword-scoped view reads from ONE merged series (see
@@ -364,6 +365,13 @@ function statePayload(
         // otherwise looked frozen while every other chart responded to the
         // timeframe picker.
         ratingHistory: hasRange ? dateFiltered(ratingHistory[app.key] || [], range!.from, range!.to) : (ratingHistory[app.key] || []),
+        // Weekly, not daily — see checkWeeklyReviewScan's own comment. Not
+        // range-filtered like ratingHistory above: with only ~1 point a
+        // week, a client narrowing to a short custom window would often be
+        // left with zero points to show, which reads as broken rather than
+        // "nothing landed in this window" — the client-side chart below
+        // already only plots what it's given either way.
+        weeklyReviewScans: weeklyReviewScans[app.key] || [],
         latestResult: latest?.apps.find((a) => a.key === app.key) || null,
       };
     }),

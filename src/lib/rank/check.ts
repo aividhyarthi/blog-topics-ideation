@@ -3,7 +3,7 @@
 // endpoint ("Check now") and scripts/rank-check.ts (scheduled daily runs).
 import { searchStore, searchDepth, fetchTopChart, fetchAppMeta } from './fetch';
 import { keywordRank, mergeIntoSnapshot, todayKey } from './track';
-import { loadSnapshot, saveSnapshot, loadCoverageSnapshot, saveCoverageSnapshot, appendRatingHistory } from './store';
+import { loadSnapshot, saveSnapshot, loadCoverageSnapshot, saveCoverageSnapshot, appendRatingHistory, loadWeeklyReviewScans, appendWeeklyReviewScan } from './store';
 import { fetchRecentReviews } from '../aso/fetch';
 import { ratingDistribution } from '../aso/audit';
 import type { AppRankResult, KeywordRank, RankSnapshot, TrackedApp } from './types';
@@ -373,4 +373,39 @@ export async function checkRating(app: TrackedApp, userId?: string): Promise<voi
   // hardcoded 28-day label regardless of the real span fetched.
   const rb = ratingDistribution(reviews, windowDays);
   appendRatingHistory(app.key, { dateKey: todayKey(), total: rb.total, negativeShare: rb.negativeShare, tone: rb.tone, windowDays: rb.windowDays, counts: rb.counts }, userId);
+}
+
+/** True once at least 7 days have passed since this app's last weekly
+ * review scan (or it's never had one) — gates checkWeeklyReviewScan so a
+ * ~2000-review fetch (up to 40 store page requests) runs on a real WEEKLY
+ * cadence, not every nightly tick the way the cheap daily rating point does. */
+export function dueForWeeklyReviewScan(app: TrackedApp, userId?: string): boolean {
+  if (app.store !== 'play') return false;
+  const history = loadWeeklyReviewScans(userId)[app.key] || [];
+  if (!history.length) return true;
+  const last = history[history.length - 1];
+  const daysSince = Math.floor((Date.now() - Date.parse(last.dateKey + 'T00:00:00Z')) / 86400000);
+  return daysSince >= 7;
+}
+
+/**
+ * A much deeper rating read than checkRating above: scans up to 2000 of an
+ * app's most recent reviews (minReviews is ALSO set high here, not just
+ * cap — fetchRecentReviews otherwise stops as soon as it has "enough" for
+ * a quick share, which the daily point wants but this doesn't), reaching
+ * back up to 2 years if the app simply doesn't have 2000 reviews within a
+ * shorter window. Gated to once a week per app by dueForWeeklyReviewScan —
+ * the caller is expected to check that before calling this, since this
+ * function itself always does the full fetch when called.
+ */
+export async function checkWeeklyReviewScan(app: TrackedApp, userId?: string): Promise<void> {
+  if (app.store !== 'play') return; // Play-only — same as checkRating, no equivalent iOS reviews feed here
+  const { reviews, windowDays } = await fetchRecentReviews(app.appId, app.lang, app.country, 2000, 730, 2000);
+  const rb = ratingDistribution(reviews, windowDays);
+  const avgRating = reviews.length ? Math.round((reviews.reduce((sum, r) => sum + r.score, 0) / reviews.length) * 100) / 100 : null;
+  appendWeeklyReviewScan(app.key, {
+    dateKey: todayKey(), reviewsScanned: rb.total, windowDays: rb.windowDays,
+    avgRating, negativeShare: rb.negativeShare, positiveShare: rb.positiveShare,
+    counts: rb.counts as { star: 1 | 2 | 3 | 4 | 5; count: number; pct: number }[],
+  }, userId);
 }

@@ -10,7 +10,7 @@
 // recoverable. See restoreConfigBackups()/listConfigBackups() below.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AsoCache, QualityMetrics, RankSnapshot, RatingHistory, ReviewThemesCache, TrackerConfig } from './types';
+import type { AsoCache, QualityMetrics, RankSnapshot, RatingHistory, ReviewThemesCache, TrackerConfig, WeeklyReviewScans } from './types';
 
 /**
  * Data directory. With no `userId` (the internal single-tenant deployment)
@@ -29,6 +29,7 @@ const snapFile = (dateKey: string, userId?: string) => join(dataDir(userId), `sn
 const covSnapFile = (dateKey: string, userId?: string) => join(dataDir(userId), `covsnap__${safe(dateKey)}.json`);
 const asoCacheFile = (userId?: string) => join(dataDir(userId), 'aso-cache.json');
 const ratingHistoryFile = (userId?: string) => join(dataDir(userId), 'rating-history.json');
+const weeklyReviewScansFile = (userId?: string) => join(dataDir(userId), 'weekly-review-scans.json');
 const qualityMetricsFile = (userId?: string) => join(dataDir(userId), 'quality-metrics.json');
 const MAX_BACKUPS = 20;
 
@@ -176,6 +177,26 @@ export function appendRatingHistory(key: string, point: RatingHistory[string][nu
   const existing = (history[key] || []).filter((p) => p.dateKey !== point.dateKey);
   history[key] = [...existing, point].sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-keep);
   writeFileSync(ratingHistoryFile(userId), JSON.stringify(history));
+}
+
+// --- weekly review scan — a deeper (up to 2000 reviews), once-a-week point
+// per app, separate from the cheap daily rating-history point above. Same
+// file-per-tenant / keyed-by-app.key shape as rating history, just its own
+// file since it runs on its own cadence (see check.ts's
+// dueForWeeklyReviewScan) rather than every nightly tick.
+
+export function loadWeeklyReviewScans(userId?: string): WeeklyReviewScans {
+  const p = weeklyReviewScansFile(userId);
+  if (!existsSync(p)) return {};
+  try { return JSON.parse(readFileSync(p, 'utf8')) as WeeklyReviewScans; } catch { return {}; }
+}
+
+/** Appends (or replaces same-day) a weekly scan point for `key`, keeping the last `keep` entries (~2 years weekly). */
+export function appendWeeklyReviewScan(key: string, point: WeeklyReviewScans[string][number], userId?: string, keep = 104): void {
+  const scans = loadWeeklyReviewScans(userId);
+  const existing = (scans[key] || []).filter((p) => p.dateKey !== point.dateKey);
+  scans[key] = [...existing, point].sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-keep);
+  writeFileSync(weeklyReviewScansFile(userId), JSON.stringify(scans));
 }
 
 // --- quality metrics — Android vitals (crash rate / ANR rate / user loss

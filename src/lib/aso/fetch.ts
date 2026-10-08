@@ -131,7 +131,13 @@ export async function fetchRecentReviews(
   const maxCutoff = Date.now() - maxWindowDays * 86400000;
   const collected: RecentReview[] = [];
   let token: string | undefined;
-  for (let page = 0; page < 8; page++) {
+  // Page bound scales with `cap` (50 reviews/page) — this used to be a flat
+  // 8 (400 reviews) regardless of what `cap` was asked for, so a caller
+  // passing a bigger cap (e.g. a deep weekly scan wanting up to 2000) was
+  // silently truncated at 400 anyway, with no error or signal that it
+  // happened.
+  const maxPages = Math.max(8, Math.ceil(cap / 50));
+  for (let page = 0; page < maxPages; page++) {
     // Each page is its own try: the reviews endpoint is heavier/more
     // rate-limit-prone than the plain app() listing call, and a hiccup on
     // page 2+ shouldn't throw away reviews already collected from page 1 —

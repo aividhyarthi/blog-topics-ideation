@@ -13,7 +13,7 @@
 //    trial or an active subscription are checked)
 // A shared search cache dedupes identical keyword searches across users.
 import { loadConfig, saveConfig, loadSnapshot, loadSnapshots, loadCoverageSnapshot, loadCoverageSnapshots, saveNightlyMarker, loadReviewThemes } from './store';
-import { runCheck, checkCoverageBatch, checkRating, retryFailedChart, SearchCache, newMeter } from './check';
+import { runCheck, checkCoverageBatch, checkRating, dueForWeeklyReviewScan, checkWeeklyReviewScan, retryFailedChart, SearchCache, newMeter } from './check';
 import type { RequestMeter } from './check';
 import { analyzeReviewThemes } from './themes';
 import { backfillDeveloperId, backfillGenreId, refreshListingMeta } from './fetch';
@@ -153,6 +153,16 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
       for (const app of cfg.apps) {
         try { await checkRating(app, userId); }
         catch (e) { lines.push(`  [${label}] ${app.key}: rating check failed: ${e instanceof Error ? e.message : String(e)}`); }
+      }
+
+      // Deeper weekly review scan (up to 2000 reviews, vs the cheap daily
+      // point's much smaller adaptive sample) — gated to once every 7 days
+      // per app since a scan this size is up to 40 store page requests,
+      // real weight to add to every single nightly tick.
+      for (const app of cfg.apps) {
+        if (!dueForWeeklyReviewScan(app, userId)) continue;
+        try { await checkWeeklyReviewScan(app, userId); }
+        catch (e) { lines.push(`  [${label}] ${app.key}: weekly review scan failed: ${e instanceof Error ? e.message : String(e)}`); }
       }
 
       // Daily negative-review theme analysis (Play only) — the Trends tab's

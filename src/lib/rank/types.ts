@@ -180,6 +180,25 @@ export interface RatingHistoryPoint {
 }
 export type RatingHistory = Record<string, RatingHistoryPoint[]>; // keyed by TrackedApp.key
 
+/** A much deeper rating read than RatingHistoryPoint above: up to 2000 of
+ * an app's most recent reviews, scanned on a WEEKLY cadence rather than
+ * nightly (see check.ts's checkWeeklyReviewScan / dueForWeeklyReviewScan)
+ * — a scan this size means up to 40 store review-page requests in one run,
+ * which the cheap daily point deliberately avoids. Gives a real average
+ * star rating across a real sample, not just the 1-2★ share of whatever
+ * handful of reviews the daily point's "stop once there's enough" fetch
+ * happened to land on. */
+export interface WeeklyReviewScanPoint {
+  dateKey: string; // YYYY-MM-DD this scan ran
+  reviewsScanned: number; // how many reviews were actually fetched (up to 2000)
+  windowDays: number; // how far back the fetch had to reach to collect them
+  avgRating: number | null; // mean score across every scanned review, null if none fetched
+  negativeShare: number; // % that are 1-2★, same definition as RatingHistoryPoint
+  positiveShare: number; // % that are 4-5★
+  counts?: { star: 1 | 2 | 3 | 4 | 5; count: number; pct: number }[];
+}
+export type WeeklyReviewScans = Record<string, WeeklyReviewScanPoint[]>; // keyed by TrackedApp.key
+
 /** One day's Android vitals for an app — Play Console has no public API for
  * these (crash rate / ANR rate / user loss rate), so they're pasted in
  * manually (see parseQualityMetricsInput) rather than fetched. All three are

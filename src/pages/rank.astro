@@ -1431,6 +1431,78 @@ ai photo enhancer"></textarea>
         </div>`;
       }
 
+      // Average star rating across each weekly scan's full sample (see
+      // checkWeeklyReviewScan) — same shape/approach as universeSizeChart
+      // just below, but for a 0-5 decimal rather than an integer count.
+      function avgRatingTrendChart(points, W = 400) {
+        const pts = (points || []).filter((p) => p.avgRating != null);
+        if (pts.length < 2) return '<p class="hint">Not enough weekly scans yet — one more needed to show a trend.</p>';
+        const H = 170, padL = 28, padB = 18, padT = 8;
+        const plotW = W - padL - 8, plotH = H - padT - padB;
+        const vals = pts.map((p) => p.avgRating);
+        const minY = Math.max(0, Math.floor(Math.min(...vals) * 10) / 10 - 0.2);
+        const maxY = Math.min(5, Math.ceil(Math.max(...vals) * 10) / 10 + 0.2);
+        const span = Math.max(0.1, maxY - minY);
+        const x = (i) => padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
+        const y = (v) => padT + plotH - ((v - minY) / span) * plotH;
+        let out = '';
+        [minY, maxY].forEach((v) => {
+          out += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - 6}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>
+            <text x="${padL - 4}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--muted)">${v.toFixed(1)}</text>`;
+        });
+        const d = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.avgRating).toFixed(1)}`).join(' ');
+        out += `<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        const labelEvery = Math.ceil(pts.length / 6);
+        pts.forEach((p, i) => {
+          out += `<circle cx="${x(i).toFixed(1)}" cy="${y(p.avgRating).toFixed(1)}" r="3" fill="var(--ink)" stroke="var(--card)" stroke-width="2"/>`;
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(p.dateKey))}</div><div class="tt-r"><span>Avg rating</span><b>${p.avgRating.toFixed(2)}★</b></div><div class="tt-r"><span>Reviews scanned</span><b>${p.reviewsScanned}</b></div>`);
+          const cw = pts.length === 1 ? plotW : plotW / (pts.length - 1);
+          out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
+          if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(p.dateKey))}</text>`;
+        });
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+      }
+
+      // Deeper weekly read on ratings — up to 2000 reviews scanned once a
+      // week (see checkWeeklyReviewScan), vs the much smaller adaptive
+      // sample the daily 1-2★ trend above runs on every check. Answers
+      // "mention the ratings of the app" with a real average and a full
+      // 5-star breakdown, not just the negative share.
+      function weeklyReviewScanHtml(app) {
+        if (app.store !== 'play') return '';
+        const scans = app.weeklyReviewScans || [];
+        if (!scans.length) {
+          return `<div class="chartbox"><h4>Weekly review scan</h4><p class="hint">No scan yet — runs automatically once a week (up to 2000 of this app's most recent reviews), starting with the next nightly check.</p></div>`;
+        }
+        const latest = scans[scans.length - 1];
+        const prevScan = scans.length > 1 ? scans[scans.length - 2] : null;
+        const maxCount = Math.max(1, ...(latest.counts || []).map((c) => c.count));
+        const barsHtml = [5, 4, 3, 2, 1].map((star) => {
+          const c = (latest.counts || []).find((x) => x.star === star);
+          const count = c ? c.count : 0, pct = c ? c.pct : 0;
+          return `<div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <span style="width:20px;font-size:11.5px;font-weight:700;color:var(--muted);">${star}★</span>
+            <div style="flex:1;background:var(--bg);border-radius:4px;height:14px;overflow:hidden;">
+              <div style="width:${((count / maxCount) * 100).toFixed(1)}%;height:100%;background:${star <= 2 ? 'var(--bad)' : 'var(--ok)'};"></div>
+            </div>
+            <span style="font-size:11.5px;font-weight:700;min-width:84px;text-align:right;color:var(--ink);">${count} (${pct}%)</span>
+          </div>`;
+        }).join('');
+        const trend = scans.length >= 2 ? `<h4 style="margin:16px 0 4px;font-size:12.5px;color:var(--muted);">Average rating by week</h4>${avgRatingTrendChart(scans, chartWidth(700))}` : '';
+        return `<div class="chartbox">
+          <h4>Weekly review scan <span class="hint" style="display:inline;">— last scanned ${esc(fmtDay(latest.dateKey))}, ${latest.reviewsScanned} reviews over ${latest.windowDays}d</span></h4>
+          <div class="statblock">
+            <div class="tiles">
+              ${tileHtml('Average rating (★)', latest.avgRating, prevScan && prevScan.avgRating, true)}
+              ${tileHtml('Reviews scanned', latest.reviewsScanned, prevScan && prevScan.reviewsScanned)}
+              ${tileHtml('1-2★ share (%)', latest.negativeShare, prevScan && prevScan.negativeShare, true)}
+            </div>
+          </div>
+          ${barsHtml}
+          ${trend}
+        </div>`;
+      }
+
       // How big is the tracked keyword list on each day it was actually
       // checked — answers "is my keyword universe growing over time" with
       // real historical sizes (see universeSizeSeries server-side), not
@@ -2087,7 +2159,8 @@ ai photo enhancer"></textarea>
         }));
         return `<div class="chartbox"><h4>1-2★ rating share trend</h4>${picker.picker}
           ${granularityToggleHtml(ratingGranKey, ratingGran)}
-          ${ratingTrendChart(rebucketRatingHistory(app.ratingHistory, ratingGran), compSeries, chartWidth(700))}${ratingCountBars(app.ratingHistory)}</div>`;
+          ${ratingTrendChart(rebucketRatingHistory(app.ratingHistory, ratingGran), compSeries, chartWidth(700))}${ratingCountBars(app.ratingHistory)}</div>
+          ${weeklyReviewScanHtml(app)}`;
       }
 
       // Daily-tracked + coverage keywords, deduped (daily wins on overlap —
