@@ -1168,7 +1168,7 @@ ai photo enhancer"></textarea>
           const markRows = marks.map((m) => m.kind === 'ann'
             ? `<div class="tt-r"><span>${esc(ANN_TYPE_LABEL[m.type] || m.type)}</span><b>${esc(m.label)}</b></div>`
             : `<div class="tt-r"><span>Detected</span><b>${esc(m.label)}</b></div>`).join('');
-          const tid = tipId(`<div class="tt-d">${esc(fmtDay(day.dateKey))}</div><div class="tt-r"><span>Visibility score</span><b>${vals[i].toFixed(1)}</b></div>${covRow}${markRows}`);
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(day.dateKey))}</div><div class="tt-r"><span>Visibility score</span><b>${vals[i].toFixed(1)}</b></div>${compTipRows(compLines, i, (v) => v.toFixed(1))}${covRow}${markRows}`);
           const cw = days.length === 1 ? plotW : plotW / (days.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(day.dateKey))}</text>`;
@@ -1318,7 +1318,7 @@ ai photo enhancer"></textarea>
         history.forEach((v, i) => {
           if (v == null) return;
           out += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="var(--ink)" stroke="var(--card)" stroke-width="2"/>`;
-          const tid = tipId(`<div class="tt-d">${esc(fmtDay(dateKeys[i]))}</div><div class="tt-r"><span>${esc(label)}</span><b>#${v}</b></div>`);
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(dateKeys[i]))}</div><div class="tt-r"><span>${esc(label)}</span><b>#${v}</b></div>${compTipRows(compLines, i, (cv) => '#' + cv)}`);
           const cw = history.length === 1 ? plotW : plotW / (history.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(dateKeys[i]))}</text>`;
@@ -1393,7 +1393,7 @@ ai photo enhancer"></textarea>
           if (isLast || showAllMarkers) {
             out += `<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3" fill="var(--bad)" stroke="var(--card)" stroke-width="2"/>`;
           }
-          const tid = tipId(`<div class="tt-d">${esc(fmtDay(p.dateKey))}</div><div class="tt-r"><span>1-2★ share${p.windowDays ? ` (last ${p.windowDays}d)` : ''}</span><b>${p.v}%</b></div>`);
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(p.dateKey))}</div><div class="tt-r"><span>1-2★ share${p.windowDays ? ` (last ${p.windowDays}d)` : ''}</span><b>${p.v}%</b></div>${compTipRows(compLines, i, (v) => v + '%')}`);
           const cw = pts.length === 1 ? plotW : plotW / (pts.length - 1);
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(p.dateKey))}</text>`;
@@ -2579,6 +2579,25 @@ ai photo enhancer"></textarea>
         return `<div class="legend">${chip(youLabel, youColor)}${compLines.map((s) => chip(s.label, s.color, true)).join('')}${note}</div>`;
       }
 
+      // Every competitor-overlay chart (visibility, category rank, rating
+      // share, Compare's visibility trend) draws the competitor as a thin
+      // dashed line with NO hit-target of its own — only the primary
+      // series' hover column ever showed a tooltip, so a competitor's line
+      // could only ever be read by eye against the axis, never by hovering
+      // it (reported directly: "can't see comp numbers even if I mouse
+      // over my comp line"). Rather than giving each dashed line its own
+      // separate, hard-to-hit hover target (worse on a long/noisy range
+      // where lines cross), this appends every competitor's OWN value at
+      // the SAME x position into the one hover column that already exists
+      // — one hover, every series' number for that day, color-matched to
+      // its line/legend chip.
+      function compTipRows(compLines, i, fmt) {
+        return (compLines || []).map((s) => {
+          const v = s.vals[i];
+          return `<div class="tt-r"><span style="color:${s.color};">${esc(s.label)}</span><b>${v == null ? '–' : fmt(v)}</b></div>`;
+        }).join('');
+      }
+
       // Icon + short name instead of the full store title in comparison
       // TABLE headers specifically — a real app title ("PhonePe: UPI,
       // Recharge, Bill Pay & Insurance") can be 40+ characters, which is
@@ -2635,8 +2654,11 @@ ai photo enhancer"></textarea>
 
       function compareTrendChart(app, comps, kws) {
         const dateKeys = (state.snapshotDays || []).slice(-30);
-        const series = [{ titleHtml: compLabel(app, true), color: COMPARE_COLORS[0], vals: compareTrendSeries(app, kws, 30, dateKeys) },
-          ...comps.map((c, i) => ({ titleHtml: compLabel(c, false), color: COMPARE_COLORS[i + 1], vals: compareTrendSeries(c, kws, 30, dateKeys) }))];
+        // `label` (plain text, for the hover tooltip) alongside `titleHtml`
+        // (icon + shortened title, for the legend chip) — a tooltip row
+        // wants a plain string, not the icon markup the legend uses.
+        const series = [{ titleHtml: compLabel(app, true), label: 'You', color: COMPARE_COLORS[0], vals: compareTrendSeries(app, kws, 30, dateKeys) },
+          ...comps.map((c, i) => ({ titleHtml: compLabel(c, false), label: c.title.length > 20 ? c.title.slice(0, 19) + '…' : c.title, color: COMPARE_COLORS[i + 1], vals: compareTrendSeries(c, kws, 30, dateKeys) }))];
         const n = Math.max(...series.map((s) => s.vals.length));
         if (n < 2) return '';
         const dates = dateKeys.slice(-n);
@@ -2666,6 +2688,19 @@ ai photo enhancer"></textarea>
             started = true;
           });
           out += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        }
+        // This chart previously had NO hover at all — not even for "you" —
+        // so every line, yours included, could only ever be read by eye
+        // against the axis. One column per day, every series' value in the
+        // same tooltip, color-matched to its legend chip below.
+        for (let i = 0; i < n; i++) {
+          const rows = series.map((s) => {
+            const v = s.vals.slice(-n)[i];
+            return `<div class="tt-r"><span style="color:${s.color};">${esc(s.label)}</span><b>${v == null ? '–' : v.toFixed(1)}</b></div>`;
+          }).join('');
+          const tid = tipId(`<div class="tt-d">${esc(fmtDay(dates[i] || ''))}</div>${rows}`);
+          const cw = n === 1 ? plotW : plotW / (n - 1);
+          out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
         }
         const legend = series.map((s) => `<span class="li"><span class="sw" style="background:${s.color}"></span>${s.titleHtml}</span>`).join('');
         return `<div class="chartbox"><h4>Visibility trend on your keywords — you vs competitors</h4>
