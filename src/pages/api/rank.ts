@@ -6,7 +6,7 @@
 // Product mode (AppRankr): middleware guarantees a logged-in user with a live
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
-import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId } from '../../lib/rank/fetch';
+import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId, refreshListingMeta } from '../../lib/rank/fetch';
 import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets, curateTopKeywords, parseQualityMetricsInput, snapshotsInRange } from '../../lib/rank/track';
 import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadReviewThemes, loadQualityMetrics, mergeQualityMetrics, listConfigBackups, restoreConfigBackup, ConfigReadError } from '../../lib/rank/store';
 import { analyzeReviewThemes } from '../../lib/rank/themes';
@@ -990,6 +990,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     for (const a of targets) {
       try { if (await backfillDeveloperId(a)) backfilled = true; } catch { /* best-effort */ }
       try { if (await backfillGenreId(a)) backfilled = true; } catch { /* best-effort */ }
+      try { if (await refreshListingMeta(a)) backfilled = true; } catch { /* best-effort */ }
     }
     if (backfilled) saveConfig(cfg, userId);
 

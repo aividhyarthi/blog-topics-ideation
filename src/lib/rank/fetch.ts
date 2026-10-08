@@ -149,6 +149,33 @@ export async function backfillGenreId(app: TrackedApp): Promise<boolean> {
   }
 }
 
+/**
+ * Keeps `title` (and `icon`) in sync with what the store currently shows.
+ * Unlike backfillDeveloperId/backfillGenreId above, title isn't a "fill in
+ * once and never touch again" field — a developer can rename their listing
+ * at any time, and `title` was previously only ever captured once, when the
+ * app was added (see TrackedApp.title's own doc comment). A stale title
+ * doesn't just look wrong in the dashboard: it's compared against the title
+ * the store returns for every keyword search (see KeywordRank.matchedTitle
+ * and TrackedApp.cslTitles), so a real rename left every single keyword
+ * looking like it had started ranking under some OTHER listing — a false
+ * positive on every row, not a cosmetic staleness issue. Runs alongside the
+ * backfills above (same call sites), so a rename self-heals on the next
+ * check instead of needing a manual remove-and-re-add. Best-effort and
+ * silent on failure, same as its siblings.
+ */
+export async function refreshListingMeta(app: TrackedApp): Promise<boolean> {
+  try {
+    const meta = await fetchAppMeta(app.store, app.appId, app.country, app.lang);
+    let changed = false;
+    if (meta.title && meta.title !== app.title) { app.title = meta.title; changed = true; }
+    if (meta.icon && meta.icon !== app.icon) { app.icon = meta.icon; changed = true; }
+    return changed;
+  } catch {
+    return false;
+  }
+}
+
 /* ----------------------------- keyword search ----------------------------- */
 
 /** Ordered search results for a keyword on the given store front. */

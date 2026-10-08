@@ -16,7 +16,7 @@ import { loadConfig, saveConfig, loadSnapshot, loadSnapshots, loadCoverageSnapsh
 import { runCheck, checkCoverageBatch, checkRating, retryFailedChart, SearchCache, newMeter } from './check';
 import type { RequestMeter } from './check';
 import { analyzeReviewThemes } from './themes';
-import { backfillDeveloperId, backfillGenreId } from './fetch';
+import { backfillDeveloperId, backfillGenreId, refreshListingMeta } from './fetch';
 import { withTenantLock } from './lock';
 import { keywordTrends, overviewSeries, countsFromBuckets, universeSizeSeries, todayKey, isWithinCheckWindow, keywordDifficulties, istParts } from './track';
 import { parseReportEmails, buildDailyReportEmail, buildRankAlertEmail, buildWeeklyDigestEmail, sendReportEmail } from './email';
@@ -135,6 +135,7 @@ export async function runNightlyCheck(overallBudgetMs = 4 * 60 * 1000, trigger =
       for (const a of cfg.apps) {
         try { if (await backfillDeveloperId(a)) backfilled = true; } catch { /* best-effort */ }
         try { if (await backfillGenreId(a)) backfilled = true; } catch { /* best-effort */ }
+        try { if (await refreshListingMeta(a)) backfilled = true; } catch { /* best-effort */ }
       }
       if (backfilled) saveConfig(fullCfg, userId);
 
