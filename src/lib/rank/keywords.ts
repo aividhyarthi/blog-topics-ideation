@@ -217,6 +217,14 @@ export function parseKeywordsWithThreeValues(blob: unknown, max: number): Parsed
           const roles: ColRole[] = [null, ...cells.slice(1).map(roleFromHeaderLabel)];
           if (roles.some((r) => r != null)) { colRoles = roles; continue; } // header row itself, not data
         }
+        // Same back-compat rule as the tab-separated case below: an
+        // un-headered 2-cell row ("| keyword | 1234 |") is the app volume,
+        // not the web volume the bare positional fallback would otherwise
+        // give it.
+        if (!colRoles && cells.length === 2) {
+          add(cells[0], undefined, parseNum(cells[1]));
+          continue;
+        }
         let web: number | undefined, appv: number | undefined, cpcv: number | undefined;
         for (let i = 1; i < cells.length; i++) {
           const role: ColRole = colRoles ? colRoles[i] : (i === 1 ? 'web' : i === 2 ? 'app' : i === 3 ? 'cpc' : null);
@@ -237,6 +245,19 @@ export function parseKeywordsWithThreeValues(blob: unknown, max: number): Parsed
         headerChecked = true;
         const roles: ColRole[] = [null, ...tabParts.slice(1).map(roleFromHeaderLabel)];
         if (roles.some((r) => r != null)) { colRoles = roles; continue; }
+      }
+      // No header, exactly 2 columns ("keyword<TAB>1234"): treated as the
+      // APP volume — same back-compat rule parseKeywordsWithTwoVolumes uses
+      // for its own 2-column tab case, and the same meaning the comma form
+      // just below gives identical-shaped input. Without this, a bare
+      // "keyword<TAB>1234" (exactly what a spreadsheet paste looks like)
+      // silently landed in webVolumes instead via the positional i===1
+      // fallback below, while the SAME two values typed as "keyword, 1234"
+      // landed in volumes (app) — identical data split across two different
+      // fields purely by which separator the paste happened to use.
+      if (!colRoles && tabParts.length === 2) {
+        add(tabParts[0], undefined, parseNum(tabParts[1]));
+        continue;
       }
       let web: number | undefined, appv: number | undefined, cpcv: number | undefined;
       for (let i = 1; i < tabParts.length; i++) {
