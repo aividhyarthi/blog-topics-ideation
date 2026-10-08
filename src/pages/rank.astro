@@ -346,6 +346,21 @@ const limitsText = product && plan
       .dangerzone h4 { margin: 0 0 6px; font-size: 13px; color: var(--bad); }
       .settings-block { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; background: var(--card); }
       .settings-block h4 { margin: 0 0 4px; font-size: 13.5px; }
+      /* Settings that are set once and rarely revisited (CSL titles, email
+         report, alerts, check window, Android vitals, competitor
+         relationship, backups, danger zone) — collapsed by default so the
+         tab opens on the handful of controls actually touched often
+         (keywords, volumes, competitors), with everything else one click
+         away instead of a long scroll of mostly-dormant sections. */
+      details.settings-advanced { border: 1px dashed var(--line); border-radius: 10px; padding: 2px 16px; margin-top: 4px; }
+      details.settings-advanced > summary { cursor: pointer; padding: 12px 0; font-weight: 700; font-size: 13.5px; color: var(--muted); list-style: none; }
+      details.settings-advanced > summary::-webkit-details-marker { display: none; }
+      details.settings-advanced > summary::before { content: '▸ '; }
+      details.settings-advanced[open] > summary::before { content: '▾ '; }
+      details.settings-advanced[open] > summary { color: var(--ink); }
+      details.settings-advanced .settings-block:first-of-type { margin-top: 2px; }
+      details.settings-advanced .settings-block:last-of-type,
+      details.settings-advanced .dangerzone:last-of-type { margin-bottom: 16px; }
       .complist { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
       .complist-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; font-size: 13px; }
       .complist-row + .complist-row { border-top: 1px solid var(--line); }
@@ -566,6 +581,12 @@ ai photo enhancer"></textarea>
       // having to know which tab a keyword landed in.
       const dailySearchState = {};
       const covSearchState = {};
+      // Daily/Weekly/Monthly rollup choice per chart, keyed by
+      // `${app.key}:${chartKey}` (e.g. "abc123:rating", "abc123:chart") so
+      // the rating trend and category-rank trend remember their granularity
+      // independently, same as every other per-app UI state here. Default
+      // 'daily' (today's behavior) when a key has never been touched.
+      const trendGranularity = {};
 
       // Hardcoded category rules (not user-editable) — grouping a long
       // coverage list by topic instead of one flat list. "Brand + Comp" is
@@ -1163,6 +1184,63 @@ ai photo enhancer"></textarea>
         // was actually being reported as the dates looking "dragged").
         const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:hidden;">${out}</svg>`;
         return svg + compareLegendHtml('You', 'var(--ok)', compLines, compMaxY != null);
+      }
+
+      // Daily/Weekly/Monthly rollup for any day-by-day trend — a 6-month
+      // range at daily granularity is ~180 points on one line, dense enough
+      // that the week-to-week or month-to-month shape is hard to read.
+      // 'daily' is a no-op passthrough; weekly buckets Monday-to-Sunday,
+      // monthly buckets by calendar month. Every bucket is averaged (not
+      // "latest" or "best") — one rule for both the rank chart and the
+      // review-share chart, rather than each picking its own convention.
+      // Rounded to a whole number so a rank still reads as "#4", never a
+      // fractional "#4.2".
+      function bucketKeyFor(dateKey, granularity) {
+        if (granularity === 'monthly') return dateKey.slice(0, 7); // YYYY-MM
+        if (granularity === 'weekly') {
+          const d = new Date(dateKey + 'T00:00:00Z');
+          const diffToMonday = (d.getUTCDay() + 6) % 7; // 0=Mon ... 6=Sun
+          d.setUTCDate(d.getUTCDate() - diffToMonday);
+          return d.toISOString().slice(0, 10); // that week's Monday
+        }
+        return dateKey;
+      }
+      function rebucketSeries(dateKeys, values, granularity) {
+        if (granularity === 'daily' || !dateKeys.length) return { dateKeys, values };
+        const buckets = new Map(); // bucket key -> { sum, count, lastDate }
+        dateKeys.forEach((dk, i) => {
+          const key = bucketKeyFor(dk, granularity);
+          const v = values[i];
+          const b = buckets.get(key) || { sum: 0, count: 0, lastDate: dk };
+          if (v != null) { b.sum += v; b.count += 1; }
+          if (dk > b.lastDate) b.lastDate = dk;
+          buckets.set(key, b);
+        });
+        // Map preserves insertion order, and dateKeys arrives chronological,
+        // so the buckets come out chronological too — no separate sort.
+        const outDateKeys = [], outValues = [];
+        for (const b of buckets.values()) {
+          outDateKeys.push(b.lastDate);
+          outValues.push(b.count ? Math.round(b.sum / b.count) : null);
+        }
+        return { dateKeys: outDateKeys, values: outValues };
+      }
+      // Same rule, applied to a RatingHistoryPoint[] (dateKey + negativeShare
+      // + tone, not a plain parallel array) — reshapes through the generic
+      // numeric rebucket above rather than duplicating the bucketing logic.
+      function rebucketRatingHistory(history, granularity) {
+        if (granularity === 'daily' || !(history || []).length) return history || [];
+        const dateKeys = history.map((h) => h.dateKey);
+        const values = history.map((h) => (h.tone === 'na' ? null : h.negativeShare));
+        const { dateKeys: outDK, values: outV } = rebucketSeries(dateKeys, values, granularity);
+        return outDK.map((dateKey, i) => ({ dateKey, negativeShare: outV[i], tone: outV[i] == null ? 'na' : 'mid', windowDays: null }));
+      }
+      // Daily/Weekly/Monthly segmented control, same pill styling as the
+      // date-range presets. `chartKey` is what the delegated click handler
+      // uses to know which state slot (and which chart) to update.
+      function granularityToggleHtml(chartKey, current) {
+        const opt = (g, label) => `<span class="seg ${current === g ? 'active' : ''}" data-granularity="${g}" data-chart-key="${escAttr(chartKey)}">${label}</span>`;
+        return `<div class="segwrap no-print" style="margin-bottom:6px;">${opt('daily', 'Daily')}${opt('weekly', 'Weekly')}${opt('monthly', 'Monthly')}</div>`;
       }
 
       // Category (top-chart) position trend — top = best rank, same
@@ -1922,21 +2000,31 @@ ai photo enhancer"></textarea>
         const notRankedText = chartName
           ? `Not in the top ${depth || '?'} of ${esc(chartName)}.`
           : 'Not ranked in a top chart yet.';
-        return isChartRanking
-          ? `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>${chartPositionTrend(app.chart.dateKeys, chartHist, undefined, undefined, chartWidth(400))}${overallNote}${depthNote}</div>`
-          : `<div class="chartbox"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : notRankedText}</p>${overallNote}${depthNote}</div>`;
+        if (!isChartRanking) {
+          return `<div class="chartbox"><h4>Category chart rank trend</h4>${chartErrHtml}<p class="hint">${chartErrHtml ? '' : notRankedText}</p>${overallNote}${depthNote}</div>`;
+        }
+        const chartGranKey = `${app.key}:chart`;
+        const chartGran = trendGranularity[chartGranKey] || 'daily';
+        const { dateKeys: gDateKeys, values: gHist } = rebucketSeries(app.chart.dateKeys, chartHist, chartGran);
+        return `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>
+          ${granularityToggleHtml(chartGranKey, chartGran)}
+          ${chartPositionTrend(gDateKeys, gHist, undefined, undefined, chartWidth(400))}${overallNote}${depthNote}</div>`;
       }
 
       function trendChartsHtml(app) {
         // Same shared compareState as the visibility chart's picker — ticking
         // a competitor there shows it here too, one selection either way.
         const picker = comparePickerHtml(app, comparableApps(app));
+        const ratingGranKey = `${app.key}:rating`;
+        const ratingGran = trendGranularity[ratingGranKey] || 'daily';
         const compSeries = picker.comps.map((c, i) => ({
           label: c.title.length > 20 ? c.title.slice(0, 19) + '…' : c.title,
           color: COMPARE_COLORS[i + 1],
-          history: c.ratingHistory || [],
+          history: rebucketRatingHistory(c.ratingHistory || [], ratingGran),
         }));
-        return `<div class="chartbox"><h4>1-2★ rating share trend</h4>${picker.picker}${ratingTrendChart(app.ratingHistory, compSeries, chartWidth(700))}${ratingCountBars(app.ratingHistory)}</div>`;
+        return `<div class="chartbox"><h4>1-2★ rating share trend</h4>${picker.picker}
+          ${granularityToggleHtml(ratingGranKey, ratingGran)}
+          ${ratingTrendChart(rebucketRatingHistory(app.ratingHistory, ratingGran), compSeries, chartWidth(700))}${ratingCountBars(app.ratingHistory)}</div>`;
       }
 
       // Daily-tracked + coverage keywords, deduped (daily wins on overlap —
@@ -2842,6 +2930,38 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="add-coverage">Add to coverage list</button>
             </div>
           </div>
+          <div class="settings-block no-print" data-guest-hide>
+            <h4>Keyword volumes</h4>
+            <p class="hint" style="margin:0 0 8px;">If you already have search volume data (e.g. from AppRadar or your own research), paste it in alongside your keywords and we'll use it as-is. This button estimates the <b>missing</b> ones for you on a 0–100 popularity scale. Click again if some keywords are still blank after the first pass.</p>
+            <button class="ghost" data-act="estimate-volumes">Estimate missing volumes</button>
+            <p class="hint" style="margin:12px 0 8px;">Have both a <b>web search</b> volume (e.g. SEMrush/Ahrefs) and an <b>app search</b> number for keywords already tracked? Use this box to add or update just the web number without touching the app number — one per line, "keyword, volume", merges in, never replaces. Adding brand-new keywords with web volume, app volume, and CPC all at once? Paste up to 4 columns straight into the All Keywords box above instead — no need to come back here.</p>
+            <textarea data-role="webvoltext" placeholder="e.g.&#10;emi calculator, 40500&#10;loan calculator, 33200"></textarea>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="save-web-volumes">Save web search volumes</button>
+            </div>
+          </div>
+          <div class="settings-block no-print">
+            <h4>Competitors</h4>
+            <p class="hint" style="margin:0 0 8px;">Rival apps tracked against this one — they show up in this app's Compare tab. Add one by pasting its Google Play / App Store URL or id; remove one to stop tracking it entirely.</p>
+            ${(() => {
+              const comps = state.apps.filter((a) => a.competitorOf === app.key);
+              if (!comps.length) return '<p class="hint" style="margin:0 0 8px;">No competitors tracked yet.</p>';
+              return `<div class="complist">${comps.map((c) => `
+                <div class="complist-row" data-key="${escAttr(c.key)}">
+                  <span>${esc(c.title)} <span class="hint">(${c.store === 'play' ? 'Google Play' : 'App Store'} · ${esc(c.country.toUpperCase())})</span></span>
+                  <button class="ghost danger small" data-act="remove-competitor" data-key="${escAttr(c.key)}">Remove</button>
+                </div>`).join('')}</div>`;
+            })()}
+            <div style="display:grid;grid-template-columns:2.2fr 110px;gap:10px;margin-top:10px;">
+              <input type="text" data-role="add-competitor-input" placeholder="Play/App Store URL, package id, or id123456789" />
+              <input type="text" data-role="add-competitor-country" placeholder="Country (${esc(app.country)})" maxlength="2" />
+            </div>
+            <div class="row" style="margin-top:8px;">
+              <button class="ghost" data-act="add-competitor">Add competitor</button>
+            </div>
+          </div>
+          <details class="settings-advanced no-print">
+            <summary>Advanced settings — CSL titles, email report, alerts, check window, Android vitals, competitor relationship, backups, remove app</summary>
           <div class="settings-block no-print">
             <h4>Custom store listing (CSL) titles</h4>
             <p class="hint" style="margin:0 0 8px;">Google Play can serve a Custom Store Listing instead of your main listing for a search matched by targeting rules like country — same app, different title. When that happens, your keyword tables flag it instead of silently assuming it's your main listing. List every CSL title you've created for this app, one per line, so it can tell "main listing" from "a CSL you made" from "something unrecognized" (worth a second look). Purely informational — this never changes a rank, only how it's labeled. Takes effect on the next check for each keyword, not retroactively.</p>
@@ -2869,16 +2989,6 @@ ai photo enhancer"></textarea>
             </select>
             <div class="row" style="margin-top:8px;">
               <button class="ghost" data-act="save-alert">Save alert setting</button>
-            </div>
-          </div>
-          <div class="settings-block no-print" data-guest-hide>
-            <h4>Keyword volumes</h4>
-            <p class="hint" style="margin:0 0 8px;">If you already have search volume data (e.g. from AppRadar or your own research), paste it in alongside your keywords and we'll use it as-is. This button estimates the <b>missing</b> ones for you on a 0–100 popularity scale. Click again if some keywords are still blank after the first pass.</p>
-            <button class="ghost" data-act="estimate-volumes">Estimate missing volumes</button>
-            <p class="hint" style="margin:12px 0 8px;">Have both a <b>web search</b> volume (e.g. SEMrush/Ahrefs) and an <b>app search</b> number for keywords already tracked? Use this box to add or update just the web number without touching the app number — one per line, "keyword, volume", merges in, never replaces. Adding brand-new keywords with web volume, app volume, and CPC all at once? Paste up to 4 columns straight into the All Keywords box above instead — no need to come back here.</p>
-            <textarea data-role="webvoltext" placeholder="e.g.&#10;emi calculator, 40500&#10;loan calculator, 33200"></textarea>
-            <div class="row" style="margin-top:8px;">
-              <button class="ghost" data-act="save-web-volumes">Save web search volumes</button>
             </div>
           </div>
           <div class="settings-block no-print" data-guest-hide>
@@ -2924,26 +3034,6 @@ ai photo enhancer"></textarea>
             </div>
             <p class="hint" style="margin-top:6px;">A real rise here that's followed by a real visibility drop shows up automatically in the Insights tab and is marked on the visibility chart — same as a rating spike.</p>
           </div>
-          <div class="settings-block no-print">
-            <h4>Competitors</h4>
-            <p class="hint" style="margin:0 0 8px;">Rival apps tracked against this one — they show up in this app's Compare tab. Add one by pasting its Google Play / App Store URL or id; remove one to stop tracking it entirely.</p>
-            ${(() => {
-              const comps = state.apps.filter((a) => a.competitorOf === app.key);
-              if (!comps.length) return '<p class="hint" style="margin:0 0 8px;">No competitors tracked yet.</p>';
-              return `<div class="complist">${comps.map((c) => `
-                <div class="complist-row" data-key="${escAttr(c.key)}">
-                  <span>${esc(c.title)} <span class="hint">(${c.store === 'play' ? 'Google Play' : 'App Store'} · ${esc(c.country.toUpperCase())})</span></span>
-                  <button class="ghost danger small" data-act="remove-competitor" data-key="${escAttr(c.key)}">Remove</button>
-                </div>`).join('')}</div>`;
-            })()}
-            <div style="display:grid;grid-template-columns:2.2fr 110px;gap:10px;margin-top:10px;">
-              <input type="text" data-role="add-competitor-input" placeholder="Play/App Store URL, package id, or id123456789" />
-              <input type="text" data-role="add-competitor-country" placeholder="Country (${esc(app.country)})" maxlength="2" />
-            </div>
-            <div class="row" style="margin-top:8px;">
-              <button class="ghost" data-act="add-competitor">Add competitor</button>
-            </div>
-          </div>
           <div class="settings-block no-print" data-guest-hide>
             <h4>Competitor relationship</h4>
             <p class="hint" style="margin:0 0 8px;">If this app is a rival you're tracking rather than your own, pick which of your apps it's a competitor for — that's what scopes it into that app's Compare tab instead of showing up everywhere.</p>
@@ -2983,7 +3073,8 @@ ai photo enhancer"></textarea>
             <h4>Danger zone</h4>
             <p class="hint" style="margin:0 0 8px;">Stops tracking this app. Its saved history stays on disk but will no longer be shown.</p>
             <button class="ghost danger" data-act="remove">Remove this app</button>
-          </div>`;
+          </div>
+          </details>`;
 
         const bySection = {
           overview: sectionOverviewFn, insights: sectionInsightsFn, keywords: sectionKeywordsFn, coverage: sectionCoverageFn,
@@ -3510,6 +3601,12 @@ ai photo enhancer"></textarea>
         if (catTab) {
           const card = catTab.closest('.appcard');
           catTabState[card.getAttribute('data-key')] = catTab.getAttribute('data-cattab');
+          render();
+          return;
+        }
+        const granTab = ev.target.closest('[data-granularity]');
+        if (granTab) {
+          trendGranularity[granTab.getAttribute('data-chart-key')] = granTab.getAttribute('data-granularity');
           render();
           return;
         }
