@@ -381,6 +381,11 @@ const SPEC = {
   'google-play-memory-zero-tap-signin-requirements':
     { art: 'bars', takeaway: 'Two new bars, two different deadlines',
       bars: [['memory checks: Feb 2027', 100], ['zero-tap sign-in: Apr 2027', 75]] },
+  'google-play-target-api-level-deadline-extension':
+    { art: 'threshold', band: 'extension closes Nov 1', takeaway: 'Aug 31 passed — the real deadline now is November 1' },
+  'apple-guideline-4-3b-inactive-app-removal':
+    { art: 'chips', takeaway: 'Six named categories, not every app on the Store',
+      chips: ['dating', 'flashlight', 'wallpaper', 'fortune telling'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
