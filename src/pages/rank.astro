@@ -471,7 +471,7 @@ const limitsText = product && plan
               <span class="seg" data-days="30">30D</span>
               <span class="seg" data-days="90">90D</span>
               <span class="seg" data-days="180">6M</span>
-              <span class="seg active" data-days="">ALL</span>
+              <span class="seg active" data-days="730">ALL</span>
             </div>
             <div class="row">
               <label class="hint" style="margin:0;" for="range-from">From</label>
@@ -546,7 +546,25 @@ ai photo enhancer"></textarea>
       // charts server-side (see /api/rank's `range` handling) instead of the
       // fixed trailing 60/90-day windows. Same state and same picker for an
       // owner and a read-only guest; nothing here checks state.readOnly.
-      let rangeFrom = '';
+      //
+      // "ALL" is the default-active preset in the markup above, but leaving
+      // rangeFrom/rangeTo blank here did NOT actually mean "all history" —
+      // an empty range is indistinguishable server-side from "no picker
+      // touched at all", which falls back to each series' own short default
+      // window (30 days for the category-rank chart, 60 for the overview,
+      // 90 for the headline chart) regardless of how much real history the
+      // account actually has. That made "ALL" a label that lied: a client
+      // who'd been tracked for months only ever saw the last month on the
+      // category chart, with no visual sign anything was being hidden.
+      // Matches the ALL button's own data-days="730" (the server's existing
+      // 2-year hard cap on any custom range — see /api/rank's `daysBack`),
+      // so the very first load already requests real full history instead
+      // of only matching that once the button is explicitly clicked.
+      let rangeFrom = (() => {
+        const d = new Date();
+        d.setUTCDate(d.getUTCDate() - 730);
+        return d.toISOString().slice(0, 10);
+      })();
       let rangeTo = '';
       // Cross-app summary view ("All apps") — an alternative to renderApp()
       // for the single selected app, so an account with several tracked
@@ -1245,12 +1263,30 @@ ai photo enhancer"></textarea>
 
       // Category (top-chart) position trend — top = best rank, same
       // low-is-good inversion as the per-keyword sparkline.
-      function chartPositionTrend(dateKeys, history, label = 'Category rank', emptyMsg = 'No category chart data yet.', W = 400) {
+      // `compareSeries` (optional): [{ label, color, dateKeys, history }],
+      // each a competitor's OWN category-chart series — aligned to the
+      // primary's dateKeys by matching date (two apps' check days don't
+      // line up 1:1), same alignByDateKey approach ratingTrendChart uses.
+      // Unlike visibility score or rating share, a store rank is directly
+      // comparable across apps (#1 always means #1 to anyone), so this
+      // shares ONE y-axis for everyone rather than the dual-axis scaling
+      // those other charts need — simpler, and arguably more honest here.
+      // One real caveat competitors can sit in a DIFFERENT category chart
+      // than the primary app, which the chart itself has no way to flag —
+      // left to the caller's own hint text, not drawn here.
+      function chartPositionTrend(dateKeys, history, label = 'Category rank', emptyMsg = 'No category chart data yet.', W = 400, compareSeries) {
         const known = history.filter((v) => v != null);
         if (!known.length) return `<p class="hint">${esc(emptyMsg)}</p>`;
+        const primaryPts = dateKeys.map((dk) => ({ dateKey: dk }));
+        const compLines = (compareSeries || []).map((s) => ({
+          ...s,
+          vals: alignByDateKey(primaryPts, (s.dateKeys || []).map((dk, i) => ({ dateKey: dk, v: s.history[i] })), (p) => p.v),
+        }));
         const H = 170, padL = 34, padB = 18, padT = 8;
         const plotW = W - padL - 8, plotH = H - padT - padB;
-        const minV = Math.min(...known), maxV = Math.max(...known);
+        const compKnown = compLines.flatMap((s) => s.vals.filter((v) => v != null));
+        const minV = Math.min(...known, ...compKnown);
+        const maxV = Math.max(...known, ...compKnown);
         const span = Math.max(1, maxV - minV);
         const x = (i) => padL + (history.length === 1 ? plotW / 2 : (i / (history.length - 1)) * plotW);
         const y = (v) => padT + ((v - minV) / span) * plotH;
@@ -1259,6 +1295,18 @@ ai photo enhancer"></textarea>
           out += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - 6}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>
             <text x="${padL - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--muted)">#${v}</text>`;
         });
+        // Competitor lines first (plain, no fill, no markers) so the
+        // primary line stays visually on top — same layering convention
+        // ratingTrendChart/compareTrendChart already use.
+        for (const s of compLines) {
+          let cd = '', cstarted = false;
+          s.vals.forEach((v, i) => {
+            if (v == null) { cstarted = false; return; }
+            cd += `${cstarted ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+            cstarted = true;
+          });
+          if (cd) out += `<path d="${cd}" fill="none" stroke="${s.color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4,3"/>`;
+        }
         let d = '', started = false;
         history.forEach((v, i) => {
           if (v == null) { started = false; return; }
@@ -1275,7 +1323,8 @@ ai photo enhancer"></textarea>
           out += `<rect class="hcol" data-tip="${tid}" x="${(x(i) - cw / 2).toFixed(1)}" y="${padT}" width="${cw.toFixed(1)}" height="${plotH + padB}" fill="transparent"/>`;
           if (i % labelEvery === 0) out += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${esc(fmtDay(dateKeys[i]))}</text>`;
         });
-        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${out}</svg>`;
+        return svg + compareLegendHtml(label, 'var(--ink)', compLines, false);
       }
 
       // 1-2★ share trend — one cheap (no-AI) point per nightly check, shows
@@ -2006,9 +2055,23 @@ ai photo enhancer"></textarea>
         const chartGranKey = `${app.key}:chart`;
         const chartGran = trendGranularity[chartGranKey] || 'daily';
         const { dateKeys: gDateKeys, values: gHist } = rebucketSeries(app.chart.dateKeys, chartHist, chartGran);
+        // Same shared compareState the rating/visibility pickers use —
+        // ticking a competitor anywhere shows it everywhere for this app.
+        const picker = comparePickerHtml(app, comparableApps(app));
+        const compSeries = picker.comps.map((c, i) => {
+          const cDateKeys = (c.chart && c.chart.dateKeys) || [];
+          const cHist = (c.chart && c.chart.history) || [];
+          // Rebucketed with the SAME granularity as the primary line —
+          // otherwise a weekly-averaged primary against a daily competitor
+          // line would draw two series on incompatible x-axis spacing.
+          const { dateKeys: cgDateKeys, values: cgHist } = rebucketSeries(cDateKeys, cHist, chartGran);
+          return { label: c.title.length > 20 ? c.title.slice(0, 19) + '…' : c.title, color: COMPARE_COLORS[i + 1], dateKeys: cgDateKeys, history: cgHist };
+        });
         return `<div class="chartbox"><h4>Category chart rank trend${chartName ? ` — ${esc(chartName)}` : ''}</h4>
+          ${picker.picker}
           ${granularityToggleHtml(chartGranKey, chartGran)}
-          ${chartPositionTrend(gDateKeys, gHist, undefined, undefined, chartWidth(400))}${overallNote}${depthNote}</div>`;
+          ${chartPositionTrend(gDateKeys, gHist, undefined, undefined, chartWidth(400), compSeries)}${overallNote}${depthNote}
+          ${compSeries.length ? '<p class="hint" style="margin-top:4px;">A competitor’s line is its OWN category chart position, which may sit in a different chart than yours — a rough side-by-side, not a same-chart comparison unless both names above match.</p>' : ''}</div>`;
       }
 
       function trendChartsHtml(app) {
