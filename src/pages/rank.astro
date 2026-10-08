@@ -2842,7 +2842,7 @@ ai photo enhancer"></textarea>
               <button class="ghost" data-act="add-coverage">Add to coverage list</button>
             </div>
           </div>
-          <div class="settings-block no-print" data-guest-hide>
+          <div class="settings-block no-print">
             <h4>Custom store listing (CSL) titles</h4>
             <p class="hint" style="margin:0 0 8px;">Google Play can serve a Custom Store Listing instead of your main listing for a search matched by targeting rules like country — same app, different title. When that happens, your keyword tables flag it instead of silently assuming it's your main listing. List every CSL title you've created for this app, one per line, so it can tell "main listing" from "a CSL you made" from "something unrecognized" (worth a second look). Purely informational — this never changes a rank, only how it's labeled. Takes effect on the next check for each keyword, not retroactively.</p>
             <textarea data-role="csltext" placeholder="One custom store listing title per line, e.g.&#10;${esc(app.title || 'Your App')} - Diwali Offer&#10;${esc(app.title || 'Your App')} for Students">${esc((app.cslTitles || []).join('\n'))}</textarea>
@@ -3174,13 +3174,13 @@ ai photo enhancer"></textarea>
         'pdf', 'close-addapp-modal', 'close-kwmodal', 'dismiss-discover',
         'save-kw', 'save-coverage', 'save-report-emails', 'save-alert',
         'add-competitor', 'remove-competitor', 'save-annotation', 'remove-annotation',
-        'save-quality-metrics',
+        'save-quality-metrics', 'save-csl-titles',
       ]);
       const READONLY_SAFE_ROLES = new Set([
         'kwtext', 'covtext', 'report-emails', 'alert-select', 'quality-metrics-input',
         'add-competitor-input', 'add-competitor-country',
         'ann-date', 'ann-type', 'ann-label', 'ann-keywords',
-        'dailysearch', 'covsearch',
+        'dailysearch', 'covsearch', 'csltext',
       ]);
       function applyReadOnly() {
         if (!state.readOnly) return;

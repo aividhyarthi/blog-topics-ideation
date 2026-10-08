@@ -423,7 +423,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     'add-keywords', 'set-keywords', 'set-coverage-keywords', 'add-coverage-keywords', 'set-web-volumes',
     'add-annotation', 'remove-annotation',
     'save-quality-metrics', 'set-report-emails', 'set-alert',
-    'add-app', 'remove-app',
+    'add-app', 'remove-app', 'set-csl-titles',
   ]);
   if (t.readOnly && !GUEST_SAFE_ACTIONS.has(action)) {
     return json({ error: 'This is a read-only shared view — ask the account owner to make changes.' }, 403);
