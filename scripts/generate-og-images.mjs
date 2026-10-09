@@ -386,6 +386,9 @@ const SPEC = {
   'apple-guideline-4-3b-inactive-app-removal':
     { art: 'chips', takeaway: 'Six named categories, not every app on the Store',
       chips: ['dating', 'flashlight', 'wallpaper', 'fortune telling'] },
+  'android-appfunctions-gemini-call-your-app':
+    { art: 'diverge', takeaway: 'A second path into your app, straight past the UI',
+      a: 'tap through your screens', b: 'Gemini calls the function' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
