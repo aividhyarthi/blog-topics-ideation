@@ -389,6 +389,9 @@ const SPEC = {
   'android-appfunctions-gemini-call-your-app':
     { art: 'diverge', takeaway: 'A second path into your app, straight past the UI',
       a: 'tap through your screens', b: 'Gemini calls the function' },
+  'google-play-billing-library-deadline-confusion':
+    { art: 'diverge', takeaway: 'Google’s own page gives two different answers',
+      a: 'banner says: version 8', b: 'table says: version 7' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
