@@ -392,6 +392,9 @@ const SPEC = {
   'google-play-billing-library-deadline-confusion':
     { art: 'diverge', takeaway: 'Google’s own page gives two different answers',
       a: 'banner says: version 8', b: 'table says: version 7' },
+  'apple-bundles-suites-subscriptions':
+    { art: 'chips', takeaway: 'Up to 5 developers, one combined subscription',
+      chips: ['single-developer Bundle', 'multi-developer Bundle (5 max)', 'Suite (15 apps)'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
