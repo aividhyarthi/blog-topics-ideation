@@ -395,6 +395,9 @@ const SPEC = {
   'apple-bundles-suites-subscriptions':
     { art: 'chips', takeaway: 'Up to 5 developers, one combined subscription',
       chips: ['single-developer Bundle', 'multi-developer Bundle (5 max)', 'Suite (15 apps)'] },
+  'google-play-protected-with-play-app-integrity-moved':
+    { art: 'diverge', takeaway: 'The old page is gone, not the settings',
+      a: 'App integrity (old page)', b: 'Protected with Play (now)' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
