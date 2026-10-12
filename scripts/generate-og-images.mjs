@@ -398,6 +398,9 @@ const SPEC = {
   'google-play-protected-with-play-app-integrity-moved':
     { art: 'diverge', takeaway: 'The old page is gone, not the settings',
       a: 'App integrity (old page)', b: 'Protected with Play (now)' },
+  'play-console-ai-tools-grow-overview-changes':
+    { art: 'chips', takeaway: 'Real changes, confirmed by Google’s own I/O 2026 post',
+      chips: ['Grow page: 1-click listing', 'CSV listing upload', 'agentic catalog tools'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
