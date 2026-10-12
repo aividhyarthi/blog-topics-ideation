@@ -2493,7 +2493,7 @@ ai photo enhancer"></textarea>
         if (known) {
           return ` <span class="pill cc" title="Store search showed this app under its &quot;${escAttr(known)}&quot; custom store listing for this keyword, not the main listing.">CSL: ${esc(known.length > 20 ? known.slice(0, 19) + '…' : known)}</span>`;
         }
-        return ` <span class="pill cc" style="color:var(--warn);" title="Store search showed this app under the title &quot;${escAttr(t.matchedTitle)}&quot; for this keyword — that's neither your main listing title (&quot;${escAttr(app.title)}&quot;) nor one of the custom store listing titles you've saved under Settings. Could be a CSL you haven't added yet, or your saved title has drifted from the real one.">different title ⚠︎</span>`;
+        return ` <span class="pill cc" style="color:var(--warn);" title="Store search showed this app under the title &quot;${escAttr(t.matchedTitle)}&quot; for this keyword — that's neither your main listing title (&quot;${escAttr(app.title)}&quot;) nor one of the custom store listing titles you've saved under Settings. Could be a CSL you haven't added yet, or your saved title has drifted from the real one.">Store listing is ranking ⚠︎</span>`;
       }
 
       function posCell(t, app) {
