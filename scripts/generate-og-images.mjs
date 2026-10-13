@@ -401,6 +401,9 @@ const SPEC = {
   'play-console-ai-tools-grow-overview-changes':
     { art: 'chips', takeaway: 'Real changes, confirmed by Google’s own I/O 2026 post',
       chips: ['Grow page: 1-click listing', 'CSV listing upload', 'agentic catalog tools'] },
+  'apple-win-back-offers-setup-guide':
+    { art: 'bars', takeaway: 'The real limits, straight from Apple’s own page',
+      bars: [['350 offers / subscription', 100], ['5 active / storefront', 20]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
