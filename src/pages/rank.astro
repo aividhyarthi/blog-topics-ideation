@@ -2480,15 +2480,18 @@ ai photo enhancer"></textarea>
       // Which listing actually showed up in the search result matched to
       // this app (see KeywordRank.matchedTitle) — the main listing, a named
       // Custom Store Listing (per TrackedApp.cslTitles), or an unrecognized
-      // title the owner hasn't told us about yet. Returns '' for the common
-      // case (main listing, or no title captured at all — either unranked or
-      // a snapshot saved before this was tracked), so the table stays quiet
-      // except when there's actually something to flag.
+      // title the owner hasn't told us about yet. Always shown explicitly
+      // (even the main-listing case) rather than only flagging anomalies, so
+      // "which listing is ranking" never has to be inferred from a blank
+      // cell. Returns '' only when there's genuinely nothing to label yet —
+      // unranked, or a snapshot saved before this was tracked.
       function listingBadgeHtml(t, app) {
         if (!t || t.position == null || !t.matchedTitle) return '';
         const norm = (s) => (s || '').trim().toLowerCase();
         const matched = norm(t.matchedTitle);
-        if (matched === norm(app.title)) return '';
+        if (matched === norm(app.title)) {
+          return ` <span class="pill cc" title="Store search showed this app under its main listing title (&quot;${escAttr(app.title)}&quot;) for this keyword.">Main listing</span>`;
+        }
         const known = (app.cslTitles || []).find((c) => norm(c) === matched);
         if (known) {
           return ` <span class="pill cc" title="Store search showed this app under its &quot;${escAttr(known)}&quot; custom store listing for this keyword, not the main listing.">CSL: ${esc(known.length > 20 ? known.slice(0, 19) + '…' : known)}</span>`;
