@@ -404,6 +404,9 @@ const SPEC = {
   'apple-win-back-offers-setup-guide':
     { art: 'bars', takeaway: 'The real limits, straight from Apple’s own page',
       bars: [['350 offers / subscription', 100], ['5 active / storefront', 20]] },
+  'apple-app-replacement-entitlement':
+    { art: 'diverge', takeaway: 'What it covers, and what Apple never mentions',
+      a: 'covers: data + settings', b: 'silent on: ratings, reviews, rank' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
