@@ -407,6 +407,9 @@ const SPEC = {
   'apple-app-replacement-entitlement':
     { art: 'diverge', takeaway: 'What it covers, and what Apple never mentions',
       a: 'covers: data + settings', b: 'silent on: ratings, reviews, rank' },
+  'ask-play-app-comparisons-search-results':
+    { art: 'chips', takeaway: 'Built from your listing and reviews, shown next to a rival’s',
+      chips: ['store listing text', 'user reviews', 'side-by-side in search'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
