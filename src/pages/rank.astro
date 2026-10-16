@@ -1845,7 +1845,7 @@ ai photo enhancer"></textarea>
       // (see overviewSeries in track.ts: unchecked/failed rows are excluded
       // from the score rather than counted as "unranked", which is correct,
       // but gives no visible signal that today's sample was much thinner).
-      function coverageCaption(day) {
+      function coverageCaption(day, subject = "today's score") {
         if (!day) return '';
         const listSize = day.tracked + day.failed + day.unchecked;
         if (!listSize || !day.unchecked) return '';
@@ -1853,7 +1853,7 @@ ai photo enhancer"></textarea>
         if (share < 0.15) return '';
         return `<p class="hint" style="margin:6px 0 0;color:var(--warn);font-weight:600;">
           ⚠︎ Only ${day.tracked + day.failed} of ${listSize} keywords were checked today (${day.unchecked} not reached yet) —
-          today's score isn't fully comparable to a day with full coverage. Usually means the check window / hourly
+          ${subject} isn't fully comparable to a day with full coverage. Usually means the check window / hourly
           cap (Settings) isn't wide enough to get through this list in a day.</p>`;
       }
 
@@ -2056,12 +2056,23 @@ ai photo enhancer"></textarea>
         const cov = app.coverageOverview;
         if (!cov || !cov.total) return `<div class="tiles">${top3Tile}</div>`;
         const c = cov.counts || {}, p = cov.prevCounts || null;
+        // Top 10/30/100 are raw COUNTS of checked keywords under a threshold,
+        // not an average like the visibility score — so a partial-coverage
+        // day doesn't just make them "less precise", it mechanically caps
+        // every count at however many keywords got checked today. Comparing
+        // that against a fuller previous day reads as a real ranking drop
+        // (▼38, ▼43...) when it's actually the check window running out of
+        // time, not a single keyword having moved. The score above gets this
+        // same caveat; these raw-count tiles need it even more.
+        const covDays = cov.days || [];
+        const covTodayDay = covDays.length ? covDays[covDays.length - 1] : null;
         return `<div class="tiles">
           ${top3Tile}
           ${tileHtml('Top 10', c.top10, p && p.top10)}
           ${tileHtml('Top 30', c.top30, p && p.top30)}
           ${tileHtml('Top 100', c.top100, p && p.top100)}
-        </div>`;
+        </div>
+        ${coverageCaption(covTodayDay, "today's Top 10 / 30 / 100 counts")}`;
       }
 
       function coverageNote(days) {
