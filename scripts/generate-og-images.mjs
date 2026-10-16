@@ -410,6 +410,8 @@ const SPEC = {
   'ask-play-app-comparisons-search-results':
     { art: 'chips', takeaway: 'Built from your listing and reviews, shown next to a rival’s',
       chips: ['store listing text', 'user reviews', 'side-by-side in search'] },
+  'app-preview-videos-missing-iphone-october-2026':
+    { art: 'drop', takeaway: 'Apple confirmed it, and the fix is still only partial', mark: 'Oct 5, 2026' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
