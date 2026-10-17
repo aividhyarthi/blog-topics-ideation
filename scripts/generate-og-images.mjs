@@ -412,6 +412,9 @@ const SPEC = {
       chips: ['store listing text', 'user reviews', 'side-by-side in search'] },
   'app-preview-videos-missing-iphone-october-2026':
     { art: 'drop', takeaway: 'Apple confirmed it, and the fix is still only partial', mark: 'Oct 5, 2026' },
+  'google-play-apps-experience-lower-fees':
+    { art: 'bars', takeaway: 'Qualified rates, straight from Google’s own program page',
+      bars: [['standard: 25% existing installs', 100], ['qualified: 20% existing installs', 80]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
