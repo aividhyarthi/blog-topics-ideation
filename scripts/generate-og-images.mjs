@@ -415,6 +415,9 @@ const SPEC = {
   'google-play-apps-experience-lower-fees':
     { art: 'bars', takeaway: 'Qualified rates, straight from Google’s own program page',
       bars: [['standard: 25% existing installs', 100], ['qualified: 20% existing installs', 80]] },
+  'apple-hidden-features-creative-assets-guidelines':
+    { art: 'chips', takeaway: 'Two new rules, straight from Apple’s own guidelines page',
+      chips: ['2.5.19: no hidden features', '2.3.14: creative asset limits'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
