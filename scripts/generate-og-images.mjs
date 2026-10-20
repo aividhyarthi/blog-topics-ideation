@@ -420,6 +420,9 @@ const SPEC = {
       chips: ['2.5.19: no hidden features', '2.3.14: creative asset limits'] },
   'google-play-usage-based-billing-ai-apps':
     { art: 'threshold', band: 'balance tops up here', takeaway: 'Built for apps whose real cost per user actually swings' },
+  'google-play-mixed-carts-subscriptions-one-time':
+    { art: 'funnel', takeaway: 'One API call, one checkout sheet, straight from Google’s own post',
+      steps: ['subscription', '+ one-time items', 'one checkout'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
