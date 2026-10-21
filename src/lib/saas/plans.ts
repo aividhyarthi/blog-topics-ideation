@@ -43,8 +43,13 @@ export const GA_MEASUREMENT_ID = process.env.GA_MEASUREMENT_ID || 'G-ZG9919Z4CC'
  * tags, JSON-LD, sitemap.xml and llms.txt, all of which need a real domain
  * rather than a relative path. Set SITE_URL in Railway if the domain ever
  * changes — this default should always match the real production domain.
+ *
+ * Must include the `www.` subdomain: the bare apex (apprankr.in) 404s in
+ * production — Railway's custom domain is only wired up for www.apprankr.in,
+ * not the apex — so every canonical/OG/JSON-LD/sitemap URL this constant
+ * feeds into has to point at www, or Google (and everyone else) hits a 404.
  */
-export const SITE_URL = (process.env.SITE_URL || 'https://apprankr.in').replace(/\/$/, '');
+export const SITE_URL = (process.env.SITE_URL || 'https://www.apprankr.in').replace(/\/$/, '');
 
 /**
  * Cache-busting suffix appended to og:image URLs. WhatsApp/Facebook's link
@@ -77,7 +82,12 @@ export const INITIATIVE_NAME = 'AI Vidhyarthi';
  * e.g. reports@apprankr.in) in Railway.
  */
 export const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
-export const REPORT_FROM_EMAIL = process.env.REPORT_FROM_EMAIL || `reports@${SITE_URL.replace(/^https?:\/\//, '')}`;
+// Deliberately NOT derived from SITE_URL's host — a sending domain is
+// usually verified at the apex (or a mail subdomain), not at www, so
+// reusing SITE_URL here would silently send from reports@www.apprankr.in
+// the moment SITE_URL's host changes, breaking delivery if Resend's domain
+// verification was set up against the apex instead.
+export const REPORT_FROM_EMAIL = process.env.REPORT_FROM_EMAIL || 'reports@apprankr.in';
 
 /**
  * Super-admin emails (comma-separated). Admins get the /admin panel (see

@@ -53,7 +53,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"/><style>
     </div>
     <div class="pitch">Track where your app ranks on Google Play &amp; the App Store — every keyword, every day.</div>
     <div class="art"><svg viewBox="0 0 856 ${CHART_H}" width="100%" height="100%" preserveAspectRatio="xMinYMax meet">${barsSvg}</svg></div>
-    <div class="foot"><div class="tagline">Keyword rank, category rank, and ASO audits in one dashboard</div><div class="url">apprankr.in</div></div>
+    <div class="foot"><div class="tagline">Keyword rank, category rank, and ASO audits in one dashboard</div><div class="url">www.apprankr.in</div></div>
   </div></div>
 </body></html>`;
 

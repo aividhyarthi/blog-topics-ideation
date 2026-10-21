@@ -602,7 +602,7 @@ function card({ theme, accent, bg, takeaway, artSvg }) {
         <div class="theme">${esc(theme)}</div>
       </div>
       <div class="art"><svg viewBox="0 0 ${VB.w} ${VB.h}" xmlns="http://www.w3.org/2000/svg">${artSvg}</svg></div>
-      <div class="foot"><div class="takeaway">${esc(takeaway)}</div><div class="url">apprankr.in/blog</div></div>
+      <div class="foot"><div class="takeaway">${esc(takeaway)}</div><div class="url">www.apprankr.in/blog</div></div>
     </div></div>
   </body></html>`;
 }
