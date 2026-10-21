@@ -4,6 +4,7 @@
 export const prerender = true;
 import { getCollection } from 'astro:content';
 import { topicSlug } from '../../lib/blog/topics';
+import { markdownToPlainText } from '../../lib/blog/strip-markdown';
 import { BRAND, SITE_URL, OG_IMAGE_VERSION } from '../../lib/saas/plans';
 import GoogleAnalytics from '../../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../../components/AdSenseMeta.astro';
@@ -46,6 +47,10 @@ const articleJsonLd = {
   '@type': 'BlogPosting',
   headline: post.data.title,
   description: post.data.description,
+  // The full post copy, not just the frontmatter description — markdown
+  // syntax stripped to plain text, which is what schema.org's articleBody
+  // expects (see src/lib/blog/strip-markdown.ts).
+  articleBody: markdownToPlainText(post.body),
   image: imageUrl,
   datePublished: post.data.publishDate.toISOString(),
   dateModified: post.data.publishDate.toISOString(),
