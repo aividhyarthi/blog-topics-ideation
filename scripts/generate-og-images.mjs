@@ -423,6 +423,9 @@ const SPEC = {
   'google-play-mixed-carts-subscriptions-one-time':
     { art: 'funnel', takeaway: 'One API call, one checkout sheet, straight from Google’s own post',
       steps: ['subscription', '+ one-time items', 'one checkout'] },
+  'grab-r8-baseline-profiles-anr-case-study':
+    { art: 'bars', takeaway: 'R8 Full Mode and Baseline Profiles, per Google’s own case study',
+      bars: [['ANRs before', 100], ['ANRs after R8 + profiles', 68]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
