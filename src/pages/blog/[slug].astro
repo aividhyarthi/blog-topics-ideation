@@ -5,6 +5,7 @@ export const prerender = true;
 import { getCollection } from 'astro:content';
 import { topicSlug } from '../../lib/blog/topics';
 import { markdownToPlainText } from '../../lib/blog/strip-markdown';
+import { toISTISOString } from '../../lib/blog/dates';
 import { BRAND, SITE_URL, OG_IMAGE_VERSION } from '../../lib/saas/plans';
 import GoogleAnalytics from '../../components/GoogleAnalytics.astro';
 import AdSenseMeta from '../../components/AdSenseMeta.astro';
@@ -52,8 +53,8 @@ const articleJsonLd = {
   // expects (see src/lib/blog/strip-markdown.ts).
   articleBody: markdownToPlainText(post.body),
   image: imageUrl,
-  datePublished: post.data.publishDate.toISOString(),
-  dateModified: post.data.publishDate.toISOString(),
+  datePublished: toISTISOString(post.data.publishDate),
+  dateModified: toISTISOString(post.data.publishDate),
   author: { '@type': 'Organization', name: post.data.author },
   publisher: { '@type': 'Organization', name: BRAND },
   mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
@@ -104,7 +105,7 @@ const breadcrumbJsonLd = {
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="675" />
     <meta property="og:image:alt" content={post.data.title} />
-    <meta property="article:published_time" content={post.data.publishDate.toISOString()} />
+    <meta property="article:published_time" content={toISTISOString(post.data.publishDate)} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={post.data.title} />
     <meta name="twitter:description" content={post.data.description} />
