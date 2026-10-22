@@ -426,6 +426,9 @@ const SPEC = {
   'grab-r8-baseline-profiles-anr-case-study':
     { art: 'bars', takeaway: 'R8 Full Mode and Baseline Profiles, per Google’s own case study',
       bars: [['ANRs before', 100], ['ANRs after R8 + profiles', 68]] },
+  'apple-homeview-widgets-carplay-developer-agreement':
+    { art: 'diverge', takeaway: 'Your widget is in by default, straight from Apple’s own agreement',
+      a: 'on by default', b: 'off: only if you flag it' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
