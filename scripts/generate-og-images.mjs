@@ -429,6 +429,9 @@ const SPEC = {
   'apple-homeview-widgets-carplay-developer-agreement':
     { art: 'diverge', takeaway: 'Your widget is in by default, straight from Apple’s own agreement',
       a: 'on by default', b: 'off: only if you flag it' },
+  'google-play-manage-contacts-permission-declaration':
+    { art: 'chips', takeaway: 'Most apps land on “probably not,” per Google’s own examples',
+      chips: ['save a contact: no permission', 'pick a contact: no permission', 'dialer replacement: needs it'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
