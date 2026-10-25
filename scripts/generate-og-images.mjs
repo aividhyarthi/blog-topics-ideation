@@ -432,6 +432,12 @@ const SPEC = {
   'google-play-manage-contacts-permission-declaration':
     { art: 'chips', takeaway: 'Most apps land on “probably not,” per Google’s own examples',
       chips: ['save a contact: no permission', 'pick a contact: no permission', 'dialer replacement: needs it'] },
+  'apple-accessibility-declarations-api':
+    { art: 'diverge', takeaway: 'Accessibility labels, now scriptable per device family',
+      a: 'before: typed by hand', b: 'now: one API call' },
+  'google-play-ai-studio-personal-apps-no-developer-account':
+    { art: 'diverge', takeaway: 'A personal install, not a public listing',
+      a: 'internal testing: needs dev account', b: 'personal install: just a Google account' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
