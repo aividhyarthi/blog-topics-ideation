@@ -438,6 +438,12 @@ const SPEC = {
   'google-play-ai-studio-personal-apps-no-developer-account':
     { art: 'diverge', takeaway: 'A personal install, not a public listing',
       a: 'internal testing: needs dev account', b: 'personal install: just a Google account' },
+  'app-review-reply-rate-benchmarks-2026':
+    { art: 'bars', takeaway: 'Market-wide, per AppFollow’s own 92.9M-review report',
+      bars: [['Finance: 51%', 100], ['market average: 24.2%', 48], ['Social: 9%', 18]] },
+  'app-store-connect-webhooks-launch-day-automation':
+    { art: 'diverge', takeaway: 'Straight from Apple’s own Help page',
+      a: 'before: refresh and check', b: 'now: App Store Connect notifies you' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
