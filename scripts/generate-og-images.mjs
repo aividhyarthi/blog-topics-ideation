@@ -444,6 +444,12 @@ const SPEC = {
   'app-store-connect-webhooks-launch-day-automation':
     { art: 'diverge', takeaway: 'Straight from Apple’s own Help page',
       a: 'before: refresh and check', b: 'now: App Store Connect notifies you' },
+  'google-play-engage-sdk-nine-categories':
+    { art: 'chips', takeaway: 'Two sources, two different counts',
+      chips: ['Oct 13 post: 9 categories', 'eligibility page: 12 categories', 'confirmed: Education + Health & Fitness'] },
+  'apple-customer-review-summarizations-api':
+    { art: 'diverge', takeaway: 'Straight from Apple’s own API docs',
+      a: 'before: check the listing by hand', b: 'now: one API call per territory' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
