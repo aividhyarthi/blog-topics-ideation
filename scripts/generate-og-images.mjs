@@ -450,6 +450,11 @@ const SPEC = {
   'apple-customer-review-summarizations-api':
     { art: 'diverge', takeaway: 'Straight from Apple’s own API docs',
       a: 'before: check the listing by hand', b: 'now: one API call per territory' },
+  'apple-ai-content-apps-removal-risk-guideline-1-2':
+    { art: 'chips', takeaway: 'Named by name, straight from Apple’s own guideline',
+      chips: ['social apps', 'UGC platforms', 'AI content creation apps'] },
+  'google-play-instant-apps-retired':
+    { art: 'threshold', band: 'retired Dec 2025', takeaway: 'Straight from Google’s own developer docs' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
