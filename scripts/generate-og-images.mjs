@@ -455,6 +455,9 @@ const SPEC = {
       chips: ['social apps', 'UGC platforms', 'AI content creation apps'] },
   'google-play-instant-apps-retired':
     { art: 'threshold', band: 'retired Dec 2025', takeaway: 'Straight from Google’s own developer docs' },
+  'apple-featuring-nomination-holiday-lead-time':
+    { art: 'diverge', takeaway: 'Straight from Apple’s own App Store Connect page',
+      a: 'vendor guides say: 8-12 weeks', b: 'Apple’s own page says: 3 weeks minimum' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
