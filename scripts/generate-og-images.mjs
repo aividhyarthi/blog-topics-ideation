@@ -458,6 +458,12 @@ const SPEC = {
   'apple-featuring-nomination-holiday-lead-time':
     { art: 'diverge', takeaway: 'Straight from Apple’s own App Store Connect page',
       a: 'vendor guides say: 8-12 weeks', b: 'Apple’s own page says: 3 weeks minimum' },
+  'google-play-monetize-insights-orders-api':
+    { art: 'chips', takeaway: 'Straight from Google’s own developer blog',
+      chips: ['Sales Channel data', 'cart conversion + ARPPU', 'Orders API'] },
+  'llm-app-recommendations-research-study':
+    { art: 'bars', takeaway: 'Per the study’s own count of real ranking criteria',
+      bars: [['criteria outside ASO', 100], ['criteria matching ASO', 38]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
