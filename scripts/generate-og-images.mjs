@@ -464,6 +464,12 @@ const SPEC = {
   'llm-app-recommendations-research-study':
     { art: 'bars', takeaway: 'Per the study’s own count of real ranking criteria',
       bars: [['criteria outside ASO', 100], ['criteria matching ASO', 38]] },
+  'ask-play-video-citations-timestamps':
+    { art: 'diverge', takeaway: 'Straight from Google’s own October 2026 release notes',
+      a: 'before: a text citation', b: 'now: a video, timestamped' },
+  'apple-subscription-price-increase-thresholds-by-country':
+    { art: 'bars', takeaway: 'Straight from Apple’s own per-country reference table',
+      bars: [['US: $5 / $50', 60], ['India: 500 / 5,000 INR', 45], ['Germany: consent required', 100]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
