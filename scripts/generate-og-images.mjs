@@ -470,6 +470,11 @@ const SPEC = {
   'apple-subscription-price-increase-thresholds-by-country':
     { art: 'bars', takeaway: 'Straight from Apple’s own per-country reference table',
       bars: [['US: $5 / $50', 60], ['India: 500 / 5,000 INR', 45], ['Germany: consent required', 100]] },
+  'app-store-connect-sales-trends-removal-timeline':
+    { art: 'threshold', band: 'removal begins mid-2026', takeaway: 'Straight from Apple’s own forum post' },
+  'unitq-broken-basics-vs-feature-requests-report':
+    { art: 'bars', takeaway: 'Per unitQ’s own 67.7M-review report',
+      bars: [['broken basics complaints', 100], ['feature requests', 17]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
