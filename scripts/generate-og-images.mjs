@@ -475,6 +475,12 @@ const SPEC = {
   'unitq-broken-basics-vs-feature-requests-report':
     { art: 'bars', takeaway: 'Per unitQ’s own 67.7M-review report',
       bars: [['broken basics complaints', 100], ['feature requests', 17]] },
+  'play-policy-insights-android-studio':
+    { art: 'diverge', takeaway: 'Straight from Google’s own Android Studio docs',
+      a: 'before: find out at review', b: 'now: flagged in the IDE' },
+  'apple-app-review-2025-transparency-report-stats':
+    { art: 'bars', takeaway: 'Straight from Apple’s own 2025 Transparency Report',
+      bars: [['submissions reviewed', 100], ['submissions rejected: 23%', 23]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
