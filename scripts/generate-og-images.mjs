@@ -481,6 +481,12 @@ const SPEC = {
   'apple-app-review-2025-transparency-report-stats':
     { art: 'bars', takeaway: 'Straight from Apple’s own 2025 Transparency Report',
       bars: [['submissions reviewed', 100], ['submissions rejected: 23%', 23]] },
+  'does-apple-ocr-index-screenshot-text':
+    { art: 'diverge', takeaway: 'One real test found no strong evidence',
+      a: 'claim: screenshots are indexed', b: 'test: no strong evidence found' },
+  'google-play-2025-safety-report-review-bombing':
+    { art: 'bars', takeaway: 'Straight from Google’s own 2025 safety report',
+      bars: [['apps blocked: 1.75M', 100], ['spam reviews blocked: 160M', 91]] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
