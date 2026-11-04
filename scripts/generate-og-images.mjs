@@ -487,6 +487,15 @@ const SPEC = {
   'google-play-2025-safety-report-review-bombing':
     { art: 'bars', takeaway: 'Straight from Google’s own 2025 safety report',
       bars: [['apps blocked: 1.75M', 100], ['spam reviews blocked: 160M', 91]] },
+  'choosing-app-store-category-what-changes':
+    { art: 'diverge', takeaway: 'Straight from Apple’s own category page',
+      a: 'primary: tab + search filter', b: 'secondary: Time Allowance, Kids' },
+  'soft-launch-strategy-before-global-release':
+    { art: 'funnel', takeaway: 'Real users, real data, before the global push',
+      steps: ['soft launch market', 'real retention + conversion data', 'global release'] },
+  'apple-iap-price-points-territories':
+    { art: 'chips', takeaway: 'One base price, straight from Apple’s own guidance',
+      chips: ['1 base country', '174 other storefronts', '43 currencies'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
