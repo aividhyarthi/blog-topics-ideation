@@ -3,12 +3,22 @@
 // down that same page) — the loader script itself must load once per page,
 // separate from each individual ad unit. Renders nothing if ADSENSE_CLIENT
 // isn't set.
+//
+// Deferred until the window 'load' event (everything the tool itself needs
+// has already finished) instead of fetched immediately, so the ad network
+// request never competes with the tool's own JS/data calls for bandwidth
+// on first load. adsbygoogle.push() calls queue safely either way, so
+// AdSlot doesn't need to know this script arrives late.
 import { ADSENSE_CLIENT } from '../lib/saas/plans';
 ---
 {ADSENSE_CLIENT && (
-  <script
-    async
-    src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
-    crossorigin="anonymous"
-  ></script>
+  <script is:inline define:vars={{ client: ADSENSE_CLIENT }}>
+    window.addEventListener('load', () => {
+      const s = document.createElement('script');
+      s.async = true;
+      s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${client}`;
+      s.crossOrigin = 'anonymous';
+      document.head.appendChild(s);
+    });
+  </script>
 )}
