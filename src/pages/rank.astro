@@ -3,8 +3,10 @@
 // Serves two audiences from one page: the internal (Nykaa) toolset, and the
 // AppRankr product dashboard (product mode: branded header, trial banner,
 // plan-based limits).
-import { BRAND, planOf, checkAccess, INITIATIVE_NAME, SITE_URL } from '../lib/saas/plans';
+import { BRAND, planOf, checkAccess, INITIATIVE_NAME, SITE_URL, ADSENSE_SLOTS } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
+import AdSenseScript from '../components/AdSenseScript.astro';
+import AdSlot from '../components/AdSlot.astro';
 import { isGuest } from '../lib/saas/grants';
 const product = Boolean(Astro.locals.productMode);
 const user = Astro.locals.user || null;
@@ -21,6 +23,7 @@ const limitsText = product && plan
 <html lang="en">
   <head>
     {product && <GoogleAnalytics />}
+    {product && <AdSenseScript />}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -499,6 +502,12 @@ const limitsText = product && plan
         </div>
       </div>
     </main>
+
+    {product && (
+      <div class="wrap ad-wrap no-print">
+        <AdSlot slot={ADSENSE_SLOTS.rank} />
+      </div>
+    )}
 
     <footer>{product ? <><b>{BRAND}</b> · App keyword rank tracking · An initiative by {INITIATIVE_NAME}</> : <><b>CiteRank</b> · By Rudra Kasturi Inc · App keyword rank tracking</>}</footer>
     <div class="toast" id="toast"></div>
