@@ -496,6 +496,15 @@ const SPEC = {
   'apple-iap-price-points-territories':
     { art: 'chips', takeaway: 'One base price, straight from Apple’s own guidance',
       chips: ['1 base country', '174 other storefronts', '43 currencies'] },
+  'google-play-pre-launch-report-explained':
+    { art: 'chips', takeaway: 'Free, automatic, and easy to skip',
+      chips: ['crashes', 'accessibility gaps', 'basic security issues'] },
+  'keyword-cannibalization-across-your-own-apps':
+    { art: 'diverge', takeaway: 'Your own apps, competing for the same search',
+      a: 'two apps, same keyword', b: 'two apps, two clear lanes' },
+  'does-reinstalling-count-as-new-install':
+    { art: 'diverge', takeaway: 'Neither store confirms the equivalence',
+      a: 'feels like: a new install', b: 'confirmed: not the same signal' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
