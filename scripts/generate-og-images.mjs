@@ -505,6 +505,13 @@ const SPEC = {
   'does-reinstalling-count-as-new-install':
     { art: 'diverge', takeaway: 'Neither store confirms the equivalence',
       a: 'feels like: a new install', b: 'confirmed: not the same signal' },
+  'google-play-testing-tracks-open-closed-internal':
+    { art: 'chips', takeaway: 'Three tracks, three different jobs',
+      chips: ['internal: your team', 'closed: invited', 'open: anyone opts in'] },
+  'does-phased-release-affect-your-ranking':
+    { art: 'qa', takeaway: "Apple's own page never ties this to ranking" },
+  'star-rating-decimal-rounding-myth':
+    { art: 'threshold', takeaway: 'One review barely moves a rounded average', band: 'same whole-star range' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
