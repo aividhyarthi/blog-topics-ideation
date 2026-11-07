@@ -512,6 +512,14 @@ const SPEC = {
     { art: 'qa', takeaway: "Apple's own page never ties this to ranking" },
   'star-rating-decimal-rounding-myth':
     { art: 'threshold', takeaway: 'One review barely moves a rounded average', band: 'same whole-star range' },
+  'installs-vs-active-installs-which-to-watch':
+    { art: 'diverge', takeaway: 'One number only climbs, the other tells the truth',
+      a: 'installs: ever climbs', b: 'active installs: can fall' },
+  'promotional-text-app-store-ranking':
+    { art: 'qa', takeaway: 'Editable anytime, but never part of search' },
+  'minimum-os-version-conversion-tradeoff':
+    { art: 'funnel', takeaway: 'The hit lands on reach, not on your conversion rate',
+      steps: ['target market', 'eligible on your min OS', 'can even see Install'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
