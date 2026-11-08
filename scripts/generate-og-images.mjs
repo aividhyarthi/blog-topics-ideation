@@ -520,6 +520,14 @@ const SPEC = {
   'minimum-os-version-conversion-tradeoff':
     { art: 'funnel', takeaway: 'The hit lands on reach, not on your conversion rate',
       steps: ['target market', 'eligible on your min OS', 'can even see Install'] },
+  'rating-vs-review-two-different-signals':
+    { art: 'diverge', takeaway: 'One tap vs one paragraph, two very different pools',
+      a: 'rating: a star tap', b: 'review: written text, optional' },
+  'branded-vs-non-branded-keyword-traffic':
+    { art: 'diverge', takeaway: 'Only one half is actually new discovery',
+      a: 'branded: already knew you', b: 'non-branded: found you fresh' },
+  'unpublish-republish-play-store-ranking':
+    { art: 'qa', takeaway: 'Your history rides along the whole time, hidden or not' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
