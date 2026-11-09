@@ -679,15 +679,16 @@ ai photo enhancer"></textarea>
       // the international ASO tools — switched from the left sidebar.
       const SECTIONS = [
         { id: 'overview', label: 'Overview' },
-        { id: 'insights', label: 'Insights' },
-        { id: 'keywords', label: 'Daily Keywords' },
-        { id: 'coverage', label: 'All Keywords' },
+        { id: 'keywords', label: 'Keywords' },
         { id: 'compare', label: 'Compare' },
-        { id: 'trends', label: 'Trends' },
+        { id: 'reviews', label: 'Reviews' },
+        { id: 'trends', label: 'Category ranking' },
         { id: 'settings', label: 'Settings' },
       ];
       // Which competitor apps (their keys) are selected in Compare, per app.
       const compareState = {};
+      // Which keyword list (daily | all) the merged Keywords tab shows, per app.
+      const keywordSet = {};
       let currentSection = 'overview';
       // "Export PDF" prints every section stacked, not just the open one.
       let printAll = false;
@@ -1915,7 +1916,7 @@ ai photo enhancer"></textarea>
         const diffHtml = diff == null || diff === 0 ? '' : diff > 0
           ? ` <span class="delta down">▲ ${diff}pt</span>` : ` <span class="delta up">▼ ${-diff}pt</span>`;
         return `<div class="wn-card">${head}
-          <button class="wn-linkline" data-goto-section="trends"><span class="wn-line-main"><span class="wn-line-title"><span class="delta ${toneColor}">${latest.negativeShare}%</span> of the last ${latest.total} reviews are 1-2★${diffHtml}</span><span class="wn-empty">Lower is healthier — watch for a rise ahead of a rank drop</span></span><span class="wn-viewcta">Trend →</span></button>
+          <button class="wn-linkline" data-goto-section="reviews"><span class="wn-line-main"><span class="wn-line-title"><span class="delta ${toneColor}">${latest.negativeShare}%</span> of the last ${latest.total} reviews are 1-2★${diffHtml}</span><span class="wn-empty">Lower is healthier — watch for a rise ahead of a rank drop</span></span><span class="wn-viewcta">Trend →</span></button>
         </div>`;
       }
 
@@ -2035,10 +2036,16 @@ ai photo enhancer"></textarea>
             ${top3VolumeTrendChart(top3VolumeTrendSeries(app), chartWidth(560))}
           </div>
           <div class="glancecards">${moversHtml(app)}${competitorPulseHtml(app)}${ratingPulseHtml(app)}</div>
-          ${trendChartsHtml(app)}
-          ${categoryChartTrendHtml(app)}
-          <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days, chartWidth(560))}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>
         </div>`;
+      }
+
+      // Keyword rank distribution by day — lives on the Category ranking tab
+      // (moved out of Overview in the Step 3 layout; same markup as before).
+      function rankDistributionHtml(app) {
+        const ov = app.overview;
+        if (!ov || !ov.days) return '';
+        const legend = bucketLegend(ov.days);
+        return `<div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days, chartWidth(560))}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>`;
       }
 
       // Keywords excluded from today's bars because their check failed or
@@ -3073,7 +3080,9 @@ ai photo enhancer"></textarea>
         const sectionOverviewFn = () => `
           <div class="section-head"><h2>Overview</h2><p class="hint">Where you rank today, your trend, and what changed since your last check.</p>
           ${(rangeFrom || rangeTo) ? `<p class="hint" style="margin-top:4px;">📅 Showing everything below for <b>${esc(rangeFrom || 'the start')} → ${esc(rangeTo || 'today')}</b>.</p>` : ''}</div>
-          ${overviewHtml(app)}`;
+          ${overviewHtml(app)}
+          <div class="section-head" style="margin-top:22px;"><h2>What's moving your rank</h2><p class="hint">Separating the listing changes you made from the things you didn't change (review health, competitor standing).</p></div>
+          ${insightsHtml(app)}`;
 
         const sectionInsightsFn = () => `
           <div class="section-head"><h2>Insights</h2><p class="hint">What's actually moving your rank — separating the listing changes you made from the things you didn't change (review health, competitor standing) that no copy rewrite will fix.</p></div>
@@ -3154,6 +3163,27 @@ ai photo enhancer"></textarea>
             ? coverageHtml(app)
             : '<p class="hint">No coverage list yet — paste your full keyword universe (up to ' + MAX_COVERAGE + ') under <b>Settings</b> to monitor every keyword you care about beyond the plan-capped daily list.</p>'}`;
 
+        // Daily + All keywords share one tab with a switch (Step 3 layout).
+        const sectionKeywordsMergedFn = () => {
+          const set = keywordSet[app.key] === 'all' ? 'all' : 'daily';
+          const dn = (app.keywords || []).length, cn = (app.coverageKeywords || []).length;
+          const toggle = `<div class="segwrap no-print" style="margin-bottom:14px;" role="group" aria-label="Keyword list">
+            <span class="seg ${set === 'daily' ? 'active' : ''}" data-kwset="daily">Daily (${dn})</span>
+            <span class="seg ${set === 'all' ? 'active' : ''}" data-kwset="all">All (${cn})</span></div>`;
+          return toggle + (set === 'all' ? sectionCoverageFn() : sectionKeywordsFn());
+        };
+
+        // Reviews tab — the rating/review pieces that used to be split between
+        // Overview and Trends, now together.
+        const sectionReviewsFn = () => {
+          const ratingCard = ratingPulseHtml(app);
+          return `
+          <div class="section-head"><h2>Reviews</h2><p class="hint">How reviewers rate the app, how the 1-2★ share is moving, and what they complain about.</p></div>
+          ${ratingCard ? `<div style="max-width:520px;margin-bottom:14px;">${ratingCard}</div>` : ''}
+          ${trendChartsHtml(app)}
+          ${reviewThemesHtml(app)}`;
+        };
+
         const sectionCompareFn = () => {
           const compPulseCard = competitorPulseHtml(app);
           return `
@@ -3163,12 +3193,10 @@ ai photo enhancer"></textarea>
         };
 
         const sectionTrendsFn = () => {
-          const ratingCard = ratingPulseHtml(app);
           return `
-          <div class="section-head"><h2>Trends</h2><p class="hint">Longer-horizon signals: category chart position, rating health, and your logged experiments.</p></div>
-          ${ratingCard ? `<div style="max-width:520px;margin-bottom:14px;">${ratingCard}</div>` : ''}
-          ${trendChartsHtml(app)}
-          ${reviewThemesHtml(app)}
+          <div class="section-head"><h2>Category ranking</h2><p class="hint">Where the app sits in its store chart over time, how your keyword list is spread across ranks, and the changes you logged.</p></div>
+          ${categoryChartTrendHtml(app)}
+          ${rankDistributionHtml(app)}
           <div class="annedit open no-print" data-role="annedit" style="margin-top:16px;">
             <h4 style="margin:0 0 6px;font-size:13.5px;">Log an annotation</h4>
             <p class="hint" style="margin:0 0 8px;">An ASO experiment (title/screenshot/keyword change) or a paid marketing push — we'll compare average visibility in the 14 days before vs after. Name the specific keywords a change targeted below and we'll also show each one's own rank before vs after, not just the whole-app average.</p>
@@ -3363,11 +3391,11 @@ ai photo enhancer"></textarea>
           </details>`;
 
         const bySection = {
-          overview: sectionOverviewFn, insights: sectionInsightsFn, keywords: sectionKeywordsFn, coverage: sectionCoverageFn,
-          compare: sectionCompareFn, trends: sectionTrendsFn, settings: sectionSettingsFn,
+          overview: sectionOverviewFn, insights: sectionInsightsFn, keywords: sectionKeywordsMergedFn, coverage: sectionCoverageFn,
+          compare: sectionCompareFn, reviews: sectionReviewsFn, trends: sectionTrendsFn, settings: sectionSettingsFn,
         };
         const body = printAll
-          ? [sectionOverviewFn(), sectionKeywordsFn(), sectionCoverageFn(), sectionCompareFn(), sectionTrendsFn()].join('<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">')
+          ? [sectionOverviewFn(), sectionKeywordsFn(), sectionCoverageFn(), sectionCompareFn(), sectionReviewsFn(), sectionTrendsFn()].join('<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">')
           : (bySection[currentSection] || sectionOverviewFn)();
 
         return `
@@ -3385,7 +3413,7 @@ ai photo enhancer"></textarea>
       }
 
       function sectionCount(app, id) {
-        if (id === 'keywords') return (app.keywords || []).length || '';
+        if (id === 'keywords') return (app.coverageKeywords || []).length || (app.keywords || []).length || '';
         if (id === 'coverage') return (app.coverageKeywords || []).length || '';
         if (id === 'compare') return comparableApps(app).length || '';
         return '';
@@ -3874,6 +3902,8 @@ ai photo enhancer"></textarea>
           render();
           return;
         }
+        const kwSetBtn = ev.target.closest('[data-kwset]');
+        if (kwSetBtn) { keywordSet[selectedAppKey] = kwSetBtn.getAttribute('data-kwset'); render(); return; }
         const gotoSection = ev.target.closest('[data-goto-section]');
         if (gotoSection) { currentSection = gotoSection.getAttribute('data-goto-section'); render(); return; }
         // Stash the already-computed ASO result before the deep link opens
