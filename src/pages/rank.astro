@@ -467,6 +467,40 @@ const limitsText = product && plan
         .side-pop { max-height: 55vh; }
       }
       @media print { .appnav { display: none !important; } .appshell { display: block; } }
+
+      /* ===== design layer v2 — stage 5: category breakdown + competitor board =====
+         New views only; roll back = delete this block, or use branch
+         claude/apprankr-backup-2026-11-09. */
+      .catbk { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 6px 0 14px; background: var(--card); }
+      .catbk-head, .catrow { display: grid; grid-template-columns: minmax(140px, 1.2fr) 74px 74px minmax(160px, 3fr) 70px; gap: 14px; align-items: center; padding: 9px 16px; }
+      .catbk-head { background: var(--card2); font-size: 12px; font-weight: 500; color: var(--muted); }
+      .catbk-head span:nth-child(2), .catbk-head span:nth-child(3), .catbk-head span:nth-child(5) { text-align: right; }
+      .catrow { width: 100%; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+      .catrow:hover { background: #fafafa; }
+      .catrow.active { background: var(--tint); }
+      .catrow .cn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .catrow .cv { text-align: right; font-family: var(--mono-ui); font-size: 12.5px; }
+      .catrow .cbar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: #eef0f3; gap: 1px; }
+      .catrow .cbar i { display: block; height: 100%; }
+      .catbk-key { display: flex; gap: 14px; flex-wrap: wrap; padding: 9px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+      .catbk-key span { display: inline-flex; align-items: center; gap: 6px; }
+      .catbk-key i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+      .compboard { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px; }
+      .compboard .chartbox { margin: 0; }
+      .compboard tr.me-row td { background: var(--tint); }
+      .compboard table { min-width: 0; }
+      .compboard .table-wrap { margin-top: 8px; }
+      .compboard th, .compboard td { padding: 8px 10px; }
+      .compboard th:first-child, .compboard td:first-child { padding-left: 14px; width: 28px; }
+      .compboard td:nth-child(2) { white-space: normal; min-width: 130px; }
+      .compboard .chartbox { min-width: 0; }
+      @media (max-width: 900px) { .compboard { grid-template-columns: minmax(0, 1fr); } }
+      @media (max-width: 700px) {
+        .catbk-head { display: none; }
+        .catrow { grid-template-columns: 1fr 56px; row-gap: 6px; }
+        .catrow .cbar { grid-column: 1 / -1; }
+        .catrow .cv:nth-of-type(2), .catrow .cv:nth-of-type(3) { display: none; }
+      }
     </style>
   </head>
   <body>
@@ -694,6 +728,8 @@ ai photo enhancer"></textarea>
       let printAll = false;
       // Which category sub-tab is active within the coverage view, per app.
       const catTabState = {};
+      // Daily Keywords: which category (if any) the breakdown table is filtering to, per app.
+      const dailyCatState = {};
       // Live keyword search, per app — one for Daily Keywords, one for All
       // Keywords. A non-empty All-Keywords search deliberately bypasses the
       // category tabs (see categorizedCoverageHtml) and searches every
@@ -2030,6 +2066,7 @@ ai photo enhancer"></textarea>
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks, visCompSeries, chartWidth(700))}</div>
           </div>
           ${keyStatsTilesHtml(app)}
+          ${competitorBoardHtml(app)}
           <div class="chartbox">
             <h4>Top-3 score trend — high search volume, top-3 rank only</h4>
             <p class="hint" style="margin:0 0 8px;">Weighted by position (#1 counts most, #3 least), counting only daily-tracked keywords with App Volume ≥ ${TOP3_VOLUME_THRESHOLD} — meant to track more closely with real store listing page views than the overall visibility score above, which averages every tracked keyword equally.</p>
@@ -2454,6 +2491,112 @@ ai photo enhancer"></textarea>
       // Groups the coverage list using the app's own derived topics (see
       // buildKeywordGroups) and renders a sub-tab per group actually present,
       // so each topic can be read without scanning one long flat list.
+
+      // ---- Step 5 helpers: category breakdown + competitor board --------------
+      // Same grouping the All Keywords tabs always used (categorizeKeyword /
+      // groupsFor) — this only wraps it so the breakdown table and the filter
+      // agree on which category every keyword ended up in.
+      function groupByCategory(app, trends) {
+        const byCat = {};
+        for (const t of trends) {
+          const cat = categorizeKeyword(t.keyword, app);
+          (byCat[cat] = byCat[cat] || []).push(t);
+        }
+        // A category holding one keyword isn't a topic — fold into Other (same rule as the tabs).
+        for (const cat of Object.keys(byCat)) {
+          if (cat !== 'Brand + Comp' && cat !== 'Other' && byCat[cat].length < 2) {
+            byCat.Other = [...(byCat.Other || []), ...byCat[cat]];
+            delete byCat[cat];
+          }
+        }
+        const order = ['Brand + Comp', ...groupsFor(app).groups.map((g) => g.label), 'Other'];
+        const present = order.filter((c) => (byCat[c] || []).length);
+        const catOf = {};
+        for (const c of present) for (const t of byCat[c]) catOf[t.keyword] = c;
+        return { byCat, present, catOf };
+      }
+
+      const BAND_COLORS = ['#364fc7', '#7d8fe0', '#c3cbf3', '#e5e7eb'];
+      // One row per category: how many keywords, average rank, where they sit
+      // (top 10 / 11-30 / 31-100 / not ranked) and what share of search volume
+      // they carry. Clicking a row filters the table below (attr = the data
+      // attribute the page's click handler listens for).
+      function categoryBreakdownHtml(app, g, active, attr, extraClass) {
+        const vols = app.keywordVolumes || {};
+        const all = g.present.flatMap((c) => g.byCat[c]);
+        const totalVol = all.reduce((a, t) => a + (vols[t.keyword] || 0), 0);
+        const rows = g.present.map((c) => {
+          const list = g.byCat[c];
+          const ranked = list.filter((t) => t.position != null && !t.error);
+          const avg = ranked.length ? ranked.reduce((a, t) => a + t.position, 0) / ranked.length : null;
+          const b10 = ranked.filter((t) => t.position <= 10).length;
+          const b30 = ranked.filter((t) => t.position > 10 && t.position <= 30).length;
+          const b100 = ranked.filter((t) => t.position > 30 && t.position <= 100).length;
+          const none = list.length - b10 - b30 - b100;
+          const pct = (n) => (list.length ? (n / list.length) * 100 : 0);
+          const vol = list.reduce((a, t) => a + (vols[t.keyword] || 0), 0);
+          const share = totalVol ? Math.round((vol / totalVol) * 100) + '%' : '–';
+          const tip = `Top 10: ${b10} · 11-30: ${b30} · 31-100: ${b100} · Not ranked: ${none}`;
+          return `<button type="button" class="catrow ${extraClass || ''} ${c === active ? 'active' : ''}" ${attr}="${escAttr(c)}" aria-pressed="${c === active}">
+            <span class="cn">${esc(c)}</span>
+            <span class="cv">${list.length}</span>
+            <span class="cv">${avg == null ? '–' : '#' + avg.toFixed(1)}</span>
+            <span class="cbar" title="${escAttr(tip)}"><i style="width:${pct(b10)}%;background:${BAND_COLORS[0]}"></i><i style="width:${pct(b30)}%;background:${BAND_COLORS[1]}"></i><i style="width:${pct(b100)}%;background:${BAND_COLORS[2]}"></i><i style="width:${pct(none)}%;background:${BAND_COLORS[3]}"></i></span>
+            <span class="cv">${share}</span>
+          </button>`;
+        }).join('');
+        return `<div class="catbk no-print">
+          <div class="catbk-head"><span>Category</span><span>Keywords</span><span>Avg rank</span><span>Where they rank</span><span>Volume</span></div>
+          ${rows}
+          <div class="catbk-key"><span><i style="background:${BAND_COLORS[0]}"></i>Top 10</span><span><i style="background:${BAND_COLORS[1]}"></i>11-30</span><span><i style="background:${BAND_COLORS[2]}"></i>31-100</span><span><i style="background:${BAND_COLORS[3]}"></i>Not ranked</span></div>
+        </div>`;
+      }
+
+      // Overview: this app's visibility next to its tracked competitors', as a
+      // bar chart plus a small table. Uses the same numbers as each app's own
+      // Overview headline and the Competitor pulse card — nothing recomputed.
+      function competitorBoardHtml(app) {
+        const comps = comparableApps(app).filter((a) => a.overview && a.overview.visibility != null);
+        const me = app.overview && app.overview.visibility;
+        if (!comps.length || me == null) return '';
+        const kws = fullKeywordUniverse(app);
+        const rowFor = (a, isMe) => {
+          const tm = trendMap(a);
+          const pos = kws.map((k) => tm[k]).filter((t) => t && !t.error && t.position != null).map((t) => t.position);
+          return {
+            key: a.key, isMe,
+            name: a.title || a.appId,
+            label: a.developer || a.title || a.appId,
+            vis: a.overview.visibility,
+            prev: a.overview.prevVisibility,
+            avg: pos.length ? pos.reduce((x, y) => x + y, 0) / pos.length : null,
+            top10: pos.filter((x) => x <= 10).length,
+          };
+        };
+        const rows = [rowFor(app, true), ...comps.map((c) => rowFor(c, false))].sort((a, b) => b.vis - a.vis).slice(0, 6);
+        // --- bar chart
+        const W = 520, H = 230, top = 22, bot = 52, left = 34, pH = H - top - bot, pW = W - left - 8;
+        const max = Math.max(20, Math.ceil(Math.max(...rows.map((r) => r.vis)) / 20) * 20);
+        const y = (v) => top + pH - (v / max) * pH;
+        let svg = '';
+        for (let v = 0; v <= max; v += max / 4) svg += `<line x1="${left}" x2="${W - 8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${left - 8}" y="${y(v) + 4}" text-anchor="end" fill="var(--muted)" font-size="11">${Math.round(v)}</text>`;
+        const slot = pW / rows.length, bw = Math.min(54, slot * 0.62);
+        rows.forEach((r, i) => {
+          const x = left + slot * i + (slot - bw) / 2, h = (r.vis / max) * pH;
+          const short = r.label.length > 14 ? r.label.slice(0, 13) + '…' : r.label;
+          svg += `<g><title>${esc(r.name)}: ${r.vis.toFixed(1)}</title><rect x="${x}" y="${y(r.vis)}" width="${bw}" height="${h}" rx="6" fill="${r.isMe ? 'var(--blue)' : '#d3d6de'}"/><text x="${x + bw / 2}" y="${y(r.vis) - 7}" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--ink)">${r.vis.toFixed(1)}</text><text x="${x + bw / 2}" y="${H - bot + 18}" text-anchor="middle" font-size="11" fill="${r.isMe ? 'var(--blue)' : 'var(--muted)'}" ${r.isMe ? 'font-weight="700"' : ''}>${esc(r.isMe ? 'You' : short)}</text></g>`;
+        });
+        const body = rows.map((r, i) => {
+          const d = r.prev != null ? Math.round((r.vis - r.prev) * 10) / 10 : null;
+          const dh = d == null ? '' : d > 0 ? ` <span class="delta up">▲${d}</span>` : d < 0 ? ` <span class="delta down">▼${-d}</span>` : '';
+          return `<tr class="${r.isMe ? 'me-row' : ''}"><td>${i + 1}</td><td><b>${esc(r.name)}</b>${r.isMe ? ' <span class="pill cc">you</span>' : ''}</td><td class="pos">${r.vis.toFixed(1)}${dh}</td><td class="pos">${r.avg == null ? '–' : '#' + r.avg.toFixed(1)}</td><td class="pos">${r.top10}</td></tr>`;
+        }).join('');
+        return `<div class="compboard">
+          <div class="chartbox"><h4>Visibility vs competitors</h4><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Search visibility score for this app and its tracked competitors" style="display:block;">${svg}</svg></div>
+          <div class="chartbox"><h4>Top apps on your keywords</h4><div class="table-wrap"><table><thead><tr><th>#</th><th>App</th><th>Visibility</th><th>Avg rank</th><th>Top 10</th></tr></thead><tbody>${body}</tbody></table></div></div>
+        </div>`;
+      }
+
       function categorizedCoverageHtml(app) {
         // A keyword can legitimately sit in BOTH the daily-tracked list and
         // the full coverage list — they're checked by two separate passes
@@ -2501,9 +2644,7 @@ ai photo enhancer"></textarea>
         // single option is just noise, show the plain table instead.
         if (present.length <= 1) return coverageTableHtml(app, trends);
         const active = present.includes(catTabState[app.key]) ? catTabState[app.key] : present[0];
-        const tabs = `<div class="kwtabs cattabs no-print">${present.map((c) =>
-          `<button class="kwtab cattab ${c === active ? 'active' : ''}" data-cattab="${escAttr(c)}">${esc(c)} (${byCat[c].length})</button>`
-        ).join('')}</div>`;
+        const tabs = categoryBreakdownHtml(app, { byCat, present }, active, 'data-cattab', 'cattab');
         return tabs + coverageTableHtml(app, byCat[active]);
       }
 
@@ -3095,6 +3236,13 @@ ai photo enhancer"></textarea>
           const cpcs = app.keywordCpc || {};
           const diffMap = app.difficulty || {};
           let trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, webVolume: webVolumes[t.keyword] ?? null, cpc: cpcs[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
+          // Category breakdown (same grouping as All Keywords) + optional filter.
+          const dg = groupByCategory(app, trends);
+          const dcat = dg.present.includes(dailyCatState[app.key]) ? dailyCatState[app.key] : '';
+          const dailyBreakdown = (dg.present.length > 1 && (app.keywords || []).length)
+            ? `<h4 class="covhead" style="margin-top:6px;">By category <span class="hint" style="display:inline;margin:0;">— ${dcat ? `showing ${esc(dcat)} · click it again to see all` : 'click a row to filter the table'}</span></h4>${categoryBreakdownHtml(app, dg, dcat, 'data-dailycat', 'dailycat')}`
+            : '';
+          if (dcat) trends = trends.filter((t) => dg.catOf[t.keyword] === dcat);
           const search = (dailySearchState[app.key] || '').trim().toLowerCase();
           if (search) trends = trends.filter((t) => t.keyword.toLowerCase().includes(search));
           if (sort.col) {
@@ -3150,6 +3298,7 @@ ai photo enhancer"></textarea>
           ${promoCard ? `<div style="max-width:520px;margin-bottom:14px;">${promoCard}</div>` : ''}
           ${moversCard ? `<div style="max-width:520px;margin-bottom:14px;">${moversCard}</div>` : ''}
           <div class="no-print">${discoverHtml(app)}</div>
+          ${dailyBreakdown}
           ${(app.keywords || []).length ? searchBoxHtml('dailysearch', dailySearchState[app.key], 'Search daily-tracked keywords…') : ''}
           ${table}
           <div class="no-print" style="margin-top:14px;">${asoSummaryHtml(app)}</div>`;
@@ -3930,6 +4079,14 @@ ai photo enhancer"></textarea>
         if (catTab) {
           const card = catTab.closest('.appcard');
           catTabState[card.getAttribute('data-key')] = catTab.getAttribute('data-cattab');
+          render();
+          return;
+        }
+        const dailyCat = ev.target.closest('[data-dailycat]');
+        if (dailyCat) {
+          const key = dailyCat.closest('.appcard').getAttribute('data-key');
+          const v = dailyCat.getAttribute('data-dailycat');
+          dailyCatState[key] = dailyCatState[key] === v ? '' : v;
           render();
           return;
         }
