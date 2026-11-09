@@ -528,6 +528,14 @@ const SPEC = {
       a: 'branded: already knew you', b: 'non-branded: found you fresh' },
   'unpublish-republish-play-store-ranking':
     { art: 'qa', takeaway: 'Your history rides along the whole time, hidden or not' },
+  'testflight-external-testing-app-store-ranking':
+    { art: 'chips', takeaway: "Apple's own page never ties this to ranking",
+      chips: ['100 internal testers', '10,000 external testers', 'zero ranking credit'] },
+  'policy-warning-vs-takedown-what-each-means':
+    { art: 'diverge', takeaway: 'One is a chance to fix it, the other already happened',
+      a: 'warning: usually still live', b: 'takedown: already down' },
+  'switching-primary-language-keyword-rankings':
+    { art: 'qa', takeaway: 'Only the markets with no listing of their own change' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
