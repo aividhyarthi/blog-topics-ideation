@@ -417,50 +417,117 @@ const limitsText = product && plan
       .segwrap .seg.active { font-weight: 600; }
       .headline-eyebrow, .chartbox h4, .wn-card h4, .annlist h4 { text-transform: none; letter-spacing: 0; font-weight: 600; }
       footer { color: var(--muted); }
+
+      /* ===== design layer v2 — stage 2: sidebar layout =====
+         Pure layout. Roll back = delete this block (and the matching markup
+         wrapper) or use branch claude/apprankr-backup-2026-11-09. */
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      .appshell { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; }
+      .appmain { min-width: 0; }
+      .appnav { position: sticky; top: 0; height: 100vh; overflow-y: auto; border-right: 1px solid var(--line); background: var(--card); padding: 14px 12px; display: flex; flex-direction: column; gap: 14px; }
+      .appnav .navtop { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px; }
+      .appnav .brandbar { margin: 0; }
+      .appnav .brandbar .wordmark { font-size: 15.5px; font-weight: 600; letter-spacing: -0.02em; }
+      .navtoggle { display: none; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: 16px; cursor: pointer; color: var(--ink); }
+      .shell { display: block; }
+      .appnav .sidebar { position: relative; z-index: 30; max-height: none; overflow: visible; background: none; border: 0; padding: 0; }
+      .appnav .side-card { position: relative; background: none; border: 0; padding: 0; margin: 0; }
+      .app-switch { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font: inherit; font-weight: 600; font-size: 13.5px; color: var(--ink); cursor: pointer; text-align: left; }
+      .app-switch:hover { background: var(--card2); }
+      .app-switch-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .app-switch .caret { color: var(--muted); font-size: 11px; }
+      .side-pop { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 40px -14px rgba(0,0,0,0.28); padding: 8px; max-height: 62vh; overflow-y: auto; }
+      .side-pop.open { display: block; }
+      .appnav .side-card .side-apps { display: flex; flex-direction: column; gap: 2px; overflow: visible; padding: 0; }
+      .appnav .side-card .side-app { width: 100%; max-width: none; flex-shrink: 1; }
+      .appnav .toptabs { display: flex; flex-direction: column; gap: 1px; background: none; border-radius: 0; padding: 0; margin: 0; overflow: visible; }
+      .appnav .toptabs button { width: 100%; justify-content: flex-start; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: var(--ink); background: none; }
+      .appnav .toptabs button:hover { background: var(--card2); }
+      .appnav .toptabs button.active { background: var(--card2); color: var(--ink); font-weight: 600; }
+      .appnav .toptabs .cnt { margin-left: auto; background: none; color: var(--muted); font-weight: 500; padding: 0; }
+      .appnav .toptabs button.active .cnt { background: none; color: var(--muted); }
+      .navfoot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+      .navgroup { font-size: 12px; font-weight: 500; color: var(--muted); padding: 0 10px; }
+      .appnav nav.top { margin: 0; display: flex; flex-direction: column; gap: 1px; align-items: stretch; }
+      .appnav nav.top a { padding: 7px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: var(--ink); }
+      .appnav nav.top a:hover { background: var(--card2); }
+      .appnav nav.top a.active { background: var(--card2); font-weight: 600; color: var(--ink); }
+      .appnav .usermenu { margin: 6px 0 0; width: 100%; }
+      .appnav .usertrigger { width: 100%; max-width: none; text-align: left; display: flex; justify-content: space-between; gap: 8px; border-radius: 8px; font-weight: 500; }
+      .appnav .userdropdown { right: 0; left: 0; top: auto; bottom: calc(100% + 6px); }
+      .appmain main { padding-top: 18px; }
+      @media (max-width: 900px) {
+        .appshell { display: block; }
+        .appnav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 14px; gap: 10px; }
+        .navtoggle { display: inline-block; }
+        .appnav .toptabs { flex-direction: row; overflow-x: auto; gap: 4px; }
+        .appnav .toptabs button { width: auto; flex-shrink: 0; }
+        .navfoot { display: none; margin-top: 0; }
+        .appnav.navopen .navfoot { display: flex; }
+        .side-pop { max-height: 55vh; }
+      }
+      @media print { .appnav { display: none !important; } .appshell { display: block; } }
     </style>
   </head>
   <body>
-    <header>
-      <div class="wrap">
+    {/* Step 2 layout: left sidebar (brand, app switcher, section tabs, tool links, account) + main column.
+        All ids the script relies on (#sidebar, #side-apps, #snav, #toggle-add-app, #usertrigger, #userdropdown, #logout)
+        are kept exactly; they were only moved. */}
+    <div class="appshell" id="appshell">
+    <aside class="appnav no-print" id="appnav" aria-label="Main navigation">
+      <div class="navtop">
+        {product ? (
+          <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
+            <span class="logo">AR</span>
+            <span class="wordmark">{BRAND}</span>
+          </a>
+        ) : (
+          <div class="brandbar">
+            <span class="logo">◆</span>
+            <span class="wordmark">CiteRank</span>
+          </div>
+        )}
+        <button type="button" class="navtoggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
+      </div>
+      <h1 class="sr-only">{product ? (guest ? 'Rank dashboard' : 'Your rank dashboard') : 'Rank Tracker'}</h1>
+
+      <div class="sidebar no-print" id="sidebar" style="display:none;">
+        <div class="side-card">
+          <button type="button" class="app-switch" id="app-switch" aria-haspopup="true" aria-expanded="false">
+            <span class="app-switch-label" id="app-switch-label">Choose an app</span><span class="caret">▾</span>
+          </button>
+          <div class="side-pop" id="side-pop">
+            <div class="side-label">Your apps</div>
+            <div class="side-apps" id="side-apps"></div>
+            <button class="ghost side-add" id="toggle-add-app">＋ Track an app</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toptabs no-print" id="snav"></div>
+
+      <div class="navfoot" id="navfoot">
         {product ? (
           <>
-            <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
-              <span class="logo">AR</span>
-              <span class="wordmark">{BRAND}</span>
-            </a>
-            <h1>{guest ? 'Rank dashboard' : 'Your rank dashboard'}</h1>
-            <p>
-              Where {guest ? 'these apps rank' : 'your apps rank'} in <b>Google Play</b> and <b>App Store</b> search — position history,
-              movement vs the last check, keyword discovery, and top-chart positions. Checked daily.
-            </p>
+            <div class="navgroup">Tools</div>
             <nav class="top">
               <a href="/welcome">Welcome</a>
               <a href="/rank" class="active">Rank Tracker</a>
               <a href="/aso">ASO Inspector</a>
               <a href="/blog">Blog</a>
-              <div class="usermenu">
-                <button type="button" class="usertrigger" id="usertrigger">{user?.email} <span class="caret">▾</span></button>
-                <div class="userdropdown" id="userdropdown">
-                  <a href="/account">Account &amp; billing</a>
-                  <a href="/about">About</a>
-                  <a href="#" id="logout">Log out</a>
-                </div>
-              </div>
             </nav>
+            <div class="usermenu">
+              <button type="button" class="usertrigger" id="usertrigger">{user?.email} <span class="caret">▾</span></button>
+              <div class="userdropdown" id="userdropdown">
+                <a href="/account">Account &amp; billing</a>
+                <a href="/about">About</a>
+                <a href="#" id="logout">Log out</a>
+              </div>
+            </div>
           </>
         ) : (
           <>
-            <div class="brandbar">
-              <span class="logo">◆</span>
-              <span class="wordmark">CiteRank</span>
-              <span class="by">By Rudra Kasturi Inc</span>
-            </div>
-            <h1>Rank Tracker</h1>
-            <p>
-              Track where your apps rank in <b>Google Play</b> and <b>App Store</b> search for the keywords
-              you care about — checked on demand or daily, with position history, movement vs the last
-              check, and the top-chart position. Add competitors' apps too to watch them on the same keywords.
-            </p>
+            <div class="navgroup">Tools</div>
             <nav class="top">
               <a href="/aso">ASO Inspector</a>
               <a href="/rank" class="active">Rank Tracker</a>
@@ -468,7 +535,8 @@ const limitsText = product && plan
           </>
         )}
       </div>
-    </header>
+    </aside>
+    <div class="appmain">
 
     {/* Guests are riding on the owner's subscription — never nag a client to
         buy a plan for a dashboard someone else is already paying for. */}
@@ -518,15 +586,7 @@ const limitsText = product && plan
         </div>
 
         <div class="shell">
-          <div class="sidebar no-print" id="sidebar" style="display:none;">
-            <div class="side-card">
-              <div class="side-label">Your apps</div>
-              <div class="side-apps" id="side-apps"></div>
-              <button class="ghost side-add" id="toggle-add-app">＋ Track an app</button>
-            </div>
-          </div>
           <div class="main-col">
-            <div class="toptabs no-print" id="snav"></div>
             <div id="apps"></div>
           </div>
         </div>
@@ -540,6 +600,8 @@ const limitsText = product && plan
     )}
 
     <footer>{product ? <><b>{BRAND}</b> · App keyword rank tracking · An initiative by {INITIATIVE_NAME}</> : <><b>CiteRank</b> · By Rudra Kasturi Inc · App keyword rank tracking</>}</footer>
+    </div>
+    </div>
     <div class="toast" id="toast"></div>
     <div class="viztip" id="viztip"></div>
     <div class="kwmodal-backdrop no-print" id="kwmodal-backdrop">
@@ -3449,6 +3511,9 @@ ai photo enhancer"></textarea>
         const { primaries, byPrimary } = groupAppsByPrimary(state.apps);
         $('side-apps').innerHTML = primaries.map((app) =>
           sideAppBtn(app, false) + (byPrimary[app.key] || []).map((c) => sideAppBtn(c, true)).join('')).join('');
+        // Sidebar app switcher shows which app (or "All apps") is open.
+        { const selApp = state.apps.find((a) => a.key === selectedAppKey);
+          $('app-switch-label').textContent = portfolioMode ? 'All apps' : (selApp ? (selApp.title || selApp.appId) : 'Choose an app'); }
         // The section tabs (Overview/Insights/...) are per-app — nothing to
         // show while the All-apps summary is open.
         if (portfolioMode) { $('snav').innerHTML = ''; return; }
@@ -3766,6 +3831,16 @@ ai photo enhancer"></textarea>
         const secBtn = ev.target.closest('[data-section]');
         if (secBtn) { currentSection = secBtn.getAttribute('data-section'); render(); }
       });
+      // App switcher dropdown (sidebar) + mobile menu button. Pure UI — the real
+      // selection still happens in the #sidebar click handler above.
+      { const sw = $('app-switch'), pop = $('side-pop'), nav = $('appnav'), tog = $('nav-toggle');
+        const closePop = () => { pop.classList.remove('open'); sw.setAttribute('aria-expanded', 'false'); };
+        sw.addEventListener('click', (ev) => { ev.stopPropagation(); const open = pop.classList.toggle('open'); sw.setAttribute('aria-expanded', String(open)); });
+        pop.addEventListener('click', (ev) => { if (ev.target.closest('.side-app') || ev.target.closest('#toggle-add-app')) closePop(); });
+        document.addEventListener('click', (ev) => { if (!ev.target.closest('.side-card')) closePop(); });
+        document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closePop(); });
+        tog.addEventListener('click', () => { const open = nav.classList.toggle('navopen'); tog.setAttribute('aria-expanded', String(open)); });
+      }
       // "Track an app" used to be an inline card at the top of the page —
       // permanently taking space above the toolbar and pushing the app
       // you're actually looking at further down, even when you weren't
