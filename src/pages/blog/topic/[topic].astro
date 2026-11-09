@@ -41,6 +41,9 @@ const description = `${posts.length} guide${posts.length === 1 ? '' : 's'} on ${
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <AdSenseMeta />
     <AdSenseScript />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" />
     <title>{theme} — {BRAND} Blog</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
@@ -52,9 +55,9 @@ const description = `${posts.length} guide${posts.length === 1 ? '' : 's'} on ${
     {posts[0] && <meta property="og:image" content={`${SITE_URL}${posts[0].data.image}?${OG_IMAGE_VERSION}`} />}
     <meta name="twitter:card" content="summary_large_image" />
     <style>
-      :root { --pink: #16181d; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; }
+      :root { --pink: #16181d; --ink: #171717; --muted: #737373; --line: #ececec; }
       * { box-sizing: border-box; }
-      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fff; color: var(--ink); line-height: 1.6; }
+      body { margin: 0; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fff; color: var(--ink); line-height: 1.6; }
       .wrap { max-width: 1160px; margin: 0 auto; padding: 0 22px; }
       main { padding: 30px 0 60px; }
       .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 48px; align-items: start; }
