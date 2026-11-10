@@ -536,6 +536,14 @@ const SPEC = {
       a: 'warning: usually still live', b: 'takedown: already down' },
   'switching-primary-language-keyword-rankings':
     { art: 'qa', takeaway: 'Only the markets with no listing of their own change' },
+  'does-keyword-order-matter-ios-keyword-field':
+    { art: 'chips', takeaway: 'The real waste is repetition, not word order',
+      chips: ['100 characters total', 'a flat list, not a ranking', 'repeats waste real space'] },
+  'featured-vs-sponsored-whats-the-difference':
+    { art: 'diverge', takeaway: 'One you earn, the other you buy',
+      a: 'featured: editorial pick', b: 'sponsored: budget and bid' },
+  'restricting-countries-ranking-impact':
+    { art: 'qa', takeaway: 'Each country runs on its own local signals' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
