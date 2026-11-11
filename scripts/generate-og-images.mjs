@@ -544,6 +544,14 @@ const SPEC = {
       a: 'featured: editorial pick', b: 'sponsored: budget and bid' },
   'restricting-countries-ranking-impact':
     { art: 'qa', takeaway: 'Each country runs on its own local signals' },
+  'app-clips-discovery-vs-trial':
+    { art: 'diverge', takeaway: 'One removes friction, the other drives discovery',
+      a: 'App Clip: a specific trigger', b: 'App Store: search and browse' },
+  'does-keyword-capitalization-matter':
+    { art: 'qa', takeaway: 'App, app, and APP match the same either way' },
+  'targeting-competitor-brand-name-as-keyword':
+    { art: 'diverge', takeaway: "A brand's own name usually wins its own search",
+      a: 'their brand name', b: 'your real keyword slot' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
