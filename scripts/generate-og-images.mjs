@@ -552,6 +552,14 @@ const SPEC = {
   'targeting-competitor-brand-name-as-keyword':
     { art: 'diverge', takeaway: "A brand's own name usually wins its own search",
       a: 'their brand name', b: 'your real keyword slot' },
+  'package-name-change-play-store-history':
+    { art: 'qa', takeaway: 'One ID is the anchor, nothing else is' },
+  'when-to-ask-for-a-review-matters-more-than-often':
+    { art: 'diverge', takeaway: 'The moment matters more than the count',
+      a: 'right after a real win', b: 'mid-task, loading, an error' },
+  'number-of-iaps-listed-conversion':
+    { art: 'threshold', takeaway: 'Past a point, more choices means more stalling',
+      band: 'too many to compare quickly' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
