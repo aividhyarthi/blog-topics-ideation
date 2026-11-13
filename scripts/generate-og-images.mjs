@@ -560,6 +560,13 @@ const SPEC = {
   'number-of-iaps-listed-conversion':
     { art: 'threshold', takeaway: 'Past a point, more choices means more stalling',
       band: 'too many to compare quickly' },
+  'does-description-length-matter-or-first-lines':
+    { art: 'qa', takeaway: "What's past the fold might as well not exist" },
+  'does-99-cent-pricing-change-conversion':
+    { art: 'qa', takeaway: 'A grocery-aisle trick, untested inside your own app' },
+  'does-editing-a-review-later-change-anything':
+    { art: 'diverge', takeaway: 'Same review, quietly updated in place',
+      a: 'what you replied to', b: 'what it says now' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
