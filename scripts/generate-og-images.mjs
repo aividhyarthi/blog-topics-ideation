@@ -567,6 +567,13 @@ const SPEC = {
   'does-editing-a-review-later-change-anything':
     { art: 'diverge', takeaway: 'Same review, quietly updated in place',
       a: 'what you replied to', b: 'what it says now' },
+  'internal-app-sharing-vs-testing-tracks':
+    { art: 'diverge', takeaway: 'A quick link vs a real testing process',
+      a: 'app sharing: one fast link', b: 'testing tracks: real history' },
+  'ask-to-buy-pending-purchases-conversion-funnel':
+    { art: 'qa', takeaway: 'Pending is not the same as abandoned' },
+  'showing-price-range-iap-conversion':
+    { art: 'qa', takeaway: 'One rare purchase can set the whole ceiling' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
