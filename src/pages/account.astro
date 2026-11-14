@@ -6,6 +6,7 @@
 import { BRAND, PLANS, planOf, checkAccess, CURRENCY, formatPrice, UPI_ID, UPI_PAYEE_NAME, WHATSAPP_NUMBER } from '../lib/saas/plans';
 import qrcode from 'qrcode-generator';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
+import AppSidebar from '../components/AppSidebar.astro';
 import { isGuest } from '../lib/saas/grants';
 
 const user = Astro.locals.user!;
@@ -57,9 +58,9 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
     <title>{BRAND} — Account</title>
     <meta name="robots" content="noindex, nofollow" />
     <style>
-      :root { --pink: #16181d; --pink-dark: #000000; --ink: #16181d; --muted: #6b7280; --line: #e5e7eb; --bg: #f8f9fb; --ok: #0a8a5f; --bad: #c0392b; }
+      :root { --pink: #16181d; --pink-dark: #000000; --ink: #171717; --muted: #737373; --line: #ececec; --bg: #ffffff; --ok: #0a8a5f; --bad: #c0392b; }
       * { box-sizing: border-box; }
-      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; font-size: 14px; }
+      body { margin: 0; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; background: var(--bg); color: var(--ink); line-height: 1.5; font-size: 14px; }
       header { background: #fff; color: var(--ink); border-bottom: 1px solid var(--line); padding: 14px 20px; }
       .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
       .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
@@ -136,25 +137,17 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
       .paybox .note { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
       .wa { background: #25D366; color: #fff; }
       .wa:hover { background: #1ea952; }
+          /* ===== design layer v2 — stage 4: Account =====
+         Restyle + shared sidebar. Roll back = delete this block and the
+         AppSidebar wrapper, or use branch claude/apprankr-backup-2026-11-09. */
+      .card { border-radius: 12px; box-shadow: none; }
+      main { padding-top: 26px; }
     </style>
   </head>
   <body>
-    <header>
-      <div class="wrap topbar">
-        <a href="/" class="logo" style="text-decoration:none;color:inherit;"><span class="mark">AR</span>{BRAND}</a>
-        <nav>
-          <a href="/rank">Rank Tracker</a>
-          <a href="/aso">ASO Inspector</a>
-          <div class="usermenu">
-            <button type="button" class="usertrigger" id="usertrigger">{user.email} <span class="caret">▾</span></button>
-            <div class="userdropdown" id="userdropdown">
-              <a href="/about">About</a>
-              <a href="#" id="logout">Log out</a>
-            </div>
-          </div>
-        </nav>
-      </div>
-    </header>
+    <div class="appshell">
+    <AppSidebar active="account" product={true} email={user.email} />
+    <div class="appmain">
     <main>
       <div class="wrap">
         {expired && <div class="alert warn">Your free trial has ended. Pay via UPI below to keep your rank history and continue tracking — your data is saved and waiting. We'll activate your account shortly after you message us.</div>}
@@ -227,6 +220,8 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
         )}
       </div>
     </main>
+    </div>
+    </div>
     <script>
       async function post(url, body) {
         const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });

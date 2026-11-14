@@ -31,17 +31,20 @@ const limitsText = product && plan
     <meta name="description" content="Track where your apps rank in Google Play and App Store search for your keywords, with daily history and trends." />
     {product && <meta name="robots" content="noindex, nofollow" />}
     {product && <link rel="canonical" href={`${SITE_URL}/rank`} />}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" />
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style is:global>
       /* Console layout (card-based, KPI chips, dense tables) on a light
          ground — every surface/border/text color is a token, so this is
          the only place a future theme change needs to touch. */
       :root {
-        --bg: #f7f8fa; --card: #ffffff; --card2: #f3f4f6;
-        --line: #e5e7eb; --line2: #cbd0da;
-        --ink: #16181d; --muted: #6b7280;
+        --bg: #ffffff; --card: #ffffff; --card2: #f6f6f7;
+        --line: #ececec; --line2: #d6d6da;
+        --ink: #171717; --muted: #737373;
         --accent: #16181d; --accent-dark: #000000; --accent-ink: #ffffff;
-        --tint: #eceef1;
+        --tint: #f1f1f2;
         --ok: #0a8a5f; --ok-tint: #e6f5ef;
         --bad: #c0392b; --bad-tint: #fdecec;
         --blue: #364fc7; --blue-tint: #eaeeff;
@@ -387,50 +390,178 @@ const limitsText = product && plan
         .table-wrap { border: 1px solid #ddd; }
         .print-only { display: block; font-size: 12px; color: var(--muted); margin: -6px 0 14px; }
       }
+    
+      /* ===== AppRankr design layer v2 — stage 1: type, colour, surfaces =====
+         Only restyles existing classes; no markup or script is touched. To roll
+         back this stage, delete everything from here to the end of this block
+         (and the Geist <link> above), or check out backup branch
+         claude/apprankr-backup-2026-11-09. */
+      :root { --mono-ui: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace; }
+      body { font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13.5px; -webkit-font-smoothing: antialiased; }
+      input[type="text"], textarea, select, button { font-family: inherit; }
+      textarea { font-family: var(--mono-ui); font-size: 12.5px; }
+      .headline-num { font-family: 'Geist', -apple-system, sans-serif; font-weight: 600; font-size: 54px; letter-spacing: -0.045em; }
+      .tile .val { font-family: 'Geist', -apple-system, sans-serif; font-weight: 600; letter-spacing: -0.03em; }
+      .wn-score, td.pos, .delta { font-family: var(--mono-ui); }
+      td.pos { font-weight: 600; font-size: 14px; }
+      td.kw, .kwlink, .disc-row .kw, .kwmodal-title { font-family: 'Geist', -apple-system, sans-serif; color: var(--ink); font-weight: 500; font-size: 13px; }
+      .kwlink:hover { color: var(--blue); }
+      .card, .chartbox, .tile, .wn-card, .toolbar, .side-card, .insight { border-radius: 12px; box-shadow: none; }
+      .tile { background: var(--card); }
+      .tile .lbl { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 12px; }
+      th { background: var(--card2); text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+      th, td { padding: 9px 12px; }
+      tr:hover td { background: #fafafa; }
+      button.primary { border-radius: 999px; font-weight: 500; }
+      button.ghost { border-radius: 8px; font-weight: 500; }
+      .segwrap .seg.active { font-weight: 600; }
+      .headline-eyebrow, .chartbox h4, .wn-card h4, .annlist h4 { text-transform: none; letter-spacing: 0; font-weight: 600; }
+      footer { color: var(--muted); }
+
+      /* ===== design layer v2 — stage 2: sidebar layout =====
+         Pure layout. Roll back = delete this block (and the matching markup
+         wrapper) or use branch claude/apprankr-backup-2026-11-09. */
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      .appshell { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; }
+      .appmain { min-width: 0; }
+      .appnav { position: sticky; top: 0; height: 100vh; overflow-y: auto; border-right: 1px solid var(--line); background: var(--card); padding: 14px 12px; display: flex; flex-direction: column; gap: 14px; }
+      .appnav .navtop { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px; }
+      .appnav .brandbar { margin: 0; }
+      .appnav .brandbar .wordmark { font-size: 15.5px; font-weight: 600; letter-spacing: -0.02em; }
+      .navtoggle { display: none; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: 16px; cursor: pointer; color: var(--ink); }
+      .shell { display: block; }
+      .appnav .sidebar { position: relative; z-index: 30; max-height: none; overflow: visible; background: none; border: 0; padding: 0; }
+      .appnav .side-card { position: relative; background: none; border: 0; padding: 0; margin: 0; }
+      .app-switch { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font: inherit; font-weight: 600; font-size: 13.5px; color: var(--ink); cursor: pointer; text-align: left; }
+      .app-switch:hover { background: var(--card2); }
+      .app-switch-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .app-switch .caret { color: var(--muted); font-size: 11px; }
+      .side-pop { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 40px -14px rgba(0,0,0,0.28); padding: 8px; max-height: 62vh; overflow-y: auto; }
+      .side-pop.open { display: block; }
+      .appnav .side-card .side-apps { display: flex; flex-direction: column; gap: 2px; overflow: visible; padding: 0; }
+      .appnav .side-card .side-app { width: 100%; max-width: none; flex-shrink: 1; }
+      .appnav .toptabs { display: flex; flex-direction: column; gap: 1px; background: none; border-radius: 0; padding: 0; margin: 0; overflow: visible; }
+      .appnav .toptabs button { width: 100%; justify-content: flex-start; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: var(--ink); background: none; }
+      .appnav .toptabs button:hover { background: var(--card2); }
+      .appnav .toptabs button.active { background: var(--card2); color: var(--ink); font-weight: 600; }
+      .appnav .toptabs .cnt { margin-left: auto; background: none; color: var(--muted); font-weight: 500; padding: 0; }
+      .appnav .toptabs button.active .cnt { background: none; color: var(--muted); }
+      .navfoot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+      .navgroup { font-size: 12px; font-weight: 500; color: var(--muted); padding: 0 10px; }
+      .appnav nav.top { margin: 0; display: flex; flex-direction: column; gap: 1px; align-items: stretch; }
+      .appnav nav.top a { padding: 7px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: var(--ink); }
+      .appnav nav.top a:hover { background: var(--card2); }
+      .appnav nav.top a.active { background: var(--card2); font-weight: 600; color: var(--ink); }
+      .appnav .usermenu { margin: 6px 0 0; width: 100%; }
+      .appnav .usertrigger { width: 100%; max-width: none; text-align: left; display: flex; justify-content: space-between; gap: 8px; border-radius: 8px; font-weight: 500; }
+      .appnav .userdropdown { right: 0; left: 0; top: auto; bottom: calc(100% + 6px); }
+      .appmain main { padding-top: 18px; }
+      @media (max-width: 900px) {
+        .appshell { display: block; }
+        .appnav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 14px; gap: 10px; }
+        .navtoggle { display: inline-block; }
+        .appnav .toptabs { flex-direction: row; overflow-x: auto; gap: 4px; }
+        .appnav .toptabs button { width: auto; flex-shrink: 0; }
+        .navfoot { display: none; margin-top: 0; }
+        .appnav.navopen .navfoot { display: flex; }
+        .side-pop { max-height: 55vh; }
+      }
+      @media print { .appnav { display: none !important; } .appshell { display: block; } }
+
+      /* ===== design layer v2 — stage 5: category breakdown + competitor board =====
+         New views only; roll back = delete this block, or use branch
+         claude/apprankr-backup-2026-11-09. */
+      .catbk { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 6px 0 14px; background: var(--card); }
+      .catbk-head, .catrow { display: grid; grid-template-columns: minmax(140px, 1.2fr) 74px 74px minmax(160px, 3fr) 70px; gap: 14px; align-items: center; padding: 9px 16px; }
+      .catbk-head { background: var(--card2); font-size: 12px; font-weight: 500; color: var(--muted); }
+      .catbk-head span:nth-child(2), .catbk-head span:nth-child(3), .catbk-head span:nth-child(5) { text-align: right; }
+      .catrow { width: 100%; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+      .catrow:hover { background: #fafafa; }
+      .catrow.active { background: var(--tint); }
+      .catrow .cn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .catrow .cv { text-align: right; font-family: var(--mono-ui); font-size: 12.5px; }
+      .catrow .cbar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: #eef0f3; gap: 1px; }
+      .catrow .cbar i { display: block; height: 100%; }
+      .catbk-key { display: flex; gap: 14px; flex-wrap: wrap; padding: 9px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+      .catbk-key span { display: inline-flex; align-items: center; gap: 6px; }
+      .catbk-key i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+      .compboard { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px; }
+      .compboard .chartbox { margin: 0; }
+      .compboard tr.me-row td { background: var(--tint); }
+      .compboard table { min-width: 0; }
+      .compboard .table-wrap { margin-top: 8px; }
+      .compboard th, .compboard td { padding: 8px 10px; }
+      .compboard th:first-child, .compboard td:first-child { padding-left: 14px; width: 28px; }
+      .compboard td:nth-child(2) { white-space: normal; min-width: 130px; }
+      .compboard .chartbox { min-width: 0; }
+      @media (max-width: 900px) { .compboard { grid-template-columns: minmax(0, 1fr); } }
+      @media (max-width: 700px) {
+        .catbk-head { display: none; }
+        .catrow { grid-template-columns: 1fr 56px; row-gap: 6px; }
+        .catrow .cbar { grid-column: 1 / -1; }
+        .catrow .cv:nth-of-type(2), .catrow .cv:nth-of-type(3) { display: none; }
+      }
     </style>
   </head>
   <body>
-    <header>
-      <div class="wrap">
+    {/* Step 2 layout: left sidebar (brand, app switcher, section tabs, tool links, account) + main column.
+        All ids the script relies on (#sidebar, #side-apps, #snav, #toggle-add-app, #usertrigger, #userdropdown, #logout)
+        are kept exactly; they were only moved. */}
+    <div class="appshell" id="appshell">
+    <aside class="appnav no-print" id="appnav" aria-label="Main navigation">
+      <div class="navtop">
+        {product ? (
+          <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
+            <span class="logo">AR</span>
+            <span class="wordmark">{BRAND}</span>
+          </a>
+        ) : (
+          <div class="brandbar">
+            <span class="logo">◆</span>
+            <span class="wordmark">CiteRank</span>
+          </div>
+        )}
+        <button type="button" class="navtoggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
+      </div>
+      <h1 class="sr-only">{product ? (guest ? 'Rank dashboard' : 'Your rank dashboard') : 'Rank Tracker'}</h1>
+
+      <div class="sidebar no-print" id="sidebar" style="display:none;">
+        <div class="side-card">
+          <button type="button" class="app-switch" id="app-switch" aria-haspopup="true" aria-expanded="false">
+            <span class="app-switch-label" id="app-switch-label">Choose an app</span><span class="caret">▾</span>
+          </button>
+          <div class="side-pop" id="side-pop">
+            <div class="side-label">Your apps</div>
+            <div class="side-apps" id="side-apps"></div>
+            <button class="ghost side-add" id="toggle-add-app">＋ Track an app</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toptabs no-print" id="snav"></div>
+
+      <div class="navfoot" id="navfoot">
         {product ? (
           <>
-            <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
-              <span class="logo">AR</span>
-              <span class="wordmark">{BRAND}</span>
-            </a>
-            <h1>{guest ? 'Rank dashboard' : 'Your rank dashboard'}</h1>
-            <p>
-              Where {guest ? 'these apps rank' : 'your apps rank'} in <b>Google Play</b> and <b>App Store</b> search — position history,
-              movement vs the last check, keyword discovery, and top-chart positions. Checked daily.
-            </p>
+            <div class="navgroup">Tools</div>
             <nav class="top">
               <a href="/welcome">Welcome</a>
               <a href="/rank" class="active">Rank Tracker</a>
               <a href="/aso">ASO Inspector</a>
               <a href="/blog">Blog</a>
-              <div class="usermenu">
-                <button type="button" class="usertrigger" id="usertrigger">{user?.email} <span class="caret">▾</span></button>
-                <div class="userdropdown" id="userdropdown">
-                  <a href="/account">Account &amp; billing</a>
-                  <a href="/about">About</a>
-                  <a href="#" id="logout">Log out</a>
-                </div>
-              </div>
             </nav>
+            <div class="usermenu">
+              <button type="button" class="usertrigger" id="usertrigger">{user?.email} <span class="caret">▾</span></button>
+              <div class="userdropdown" id="userdropdown">
+                <a href="/account">Account &amp; billing</a>
+                <a href="/about">About</a>
+                <a href="#" id="logout">Log out</a>
+              </div>
+            </div>
           </>
         ) : (
           <>
-            <div class="brandbar">
-              <span class="logo">◆</span>
-              <span class="wordmark">CiteRank</span>
-              <span class="by">By Rudra Kasturi Inc</span>
-            </div>
-            <h1>Rank Tracker</h1>
-            <p>
-              Track where your apps rank in <b>Google Play</b> and <b>App Store</b> search for the keywords
-              you care about — checked on demand or daily, with position history, movement vs the last
-              check, and the top-chart position. Add competitors' apps too to watch them on the same keywords.
-            </p>
+            <div class="navgroup">Tools</div>
             <nav class="top">
               <a href="/aso">ASO Inspector</a>
               <a href="/rank" class="active">Rank Tracker</a>
@@ -438,7 +569,8 @@ const limitsText = product && plan
           </>
         )}
       </div>
-    </header>
+    </aside>
+    <div class="appmain">
 
     {/* Guests are riding on the owner's subscription — never nag a client to
         buy a plan for a dashboard someone else is already paying for. */}
@@ -488,15 +620,7 @@ const limitsText = product && plan
         </div>
 
         <div class="shell">
-          <div class="sidebar no-print" id="sidebar" style="display:none;">
-            <div class="side-card">
-              <div class="side-label">Your apps</div>
-              <div class="side-apps" id="side-apps"></div>
-              <button class="ghost side-add" id="toggle-add-app">＋ Track an app</button>
-            </div>
-          </div>
           <div class="main-col">
-            <div class="toptabs no-print" id="snav"></div>
             <div id="apps"></div>
           </div>
         </div>
@@ -510,6 +634,8 @@ const limitsText = product && plan
     )}
 
     <footer>{product ? <><b>{BRAND}</b> · App keyword rank tracking · An initiative by {INITIATIVE_NAME}</> : <><b>CiteRank</b> · By Rudra Kasturi Inc · App keyword rank tracking</>}</footer>
+    </div>
+    </div>
     <div class="toast" id="toast"></div>
     <div class="viztip" id="viztip"></div>
     <div class="kwmodal-backdrop no-print" id="kwmodal-backdrop">
@@ -587,20 +713,23 @@ ai photo enhancer"></textarea>
       // the international ASO tools — switched from the left sidebar.
       const SECTIONS = [
         { id: 'overview', label: 'Overview' },
-        { id: 'insights', label: 'Insights' },
-        { id: 'keywords', label: 'Daily Keywords' },
-        { id: 'coverage', label: 'All Keywords' },
+        { id: 'keywords', label: 'Keywords' },
         { id: 'compare', label: 'Compare' },
-        { id: 'trends', label: 'Trends' },
+        { id: 'reviews', label: 'Reviews' },
+        { id: 'trends', label: 'Category ranking' },
         { id: 'settings', label: 'Settings' },
       ];
       // Which competitor apps (their keys) are selected in Compare, per app.
       const compareState = {};
+      // Which keyword list (daily | all) the merged Keywords tab shows, per app.
+      const keywordSet = {};
       let currentSection = 'overview';
       // "Export PDF" prints every section stacked, not just the open one.
       let printAll = false;
       // Which category sub-tab is active within the coverage view, per app.
       const catTabState = {};
+      // Daily Keywords: which category (if any) the breakdown table is filtering to, per app.
+      const dailyCatState = {};
       // Live keyword search, per app — one for Daily Keywords, one for All
       // Keywords. A non-empty All-Keywords search deliberately bypasses the
       // category tabs (see categorizedCoverageHtml) and searches every
@@ -1823,7 +1952,7 @@ ai photo enhancer"></textarea>
         const diffHtml = diff == null || diff === 0 ? '' : diff > 0
           ? ` <span class="delta down">▲ ${diff}pt</span>` : ` <span class="delta up">▼ ${-diff}pt</span>`;
         return `<div class="wn-card">${head}
-          <button class="wn-linkline" data-goto-section="trends"><span class="wn-line-main"><span class="wn-line-title"><span class="delta ${toneColor}">${latest.negativeShare}%</span> of the last ${latest.total} reviews are 1-2★${diffHtml}</span><span class="wn-empty">Lower is healthier — watch for a rise ahead of a rank drop</span></span><span class="wn-viewcta">Trend →</span></button>
+          <button class="wn-linkline" data-goto-section="reviews"><span class="wn-line-main"><span class="wn-line-title"><span class="delta ${toneColor}">${latest.negativeShare}%</span> of the last ${latest.total} reviews are 1-2★${diffHtml}</span><span class="wn-empty">Lower is healthier — watch for a rise ahead of a rank drop</span></span><span class="wn-viewcta">Trend →</span></button>
         </div>`;
       }
 
@@ -1937,16 +2066,23 @@ ai photo enhancer"></textarea>
             <div class="chartbox">${visChart(ov.days, app.annotations, autoMarks, visCompSeries, chartWidth(700))}</div>
           </div>
           ${keyStatsTilesHtml(app)}
+          ${competitorBoardHtml(app)}
           <div class="chartbox">
             <h4>Top-3 score trend — high search volume, top-3 rank only</h4>
             <p class="hint" style="margin:0 0 8px;">Weighted by position (#1 counts most, #3 least), counting only daily-tracked keywords with App Volume ≥ ${TOP3_VOLUME_THRESHOLD} — meant to track more closely with real store listing page views than the overall visibility score above, which averages every tracked keyword equally.</p>
             ${top3VolumeTrendChart(top3VolumeTrendSeries(app), chartWidth(560))}
           </div>
           <div class="glancecards">${moversHtml(app)}${competitorPulseHtml(app)}${ratingPulseHtml(app)}</div>
-          ${trendChartsHtml(app)}
-          ${categoryChartTrendHtml(app)}
-          <div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days, chartWidth(560))}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>
         </div>`;
+      }
+
+      // Keyword rank distribution by day — lives on the Category ranking tab
+      // (moved out of Overview in the Step 3 layout; same markup as before).
+      function rankDistributionHtml(app) {
+        const ov = app.overview;
+        if (!ov || !ov.days) return '';
+        const legend = bucketLegend(ov.days);
+        return `<div class="chartbox"><h4>Keyword rank distribution by day</h4>${stackChart(ov.days, chartWidth(560))}<div class="legend">${legend}</div>${coverageNote(ov.days)}</div>`;
       }
 
       // Keywords excluded from today's bars because their check failed or
@@ -2355,6 +2491,112 @@ ai photo enhancer"></textarea>
       // Groups the coverage list using the app's own derived topics (see
       // buildKeywordGroups) and renders a sub-tab per group actually present,
       // so each topic can be read without scanning one long flat list.
+
+      // ---- Step 5 helpers: category breakdown + competitor board --------------
+      // Same grouping the All Keywords tabs always used (categorizeKeyword /
+      // groupsFor) — this only wraps it so the breakdown table and the filter
+      // agree on which category every keyword ended up in.
+      function groupByCategory(app, trends) {
+        const byCat = {};
+        for (const t of trends) {
+          const cat = categorizeKeyword(t.keyword, app);
+          (byCat[cat] = byCat[cat] || []).push(t);
+        }
+        // A category holding one keyword isn't a topic — fold into Other (same rule as the tabs).
+        for (const cat of Object.keys(byCat)) {
+          if (cat !== 'Brand + Comp' && cat !== 'Other' && byCat[cat].length < 2) {
+            byCat.Other = [...(byCat.Other || []), ...byCat[cat]];
+            delete byCat[cat];
+          }
+        }
+        const order = ['Brand + Comp', ...groupsFor(app).groups.map((g) => g.label), 'Other'];
+        const present = order.filter((c) => (byCat[c] || []).length);
+        const catOf = {};
+        for (const c of present) for (const t of byCat[c]) catOf[t.keyword] = c;
+        return { byCat, present, catOf };
+      }
+
+      const BAND_COLORS = ['#364fc7', '#7d8fe0', '#c3cbf3', '#e5e7eb'];
+      // One row per category: how many keywords, average rank, where they sit
+      // (top 10 / 11-30 / 31-100 / not ranked) and what share of search volume
+      // they carry. Clicking a row filters the table below (attr = the data
+      // attribute the page's click handler listens for).
+      function categoryBreakdownHtml(app, g, active, attr, extraClass) {
+        const vols = app.keywordVolumes || {};
+        const all = g.present.flatMap((c) => g.byCat[c]);
+        const totalVol = all.reduce((a, t) => a + (vols[t.keyword] || 0), 0);
+        const rows = g.present.map((c) => {
+          const list = g.byCat[c];
+          const ranked = list.filter((t) => t.position != null && !t.error);
+          const avg = ranked.length ? ranked.reduce((a, t) => a + t.position, 0) / ranked.length : null;
+          const b10 = ranked.filter((t) => t.position <= 10).length;
+          const b30 = ranked.filter((t) => t.position > 10 && t.position <= 30).length;
+          const b100 = ranked.filter((t) => t.position > 30 && t.position <= 100).length;
+          const none = list.length - b10 - b30 - b100;
+          const pct = (n) => (list.length ? (n / list.length) * 100 : 0);
+          const vol = list.reduce((a, t) => a + (vols[t.keyword] || 0), 0);
+          const share = totalVol ? Math.round((vol / totalVol) * 100) + '%' : '–';
+          const tip = `Top 10: ${b10} · 11-30: ${b30} · 31-100: ${b100} · Not ranked: ${none}`;
+          return `<button type="button" class="catrow ${extraClass || ''} ${c === active ? 'active' : ''}" ${attr}="${escAttr(c)}" aria-pressed="${c === active}">
+            <span class="cn">${esc(c)}</span>
+            <span class="cv">${list.length}</span>
+            <span class="cv">${avg == null ? '–' : '#' + avg.toFixed(1)}</span>
+            <span class="cbar" title="${escAttr(tip)}"><i style="width:${pct(b10)}%;background:${BAND_COLORS[0]}"></i><i style="width:${pct(b30)}%;background:${BAND_COLORS[1]}"></i><i style="width:${pct(b100)}%;background:${BAND_COLORS[2]}"></i><i style="width:${pct(none)}%;background:${BAND_COLORS[3]}"></i></span>
+            <span class="cv">${share}</span>
+          </button>`;
+        }).join('');
+        return `<div class="catbk no-print">
+          <div class="catbk-head"><span>Category</span><span>Keywords</span><span>Avg rank</span><span>Where they rank</span><span>Volume</span></div>
+          ${rows}
+          <div class="catbk-key"><span><i style="background:${BAND_COLORS[0]}"></i>Top 10</span><span><i style="background:${BAND_COLORS[1]}"></i>11-30</span><span><i style="background:${BAND_COLORS[2]}"></i>31-100</span><span><i style="background:${BAND_COLORS[3]}"></i>Not ranked</span></div>
+        </div>`;
+      }
+
+      // Overview: this app's visibility next to its tracked competitors', as a
+      // bar chart plus a small table. Uses the same numbers as each app's own
+      // Overview headline and the Competitor pulse card — nothing recomputed.
+      function competitorBoardHtml(app) {
+        const comps = comparableApps(app).filter((a) => a.overview && a.overview.visibility != null);
+        const me = app.overview && app.overview.visibility;
+        if (!comps.length || me == null) return '';
+        const kws = fullKeywordUniverse(app);
+        const rowFor = (a, isMe) => {
+          const tm = trendMap(a);
+          const pos = kws.map((k) => tm[k]).filter((t) => t && !t.error && t.position != null).map((t) => t.position);
+          return {
+            key: a.key, isMe,
+            name: a.title || a.appId,
+            label: a.developer || a.title || a.appId,
+            vis: a.overview.visibility,
+            prev: a.overview.prevVisibility,
+            avg: pos.length ? pos.reduce((x, y) => x + y, 0) / pos.length : null,
+            top10: pos.filter((x) => x <= 10).length,
+          };
+        };
+        const rows = [rowFor(app, true), ...comps.map((c) => rowFor(c, false))].sort((a, b) => b.vis - a.vis).slice(0, 6);
+        // --- bar chart
+        const W = 520, H = 230, top = 22, bot = 52, left = 34, pH = H - top - bot, pW = W - left - 8;
+        const max = Math.max(20, Math.ceil(Math.max(...rows.map((r) => r.vis)) / 20) * 20);
+        const y = (v) => top + pH - (v / max) * pH;
+        let svg = '';
+        for (let v = 0; v <= max; v += max / 4) svg += `<line x1="${left}" x2="${W - 8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${left - 8}" y="${y(v) + 4}" text-anchor="end" fill="var(--muted)" font-size="11">${Math.round(v)}</text>`;
+        const slot = pW / rows.length, bw = Math.min(54, slot * 0.62);
+        rows.forEach((r, i) => {
+          const x = left + slot * i + (slot - bw) / 2, h = (r.vis / max) * pH;
+          const short = r.label.length > 14 ? r.label.slice(0, 13) + '…' : r.label;
+          svg += `<g><title>${esc(r.name)}: ${r.vis.toFixed(1)}</title><rect x="${x}" y="${y(r.vis)}" width="${bw}" height="${h}" rx="6" fill="${r.isMe ? 'var(--blue)' : '#d3d6de'}"/><text x="${x + bw / 2}" y="${y(r.vis) - 7}" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--ink)">${r.vis.toFixed(1)}</text><text x="${x + bw / 2}" y="${H - bot + 18}" text-anchor="middle" font-size="11" fill="${r.isMe ? 'var(--blue)' : 'var(--muted)'}" ${r.isMe ? 'font-weight="700"' : ''}>${esc(r.isMe ? 'You' : short)}</text></g>`;
+        });
+        const body = rows.map((r, i) => {
+          const d = r.prev != null ? Math.round((r.vis - r.prev) * 10) / 10 : null;
+          const dh = d == null ? '' : d > 0 ? ` <span class="delta up">▲${d}</span>` : d < 0 ? ` <span class="delta down">▼${-d}</span>` : '';
+          return `<tr class="${r.isMe ? 'me-row' : ''}"><td>${i + 1}</td><td><b>${esc(r.name)}</b>${r.isMe ? ' <span class="pill cc">you</span>' : ''}</td><td class="pos">${r.vis.toFixed(1)}${dh}</td><td class="pos">${r.avg == null ? '–' : '#' + r.avg.toFixed(1)}</td><td class="pos">${r.top10}</td></tr>`;
+        }).join('');
+        return `<div class="compboard">
+          <div class="chartbox"><h4>Visibility vs competitors</h4><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Search visibility score for this app and its tracked competitors" style="display:block;">${svg}</svg></div>
+          <div class="chartbox"><h4>Top apps on your keywords</h4><div class="table-wrap"><table><thead><tr><th>#</th><th>App</th><th>Visibility</th><th>Avg rank</th><th>Top 10</th></tr></thead><tbody>${body}</tbody></table></div></div>
+        </div>`;
+      }
+
       function categorizedCoverageHtml(app) {
         // A keyword can legitimately sit in BOTH the daily-tracked list and
         // the full coverage list — they're checked by two separate passes
@@ -2402,9 +2644,7 @@ ai photo enhancer"></textarea>
         // single option is just noise, show the plain table instead.
         if (present.length <= 1) return coverageTableHtml(app, trends);
         const active = present.includes(catTabState[app.key]) ? catTabState[app.key] : present[0];
-        const tabs = `<div class="kwtabs cattabs no-print">${present.map((c) =>
-          `<button class="kwtab cattab ${c === active ? 'active' : ''}" data-cattab="${escAttr(c)}">${esc(c)} (${byCat[c].length})</button>`
-        ).join('')}</div>`;
+        const tabs = categoryBreakdownHtml(app, { byCat, present }, active, 'data-cattab', 'cattab');
         return tabs + coverageTableHtml(app, byCat[active]);
       }
 
@@ -2981,7 +3221,9 @@ ai photo enhancer"></textarea>
         const sectionOverviewFn = () => `
           <div class="section-head"><h2>Overview</h2><p class="hint">Where you rank today, your trend, and what changed since your last check.</p>
           ${(rangeFrom || rangeTo) ? `<p class="hint" style="margin-top:4px;">📅 Showing everything below for <b>${esc(rangeFrom || 'the start')} → ${esc(rangeTo || 'today')}</b>.</p>` : ''}</div>
-          ${overviewHtml(app)}`;
+          ${overviewHtml(app)}
+          <div class="section-head" style="margin-top:22px;"><h2>What's moving your rank</h2><p class="hint">Separating the listing changes you made from the things you didn't change (review health, competitor standing).</p></div>
+          ${insightsHtml(app)}`;
 
         const sectionInsightsFn = () => `
           <div class="section-head"><h2>Insights</h2><p class="hint">What's actually moving your rank — separating the listing changes you made from the things you didn't change (review health, competitor standing) that no copy rewrite will fix.</p></div>
@@ -2994,6 +3236,13 @@ ai photo enhancer"></textarea>
           const cpcs = app.keywordCpc || {};
           const diffMap = app.difficulty || {};
           let trends = (app.trends || []).map((t) => ({ ...t, volume: volumes[t.keyword] ?? null, webVolume: webVolumes[t.keyword] ?? null, cpc: cpcs[t.keyword] ?? null, difficulty: diffMap[t.keyword] || null }));
+          // Category breakdown (same grouping as All Keywords) + optional filter.
+          const dg = groupByCategory(app, trends);
+          const dcat = dg.present.includes(dailyCatState[app.key]) ? dailyCatState[app.key] : '';
+          const dailyBreakdown = (dg.present.length > 1 && (app.keywords || []).length)
+            ? `<h4 class="covhead" style="margin-top:6px;">By category <span class="hint" style="display:inline;margin:0;">— ${dcat ? `showing ${esc(dcat)} · click it again to see all` : 'click a row to filter the table'}</span></h4>${categoryBreakdownHtml(app, dg, dcat, 'data-dailycat', 'dailycat')}`
+            : '';
+          if (dcat) trends = trends.filter((t) => dg.catOf[t.keyword] === dcat);
           const search = (dailySearchState[app.key] || '').trim().toLowerCase();
           if (search) trends = trends.filter((t) => t.keyword.toLowerCase().includes(search));
           if (sort.col) {
@@ -3049,6 +3298,7 @@ ai photo enhancer"></textarea>
           ${promoCard ? `<div style="max-width:520px;margin-bottom:14px;">${promoCard}</div>` : ''}
           ${moversCard ? `<div style="max-width:520px;margin-bottom:14px;">${moversCard}</div>` : ''}
           <div class="no-print">${discoverHtml(app)}</div>
+          ${dailyBreakdown}
           ${(app.keywords || []).length ? searchBoxHtml('dailysearch', dailySearchState[app.key], 'Search daily-tracked keywords…') : ''}
           ${table}
           <div class="no-print" style="margin-top:14px;">${asoSummaryHtml(app)}</div>`;
@@ -3062,6 +3312,27 @@ ai photo enhancer"></textarea>
             ? coverageHtml(app)
             : '<p class="hint">No coverage list yet — paste your full keyword universe (up to ' + MAX_COVERAGE + ') under <b>Settings</b> to monitor every keyword you care about beyond the plan-capped daily list.</p>'}`;
 
+        // Daily + All keywords share one tab with a switch (Step 3 layout).
+        const sectionKeywordsMergedFn = () => {
+          const set = keywordSet[app.key] === 'all' ? 'all' : 'daily';
+          const dn = (app.keywords || []).length, cn = (app.coverageKeywords || []).length;
+          const toggle = `<div class="segwrap no-print" style="margin-bottom:14px;" role="group" aria-label="Keyword list">
+            <span class="seg ${set === 'daily' ? 'active' : ''}" data-kwset="daily">Daily (${dn})</span>
+            <span class="seg ${set === 'all' ? 'active' : ''}" data-kwset="all">All (${cn})</span></div>`;
+          return toggle + (set === 'all' ? sectionCoverageFn() : sectionKeywordsFn());
+        };
+
+        // Reviews tab — the rating/review pieces that used to be split between
+        // Overview and Trends, now together.
+        const sectionReviewsFn = () => {
+          const ratingCard = ratingPulseHtml(app);
+          return `
+          <div class="section-head"><h2>Reviews</h2><p class="hint">How reviewers rate the app, how the 1-2★ share is moving, and what they complain about.</p></div>
+          ${ratingCard ? `<div style="max-width:520px;margin-bottom:14px;">${ratingCard}</div>` : ''}
+          ${trendChartsHtml(app)}
+          ${reviewThemesHtml(app)}`;
+        };
+
         const sectionCompareFn = () => {
           const compPulseCard = competitorPulseHtml(app);
           return `
@@ -3071,12 +3342,10 @@ ai photo enhancer"></textarea>
         };
 
         const sectionTrendsFn = () => {
-          const ratingCard = ratingPulseHtml(app);
           return `
-          <div class="section-head"><h2>Trends</h2><p class="hint">Longer-horizon signals: category chart position, rating health, and your logged experiments.</p></div>
-          ${ratingCard ? `<div style="max-width:520px;margin-bottom:14px;">${ratingCard}</div>` : ''}
-          ${trendChartsHtml(app)}
-          ${reviewThemesHtml(app)}
+          <div class="section-head"><h2>Category ranking</h2><p class="hint">Where the app sits in its store chart over time, how your keyword list is spread across ranks, and the changes you logged.</p></div>
+          ${categoryChartTrendHtml(app)}
+          ${rankDistributionHtml(app)}
           <div class="annedit open no-print" data-role="annedit" style="margin-top:16px;">
             <h4 style="margin:0 0 6px;font-size:13.5px;">Log an annotation</h4>
             <p class="hint" style="margin:0 0 8px;">An ASO experiment (title/screenshot/keyword change) or a paid marketing push — we'll compare average visibility in the 14 days before vs after. Name the specific keywords a change targeted below and we'll also show each one's own rank before vs after, not just the whole-app average.</p>
@@ -3271,11 +3540,11 @@ ai photo enhancer"></textarea>
           </details>`;
 
         const bySection = {
-          overview: sectionOverviewFn, insights: sectionInsightsFn, keywords: sectionKeywordsFn, coverage: sectionCoverageFn,
-          compare: sectionCompareFn, trends: sectionTrendsFn, settings: sectionSettingsFn,
+          overview: sectionOverviewFn, insights: sectionInsightsFn, keywords: sectionKeywordsMergedFn, coverage: sectionCoverageFn,
+          compare: sectionCompareFn, reviews: sectionReviewsFn, trends: sectionTrendsFn, settings: sectionSettingsFn,
         };
         const body = printAll
-          ? [sectionOverviewFn(), sectionKeywordsFn(), sectionCoverageFn(), sectionCompareFn(), sectionTrendsFn()].join('<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">')
+          ? [sectionOverviewFn(), sectionKeywordsFn(), sectionCoverageFn(), sectionCompareFn(), sectionReviewsFn(), sectionTrendsFn()].join('<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">')
           : (bySection[currentSection] || sectionOverviewFn)();
 
         return `
@@ -3293,7 +3562,7 @@ ai photo enhancer"></textarea>
       }
 
       function sectionCount(app, id) {
-        if (id === 'keywords') return (app.keywords || []).length || '';
+        if (id === 'keywords') return (app.coverageKeywords || []).length || (app.keywords || []).length || '';
         if (id === 'coverage') return (app.coverageKeywords || []).length || '';
         if (id === 'compare') return comparableApps(app).length || '';
         return '';
@@ -3419,6 +3688,9 @@ ai photo enhancer"></textarea>
         const { primaries, byPrimary } = groupAppsByPrimary(state.apps);
         $('side-apps').innerHTML = primaries.map((app) =>
           sideAppBtn(app, false) + (byPrimary[app.key] || []).map((c) => sideAppBtn(c, true)).join('')).join('');
+        // Sidebar app switcher shows which app (or "All apps") is open.
+        { const selApp = state.apps.find((a) => a.key === selectedAppKey);
+          $('app-switch-label').textContent = portfolioMode ? 'All apps' : (selApp ? (selApp.title || selApp.appId) : 'Choose an app'); }
         // The section tabs (Overview/Insights/...) are per-app — nothing to
         // show while the All-apps summary is open.
         if (portfolioMode) { $('snav').innerHTML = ''; return; }
@@ -3736,6 +4008,16 @@ ai photo enhancer"></textarea>
         const secBtn = ev.target.closest('[data-section]');
         if (secBtn) { currentSection = secBtn.getAttribute('data-section'); render(); }
       });
+      // App switcher dropdown (sidebar) + mobile menu button. Pure UI — the real
+      // selection still happens in the #sidebar click handler above.
+      { const sw = $('app-switch'), pop = $('side-pop'), nav = $('appnav'), tog = $('nav-toggle');
+        const closePop = () => { pop.classList.remove('open'); sw.setAttribute('aria-expanded', 'false'); };
+        sw.addEventListener('click', (ev) => { ev.stopPropagation(); const open = pop.classList.toggle('open'); sw.setAttribute('aria-expanded', String(open)); });
+        pop.addEventListener('click', (ev) => { if (ev.target.closest('.side-app') || ev.target.closest('#toggle-add-app')) closePop(); });
+        document.addEventListener('click', (ev) => { if (!ev.target.closest('.side-card')) closePop(); });
+        document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closePop(); });
+        tog.addEventListener('click', () => { const open = nav.classList.toggle('navopen'); tog.setAttribute('aria-expanded', String(open)); });
+      }
       // "Track an app" used to be an inline card at the top of the page —
       // permanently taking space above the toolbar and pushing the app
       // you're actually looking at further down, even when you weren't
@@ -3769,6 +4051,8 @@ ai photo enhancer"></textarea>
           render();
           return;
         }
+        const kwSetBtn = ev.target.closest('[data-kwset]');
+        if (kwSetBtn) { keywordSet[selectedAppKey] = kwSetBtn.getAttribute('data-kwset'); render(); return; }
         const gotoSection = ev.target.closest('[data-goto-section]');
         if (gotoSection) { currentSection = gotoSection.getAttribute('data-goto-section'); render(); return; }
         // Stash the already-computed ASO result before the deep link opens
@@ -3795,6 +4079,14 @@ ai photo enhancer"></textarea>
         if (catTab) {
           const card = catTab.closest('.appcard');
           catTabState[card.getAttribute('data-key')] = catTab.getAttribute('data-cattab');
+          render();
+          return;
+        }
+        const dailyCat = ev.target.closest('[data-dailycat]');
+        if (dailyCat) {
+          const key = dailyCat.closest('.appcard').getAttribute('data-key');
+          const v = dailyCat.getAttribute('data-dailycat');
+          dailyCatState[key] = dailyCatState[key] === v ? '' : v;
           render();
           return;
         }

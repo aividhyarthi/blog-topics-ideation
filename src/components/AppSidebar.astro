@@ -1,0 +1,82 @@
+---
+// Shared left sidebar for the signed-in pages other than /rank (Welcome, ASO
+// Inspector, Account). /rank has its own copy because it also hosts the app
+// switcher and section tabs. Markup keeps the same ids the pages' scripts bind
+// to (#usertrigger, #userdropdown, #logout) — the pages own that behaviour, so
+// this component only adds the phone menu button (#nav-toggle).
+import { BRAND } from '../lib/saas/plans';
+interface Props { active: 'welcome' | 'rank' | 'aso' | 'account' | 'blog'; product: boolean; email?: string }
+const { active, product, email } = Astro.props as Props;
+const links = product
+  ? [['welcome', '/welcome', 'Welcome'], ['rank', '/rank', 'Rank Tracker'], ['aso', '/aso', 'ASO Inspector'], ['blog', '/blog', 'Blog']]
+  : [['aso', '/aso', 'ASO Inspector'], ['rank', '/rank', 'Rank Tracker']];
+---
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" />
+<aside class="appnav no-print" id="appnav" aria-label="Main navigation">
+  <div class="navtop">
+    {product ? (
+      <a href="/" class="brandbar" style="text-decoration:none;color:inherit;"><span class="logo">AR</span><span class="wordmark">{BRAND}</span></a>
+    ) : (
+      <div class="brandbar"><span class="logo">◆</span><span class="wordmark">CiteRank</span></div>
+    )}
+    <button type="button" class="navtoggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
+  </div>
+  <div class="navfoot" id="navfoot">
+    <div class="navgroup">Tools</div>
+    <nav class="top">
+      {links.map(([id, href, label]) => <a href={href} class:list={[id === active && 'active']}>{label}</a>)}
+    </nav>
+    {product && (
+      <div class="usermenu">
+        <button type="button" class="usertrigger" id="usertrigger">{email} <span class="caret">▾</span></button>
+        <div class="userdropdown" id="userdropdown">
+          <a href="/account">Account &amp; billing</a>
+          <a href="/about">About</a>
+          <a href="#" id="logout">Log out</a>
+        </div>
+      </div>
+    )}
+  </div>
+</aside>
+<style is:inline>
+  /* Self-contained: own tokens, so it looks the same whatever palette the host page uses. */
+  .appshell { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  .appmain { min-width: 0; }
+  .appnav { --n-card: #ffffff; --n-soft: #f6f6f7; --n-line: #ececec; --n-ink: #171717; --n-muted: #737373;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto; border-right: 1px solid var(--n-line); background: var(--n-card); color: var(--n-ink);
+    padding: 14px 12px; display: flex; flex-direction: column; gap: 14px; font-size: 13.5px; }
+  .appnav .navtop { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px; }
+  .appnav .brandbar { display: flex; align-items: center; gap: 8px; margin: 0; }
+  .appnav .brandbar .logo { width: 22px; height: 22px; border-radius: 6px; background: var(--n-ink); color: #fff; display: grid; place-items: center; font-size: 9.5px; font-weight: 800; letter-spacing: -0.03em; }
+  .appnav .brandbar .wordmark { font-size: 15.5px; font-weight: 600; letter-spacing: -0.02em; }
+  .appnav .navtoggle { display: none; background: none; border: 1px solid var(--n-line); border-radius: 8px; padding: 5px 10px; font-size: 16px; cursor: pointer; color: var(--n-ink); }
+  .appnav .navfoot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+  .appnav .navgroup { font-size: 12px; font-weight: 500; color: var(--n-muted); padding: 0 10px; }
+  .appnav nav.top { margin: 0; display: flex; flex-direction: column; gap: 1px; align-items: stretch; }
+  .appnav nav.top a { padding: 7px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: var(--n-ink); text-decoration: none; background: none; border: 0; }
+  .appnav nav.top a:hover { background: var(--n-soft); }
+  .appnav nav.top a.active { background: var(--n-soft); font-weight: 600; }
+  .appnav .usermenu { position: relative; margin: 6px 0 0; width: 100%; }
+  .appnav .usertrigger { width: 100%; max-width: none; text-align: left; display: flex; justify-content: space-between; gap: 8px; border: 1px solid var(--n-line); border-radius: 8px; background: none; color: var(--n-muted); font: inherit; font-weight: 500; padding: 6px 11px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .appnav .userdropdown { display: none; position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); background: var(--n-card); border: 1px solid var(--n-line); border-radius: 10px; box-shadow: 0 14px 34px -10px rgba(0,0,0,0.3); overflow: hidden; z-index: 50; }
+  .appnav .userdropdown.open { display: block; }
+  .appnav .userdropdown a { display: block; padding: 9px 13px; font-size: 13px; font-weight: 500; color: var(--n-ink); text-decoration: none; }
+  .appnav .userdropdown a:hover { background: var(--n-soft); }
+  .appnav .userdropdown a + a { border-top: 1px solid var(--n-line); }
+  @media (max-width: 900px) {
+    .appshell { display: block; }
+    .appnav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--n-line); padding: 10px 14px; gap: 10px; }
+    .appnav .navtoggle { display: inline-block; }
+    .appnav .navfoot { display: none; margin-top: 0; }
+    .appnav.navopen .navfoot { display: flex; }
+  }
+  @media print { .appnav { display: none !important; } .appshell { display: block; } }
+</style>
+<script is:inline>
+  (function () {
+    var nav = document.getElementById('appnav'), tog = document.getElementById('nav-toggle');
+    if (nav && tog) tog.addEventListener('click', function () { var o = nav.classList.toggle('navopen'); tog.setAttribute('aria-expanded', String(o)); });
+  })();
+</script>

@@ -8,6 +8,7 @@ import { BRAND, planOf, checkAccess, INITIATIVE_NAME, SITE_URL, ADSENSE_SLOTS } 
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import AdSenseScript from '../components/AdSenseScript.astro';
 import AdSlot from '../components/AdSlot.astro';
+import AppSidebar from '../components/AppSidebar.astro';
 const product = Boolean(Astro.locals.productMode);
 const user = Astro.locals.user || null;
 const plan = user ? planOf(user.plan) : null;
@@ -29,13 +30,13 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
     <!-- is:global so styles also apply to the results DOM injected at runtime. -->
     <style is:global>
       :root {
-        --pink: #16181d; --pink-dark: #000000; --ink: #16181d; --muted: #6b7280;
-        --line: #e5e7eb; --bg: #f8f9fb; --card: #ffffff;
+        --pink: #16181d; --pink-dark: #000000; --ink: #171717; --muted: #737373;
+        --line: #ececec; --bg: #ffffff; --card: #ffffff;
         --ok: #0a8a5f; --ok-bg: #e6f6ef; --warn: #b8790a; --warn-bg: #fdf3dd;
         --bad: #c0392b; --bad-bg: #fdecec; --na: #9aa0ad; --indigo: #16181d;
       }
       * { box-sizing: border-box; }
-      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; font-size: 14px; }
+      body { margin: 0; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; background: var(--bg); color: var(--ink); line-height: 1.5; font-size: 14px; }
       header { background: #fff; color: var(--ink); border-bottom: 1px solid var(--line); padding: 14px 20px; }
       .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
       header h1 { margin: 0 0 4px; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
@@ -263,52 +264,22 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         .sectitle { break-after: avoid; }
         .gauge, .impcard, .fixrow, .pillar, tr { break-inside: avoid; }
       }
+          /* ===== design layer v2 — stage 4: ASO Inspector =====
+         Restyle + shared sidebar. Roll back = delete this block and the
+         AppSidebar wrapper, or use branch claude/apprankr-backup-2026-11-09. */
+      .pagehead { padding-top: 26px; }
+      .pagehead h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+      .pagehead p { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 760px; }
+      .card { border-radius: 12px; box-shadow: none; }
+      button.primary { border-radius: 999px; font-weight: 500; }
+      input[type=text], input[type=url], textarea, select { border-radius: 8px; }
+      .impcard, .fvcard, .gauge, .mcell, .fixrow, .pillar, .tablewrap { box-shadow: none; }
     </style>
   </head>
   <body>
-    <header>
-      <div class="wrap">
-        {product ? (
-          <>
-            <a href="/" class="brandbar" style="text-decoration:none;color:inherit;">
-              <span class="logo">AR</span>
-              <span class="wordmark">{BRAND}</span>
-            </a>
-            <h1>ASO Inspector — Google Play</h1>
-            <p>Paste a Google Play (Android) app and get its App Store Optimization score, keyword analysis, competitor comparison, and AI-rewritten title, short and long descriptions — all from the live listing.</p>
-            <nav class="top">
-              <a href="/welcome">Welcome</a>
-              <a href="/rank">Rank Tracker</a>
-              <a href="/aso" class="active">ASO Inspector</a>
-              <a href="/blog">Blog</a>
-              <div class="usermenu">
-                <button type="button" class="usertrigger" id="usertrigger">{user?.email} <span class="caret">▾</span></button>
-                <div class="userdropdown" id="userdropdown">
-                  <a href="/account">Account &amp; billing</a>
-                  <a href="/about">About</a>
-                  <a href="#" id="logout">Log out</a>
-                </div>
-              </div>
-            </nav>
-          </>
-        ) : (
-          <>
-            <div class="brandbar">
-              <span class="logo">◆</span>
-              <span class="wordmark">CiteRank</span>
-              <span class="by">By Rudra Kasturi Inc</span>
-              <span class="aipill">✨ AI-powered</span>
-            </div>
-            <h1>ASO Inspector — Google Play</h1>
-            <p>Paste a Google Play (Android) app and get its App Store Optimization score, keyword analysis, competitor comparison, and AI-rewritten title, short and long descriptions — all from the live listing.</p>
-            <nav class="top">
-              <a href="/aso" class="active">ASO Inspector</a>
-              <a href="/rank">Rank Tracker</a>
-            </nav>
-          </>
-        )}
-      </div>
-    </header>
+    <div class="appshell">
+    <AppSidebar active="aso" product={product} email={user?.email} />
+    <div class="appmain">
 
     {product && access?.trialDaysLeft && (
       <div class="no-print" style="background:#fff6e6;border-bottom:1px solid #f3e0b0;color:#8a5d00;font-size:13.5px;padding:9px 20px;text-align:center;">
@@ -316,6 +287,11 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
         <a href="/account" style="color:#8a5d00;font-weight:700;">choose a plan</a> to keep using ASO Inspector.
       </div>
     )}
+
+    <div class="wrap pagehead">
+      <h1>ASO Inspector — Google Play</h1>
+      <p>Paste a Google Play (Android) app and get its App Store Optimization score, keyword analysis, competitor comparison, and AI-rewritten title, short and long descriptions — all from the live listing.</p>
+    </div>
 
     <main>
       <div class="wrap">
@@ -370,6 +346,8 @@ const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
     <footer>{product
       ? <><b>{BRAND} · ASO Inspector</b> · live Google Play data · the score grades owner-editable listing fields; ratings &amp; installs are shown as market context · An initiative by {INITIATIVE_NAME}</>
       : <><b>CiteRank · ASO Inspector</b> · By Rudra Kasturi Inc · live Google Play data · the score grades owner-editable listing fields; ratings &amp; installs are shown as market context</>}</footer>
+    </div>
+    </div>
     <div class="toast" id="toast"></div>
 
     <script>
