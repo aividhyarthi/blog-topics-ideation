@@ -574,6 +574,14 @@ const SPEC = {
     { art: 'qa', takeaway: 'Pending is not the same as abandoned' },
   'showing-price-range-iap-conversion':
     { art: 'qa', takeaway: 'One rare purchase can set the whole ceiling' },
+  'supported-languages-count-trust-signal':
+    { art: 'diverge', takeaway: 'The count impresses, the gap breaks it',
+      a: 'claimed on the listing', b: 'what a real user finds' },
+  'dedicated-support-email-trust-signal':
+    { art: 'qa', takeaway: "The setup behind it matters, not the address itself" },
+  'app-preview-video-autoplay-conversion':
+    { art: 'funnel', takeaway: 'Most of your audience never gets past second one',
+      steps: ['video exists', 'autoplay or a tap', 'actually watched'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
