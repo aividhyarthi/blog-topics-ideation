@@ -467,6 +467,12 @@ const limitsText = product && plan
         .side-pop { max-height: 55vh; }
       }
       @media print { .appnav { display: none !important; } .appshell { display: block; } }
+      /* ===== design layer v2 — stage 8: keep ads out of the navigation =====
+         Google auto ads must never sit inside the navigation: when Google dropped one in, it pushed the app
+   switcher and the tabs out of view. These rules keep any auto-placed ad (and its iframe) out of the
+   sidebar and out of the page grid; ads elsewhere on the page are not affected. */
+      .appnav .google-auto-placed, .appnav ins.adsbygoogle, .appnav iframe[id^="google_ads"], .appnav iframe[src*="googlesyndication"], .appnav iframe[src*="doubleclick"],
+      .appshell > .google-auto-placed, .appshell > ins.adsbygoogle { display: none !important; height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; }
 
       /* ===== design layer v2 — stage 7: category-rank boxes, volume text, static category rows ===== */
       .hl-boxes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }

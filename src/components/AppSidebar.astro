@@ -77,6 +77,11 @@ const links = product
     .appnav.navopen .navfoot { display: flex; }
   }
   @media print { .appnav { display: none !important; } .appshell { display: block; } }
+  /* Google auto ads must never sit inside the navigation: when Google dropped one in, it pushed the app
+     switcher and the tabs out of view. These rules keep any auto-placed ad (and its iframe) out of the
+     sidebar and out of the page grid; ads elsewhere on the page are not affected. */
+  .appnav .google-auto-placed, .appnav ins.adsbygoogle, .appnav iframe[id^="google_ads"], .appnav iframe[src*="googlesyndication"], .appnav iframe[src*="doubleclick"],
+  .appshell > .google-auto-placed, .appshell > ins.adsbygoogle { display: none !important; height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; }
 </style>
 <script is:inline>
   (function () {
