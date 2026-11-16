@@ -8,7 +8,7 @@ import { BRAND } from '../lib/saas/plans';
 interface Props { active: 'welcome' | 'rank' | 'aso' | 'account' | 'blog'; product: boolean; email?: string }
 const { active, product, email } = Astro.props as Props;
 const links = product
-  ? [['welcome', '/welcome', 'Welcome'], ['rank', '/rank', 'Rank Tracker'], ['aso', '/aso', 'ASO Inspector'], ['blog', '/blog', 'Blog']]
+  ? [['rank', '/rank', 'Rank Tracker'], ['aso', '/aso', 'ASO Inspector'], ['blog', '/blog', 'Blog']]
   : [['aso', '/aso', 'ASO Inspector'], ['rank', '/rank', 'Rank Tracker']];
 ---
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -23,6 +23,9 @@ const links = product
     )}
     <button type="button" class="navtoggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
   </div>
+  {product && (
+    <nav class="top homenav" aria-label="Home"><a href="/welcome" class:list={[active === 'welcome' && 'active']}>Welcome</a></nav>
+  )}
   <div class="navfoot" id="navfoot">
     <div class="navgroup">Tools</div>
     <nav class="top">
@@ -53,6 +56,7 @@ const links = product
   .appnav .brandbar .wordmark { font-size: 15.5px; font-weight: 600; letter-spacing: -0.02em; }
   .appnav .navtoggle { display: none; background: none; border: 1px solid var(--n-line); border-radius: 8px; padding: 5px 10px; font-size: 16px; cursor: pointer; color: var(--n-ink); }
   .appnav .navfoot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+  .appnav .homenav { margin: -4px 0 0; }
   .appnav .navgroup { font-size: 12px; font-weight: 500; color: var(--n-muted); padding: 0 10px; }
   .appnav nav.top { margin: 0; display: flex; flex-direction: column; gap: 1px; align-items: stretch; }
   .appnav nav.top a { padding: 7px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: var(--n-ink); text-decoration: none; background: none; border: 0; }
