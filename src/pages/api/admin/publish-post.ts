@@ -20,7 +20,7 @@ export const POST: APIRoute = async (ctx) => {
   let body: {
     title?: string; description?: string; bodyMarkdown?: string;
     tags?: unknown; faqs?: unknown; charts?: unknown; focusKeyword?: string;
-    editSlug?: string;
+    editSlug?: string; publishDate?: string;
   };
   try { body = await ctx.request.json(); } catch { return json({ error: 'Invalid request body.' }, 400); }
 
@@ -51,6 +51,14 @@ export const POST: APIRoute = async (ctx) => {
     : [];
 
   const editSlug = (body.editSlug || '').trim();
+  // Lets a post be queued now and appear later with zero further action —
+  // listPublishedPosts() hides anything whose publish_date hasn't arrived
+  // yet, and the public post page 404s it, so "schedule" needs nothing more
+  // than storing a future timestamp here. Omit it (or send an invalid one)
+  // and a post publishes immediately, same as before this field existed.
+  const rawDate = (body.publishDate || '').trim();
+  const parsedDate = rawDate ? new Date(rawDate) : null;
+  const publishDate = parsedDate && !Number.isNaN(parsedDate.valueOf()) ? parsedDate.toISOString() : undefined;
 
   try {
     if (editSlug) {
@@ -64,11 +72,11 @@ export const POST: APIRoute = async (ctx) => {
       // alone either way, since that's a deliberate asset, not generated.
       const isAutoCover = Boolean(existing.image && existing.image.startsWith('data:image/svg+xml'));
       const image = isAutoCover ? coverDataUri(tags[0] || 'AEO') : existing.image;
-      const post = await updatePost(editSlug, { title, description, bodyMarkdown, tags, faqs, charts, focusKeyword, image });
+      const post = await updatePost(editSlug, { title, description, bodyMarkdown, tags, faqs, charts, focusKeyword, image, publishDate });
       return json({ ok: true, slug: post!.slug, url: `/blog/${post!.slug}` });
     }
     const post = await createPost({
-      title, description, bodyMarkdown, tags, faqs, charts, focusKeyword,
+      title, description, bodyMarkdown, tags, faqs, charts, focusKeyword, publishDate,
       image: coverDataUri(tags[0] || 'AEO'),
     });
     return json({ ok: true, slug: post.slug, url: `/blog/${post.slug}` });

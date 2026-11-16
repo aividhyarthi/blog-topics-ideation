@@ -6,7 +6,11 @@ import { injectCharts } from '../../lib/blogCharts';
 
 const { slug } = Astro.params;
 const post = slug ? await getPostBySlug(slug) : null;
-if (!post) return Astro.redirect('/blog');
+// A scheduled post (publishDate in the future) isn't live yet — treat it
+// the same as not found rather than leaking it via a direct link before its
+// date arrives. listPublishedPosts() already excludes it from every listing;
+// this is the one place that reads a single post by slug on the public site.
+if (!post || new Date(post.publishDate).getTime() > Date.now()) return Astro.redirect('/blog');
 
 // FAQ text and the source label/URL are concatenated as raw HTML below
 // (set:html on .prose bypasses Astro's normal auto-escaping), so they're

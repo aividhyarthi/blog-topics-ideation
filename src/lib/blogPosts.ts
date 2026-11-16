@@ -302,12 +302,22 @@ async function ensureSeeded(): Promise<void> {
   }
 }
 
+// Only posts whose publish_date has actually arrived. This is what makes
+// scheduling work with zero extra infrastructure: write a post today, set
+// publishDate to a future timestamp, and it silently appears on its own the
+// next time anyone loads the site — no cron job, no rebuild step, no AI call
+// at publish time. (A static-site blog needs a scheduled rebuild to get the
+// same effect; we don't, because every request already queries the DB live.)
 export async function listPublishedPosts(limit = 200): Promise<BlogPost[]> {
   await ensureSeeded();
-  const { rows } = await query('SELECT * FROM blog_posts ORDER BY publish_date DESC LIMIT $1', [limit]);
+  const { rows } = await query('SELECT * FROM blog_posts WHERE publish_date <= $1 ORDER BY publish_date DESC LIMIT $2', [new Date().toISOString(), limit]);
   return rows.map(rowToPost);
 }
 
+// Unfiltered by design — used by getPostBySlug's own callers (admin edit,
+// internal slug-uniqueness checks) that need to see a scheduled post before
+// its publish_date arrives. The public post page gates on the date itself
+// (see blog/[slug].astro) rather than here, so admin tooling keeps working.
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
   await ensureSeeded();
   const { rows } = await query('SELECT * FROM blog_posts WHERE slug = $1', [slug]);
@@ -376,13 +386,17 @@ export async function listPostSummaries(limit = 200): Promise<{ slug: string; ti
 export async function updatePost(slug: string, input: NewPostInput): Promise<BlogPost | null> {
   const existing = await getPostBySlug(slug);
   if (!existing) return null;
+  // publishDate only changes when explicitly passed (e.g. rescheduling a
+  // draft from the admin panel) — a plain content edit keeps the post's
+  // existing date, scheduled or already live, same as before this field existed.
+  const publishDate = input.publishDate ?? existing.publishDate;
   await query(
-    `UPDATE blog_posts SET title=$1, description=$2, body_markdown=$3, tags=$4, faqs=$5, charts=$6, author=$7, image=$8, source_url=$9, source_label=$10, focus_keyword=$11 WHERE slug=$12`,
+    `UPDATE blog_posts SET title=$1, description=$2, body_markdown=$3, tags=$4, faqs=$5, charts=$6, author=$7, image=$8, source_url=$9, source_label=$10, focus_keyword=$11, publish_date=$12 WHERE slug=$13`,
     [
       input.title, input.description, input.bodyMarkdown,
       JSON.stringify(input.tags), JSON.stringify(input.faqs), JSON.stringify(input.charts || []),
       input.author || existing.author, input.image ?? existing.image, input.sourceUrl ?? existing.sourceUrl, input.sourceLabel ?? existing.sourceLabel,
-      input.focusKeyword ?? existing.focusKeyword, slug,
+      input.focusKeyword ?? existing.focusKeyword, publishDate, slug,
     ],
   );
   return getPostBySlug(slug);

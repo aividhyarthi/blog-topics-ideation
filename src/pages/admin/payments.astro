@@ -40,6 +40,10 @@ import Site from '../../layouts/Site.astro';
           <input type="text" id="pub-desc" placeholder="Meta description (1-2 sentences)" />
           <input type="text" id="pub-tags" placeholder="Tags, comma-separated (e.g. AEO, GEO, Guide) — tag GEO too if the post is about generative-engine citation" />
           <input type="text" id="pub-keyword" placeholder="Focus keyword, 3-5 words — the real phrase a reader would search or ask an AI (e.g. mobile site AI search visibility). Powers the Most Searched Topics widget on /blog." />
+          <div>
+            <label for="pub-schedule" style="font-size:12.5px;color:var(--muted);display:block;margin-bottom:5px">Schedule for (leave blank to publish immediately)</label>
+            <input type="datetime-local" id="pub-schedule" />
+          </div>
           <textarea id="pub-body" rows="14" placeholder="Full post body in Markdown. Start with:&#10;&lt;div class=&quot;callout&quot;&gt;&lt;span class=&quot;callout-label&quot;&gt;Quick answer&lt;/span&gt;&lt;p&gt;...&lt;/p&gt;&lt;/div&gt;&#10;&#10;For visual variety, add a takeaways box further down:&#10;&lt;div class=&quot;takeaways&quot;&gt;&lt;span class=&quot;callout-label&quot;&gt;Key takeaways&lt;/span&gt;&lt;ul&gt;&lt;li&gt;...&lt;/li&gt;&lt;/ul&gt;&lt;/div&gt;&#10;&#10;And a chart placeholder on its own line where relevant: [[chart:0]]&#10;&#10;Then ## headings, tables, etc."></textarea>
           <textarea id="pub-faqs" rows="4" placeholder='Optional: FAQs as JSON, e.g. [{"q":"...","a":"..."}]'></textarea>
           <textarea id="pub-charts" rows="4" placeholder='Optional: charts as JSON, matched to [[chart:N]] markers in the body, e.g. [{"type":"bar","title":"Checks passed before vs after","unit":"%","caption":"Illustrative","items":[{"label":"Before","value":45},{"label":"After","value":88}]}]'></textarea>
@@ -111,12 +115,12 @@ import Site from '../../layouts/Site.astro';
     let editingSlug = null;
 
     function clearForm() {
-      $('pub-title').value = ''; $('pub-desc').value = ''; $('pub-tags').value = ''; $('pub-keyword').value = ''; $('pub-body').value = ''; $('pub-faqs').value = ''; $('pub-charts').value = '';
+      $('pub-title').value = ''; $('pub-desc').value = ''; $('pub-tags').value = ''; $('pub-keyword').value = ''; $('pub-schedule').value = ''; $('pub-body').value = ''; $('pub-faqs').value = ''; $('pub-charts').value = '';
     }
     function enterEditMode(slug) {
       editingSlug = slug;
       $('pubform-head').textContent = 'Editing: ' + slug;
-      $('pubform-lead').textContent = 'Updates this post in place — same URL, same publish date.';
+      $('pubform-lead').textContent = 'Updates this post in place — same URL. Change "Schedule for" to reschedule it.';
       $('pub-go').textContent = 'Update';
       $('pub-cancel').hidden = false;
       window.scrollTo({ top: $('pub-title').closest('.dcard').offsetTop - 20, behavior: 'smooth' });
@@ -153,6 +157,14 @@ import Site from '../../layouts/Site.astro';
       try {
         const payload = { title, description, bodyMarkdown, tags, faqs, charts, focusKeyword };
         if (editingSlug) payload.editSlug = editingSlug;
+        // <input type="datetime-local"> has no timezone of its own — its value
+        // is parsed as local time by `new Date(...)` in THIS browser, so
+        // convert to a real UTC instant here rather than sending the bare
+        // string (the server would otherwise parse it as the server's own
+        // local time, which on Railway is UTC — silently off by the admin's
+        // offset from UTC).
+        const scheduleRaw = $('pub-schedule').value;
+        if (scheduleRaw) payload.publishDate = new Date(scheduleRaw).toISOString();
         const res = await fetch('/api/admin/publish-post', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -170,17 +182,21 @@ import Site from '../../layouts/Site.astro';
 
     function renderPosts(list) {
       if (!list.length) { $('posts-list').innerHTML = '<p class="empty">No posts published yet.</p>'; return; }
-      $('posts-list').innerHTML = `<div class="ctable">${list.map((p) => `
+      $('posts-list').innerHTML = `<div class="ctable">${list.map((p) => {
+        const scheduled = new Date(p.publishDate).getTime() > Date.now();
+        const when = new Date(p.publishDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        return `
         <div class="crow" data-slug="${esc(p.slug)}">
           <div class="crow-main">
-            <div class="crow-top"><b>${esc(p.title)}</b></div>
-            <div class="crow-sub">${new Date(p.publishDate).toLocaleDateString()} · <a href="/blog/${esc(p.slug)}" target="_blank">/blog/${esc(p.slug)}</a></div>
+            <div class="crow-top"><b>${esc(p.title)}</b><span class="kind" style="${scheduled ? 'background:var(--warn-bg);color:var(--warn)' : 'background:var(--ok-bg);color:var(--ok)'}">${scheduled ? 'Scheduled' : 'Live'}</span></div>
+            <div class="crow-sub">${scheduled ? `Goes live ${when}` : when} · <a href="/blog/${esc(p.slug)}" target="_blank">/blog/${esc(p.slug)}</a>${scheduled ? ' (not visible yet)' : ''}</div>
           </div>
           <div class="crow-actions">
             <button class="btn-ghost sm" data-act="edit">Edit</button>
             <button class="btn-ghost sm" data-act="delete">Delete</button>
           </div>
-        </div>`).join('')}</div>`;
+        </div>`;
+      }).join('')}</div>`;
       document.querySelectorAll('#posts-list button[data-act="edit"]').forEach((btn) => btn.addEventListener('click', () => loadPostForEdit(btn.closest('.crow').dataset.slug)));
       document.querySelectorAll('#posts-list button[data-act="delete"]').forEach((btn) => btn.addEventListener('click', () => deletePostRow(btn)));
     }
@@ -202,6 +218,16 @@ import Site from '../../layouts/Site.astro';
         $('pub-desc').value = p.description;
         $('pub-tags').value = (p.tags || []).join(', ');
         $('pub-keyword').value = p.focusKeyword || '';
+        // Reverse of the toISOString() conversion on submit: build the
+        // datetime-local field's expected "YYYY-MM-DDTHH:mm" in THIS
+        // browser's local time from the post's stored UTC instant, so
+        // re-opening a scheduled post shows the time the admin actually
+        // picked, not a shifted one.
+        if (p.publishDate) {
+          const pd = new Date(p.publishDate);
+          const pad = (n) => String(n).padStart(2, '0');
+          $('pub-schedule').value = `${pd.getFullYear()}-${pad(pd.getMonth() + 1)}-${pad(pd.getDate())}T${pad(pd.getHours())}:${pad(pd.getMinutes())}`;
+        }
         $('pub-body').value = p.bodyMarkdown;
         $('pub-faqs').value = (p.faqs || []).length ? JSON.stringify(p.faqs) : '';
         $('pub-charts').value = (p.charts || []).length ? JSON.stringify(p.charts) : '';
