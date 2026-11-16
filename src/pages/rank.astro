@@ -472,9 +472,14 @@ const limitsText = product && plan
          New views only; roll back = delete this block, or use branch
          claude/apprankr-backup-2026-11-09. */
       .catbk { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 6px 0 14px; background: var(--card); }
-      .catbk-head, .catrow { display: grid; grid-template-columns: minmax(140px, 1.2fr) 74px 74px minmax(160px, 3fr) 70px; gap: 14px; align-items: center; padding: 9px 16px; }
+      .catbk-head, .catrow { display: grid; grid-template-columns: var(--catcols, minmax(140px, 1.2fr) 74px 74px minmax(160px, 3fr) 70px); gap: 12px; align-items: center; padding: 9px 16px; }
       .catbk-head { background: var(--card2); font-size: 12px; font-weight: 500; color: var(--muted); }
-      .catbk-head span:nth-child(2), .catbk-head span:nth-child(3), .catbk-head span:nth-child(5) { text-align: right; }
+      .catbk-head .ra { text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .catrow .cp.cp-ahead { color: var(--bad); font-weight: 600; }
+      .catrow .cp.cp-behind { color: var(--ok); font-weight: 600; }
+      .catbk-note { line-height: 1.5; }
+      .kwcards { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+      .kwcards .wn-card { flex: 1 1 300px; max-width: 520px; margin: 0; min-width: 0; }
       .catrow { width: 100%; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
       .catrow:hover { background: #fafafa; }
       .catrow.active { background: var(--tint); }
@@ -499,7 +504,7 @@ const limitsText = product && plan
         .catbk-head { display: none; }
         .catrow { grid-template-columns: 1fr 56px; row-gap: 6px; }
         .catrow .cbar { grid-column: 1 / -1; }
-        .catrow .cv:nth-of-type(2), .catrow .cv:nth-of-type(3) { display: none; }
+        .catrow .cv:not(.cvol) { display: none; }
       }
     </style>
   </head>
@@ -2525,6 +2530,13 @@ ai photo enhancer"></textarea>
         const vols = app.keywordVolumes || {};
         const all = g.present.flatMap((c) => g.byCat[c]);
         const totalVol = all.reduce((a, t) => a + (vols[t.keyword] || 0), 0);
+        // Tracked competitors (max 3): their average rank over the same keywords, per category.
+        const comps = comparableApps(app).slice(0, 3).map((c) => ({
+          label: c.developer || c.title || c.appId,
+          full: c.title || c.appId,
+          map: trendMap(c),
+        }));
+        const cols = ['minmax(130px, 1.2fr)', '62px', '66px', ...comps.map(() => '72px'), 'minmax(130px, 2.4fr)', '58px'].join(' ');
         const rows = g.present.map((c) => {
           const list = g.byCat[c];
           const ranked = list.filter((t) => t.position != null && !t.error);
@@ -2537,17 +2549,28 @@ ai photo enhancer"></textarea>
           const vol = list.reduce((a, t) => a + (vols[t.keyword] || 0), 0);
           const share = totalVol ? Math.round((vol / totalVol) * 100) + '%' : '–';
           const tip = `Top 10: ${b10} · 11-30: ${b30} · 31-100: ${b100} · Not ranked: ${none}`;
+          const compCells = comps.map((cp) => {
+            const ps = list.map((t) => cp.map[t.keyword]).filter((x) => x && !x.error && x.position != null).map((x) => x.position);
+            const ca = ps.length ? ps.reduce((a, x) => a + x, 0) / ps.length : null;
+            // red = this competitor ranks better than you in the category, green = you rank better
+            const cls = ca == null || avg == null || ca === avg ? '' : ca < avg ? 'cp-ahead' : 'cp-behind';
+            return `<span class="cv cp ${cls}" title="${escAttr(cp.full)}: ${ps.length} of ${list.length} keywords ranked">${ca == null ? '–' : '#' + ca.toFixed(1)}</span>`;
+          }).join('');
           return `<button type="button" class="catrow ${extraClass || ''} ${c === active ? 'active' : ''}" ${attr}="${escAttr(c)}" aria-pressed="${c === active}">
             <span class="cn">${esc(c)}</span>
             <span class="cv">${list.length}</span>
-            <span class="cv">${avg == null ? '–' : '#' + avg.toFixed(1)}</span>
+            <span class="cv cavg">${avg == null ? '–' : '#' + avg.toFixed(1)}</span>
+            ${compCells}
             <span class="cbar" title="${escAttr(tip)}"><i style="width:${pct(b10)}%;background:${BAND_COLORS[0]}"></i><i style="width:${pct(b30)}%;background:${BAND_COLORS[1]}"></i><i style="width:${pct(b100)}%;background:${BAND_COLORS[2]}"></i><i style="width:${pct(none)}%;background:${BAND_COLORS[3]}"></i></span>
-            <span class="cv">${share}</span>
+            <span class="cv cvol">${share}</span>
           </button>`;
         }).join('');
-        return `<div class="catbk no-print">
-          <div class="catbk-head"><span>Category</span><span>Keywords</span><span>Avg rank</span><span>Where they rank</span><span>Volume</span></div>
+        const compHead = comps.map((cp) => `<span class="ra" title="${escAttr(cp.full)} — average rank on the same keywords">${esc(cp.label.length > 10 ? cp.label.slice(0, 9) + '…' : cp.label)}</span>`).join('');
+        const compNote = comps.length ? '<span class="catbk-note">Competitor columns = their average rank on these same keywords: <b style="color:var(--ok);">green</b> you rank better, <b style="color:var(--bad);">red</b> they rank better.</span>' : '';
+        return `<div class="catbk no-print" style="--catcols:${cols};">
+          <div class="catbk-head"><span>Category</span><span class="ra">Keywords</span><span class="ra">You</span>${compHead}<span>Where they rank</span><span class="ra">Volume</span></div>
           ${rows}
+          ${compNote ? `<div class="catbk-key">${compNote}</div>` : ''}
           <div class="catbk-key"><span><i style="background:${BAND_COLORS[0]}"></i>Top 10</span><span><i style="background:${BAND_COLORS[1]}"></i>11-30</span><span><i style="background:${BAND_COLORS[2]}"></i>31-100</span><span><i style="background:${BAND_COLORS[3]}"></i>Not ranked</span></div>
         </div>`;
       }
@@ -3295,8 +3318,7 @@ ai photo enhancer"></textarea>
             <div class="row no-print"><button class="ghost" data-act="discover">Discover keywords</button></div>
           </div>
           <p class="hint" style="margin:0 0 12px;">The keywords checked every single day — these drive your visibility score, movement and drop alerts. Your full list lives under <b>All Keywords</b>.</p>
-          ${promoCard ? `<div style="max-width:520px;margin-bottom:14px;">${promoCard}</div>` : ''}
-          ${moversCard ? `<div style="max-width:520px;margin-bottom:14px;">${moversCard}</div>` : ''}
+          ${(promoCard || moversCard) ? `<div class="kwcards">${promoCard || ''}${moversCard || ''}</div>` : ''}
           <div class="no-print">${discoverHtml(app)}</div>
           ${dailyBreakdown}
           ${(app.keywords || []).length ? searchBoxHtml('dailysearch', dailySearchState[app.key], 'Search daily-tracked keywords…') : ''}
