@@ -96,6 +96,8 @@ const breadcrumbJsonLd = {
     <title>{post.data.title} — {BRAND} Blog</title>
     <meta name="description" content={post.data.description} />
     <link rel="canonical" href={canonicalUrl} />
+    <link rel="alternate" type="text/markdown" href={`${canonicalUrl}.md`} />
+    <link rel="alternate" type="application/rss+xml" title={`${BRAND} Blog`} href={`${SITE_URL}/rss.xml`} />
     {/* max-image-preview:large is required for a page's images to be eligible for
         Google Discover and full-size image previews in search; max-video-preview:-1
         allows an unlimited-length video preview if one's ever embedded here. */}

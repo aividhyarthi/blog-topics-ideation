@@ -4,14 +4,20 @@
 export const prerender = true;
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
+import { topicSlug } from '../lib/blog/topics';
 import { SITE_URL } from '../lib/saas/plans';
 
-const STATIC_PATHS = ['/', '/blog', '/about', '/login', '/signup'];
+const STATIC_PATHS = ['/', '/blog', '/about', '/login', '/signup', '/rank', '/aso'];
 
 export const GET: APIRoute = async () => {
   const posts = await getCollection('blog');
+  const topics = [...new Set(posts.map((post) => post.data.theme))];
   const urls = [
     ...STATIC_PATHS.map((p) => ({ loc: `${SITE_URL}${p}`, lastmod: undefined as string | undefined })),
+    ...topics.map((theme) => ({
+      loc: `${SITE_URL}/blog/topic/${topicSlug(theme)}`,
+      lastmod: undefined as string | undefined,
+    })),
     ...posts.map((post) => ({
       loc: `${SITE_URL}/blog/${post.slug}`,
       lastmod: post.data.publishDate.toISOString().slice(0, 10),
