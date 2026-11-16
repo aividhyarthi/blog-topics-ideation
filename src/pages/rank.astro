@@ -487,6 +487,7 @@ const limitsText = product && plan
       .b-meas { background: var(--ok-tint); color: var(--ok); }
       .b-user { background: var(--blue-tint); color: var(--blue); }
       .b-inf { background: var(--warn-tint); color: var(--warn); }
+      .b-ctx { background: var(--tint); color: var(--muted); }
       .why-foot { padding: 10px 16px; font-size: 12px; color: var(--muted); background: var(--card2); border-radius: 0 0 12px 12px; }
       @media (max-width: 700px) { .why-row { grid-template-columns: 1fr; } .why-badge { justify-self: start; grid-row: 2; } .why-sum .sep { display: none; } }
 
@@ -759,6 +760,8 @@ ai photo enhancer"></textarea>
       const dailyCatState = {};
       // Overview 'Why is X ahead of you?': which competitor is selected, per app.
       const whyCompState = {};
+      // Search-trend lookups (per app) for the same card — fetched in the background, cached for the session.
+      const trendCache = {}, trendLoading = {};
       // Live keyword search, per app — one for Daily Keywords, one for All
       // Keywords. A non-empty All-Keywords search deliberately bypasses the
       // category tabs (see categorizedCoverageHtml) and searches every
@@ -2606,6 +2609,73 @@ ai photo enhancer"></textarea>
       // store data), 'user' (numbers the owner entered), 'inferred' (a pattern,
       // never stated as fact). Only reasons the tool can actually compute are
       // shown; a row simply doesn't appear when there is nothing to say.
+
+      const WHY_BADGE = { measured: ['b-meas', 'Measured'], user: ['b-user', 'From your vitals'], need: ['b-user', 'Needs your input'], inferred: ['b-inf', 'Inferred, not confirmed'], ctx: ['b-ctx', 'Context'] };
+      const whyRowHtml = (r) => `<div class="why-row"${r.slot ? ' data-trends-slot="1"' : ''}><span class="t">${esc(r.title)}</span><span class="why-badge ${WHY_BADGE[r.kind][0]}">${WHY_BADGE[r.kind][1]}</span>
+            <div class="e">${r.body}</div>${r.action ? `<div class="a">${r.action}</div>` : ''}</div>`;
+
+      // Competitor listing changes (title / short description / screenshots / icon), newest first.
+      function listingRow(app, c, name) {
+        const L = c.listing || {};
+        const cutoff = Date.now() - 30 * 86400000;
+        const recent = (L.changes || []).filter((x) => Date.parse(x.date + 'T00:00:00Z') >= cutoff);
+        if (!recent.length) {
+          return L.since
+            ? { kind: 'measured', title: 'No listing changes seen yet', body: `We have watched ${esc(name)}'s listing since <b>${esc(fmtDay(L.since))}</b>. When their title, short description or screenshots change, it will show up here along with what happened to their rank afterwards.`, action: '' }
+            : { kind: 'ctx', title: 'Listing tracking starts with the next check', body: `From the next check on, we save ${esc(name)}'s title, short description and screenshots, and flag any change here with what happened to their rank afterwards.`, action: '' };
+        }
+        const byDate = {};
+        for (const x of recent) (byDate[x.date] = byDate[x.date] || []).push(x);
+        const myWords = new Set();
+        const lines = Object.keys(byDate).sort().reverse().slice(0, 2).map((d) => {
+          const items = byDate[d];
+          const what = items.map((x) => {
+            if (x.field === 'title') return `title <b>"${esc(x.from)}"</b> → <b>"${esc(x.to)}"</b>${x.added && x.added.length ? ` <span class="m">(added: ${x.added.map(esc).join(', ')})</span>` : ''}`;
+            if (x.field === 'summary') return `short description${x.added && x.added.length ? ` <span class="m">(added: ${x.added.slice(0, 6).map(esc).join(', ')})</span>` : ' edited'}`;
+            if (x.field === 'screenshots') return `screenshots <b>${esc(x.from)} → ${esc(x.to)}</b>`;
+            if (x.field === 'icon') return 'app icon';
+            return `long description edited <span class="m">(${esc(x.from)} → ${esc(x.to)})</span>`;
+          });
+          for (const x of items) for (const w of x.added || []) myWords.add(w);
+          const sh = (items.find((x) => x.shift) || {}).shift;
+          const impact = sh ? ` <span class="m">Their average rank on ${sh.n} shared keywords went</span> <b>#${sh.before.toFixed(1)} → #${sh.after.toFixed(1)}</b> <span class="m">in the week after.</span>` : '';
+          return `On <b>${esc(fmtDay(d))}</b> ${esc(name)} changed their ${what.join(' and ')}.${impact}`;
+        });
+        const mine = [...new Set([...(app.keywords || []), ...(app.coverageKeywords || [])])].filter((k) => [...myWords].some((w) => k.toLowerCase().includes(w))).slice(0, 2);
+        const extra = mine.length ? `<div class="m" style="margin-top:4px;">Words they added also appear in your keywords: ${mine.map((k) => '"' + esc(k) + '"').join(', ')}. Is that term in your title or short description?</div>` : '';
+        return { kind: 'measured', title: 'Their listing changed recently', body: lines.join('<br>') + extra, action: '<a href="/aso" target="_blank" rel="noopener">Compare with your listing in the ASO Inspector →</a>' };
+      }
+
+      // Search-interest context for the app's top keywords (Google Trends, loaded in the background).
+      function trendsRow(app) {
+        const tc = trendCache[app.key];
+        if (!tc) return { kind: 'ctx', title: 'Search trends', body: 'Checking how searches for your top keywords are moving…', action: '', slot: true };
+        const ks = (tc.keywords || []).filter((k) => !k.error);
+        if (tc.error || !ks.length) return { kind: 'ctx', title: 'Search trends are unavailable right now', body: 'Google Trends did not answer for your top keywords. We will try again the next time you open this page.', action: '', slot: true };
+        const changes = ks.map((k) => k.changePct).filter((v) => v != null);
+        const avgChange = changes.length ? changes.reduce((a, b) => a + b, 0) / changes.length : null;
+        const high = ks.some((k) => k.state === 'high'), low = ks.every((k) => k.state === 'low');
+        const title = high ? 'Searches are near their yearly peak' : low ? 'Searches are in a seasonal low'
+          : avgChange != null && avgChange >= 10 ? 'Searches are rising' : avgChange != null && avgChange <= -10 ? 'Searches are falling' : 'Search interest is steady';
+        const list = ks.map((k) => `"${esc(k.keyword)}" <b style="color:${k.changePct == null ? 'inherit' : k.changePct >= 0 ? 'var(--ok)' : 'var(--bad)'}">${k.changePct == null ? 'n/a' : (k.changePct >= 0 ? '+' : '') + k.changePct + '%'}</b>`).join(' · ');
+        const peak = (ks[0].peakMonths || []).length ? ` Usually highest in <b>${ks[0].peakMonths.map(esc).join(' and ')}</b>.` : '';
+        return { kind: 'ctx', title, body: `Last 4 weeks vs the 4 before: ${list}.${peak} <span class="m">This moves you and your competitors alike, so it does not by itself explain the gap.</span>`, action: '', slot: true };
+      }
+      async function loadSearchTrends(key) {
+        if (trendLoading[key] || trendCache[key]) return;
+        trendLoading[key] = true;
+        try {
+          const res = await fetch('/api/rank', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'search-trends', key }) });
+          const data = await res.json();
+          trendCache[key] = res.ok ? data : { error: data.error || 'failed' };
+        } catch (e) { trendCache[key] = { error: String(e) }; }
+        trendLoading[key] = false;
+        const slot = [...document.querySelectorAll('.appcard')].find((el) => el.getAttribute('data-key') === key);
+        const row = slot && slot.querySelector('[data-trends-slot]');
+        const app = state.apps.find((a) => a.key === key);
+        if (row && app) row.outerHTML = whyRowHtml(trendsRow(app));
+      }
+
       function whyStats(app, c) {
         const kws = fullKeywordUniverse(app), mine = trendMap(app), theirs = trendMap(c);
         let total = 0, ahead = 0, climbBase = 0, climbed = 0;
@@ -2652,8 +2722,9 @@ ai photo enhancer"></textarea>
         const name = c.developer || c.title || c.appId;
         const isAhead = st.total > 0 && st.ahead * 2 > st.total;
         const rows = [];
-        const badge = { measured: ['b-meas', 'Measured'], user: ['b-user', 'From your vitals'], need: ['b-user', 'Needs your input'], inferred: ['b-inf', 'Inferred, not confirmed'] };
 
+        // 0) competitor listing changes — measured (the most direct explanation, so it goes first)
+        rows.push(listingRow(app, c, name));
         // 1) ratings momentum — measured
         const rm = ratingsMove(c, 7), mm = ratingsMove(app, 7);
         if (rm && mm) {
@@ -2691,10 +2762,13 @@ ai photo enhancer"></textarea>
             : { kind: 'need', title: 'Uninstalls: nothing to compare yet', body: 'Add your user-loss rate (or install-to-uninstall %) to see whether people leave faster than they stay.', action: '<a href="#" data-goto-section="settings">Add it in Settings →</a>' });
         }
 
+        // 5) search interest / seasonality — context
+        rows.push(trendsRow(app));
+        if (!trendCache[app.key] && !trendLoading[app.key]) setTimeout(() => loadSearchTrends(app.key), 0);
+
         const needCount = rows.filter((r) => r.kind === 'need').length;
         const pills = stats.map((x) => `<span class="seg ${x.c.key === c.key ? 'active' : ''}" data-whycomp="${escAttr(x.c.key)}" title="${escAttr(x.c.title || '')}">${esc((x.c.developer || x.c.title || x.c.appId).slice(0, 16))}</span>`).join('');
-        const rowsHtml = rows.length ? rows.map((r) => `<div class="why-row"><span class="t">${esc(r.title)}</span><span class="why-badge ${badge[r.kind][0]}">${badge[r.kind][1]}</span>
-            <div class="e">${r.body}</div>${r.action ? `<div class="a">${r.action}</div>` : ''}</div>`).join('') : '<div class="why-row"><div class="e m">Nothing stands out yet — check back after a few more days of data.</div></div>';
+        const rowsHtml = rows.map(whyRowHtml).join('');
         const fmtAvg = (v) => (v == null ? '–' : '#' + v.toFixed(1));
         return `<div class="why no-print">
           <div class="why-head"><div><h4>${isAhead ? `Why is ${esc(name)} ahead of you?` : `How you compare with ${esc(name)}`}</h4><p>What we can see about the gap, and how sure we are.</p></div>
@@ -2702,10 +2776,10 @@ ai photo enhancer"></textarea>
           <div class="why-sum">
             <div><b>${st.ahead} of ${st.total}</b>shared keywords they rank better on</div><span class="sep"></span>
             <div><b>${fmtAvg(st.thAvg)} vs ${fmtAvg(st.myAvg)}</b>average rank, them vs you</div><span class="sep"></span>
-            <div><b>${rows.length} point${rows.length === 1 ? '' : 's'}</b>${needCount ? `${needCount} need${needCount === 1 ? 's' : ''} your input` : 'from the data we have'}</div>
+            <div><b>${rows.filter((r) => r.kind !== 'ctx').length} finding${rows.filter((r) => r.kind !== 'ctx').length === 1 ? '' : 's'}</b>${needCount ? `${needCount} need${needCount === 1 ? 's' : ''} your input` : 'from the data we have'}</div>
           </div>
           ${rowsHtml}
-          <div class="why-foot"><b>Measured</b> = public store data · <b>From your vitals</b> = numbers you entered · <b>Inferred</b> = a pattern, not proof. Competitor listing changes and search trends are coming next.</div>
+          <div class="why-foot"><b>Measured</b> = public store data · <b>From your vitals</b> = numbers you entered · <b>Inferred</b> = a pattern, not proof. Search trends come from Google Trends and may be unavailable at times.</div>
         </div>`;
       }
 

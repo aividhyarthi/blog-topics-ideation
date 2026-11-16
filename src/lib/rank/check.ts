@@ -1,9 +1,9 @@
 // Rank Tracker — check runner. Runs one full ranking check across tracked
 // apps and persists it into today's snapshot. Used by both the /api/rank
 // endpoint ("Check now") and scripts/rank-check.ts (scheduled daily runs).
-import { searchStore, searchDepth, fetchTopChart, fetchAppMeta } from './fetch';
+import { searchStore, searchDepth, fetchTopChart, fetchAppMeta, fetchListing } from './fetch';
 import { keywordRank, mergeIntoSnapshot, todayKey } from './track';
-import { loadSnapshot, saveSnapshot, loadCoverageSnapshot, saveCoverageSnapshot, appendRatingHistory, loadWeeklyReviewScans, appendWeeklyReviewScan } from './store';
+import { loadSnapshot, saveSnapshot, loadCoverageSnapshot, saveCoverageSnapshot, appendRatingHistory, loadWeeklyReviewScans, appendWeeklyReviewScan, appendListingVersion } from './store';
 import { fetchRecentReviews } from '../aso/fetch';
 import { ratingDistribution } from '../aso/audit';
 import type { AppRankResult, KeywordRank, RankSnapshot, TrackedApp } from './types';
@@ -363,7 +363,24 @@ export async function checkCoverageBatch(
  * Play Store app daily without touching the ASO audit's paid AI budget,
  * building the "1-2★ share over time" trend shown in the dashboard.
  */
+/**
+ * Saves today's public store listing for change detection ("Competitor changed
+ * its listing" on the Overview). Piggybacks on checkRating's call sites so the
+ * nightly cron and on-demand checks both cover every tracked app, competitors
+ * included. Only writes when something visible differs from the last saved
+ * version. Strictly best-effort: a failure here must never affect rank or
+ * rating checks, so errors and slow responses are swallowed.
+ */
+async function recordListing(app: TrackedApp, userId?: string): Promise<void> {
+  try {
+    const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('listing fetch timed out')), 15000));
+    const l = await Promise.race([fetchListing(app.store, app.appId, app.country, app.lang), timeout]);
+    appendListingVersion(app.key, { dateKey: todayKey(), ...l }, userId);
+  } catch { /* best-effort */ }
+}
+
 export async function checkRating(app: TrackedApp, userId?: string): Promise<void> {
+  await recordListing(app, userId); // before the Play-only early return below: iOS listings are tracked too
   if (app.store !== 'play') return; // rating breakdown proxy is Play-only today
   const { reviews, windowDays } = await fetchRecentReviews(app.appId, app.lang, app.country);
   // windowDays is the ACTUAL adaptive span fetchRecentReviews had to page

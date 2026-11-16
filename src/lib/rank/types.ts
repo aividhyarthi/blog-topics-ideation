@@ -298,3 +298,30 @@ export interface KeywordTrend {
    * depth" unless this is checked too. */
   checked: boolean;
 }
+
+/** One distinct version of an app's public store listing. A new entry is only
+ * written when something visible changed, so this stays small; `dateKey` is
+ * the first day we SAW that version (we can't know the true edit date). */
+export interface ListingVersion {
+  dateKey: string;
+  title: string;
+  summary: string;       // Play short description ('' on iOS, which has no equivalent in the public API)
+  description: string;   // long description
+  screenshots: number;
+  icon: string | null;
+  version: string | null;
+  updated: string | null; // ISO — when the store says the app was last updated
+}
+export type ListingHistory = Record<string, ListingVersion[]>; // keyed by TrackedApp.key, oldest -> newest
+
+/** A difference between two consecutive listing versions. */
+export interface ListingChange {
+  date: string; // first day the new version was seen
+  field: 'title' | 'summary' | 'description' | 'screenshots' | 'icon';
+  from: string;
+  to: string;
+  added?: string[];   // words that appeared (title / short description)
+  removed?: string[]; // words that disappeared
+  /** Average rank on shared keywords in the 7 days before vs after this date (null when not enough data). */
+  shift?: { n: number; before: number; after: number } | null;
+}

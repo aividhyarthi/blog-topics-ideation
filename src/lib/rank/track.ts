@@ -2,7 +2,7 @@
 // everything here takes data in and returns data out, so it is unit-testable
 // (see scripts/validate-rank.ts) and independent of which store the data
 // came from.
-import type { AppRankResult, KeywordRank, KeywordTrend, QualityMetricPoint, RankSnapshot, RatingHistoryPoint, TrackedApp } from './types';
+import type { AppRankResult, KeywordRank, KeywordTrend, ListingChange, ListingVersion, QualityMetricPoint, RankSnapshot, RatingHistoryPoint, TrackedApp } from './types';
 import type { SearchHit } from './fetch';
 
 /** 1-based position of `appId` in an ordered result list; null = not present. */
@@ -733,4 +733,59 @@ export function mergeIntoSnapshot(existing: RankSnapshot | null, dateKey: string
   });
 
   return { dateKey, checkedAt: new Date().toISOString(), apps: [...untouched, ...merged] };
+}
+
+
+/* ------------------------------ listing changes ------------------------------ */
+
+const wordsOf = (t: string) => (t.toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length > 2);
+
+/** Differences between consecutive stored listing versions (oldest -> newest). Pure. */
+export function listingChanges(versions: ListingVersion[]): ListingChange[] {
+  const out: ListingChange[] = [];
+  for (let i = 1; i < versions.length; i++) {
+    const a = versions[i - 1], b = versions[i];
+    const textDiff = (field: 'title' | 'summary') => {
+      if (a[field] === b[field]) return;
+      const wa = new Set(wordsOf(a[field])), wb = new Set(wordsOf(b[field]));
+      out.push({
+        date: b.dateKey, field, from: a[field], to: b[field],
+        added: [...wb].filter((w) => !wa.has(w)), removed: [...wa].filter((w) => !wb.has(w)),
+      });
+    };
+    textDiff('title');
+    textDiff('summary');
+    if (a.description !== b.description) out.push({ date: b.dateKey, field: 'description', from: `${a.description.length} characters`, to: `${b.description.length} characters` });
+    if (a.screenshots !== b.screenshots) out.push({ date: b.dateKey, field: 'screenshots', from: String(a.screenshots), to: String(b.screenshots) });
+    if (a.icon !== b.icon) out.push({ date: b.dateKey, field: 'icon', from: 'previous icon', to: 'new icon' });
+  }
+  return out;
+}
+
+/**
+ * Average position of `appKey` on the keywords checked both in the `window`
+ * days BEFORE `dateKey` and the `window` days from it on — the basis for
+ * "their rank went #14 -> #8 after the change". Needs at least 3 keywords with
+ * a rank in both windows, otherwise returns null (not enough to say anything).
+ */
+export function positionShiftAround(snaps: RankSnapshot[], appKey: string, dateKey: string, window = 7): { n: number; before: number; after: number } | null {
+  const day = 86400000, t0 = Date.parse(dateKey + 'T00:00:00Z');
+  const pick = (lo: number, hi: number) => {
+    const m = new Map<string, number[]>();
+    for (const s of snaps) {
+      const t = Date.parse(s.dateKey + 'T00:00:00Z');
+      if (t < lo || t >= hi) continue;
+      const a = s.apps.find((x) => x.key === appKey);
+      for (const k of a?.keywords || []) if (k.position != null && !k.error) (m.get(k.keyword) || m.set(k.keyword, []).get(k.keyword)!).push(k.position);
+    }
+    return m;
+  };
+  const before = pick(t0 - window * day, t0), after = pick(t0, t0 + (window + 1) * day);
+  let n = 0, sb = 0, sa = 0;
+  for (const [kw, pb] of before) {
+    const pa = after.get(kw);
+    if (!pa) continue;
+    n++; sb += pb.reduce((x, y) => x + y, 0) / pb.length; sa += pa.reduce((x, y) => x + y, 0) / pa.length;
+  }
+  return n >= 3 ? { n, before: Math.round((sb / n) * 10) / 10, after: Math.round((sa / n) * 10) / 10 } : null;
 }

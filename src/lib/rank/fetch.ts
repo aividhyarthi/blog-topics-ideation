@@ -233,3 +233,35 @@ export async function fetchTopChart(
   if (!results.length) throw new Error('App Store chart returned zero results — likely a transient fetch failure.');
   return { chart: 'Top Free (overall)', ids: results.map((r) => String(r.id)) };
 }
+
+
+/* ------------------------- listing snapshot (for change detection) ------------------------- */
+
+export interface ListingFields {
+  title: string; summary: string; description: string; screenshots: number;
+  icon: string | null; version: string | null; updated: string | null;
+}
+const tidy = (x: unknown) => String(x ?? '').replace(/\r\n?/g, '\n').trim();
+
+/** The public, visible parts of an app's store listing — what a shopper sees. Best-effort; callers must catch. */
+export async function fetchListing(store: Store, appId: string, country: string, lang: string): Promise<ListingFields> {
+  if (store === 'play') {
+    const a = (await gplay.app({ appId, country, lang })) as Record<string, any>;
+    const updated = typeof a.updated === 'number' ? new Date(a.updated).toISOString() : (a.updated ? String(a.updated) : null);
+    return {
+      title: tidy(a.title), summary: tidy(a.summary), description: tidy(a.description).slice(0, 4000),
+      screenshots: Array.isArray(a.screenshots) ? a.screenshots.length : 0,
+      icon: a.icon || null, version: a.version ? String(a.version) : null, updated,
+    };
+  }
+  const data = await fetchJson(`https://itunes.apple.com/lookup?id=${encodeURIComponent(appId)}&country=${encodeURIComponent(country)}`);
+  const a = data?.results?.[0];
+  if (!a) throw new Error(`No app with id ${appId} on the ${country.toUpperCase()} App Store.`);
+  return {
+    title: tidy(a.trackName), summary: '', description: tidy(a.description).slice(0, 4000),
+    screenshots: Array.isArray(a.screenshotUrls) ? a.screenshotUrls.length : 0,
+    icon: a.artworkUrl100 || a.artworkUrl60 || null,
+    version: a.version ? String(a.version) : null,
+    updated: a.currentVersionReleaseDate ? String(a.currentVersionReleaseDate) : null,
+  };
+}
