@@ -287,6 +287,12 @@ function statePayload(
         // saved, letting a client append new rows instead of retyping
         // everything each time.
         qualityMetrics: qualityMetrics[app.key] || [],
+        // Store rating count + star score recorded with every check (already saved in each
+        // snapshot, just never sent to the page). Powers "ratings growing faster than yours".
+        ratingsSeries: merged
+          .map((snap) => { const r = snap.apps.find((a) => a.key === app.key); return r && r.ratings != null ? { d: snap.dateKey, ratings: r.ratings, score: r.score ?? null } : null; })
+          .filter(Boolean)
+          .slice(-45),
         annotations: (app.annotations || []).map((a) => ({
           ...a,
           impact: annotationImpact(widerOverview, a.date),

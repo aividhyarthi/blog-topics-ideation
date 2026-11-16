@@ -468,6 +468,28 @@ const limitsText = product && plan
       }
       @media print { .appnav { display: none !important; } .appshell { display: block; } }
 
+      /* ===== design layer v2 — stage 6: "Why is X ahead of you?" card ===== */
+      .why { border: 1px solid var(--line); border-radius: 12px; background: var(--card); margin: 0 0 14px; }
+      .why-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+      .why-head h4 { margin: 0 0 2px; font-size: 15px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+      .why-head p { margin: 0; color: var(--muted); font-size: 12.5px; }
+      .why-sum { display: flex; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card2); }
+      .why-sum div { font-size: 12.5px; color: var(--muted); }
+      .why-sum b { display: block; font-size: 20px; color: var(--ink); font-weight: 600; letter-spacing: -0.02em; }
+      .why-sum .sep { width: 1px; background: var(--line); margin: 0 6px; }
+      .why-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+      .why-row .t { font-weight: 600; font-size: 13.5px; }
+      .why-row .e { grid-column: 1; font-size: 13px; line-height: 1.5; }
+      .why-row .e .m, .why-row .e.m { color: var(--muted); }
+      .why-row .a { grid-column: 1; font-size: 12.5px; font-weight: 600; }
+      .why-row .a a { color: var(--blue); text-decoration: none; }
+      .why-badge { align-self: start; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+      .b-meas { background: var(--ok-tint); color: var(--ok); }
+      .b-user { background: var(--blue-tint); color: var(--blue); }
+      .b-inf { background: var(--warn-tint); color: var(--warn); }
+      .why-foot { padding: 10px 16px; font-size: 12px; color: var(--muted); background: var(--card2); border-radius: 0 0 12px 12px; }
+      @media (max-width: 700px) { .why-row { grid-template-columns: 1fr; } .why-badge { justify-self: start; grid-row: 2; } .why-sum .sep { display: none; } }
+
       /* ===== design layer v2 — stage 5: category breakdown + competitor board =====
          New views only; roll back = delete this block, or use branch
          claude/apprankr-backup-2026-11-09. */
@@ -735,6 +757,8 @@ ai photo enhancer"></textarea>
       const catTabState = {};
       // Daily Keywords: which category (if any) the breakdown table is filtering to, per app.
       const dailyCatState = {};
+      // Overview 'Why is X ahead of you?': which competitor is selected, per app.
+      const whyCompState = {};
       // Live keyword search, per app — one for Daily Keywords, one for All
       // Keywords. A non-empty All-Keywords search deliberately bypasses the
       // category tabs (see categorizedCoverageHtml) and searches every
@@ -2072,6 +2096,7 @@ ai photo enhancer"></textarea>
           </div>
           ${keyStatsTilesHtml(app)}
           ${competitorBoardHtml(app)}
+          ${whyAheadHtml(app)}
           <div class="chartbox">
             <h4>Top-3 score trend — high search volume, top-3 rank only</h4>
             <p class="hint" style="margin:0 0 8px;">Weighted by position (#1 counts most, #3 least), counting only daily-tracked keywords with App Volume ≥ ${TOP3_VOLUME_THRESHOLD} — meant to track more closely with real store listing page views than the overall visibility score above, which averages every tracked keyword equally.</p>
@@ -2572,6 +2597,115 @@ ai photo enhancer"></textarea>
           ${rows}
           ${compNote ? `<div class="catbk-key">${compNote}</div>` : ''}
           <div class="catbk-key"><span><i style="background:${BAND_COLORS[0]}"></i>Top 10</span><span><i style="background:${BAND_COLORS[1]}"></i>11-30</span><span><i style="background:${BAND_COLORS[2]}"></i>31-100</span><span><i style="background:${BAND_COLORS[3]}"></i>Not ranked</span></div>
+        </div>`;
+      }
+
+
+      // ---- 'Why is X ahead of you?' (Overview) -----------------------------
+      // Each reason carries its evidence and how sure we are: 'measured' (public
+      // store data), 'user' (numbers the owner entered), 'inferred' (a pattern,
+      // never stated as fact). Only reasons the tool can actually compute are
+      // shown; a row simply doesn't appear when there is nothing to say.
+      function whyStats(app, c) {
+        const kws = fullKeywordUniverse(app), mine = trendMap(app), theirs = trendMap(c);
+        let total = 0, ahead = 0, climbBase = 0, climbed = 0;
+        const myPos = [], thPos = [];
+        for (const kw of kws) {
+          const m = mine[kw], t = theirs[kw];
+          const mp = m && !m.error ? m.position : null, tp = t && !t.error ? t.position : null;
+          if (mp != null || tp != null) { total++; if (tp != null && (mp == null || tp < mp)) ahead++; }
+          if (mp != null) myPos.push(mp);
+          if (tp != null) thPos.push(tp);
+          const h = (t && t.history) || [];
+          if (h.length >= 8) {
+            const now = h[h.length - 1], then = h[h.length - 8];
+            if (now != null && then != null) { climbBase++; if (then - now >= 5) climbed++; }
+          }
+        }
+        const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+        return { total, ahead, myAvg: avg(myPos), thAvg: avg(thPos), climbBase, climbed };
+      }
+      function ratingsMove(a, days) {
+        const s = (a.ratingsSeries || []).filter((p) => p.ratings != null);
+        if (s.length < 2) return null;
+        const last = s[s.length - 1];
+        const cut = new Date(last.d + 'T00:00:00Z'); cut.setUTCDate(cut.getUTCDate() - days);
+        const ck = cut.toISOString().slice(0, 10);
+        let base = null;
+        for (const p of s) if (p.d <= ck) base = p;
+        if (!base) base = s[0];
+        if (base === last) return null;
+        const span = Math.max(1, Math.round((new Date(last.d) - new Date(base.d)) / 86400000));
+        return { delta: last.ratings - base.ratings, span, now: last.ratings, score: last.score };
+      }
+      const fmtN = (n) => Number(n).toLocaleString('en-IN');
+      const lastNeg = (a) => { const h = a.ratingHistory || []; return h.length ? h[h.length - 1].negativeShare : null; };
+
+      function whyAheadHtml(app) {
+        const comps = comparableApps(app).slice(0, 3);
+        if (!comps.length) return '';
+        const stats = comps.map((c) => ({ c, st: whyStats(app, c) }));
+        // Default to the competitor ahead on the most keywords.
+        const best = stats.slice().sort((a, b) => b.st.ahead - a.st.ahead)[0];
+        const sel = stats.find((x) => x.c.key === whyCompState[app.key]) || best;
+        const { c, st } = sel;
+        const name = c.developer || c.title || c.appId;
+        const isAhead = st.total > 0 && st.ahead * 2 > st.total;
+        const rows = [];
+        const badge = { measured: ['b-meas', 'Measured'], user: ['b-user', 'From your vitals'], need: ['b-user', 'Needs your input'], inferred: ['b-inf', 'Inferred, not confirmed'] };
+
+        // 1) ratings momentum — measured
+        const rm = ratingsMove(c, 7), mm = ratingsMove(app, 7);
+        if (rm && mm) {
+          const faster = rm.delta > mm.delta;
+          const parts = [`<b>${rm.delta >= 0 ? '+' : ''}${fmtN(rm.delta)}</b> ratings in ${rm.span} days vs your <b>${mm.delta >= 0 ? '+' : ''}${fmtN(mm.delta)}</b>.`];
+          if (rm.score != null && mm.score != null) parts.push(`Rating ${rm.score.toFixed(1)} vs your ${mm.score.toFixed(1)}.`);
+          const tn = lastNeg(c), mn = lastNeg(app);
+          if (tn != null && mn != null) parts.push(`1-2★ share <b>${tn}%</b> vs your <b style="${mn > tn ? 'color:var(--bad)' : ''}">${mn}%</b>.`);
+          rows.push({ kind: 'measured', title: faster ? 'Ratings are growing faster than yours' : 'Your ratings are growing at least as fast', body: parts.join(' '), action: faster ? '<a href="#" data-goto-section="reviews">See your reviews →</a>' : '' });
+        }
+        // 2) sudden climb — inferred
+        if (st.climbBase >= 8 && st.climbed >= Math.max(6, Math.round(st.climbBase * 0.4))) {
+          const quiet = rm && c.ratingsSeries && rm.now ? Math.abs(rm.delta) / rm.now < 0.005 : false;
+          rows.push({ kind: 'inferred', title: 'A sudden climb that can look like a paid push', body: `Rose on <b>${st.climbed} of ${st.climbBase}</b> keywords in the last 7 days${quiet ? ', while their rating count barely moved' : ''}. <span class="m">This pattern often follows a paid install campaign. We cannot see their ads, so treat it as a lead, not a fact.</span>`, action: '' });
+        }
+        // 3) your app health — from the owner's own vitals
+        const qm = (app.qualityMetrics || []).slice().sort((a, b) => (a.dateKey < b.dateKey ? -1 : 1));
+        const lastQ = qm[qm.length - 1];
+        if (!lastQ) {
+          rows.push({ kind: 'need', title: 'App health: nothing entered yet', body: 'Add your Android vitals (crash, ANR and user-loss rates) once a week so we can check them against Google\'s limits.', action: '<a href="#" data-goto-section="settings">Add Android vitals →</a>' });
+        } else {
+          const days = Math.max(0, Math.floor((Date.now() - new Date(lastQ.dateKey + 'T00:00:00Z').getTime()) / 86400000));
+          const crash = [...qm].reverse().find((q) => q.crashRate != null), anr = [...qm].reverse().find((q) => q.anrRate != null);
+          const over = [];
+          if (crash && crash.crashRate > 1.09) over.push(`Crash rate <b style="color:var(--bad)">${crash.crashRate}%</b> is over Google's 1.09% limit`);
+          if (anr && anr.anrRate > 0.47) over.push(`ANR rate <b style="color:var(--bad)">${anr.anrRate}%</b> is over Google's 0.47% limit`);
+          const stale = days > 7;
+          if (over.length || stale) {
+            rows.push({ kind: 'user', title: over.length ? 'Your app health may be holding you back' : 'Your vitals are out of date', body: `${over.length ? over.join(' and ') + '. ' : ''}Your last vitals entry was <b>${days} day${days === 1 ? '' : 's'} ago</b>${stale ? ' — update it weekly' : ''}. <span class="m">Limits shown are Google's for user-perceived rates.</span>`, action: '<a href="#" data-goto-section="settings">Update this week\'s vitals →</a>' });
+          }
+          // 4) uninstalls
+          const loss = [...qm].reverse().find((q) => q.userLossRate != null);
+          rows.push(loss
+            ? { kind: 'user', title: 'Uninstalls: your latest number', body: `User-loss rate was <b>${loss.userLossRate}%</b> on ${esc(loss.dateKey)}. Competitors' uninstall rates aren't public, so compare this week to your own earlier weeks.`, action: '<a href="#" data-goto-section="settings">Add a newer entry →</a>' }
+            : { kind: 'need', title: 'Uninstalls: nothing to compare yet', body: 'Add your user-loss rate (or install-to-uninstall %) to see whether people leave faster than they stay.', action: '<a href="#" data-goto-section="settings">Add it in Settings →</a>' });
+        }
+
+        const needCount = rows.filter((r) => r.kind === 'need').length;
+        const pills = stats.map((x) => `<span class="seg ${x.c.key === c.key ? 'active' : ''}" data-whycomp="${escAttr(x.c.key)}" title="${escAttr(x.c.title || '')}">${esc((x.c.developer || x.c.title || x.c.appId).slice(0, 16))}</span>`).join('');
+        const rowsHtml = rows.length ? rows.map((r) => `<div class="why-row"><span class="t">${esc(r.title)}</span><span class="why-badge ${badge[r.kind][0]}">${badge[r.kind][1]}</span>
+            <div class="e">${r.body}</div>${r.action ? `<div class="a">${r.action}</div>` : ''}</div>`).join('') : '<div class="why-row"><div class="e m">Nothing stands out yet — check back after a few more days of data.</div></div>';
+        const fmtAvg = (v) => (v == null ? '–' : '#' + v.toFixed(1));
+        return `<div class="why no-print">
+          <div class="why-head"><div><h4>${isAhead ? `Why is ${esc(name)} ahead of you?` : `How you compare with ${esc(name)}`}</h4><p>What we can see about the gap, and how sure we are.</p></div>
+            <div class="segwrap" style="margin:0;" role="group" aria-label="Competitor">${pills}</div></div>
+          <div class="why-sum">
+            <div><b>${st.ahead} of ${st.total}</b>shared keywords they rank better on</div><span class="sep"></span>
+            <div><b>${fmtAvg(st.thAvg)} vs ${fmtAvg(st.myAvg)}</b>average rank, them vs you</div><span class="sep"></span>
+            <div><b>${rows.length} point${rows.length === 1 ? '' : 's'}</b>${needCount ? `${needCount} need${needCount === 1 ? 's' : ''} your input` : 'from the data we have'}</div>
+          </div>
+          ${rowsHtml}
+          <div class="why-foot"><b>Measured</b> = public store data · <b>From your vitals</b> = numbers you entered · <b>Inferred</b> = a pattern, not proof. Competitor listing changes and search trends are coming next.</div>
         </div>`;
       }
 
@@ -4104,6 +4238,8 @@ ai photo enhancer"></textarea>
           render();
           return;
         }
+        const whyPill = ev.target.closest('[data-whycomp]');
+        if (whyPill) { whyCompState[whyPill.closest('.appcard').getAttribute('data-key')] = whyPill.getAttribute('data-whycomp'); render(); return; }
         const dailyCat = ev.target.closest('[data-dailycat]');
         if (dailyCat) {
           const key = dailyCat.closest('.appcard').getAttribute('data-key');
