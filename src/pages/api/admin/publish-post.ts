@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { timingSafeEqual } from 'node:crypto';
 import { getUser } from '../../../lib/auth';
 import { dbEnabled } from '../../../lib/db';
 import { isAdmin } from '../../../lib/billing';
@@ -7,15 +8,35 @@ import { coverDataUri } from '../../../lib/blogCover';
 
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json' } });
 
+// A machine caller (the GitHub Action that drains the scheduled-post queue —
+// see scripts/publish-queue.mjs) has no admin session cookie to send, so it
+// authenticates with a bearer token instead, checked against BLOG_PUBLISH_TOKEN.
+// Timing-safe comparison, same reasoning as the password check in auth.ts:
+// a naive === leaks how many leading bytes matched through response timing.
+function hasValidPublishToken(ctx: Parameters<APIRoute>[0]): boolean {
+  const configured = (process.env.BLOG_PUBLISH_TOKEN || (import.meta as any).env?.BLOG_PUBLISH_TOKEN || '').trim();
+  if (!configured) return false;
+  const header = ctx.request.headers.get('authorization') || '';
+  const presented = header.replace(/^Bearer\s+/i, '').trim();
+  if (!presented) return false;
+  const a = Buffer.from(presented);
+  const b = Buffer.from(configured);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 // Manual publish (and edit): takes an already-written post (no Anthropic/
 // OpenAI call, no cost) and inserts or updates it directly in the DB. Pass
 // `editSlug` to update that existing post in place instead of creating a
 // new one — added after a published post needed a real content fix and
 // there was no way to correct it short of editing the database directly.
+// Authorized either as a logged-in admin (the /admin/payments form) or with
+// BLOG_PUBLISH_TOKEN as a bearer token (the scheduled-queue GitHub Action).
 export const POST: APIRoute = async (ctx) => {
   if (!dbEnabled) return json({ error: 'Not configured.' }, 503);
-  const user = await getUser(ctx);
-  if (!isAdmin(user)) return json({ error: 'Not authorized.' }, 403);
+  if (!hasValidPublishToken(ctx)) {
+    const user = await getUser(ctx);
+    if (!isAdmin(user)) return json({ error: 'Not authorized.' }, 403);
+  }
 
   let body: {
     title?: string; description?: string; bodyMarkdown?: string;
