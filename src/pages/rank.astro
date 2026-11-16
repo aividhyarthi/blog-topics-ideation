@@ -578,7 +578,6 @@ const limitsText = product && plan
         <button type="button" class="navtoggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
       <h1 class="sr-only">{product ? (guest ? 'Rank dashboard' : 'Your rank dashboard') : 'Rank Tracker'}</h1>
-      {product && <nav class="top homenav" aria-label="Home"><a href="/welcome">Welcome</a></nav>}
 
       <div class="sidebar no-print" id="sidebar" style="display:none;">
         <div class="side-card">
@@ -600,6 +599,7 @@ const limitsText = product && plan
           <>
             <div class="navgroup">Tools</div>
             <nav class="top">
+              <a href="/welcome">Welcome</a>
               <a href="/rank" class="active">Rank Tracker</a>
               <a href="/aso">ASO Inspector</a>
               <a href="/blog">Blog</a>

@@ -8,7 +8,7 @@ import { BRAND } from '../lib/saas/plans';
 interface Props { active: 'welcome' | 'rank' | 'aso' | 'account' | 'blog'; product: boolean; email?: string }
 const { active, product, email } = Astro.props as Props;
 const links = product
-  ? [['rank', '/rank', 'Rank Tracker'], ['aso', '/aso', 'ASO Inspector'], ['blog', '/blog', 'Blog']]
+  ? [['welcome', '/welcome', 'Welcome'], ['rank', '/rank', 'Rank Tracker'], ['aso', '/aso', 'ASO Inspector'], ['blog', '/blog', 'Blog']]
   : [['aso', '/aso', 'ASO Inspector'], ['rank', '/rank', 'Rank Tracker']];
 ---
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -23,9 +23,6 @@ const links = product
     )}
     <button type="button" class="navtoggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
   </div>
-  {product && (
-    <nav class="top homenav" aria-label="Home"><a href="/welcome" class:list={[active === 'welcome' && 'active']}>Welcome</a></nav>
-  )}
   <div class="navfoot" id="navfoot">
     <div class="navgroup">Tools</div>
     <nav class="top">
