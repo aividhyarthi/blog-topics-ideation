@@ -468,6 +468,26 @@ const limitsText = product && plan
       }
       @media print { .appnav { display: none !important; } .appshell { display: block; } }
 
+      /* ===== design layer v2 — stage 7: category-rank boxes, volume text, static category rows ===== */
+      .hl-boxes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+      .hl-box { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: var(--card); min-width: 0; }
+      .hl-box.you { border-color: var(--blue); background: var(--blue-tint); }
+      .hl-box .headline-num { margin-bottom: 6px; }
+      .hl-box .headline-num.hl-na { color: var(--muted); }
+      .hl-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+      .hl-delta { font-size: 12.5px; font-family: var(--mono-ui); font-weight: 600; color: var(--muted); }
+      .hl-delta.up { color: var(--ok); }
+      .hl-delta.down { color: var(--bad); }
+      .catrank-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 14px; }
+      .catrank-tiles .hl-box .headline-num { font-size: 40px; }
+      @media (max-width: 700px) { .hl-boxes { grid-template-columns: 1fr; } }
+      .kvol { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+      .kvol b { color: var(--ink); font-weight: 600; }
+      .wn-row .wn-kw { flex: 1; min-width: 0; text-align: left; }
+      .catrow.static { cursor: default; }
+      .catrow.static:hover { background: none; }
+      .appnav .homenav { margin: -4px 0 -6px; }
+
       /* ===== design layer v2 — stage 6: "Why is X ahead of you?" card ===== */
       .why { border: 1px solid var(--line); border-radius: 12px; background: var(--card); margin: 0 0 14px; }
       .why-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--line); }
@@ -552,6 +572,7 @@ const limitsText = product && plan
         <button type="button" class="navtoggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
       <h1 class="sr-only">{product ? (guest ? 'Rank dashboard' : 'Your rank dashboard') : 'Rank Tracker'}</h1>
+      {product && <nav class="top homenav" aria-label="Home"><a href="/welcome">Welcome</a></nav>}
 
       <div class="sidebar no-print" id="sidebar" style="display:none;">
         <div class="side-card">
@@ -573,7 +594,6 @@ const limitsText = product && plan
           <>
             <div class="navgroup">Tools</div>
             <nav class="top">
-              <a href="/welcome">Welcome</a>
               <a href="/rank" class="active">Rank Tracker</a>
               <a href="/aso">ASO Inspector</a>
               <a href="/blog">Blog</a>
@@ -864,49 +884,73 @@ ai photo enhancer"></textarea>
           .filter((w) => w.length > 2 && !GROUP_STOPWORDS.has(w) && !brand.has(w));
       }
 
+      // Words that only carry an amount or a period ("50 lakh", "5 years") never define a topic.
+      const GROUP_AMOUNT_WORDS = new Set(['lakh', 'lakhs', 'crore', 'crores', 'thousand', 'year', 'years', 'month', 'months', 'k', 'lac', 'lacs']);
+      const groupTokensV2 = (keyword, brandTokens) => groupTokens(keyword, brandTokens).filter((w) => !/^\d/.test(w) && !GROUP_AMOUNT_WORDS.has(w));
+
       /**
-       * Builds the group list for one app from its own keywords. Two-word
-       * phrases are preferred over single words so groups read as real topics
-       * ("liquid fund", "mutual fund") instead of collapsing everything that
-       * contains "fund" into one bucket.
+       * Builds the group list for one app from its own keywords.
+       *
+       * Groups are named after the MODIFIER that makes a keyword specific
+       * ("home loan", "car loan", "sip"), not the phrase nearly every keyword
+       * shares. The shared words ("head" words — here "emi calculator") are
+       * found first and kept out of the labels; keywords made only of head
+       * words land in "General". The previous version grouped by the most
+       * frequent phrase first, which dumped everything containing "emi
+       * calculator" into one giant bucket and left "home loan" with a handful.
+       * Groups are picked greedily by how many still-unassigned keywords they
+       * cover, preferring the longer phrase when it covers the same keywords
+       * ("home loan" over "home").
        */
       function buildKeywordGroups(keywords, brandTokens) {
-        const uni = new Map(), bi = new Map();
-        for (const kw of keywords) {
-          const toks = groupTokens(kw, brandTokens);
-          for (const t of new Set(toks)) uni.set(t, (uni.get(t) || 0) + 1);
-          for (let i = 0; i < toks.length - 1; i++) {
-            const phrase = `${toks[i]} ${toks[i + 1]}`;
-            bi.set(phrase, (bi.get(phrase) || 0) + 1);
-          }
-        }
-        // Thresholds scale with the list: a fixed "appears 4+ times" bar that
-        // suits a 600-keyword universe leaves most of a 40-keyword one in
-        // "Other", and a bar that suits 40 would produce dozens of noise
-        // groups at 600. Floors keep a pair of keywords from becoming a group.
         const n = keywords.length;
-        const minUni = Math.max(3, Math.ceil(n / 50));
-        const minBi = Math.max(2, Math.ceil(n / 80));
-        const cands = [
-          ...[...bi].filter(([, c]) => c >= minBi).map(([p, c]) => ({ label: p, n: c, words: p.split(' '), bigram: true })),
-          ...[...uni].filter(([, c]) => c >= minUni).map(([w, c]) => ({ label: w, n: c, words: [w], bigram: false })),
-        ];
-        // Bigrams first (more specific), then by how much of the list they cover.
-        cands.sort((a, b) => (b.bigram ? 1 : 0) - (a.bigram ? 1 : 0) || b.n - a.n);
-        // Keep BOTH the bigram and the unigram it contains. Dropping "sip"
-        // because "sip calculator" exists sent every other sip keyword to
-        // "Other"; since bigrams are matched first, the specific group takes
-        // what it should and the unigram catches the remainder.
-        return cands.slice(0, MAX_KEYWORD_GROUPS);
+        if (!n) return { groups: [], head: new Set() };
+        const toks = keywords.map((k) => groupTokensV2(k, brandTokens));
+        const df = new Map();
+        for (const t of toks) for (const w of new Set(t)) df.set(w, (df.get(w) || 0) + 1);
+        const headCut = n >= 20 ? 0.30 : 0.5;
+        const head = new Set([...df].filter(([, c]) => c / n >= headCut).map(([w]) => w));
+        const cand = new Map();
+        const add = (label, words, bigram, i) => {
+          let c = cand.get(label);
+          if (!c) { c = { label, words, bigram, kws: new Set() }; cand.set(label, c); }
+          c.kws.add(i);
+        };
+        toks.forEach((t, i) => {
+          for (let j = 0; j < t.length; j++) {
+            if (!head.has(t[j])) add(t[j], [t[j]], false, i);
+            if (j < t.length - 1 && (!head.has(t[j]) || !head.has(t[j + 1]))) add(t[j] + ' ' + t[j + 1], [t[j], t[j + 1]], true, i);
+          }
+        });
+        const minCount = Math.max(2, Math.ceil(n / 60));
+        const groups = [], taken = new Set();
+        for (let g = 0; g < MAX_KEYWORD_GROUPS; g++) {
+          let best = null, bestN = 0;
+          for (const c of cand.values()) {
+            const free = [...c.kws].filter((i) => !taken.has(i)).length;
+            if (free > bestN || (free === bestN && best && c.bigram && !best.bigram && free > 0)) { best = c; bestN = free; }
+          }
+          if (!best || bestN < minCount) break;
+          for (const c of cand.values()) {
+            if (c.bigram && !best.bigram && c.words.includes(best.label)) {
+              const f = [...c.kws].filter((i) => !taken.has(i)).length;
+              if (f >= bestN * 0.8 && f >= minCount) { best = c; bestN = f; }
+            }
+          }
+          groups.push({ label: best.label, n: bestN, words: best.words, bigram: best.bigram });
+          for (const i of best.kws) taken.add(i);
+        }
+        return { groups, head };
       }
 
-      /** Which group a keyword belongs to, given the groups built above. */
-      function groupOfKeyword(keyword, groups, brandTokens) {
-        const toks = groupTokens(keyword, brandTokens);
-        const set = new Set(toks);
-        const joined = ` ${toks.join(' ')} `;
-        for (const g of groups) {
-          if (g.bigram ? joined.includes(` ${g.label} `) : set.has(g.label)) return g.label;
+      /** Which group a keyword belongs to: the first group whose specific (non-head) words it contains. */
+      function groupOfKeyword(keyword, built, brandTokens) {
+        const t = groupTokensV2(keyword, brandTokens);
+        if (!t.length || t.every((w) => built.head.has(w))) return 'General';
+        const set = new Set(t);
+        for (const g of built.groups) {
+          const need = g.words.filter((w) => !built.head.has(w));
+          if (need.length && need.every((w) => set.has(w))) return g.label;
         }
         return 'Other';
       }
@@ -968,17 +1012,18 @@ ai photo enhancer"></textarea>
         const keys = [...new Set([...(app.keywords || []), ...(app.coverageKeywords || [])].map((k) => k.toLowerCase()))];
         const sig = `${app.key}|${keys.length}|${brand.join(',')}`;
         if (GROUP_CACHE[app.key] && GROUP_CACHE[app.key].sig === sig) return GROUP_CACHE[app.key];
-        const entry = { sig, brand, groups: buildKeywordGroups(keys, brand) };
+        const built = buildKeywordGroups(keys, brand);
+        const entry = { sig, brand, groups: built.groups, head: built.head };
         GROUP_CACHE[app.key] = entry;
         return entry;
       }
 
       function categorizeKeyword(keyword, app) {
-        const { brand, groups } = groupsFor(app);
+        const { brand, groups, head } = groupsFor(app);
         // Brand and competitor names stay their own group — they behave
         // differently from topic keywords and are read separately.
         if (brand.some((t) => wordMatch(keyword.toLowerCase(), t))) return 'Brand + Comp';
-        return groupOfKeyword(keyword, groups, brand);
+        return groupOfKeyword(keyword, { groups, head }, brand);
       }
       const MAX_COVERAGE = 2000;
       function sortVal(t, col) {
@@ -1883,6 +1928,7 @@ ai photo enhancer"></textarea>
           <label class="promo-row">
             <input type="checkbox" data-role="promo-kw" value="${escAttr(t.keyword)}" checked />
             <span class="kw">${esc(t.keyword)}</span>
+            ${kwVolHtml(app, t.keyword)}
             <b class="pos">#${t.position}</b>
           </label>`).join('');
         return `<div class="wn-card">${head}
@@ -1905,7 +1951,7 @@ ai photo enhancer"></textarea>
         const moves = [...gainers, ...losers, ...newlyRanked, ...droppedOut];
         if (!moves.length) return `<div class="wn-card">${head}<p class="wn-empty">No keyword moved position since the last check — check back after the next one.</p></div>`;
         const rows = [...gainers, ...newlyRanked, ...losers, ...droppedOut].slice(0, 5).map((t) =>
-          `<div class="wn-row"><button class="kwlink wn-kw" data-kwhistory="${escAttr(t.keyword)}" data-list="daily">${esc(t.keyword)}</button>${deltaCell(t)}</div>`).join('');
+          `<div class="wn-row"><button class="kwlink wn-kw" data-kwhistory="${escAttr(t.keyword)}" data-list="daily">${esc(t.keyword)}</button>${kwVolHtml(app, t.keyword)}${deltaCell(t)}</div>`).join('');
         return `<div class="wn-card">${head}${rows}</div>`;
       }
 
@@ -2089,8 +2135,18 @@ ai photo enhancer"></textarea>
         }));
         return `<div class="ov">
           <div class="headline">
-            <div class="headline-eyebrow">Search visibility score</div>
-            <div class="headline-num">${cur != null ? cur.toFixed(1) : '–'}</div>
+            <div class="hl-boxes">
+              <div class="hl-box">
+                <div class="headline-eyebrow">Search visibility score</div>
+                <div class="headline-num">${cur != null ? cur.toFixed(1) : '–'}</div>
+                <div class="hl-sub">out of 100 · average across your keywords</div>
+                ${vDelta == null ? '<span class="hl-delta">–</span>' : vDelta === 0 ? '<span class="hl-delta">＝ no change</span>' : `<span class="hl-delta ${vDelta > 0 ? 'up' : 'down'}">${vDelta > 0 ? '▲' : '▼'} ${Math.abs(vDelta)} pts${prev ? ` · ${(Math.abs(vDelta) / prev * 100).toFixed(1)}%` : ''}</span>`}
+              </div>
+              <div class="hl-box">
+                <div class="headline-eyebrow">Category rank</div>
+                ${catRankBoxInner(app)}
+              </div>
+            </div>
             <div class="headline-sub">${vDeltaHtml}${visibilityNarrative(app)}</div>
             ${coverageCaption(todayDay)}
             ${spikeBannerHtml}
@@ -2525,6 +2581,67 @@ ai photo enhancer"></textarea>
       // buildKeywordGroups) and renders a sub-tab per group actually present,
       // so each topic can be read without scanning one long flat list.
 
+
+      // ---- Step 7 helpers: brand names, volume text ------------------------------
+      const shortBrand = (t, n = 16) => (t.length > n ? t.slice(0, n - 1) + '…' : t);
+      /**
+       * The app's brand name for column headers and pills: the part of the store
+       * title that is the name, not the tagline ("Kissht: Instant Personal Loan"
+       * -> "Kissht"). Titles are "Brand: tagline" far more often than
+       * "Tagline - Brand", so the first part wins unless it is only generic words
+       * and the last part is a single word ("EMI Calculator - FinLab" -> "FinLab").
+       */
+      function brandOf(a, ref) {
+        if (a.shortName) return shortBrand(String(a.shortName));
+        const title = String(a.title || a.appId || '').trim();
+        const segs = title.split(/\s[-–—|]\s|:\s+/).map((x) => x.trim()).filter(Boolean);
+        const kws = ref ? fullKeywordUniverse(ref).map((k) => k.toLowerCase()) : [];
+        const generic = (w) => GENERIC_TITLE_WORDS.has(w) || (kws.length >= 10 && kws.filter((k) => wordMatch(k, w)).length / kws.length >= 0.15);
+        if (segs.length <= 1) {
+          // No separator ("EMI Calculator by Loanwise", "LoanTap EMI Calculator"): keep the distinctive words.
+          const words = title.split(/\s+/).map((w) => w.replace(/[^A-Za-z0-9&+]/g, '')).filter(Boolean);
+          const rest = words.filter((w) => w.length > 2 && !generic(w.toLowerCase()) && !['for', 'and', 'the', 'with'].includes(w.toLowerCase()));
+          return rest.length && rest.length < words.length ? shortBrand(rest.slice(0, 3).join(' ')) : shortBrand(title);
+        }
+        const toks = segs[0].toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
+        const firstGeneric = toks.length > 0 && toks.every(generic);
+        const last = segs[segs.length - 1];
+        if (firstGeneric && !/\s/.test(last) && last.length > 2) return shortBrand(last);
+        return shortBrand(segs[0]);
+      }
+      /** Unique labels for a list of competitors: brand name, with the developer added only when two collide. */
+      function compBrandLabels(app, comps) {
+        const base = comps.map((c) => brandOf(c, app));
+        const mine = brandOf(app, app).toLowerCase();
+        return base.map((b, i) => {
+          const clash = b.toLowerCase() === mine || base.some((x, j) => j !== i && x.toLowerCase() === b.toLowerCase());
+          const dev = (comps[i].developer || '').split(/\s+/)[0];
+          return clash && dev ? shortBrand(`${b} (${dev})`, 22) : b;
+        });
+      }
+      const fmtVol = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'K' : String(n));
+      /** Small "48K web · 90 app" text for a keyword, from the volumes the owner pasted in (empty when there are none). */
+      function kwVolHtml(app, kw) {
+        const k = String(kw).toLowerCase();
+        const web = (app.keywordWebVolumes || {})[k], vol = (app.keywordVolumes || {})[k];
+        if (web == null && vol == null) return '<span class="kvol"></span>';
+        return `<span class="kvol" title="Search volume (web) · App volume">${web != null ? `<b>${fmtVol(web)}</b> web` : ''}${web != null && vol != null ? ' · ' : ''}${vol != null ? `<b>${vol}</b> app` : ''}</span>`;
+      }
+      /** "▲ 3 places · 1.8%" for a rank that moved up (places > 0) or down; `from` is the previous rank. */
+      function rankChipHtml(places, from) {
+        if (places == null) return '<span class="hl-delta">–</span>';
+        if (places === 0) return '<span class="hl-delta">＝ no change</span>';
+        const pct = from ? ` · ${(Math.abs(places) / from * 100).toFixed(1)}%` : '';
+        return places > 0 ? `<span class="hl-delta up">▲ ${places} place${places === 1 ? '' : 's'}${pct}</span>` : `<span class="hl-delta down">▼ ${-places} place${places === -1 ? '' : 's'}${pct}</span>`;
+      }
+      /** Category-chart rank "dabba" for one app: big #rank, chart name, and how many places it moved. */
+      function catRankBoxInner(a) {
+        const ch = a.chart || {};
+        if (ch.position == null) return `<div class="headline-num hl-na">–</div><div class="hl-sub">${ch.chart ? esc(ch.chart) + ' · not in the top ' + esc(ch.depth || '') : 'No chart data yet'}</div>`;
+        const from = ch.delta != null ? ch.position + ch.delta : null;
+        return `<div class="headline-num">#${ch.position}</div><div class="hl-sub">${esc(ch.chart || 'Top Free')}</div>${rankChipHtml(ch.delta, from)}`;
+      }
+
       // ---- Step 5 helpers: category breakdown + competitor board --------------
       // Same grouping the All Keywords tabs always used (categorizeKeyword /
       // groupsFor) — this only wraps it so the breakdown table and the filter
@@ -2537,12 +2654,12 @@ ai photo enhancer"></textarea>
         }
         // A category holding one keyword isn't a topic — fold into Other (same rule as the tabs).
         for (const cat of Object.keys(byCat)) {
-          if (cat !== 'Brand + Comp' && cat !== 'Other' && byCat[cat].length < 2) {
+          if (cat !== 'Brand + Comp' && cat !== 'General' && cat !== 'Other' && byCat[cat].length < 2) {
             byCat.Other = [...(byCat.Other || []), ...byCat[cat]];
             delete byCat[cat];
           }
         }
-        const order = ['Brand + Comp', ...groupsFor(app).groups.map((g) => g.label), 'Other'];
+        const order = ['Brand + Comp', 'General', ...groupsFor(app).groups.map((g) => g.label), 'Other'];
         const present = order.filter((c) => (byCat[c] || []).length);
         const catOf = {};
         for (const c of present) for (const t of byCat[c]) catOf[t.keyword] = c;
@@ -2554,16 +2671,14 @@ ai photo enhancer"></textarea>
       // (top 10 / 11-30 / 31-100 / not ranked) and what share of search volume
       // they carry. Clicking a row filters the table below (attr = the data
       // attribute the page's click handler listens for).
-      function categoryBreakdownHtml(app, g, active, attr, extraClass) {
+      function categoryBreakdownHtml(app, g, active, attr, extraClass, compsOverride) {
         const vols = app.keywordVolumes || {};
         const all = g.present.flatMap((c) => g.byCat[c]);
         const totalVol = all.reduce((a, t) => a + (vols[t.keyword] || 0), 0);
         // Tracked competitors (max 3): their average rank over the same keywords, per category.
-        const comps = comparableApps(app).slice(0, 3).map((c) => ({
-          label: c.developer || c.title || c.appId,
-          full: c.title || c.appId,
-          map: trendMap(c),
-        }));
+        const compApps = (compsOverride || comparableApps(app)).slice(0, 3);
+        const compLabels = compBrandLabels(app, compApps);
+        const comps = compApps.map((c, i) => ({ label: compLabels[i], full: c.title || c.appId, map: trendMap(c) }));
         const cols = ['minmax(130px, 1.2fr)', '62px', '66px', ...comps.map(() => '72px'), 'minmax(130px, 2.4fr)', '58px'].join(' ');
         const rows = g.present.map((c) => {
           const list = g.byCat[c];
@@ -2584,14 +2699,15 @@ ai photo enhancer"></textarea>
             const cls = ca == null || avg == null || ca === avg ? '' : ca < avg ? 'cp-ahead' : 'cp-behind';
             return `<span class="cv cp ${cls}" title="${escAttr(cp.full)}: ${ps.length} of ${list.length} keywords ranked">${ca == null ? '–' : '#' + ca.toFixed(1)}</span>`;
           }).join('');
-          return `<button type="button" class="catrow ${extraClass || ''} ${c === active ? 'active' : ''}" ${attr}="${escAttr(c)}" aria-pressed="${c === active}">
+          const open = attr ? `<button type="button" class="catrow ${extraClass || ''} ${c === active ? 'active' : ''}" ${attr}="${escAttr(c)}" aria-pressed="${c === active}">` : '<div class="catrow static">';
+          return `${open}
             <span class="cn">${esc(c)}</span>
             <span class="cv">${list.length}</span>
             <span class="cv cavg">${avg == null ? '–' : '#' + avg.toFixed(1)}</span>
             ${compCells}
             <span class="cbar" title="${escAttr(tip)}"><i style="width:${pct(b10)}%;background:${BAND_COLORS[0]}"></i><i style="width:${pct(b30)}%;background:${BAND_COLORS[1]}"></i><i style="width:${pct(b100)}%;background:${BAND_COLORS[2]}"></i><i style="width:${pct(none)}%;background:${BAND_COLORS[3]}"></i></span>
             <span class="cv cvol">${share}</span>
-          </button>`;
+          ${attr ? '</button>' : '</div>'}`;
         }).join('');
         const compHead = comps.map((cp) => `<span class="ra" title="${escAttr(cp.full)} — average rank on the same keywords">${esc(cp.label.length > 10 ? cp.label.slice(0, 9) + '…' : cp.label)}</span>`).join('');
         const compNote = comps.length ? '<span class="catbk-note">Competitor columns = their average rank on these same keywords: <b style="color:var(--ok);">green</b> you rank better, <b style="color:var(--bad);">red</b> they rank better.</span>' : '';
@@ -2719,7 +2835,8 @@ ai photo enhancer"></textarea>
         const best = stats.slice().sort((a, b) => b.st.ahead - a.st.ahead)[0];
         const sel = stats.find((x) => x.c.key === whyCompState[app.key]) || best;
         const { c, st } = sel;
-        const name = c.developer || c.title || c.appId;
+        const whyLabels = compBrandLabels(app, comps);
+        const name = whyLabels[comps.indexOf(c)] || brandOf(c, app);
         const isAhead = st.total > 0 && st.ahead * 2 > st.total;
         const rows = [];
 
@@ -2767,7 +2884,7 @@ ai photo enhancer"></textarea>
         if (!trendCache[app.key] && !trendLoading[app.key]) setTimeout(() => loadSearchTrends(app.key), 0);
 
         const needCount = rows.filter((r) => r.kind === 'need').length;
-        const pills = stats.map((x) => `<span class="seg ${x.c.key === c.key ? 'active' : ''}" data-whycomp="${escAttr(x.c.key)}" title="${escAttr(x.c.title || '')}">${esc((x.c.developer || x.c.title || x.c.appId).slice(0, 16))}</span>`).join('');
+        const pills = stats.map((x) => `<span class="seg ${x.c.key === c.key ? 'active' : ''}" data-whycomp="${escAttr(x.c.key)}" title="${escAttr(x.c.title || '')}">${esc(whyLabels[comps.indexOf(x.c)] || brandOf(x.c, app))}</span>`).join('');
         const rowsHtml = rows.map(whyRowHtml).join('');
         const fmtAvg = (v) => (v == null ? '–' : '#' + v.toFixed(1));
         return `<div class="why no-print">
@@ -2783,6 +2900,16 @@ ai photo enhancer"></textarea>
         </div>`;
       }
 
+
+      // Category-chart rank for this app and each tracked competitor, as boxes: rank, chart, and the move since the last check.
+      function catRankTilesHtml(app) {
+        const comps = comparableApps(app).slice(0, 3);
+        const labels = compBrandLabels(app, comps);
+        const boxes = [{ a: app, label: 'You', you: true }, ...comps.map((c, i) => ({ a: c, label: labels[i], you: false }))];
+        return `<div class="catrank-tiles">${boxes.map((b) => `<div class="hl-box ${b.you ? 'you' : ''}" title="${escAttr(b.a.title || '')}">
+            <div class="headline-eyebrow">${esc(b.label)}</div>${catRankBoxInner(b.a)}</div>`).join('')}</div>`;
+      }
+
       // Overview: this app's visibility next to its tracked competitors', as a
       // bar chart plus a small table. Uses the same numbers as each app's own
       // Overview headline and the Competitor pulse card — nothing recomputed.
@@ -2791,13 +2918,15 @@ ai photo enhancer"></textarea>
         const me = app.overview && app.overview.visibility;
         if (!comps.length || me == null) return '';
         const kws = fullKeywordUniverse(app);
+        const brandLabelOf = {};
+        { const cl = compBrandLabels(app, comps); comps.forEach((c, i) => { brandLabelOf[c.key] = cl[i]; }); }
         const rowFor = (a, isMe) => {
           const tm = trendMap(a);
           const pos = kws.map((k) => tm[k]).filter((t) => t && !t.error && t.position != null).map((t) => t.position);
           return {
             key: a.key, isMe,
             name: a.title || a.appId,
-            label: a.developer || a.title || a.appId,
+            label: isMe ? 'You' : (brandLabelOf[a.key] || brandOf(a, app)),
             vis: a.overview.visibility,
             prev: a.overview.prevVisibility,
             avg: pos.length ? pos.reduce((x, y) => x + y, 0) / pos.length : null,
@@ -2861,7 +2990,7 @@ ai photo enhancer"></textarea>
         // A tab holding one keyword isn't a topic, it's clutter — fold those
         // back into Other so the tab bar stays readable.
         for (const cat of Object.keys(byCat)) {
-          if (cat !== 'Brand + Comp' && cat !== 'Other' && byCat[cat].length < 2) {
+          if (cat !== 'Brand + Comp' && cat !== 'General' && cat !== 'Other' && byCat[cat].length < 2) {
             byCat.Other = [...(byCat.Other || []), ...byCat[cat]];
             delete byCat[cat];
           }
@@ -2869,7 +2998,7 @@ ai photo enhancer"></textarea>
         // Derived groups in the order buildKeywordGroups ranked them, brand
         // first and the leftovers last, so the tab bar is stable across
         // renders rather than reshuffling as ranks move.
-        const order = ['Brand + Comp', ...groupsFor(app).groups.map((g) => g.label), 'Other'];
+        const order = ['Brand + Comp', 'General', ...groupsFor(app).groups.map((g) => g.label), 'Other'];
         const present = order.filter((c) => (byCat[c] || []).length);
         // Only one category present (usually "General") — a tab bar with a
         // single option is just noise, show the plain table instead.
@@ -3281,30 +3410,15 @@ ai photo enhancer"></textarea>
       // see buildKeywordGroups) and how strong each app is in each — a single
       // overall visibility number hides that you might be dominant in one
       // category and invisible in another; this is where that shows up.
+      // Compare tab: the same grouped breakdown as Daily/All Keywords — keywords in the same
+      // categories, average rank for you and the competitors picked above (not a separate scoring).
       function categoryStrengthHtml(app, comps, kws) {
-        const byCat = {};
-        for (const kw of kws) (byCat[categorizeKeyword(kw, app)] = byCat[categorizeKeyword(kw, app)] || []).push(kw);
-        const cats = Object.keys(byCat);
-        if (cats.length < 2) return ''; // one bucket (usually "General") — nothing to break out
-        const apps = [app, ...comps];
-        const maps = apps.map(trendMap);
-        const rows = cats.map((cat) => {
-          const catKws = byCat[cat];
-          const scores = maps.map((m) => {
-            const vals = catKws.map((kw) => visScore(m[kw]?.error ? null : m[kw]?.position ?? null));
-            return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
-          });
-          const best = Math.max(...scores);
-          return { cat, count: catKws.length, scores, best };
-        });
-        const head = `<th>Category</th><th>${compLabel(app, true)}</th>${comps.map((c) => `<th>${compLabel(c, false)}</th>`).join('')}`;
-        const body = rows.map((r) => `<tr>
-            <td class="kw">${esc(r.cat)} <span class="hint" style="margin:0;">(${r.count})</span></td>
-            ${r.scores.map((s) => `<td class="pos" ${s === r.best ? 'style="background:var(--ok-tint);"' : ''}>${s}</td>`).join('')}
-          </tr>`).join('');
-        return `<div class="chartbox" style="margin-bottom:12px;"><h4>Strength by category</h4>
-          <p class="hint" style="margin:0 0 8px;">0–100 visibility score, averaged per category — shows where you're actually ahead or behind, not just overall.</p>
-          <div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
+        const mine = trendMap(app);
+        const g = groupByCategory(app, kws.map((kw) => mine[kw] || { keyword: kw, position: null }));
+        if (g.present.length < 2) return '';
+        return `<div class="chartbox" style="margin-bottom:12px;"><h4>By category</h4>
+          <p class="hint" style="margin:0 0 6px;">Average rank per category on the same keywords, for you and the competitors you ticked. Green = you rank better, red = they do.</p>
+          ${categoryBreakdownHtml(app, g, '', null, '', comps)}
         </div>`;
       }
 
@@ -3574,6 +3688,7 @@ ai photo enhancer"></textarea>
         const sectionTrendsFn = () => {
           return `
           <div class="section-head"><h2>Category ranking</h2><p class="hint">Where the app sits in its store chart over time, how your keyword list is spread across ranks, and the changes you logged.</p></div>
+          ${catRankTilesHtml(app)}
           ${categoryChartTrendHtml(app)}
           ${rankDistributionHtml(app)}
           <div class="annedit open no-print" data-role="annedit" style="margin-top:16px;">
