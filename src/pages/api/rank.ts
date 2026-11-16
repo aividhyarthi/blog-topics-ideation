@@ -7,8 +7,9 @@
 // trial/subscription; all data is scoped to that user and plan limits apply.
 import type { APIRoute } from 'astro';
 import { parseAppInput, fetchAppMeta, backfillDeveloperId, backfillGenreId, refreshListingMeta } from '../../lib/rank/fetch';
-import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets, curateTopKeywords, parseQualityMetricsInput, snapshotsInRange } from '../../lib/rank/track';
-import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadWeeklyReviewScans, loadReviewThemes, loadQualityMetrics, mergeQualityMetrics, listConfigBackups, restoreConfigBackup, ConfigReadError } from '../../lib/rank/store';
+import { keywordTrends, chartTrend, overviewSeries, countsFromBuckets, RANK_BUCKETS, annotationImpact, keywordAnnotationImpact, todayKey, universeSizeSeries, keywordDifficulties, mergeSnapshotSets, curateTopKeywords, parseQualityMetricsInput, snapshotsInRange, listingChanges, positionShiftAround } from '../../lib/rank/track';
+import { fetchTrendsSeries, summarizeTrend } from '../../lib/rank/trends';
+import { loadConfig, saveConfig, loadSnapshots, loadSnapshot, loadCoverageSnapshots, loadCoverageSnapshot, loadAsoCache, loadRatingHistory, loadWeeklyReviewScans, loadReviewThemes, loadQualityMetrics, loadListingHistory, loadTrendsCache, saveTrendsCache, mergeQualityMetrics, listConfigBackups, restoreConfigBackup, ConfigReadError } from '../../lib/rank/store';
 import { analyzeReviewThemes } from '../../lib/rank/themes';
 import { runCheck, checkOne, checkCoverageBatch, checkRating } from '../../lib/rank/check';
 import { withTenantLock } from '../../lib/rank/lock';
@@ -227,6 +228,7 @@ function statePayload(
   const ratingHistory = loadRatingHistory(userId);
   const weeklyReviewScans = loadWeeklyReviewScans(userId);
   const qualityMetrics = loadQualityMetrics(userId);
+  const listingHistory = loadListingHistory(userId);
   const reviewThemes = loadReviewThemes(userId);
   // Every keyword-scoped view reads from ONE merged series (see
   // mergeSnapshotSets) rather than only the daily or only the coverage
@@ -287,6 +289,25 @@ function statePayload(
         // saved, letting a client append new rows instead of retyping
         // everything each time.
         qualityMetrics: qualityMetrics[app.key] || [],
+        // Store rating count + star score recorded with every check (already saved in each
+        // snapshot, just never sent to the page). Powers "ratings growing faster than yours".
+        // Public store-listing history for this app (see check.ts recordListing): when the
+        // title / short description / screenshots / icon changed, and how the app's average
+        // rank on shared keywords moved in the week around each change. Empty until the
+        // first check after listing tracking was added.
+        listing: (() => {
+          const vs = listingHistory[app.key] || [];
+          const last = vs[vs.length - 1];
+          const recent = listingChanges(vs)
+            .filter((c) => (Date.now() - Date.parse(c.date + 'T00:00:00Z')) / 86400000 <= 60)
+            .slice(-8)
+            .map((c) => ({ ...c, shift: positionShiftAround(merged, app.key, c.date) }));
+          return { since: vs[0]?.dateKey ?? null, versions: vs.length, version: last?.version ?? null, updated: last?.updated ?? null, changes: recent };
+        })(),
+        ratingsSeries: merged
+          .map((snap) => { const r = snap.apps.find((a) => a.key === app.key); return r && r.ratings != null ? { d: snap.dateKey, ratings: r.ratings, score: r.score ?? null } : null; })
+          .filter(Boolean)
+          .slice(-45),
         annotations: (app.annotations || []).map((a) => ({
           ...a,
           impact: annotationImpact(widerOverview, a.date),
@@ -432,6 +453,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     'add-annotation', 'remove-annotation',
     'save-quality-metrics', 'set-report-emails', 'set-alert',
     'add-app', 'remove-app', 'set-csl-titles',
+    'search-trends', // read-only lookup (writes only a shared cache file)
   ]);
   if (t.readOnly && !GUEST_SAFE_ACTIONS.has(action)) {
     return json({ error: 'This is a read-only shared view — ask the account owner to make changes.' }, 403);
@@ -894,6 +916,42 @@ export const POST: APIRoute = async ({ request, locals }) => {
     app.reportEmails = valid.join(', ');
     saveConfig(cfg, userId);
     return json({ ok: true, ...statePayload(userId) });
+  }
+
+  // Search-interest context for the Overview's "Why is X ahead of you?" card: the app's
+  // top-volume keywords with their 4-week change and seasonal position. Unofficial Google
+  // Trends under the hood (see trends.ts), so every failure degrades to a per-keyword
+  // error; results are cached for 3 days so opening the Overview never hammers it.
+  if (action === 'search-trends') {
+    const app = cfg.apps.find((a) => a.key === String(body.key || ''));
+    if (!app || !appAllowed(app.key)) return json({ error: 'App not found.' }, 404);
+    const vols = app.keywordVolumes || {};
+    const pool = [...new Set([...(app.keywords || []), ...(app.coverageKeywords || [])])];
+    const picks = pool.sort((a, b) => (vols[b.toLowerCase()] ?? 0) - (vols[a.toLowerCase()] ?? 0)).slice(0, 3);
+    const geo = (app.country || 'us').toUpperCase();
+    const cache = loadTrendsCache(userId);
+    const TTL = 3 * 86400000;
+    let dirty = false;
+    const keywords: Record<string, unknown>[] = [];
+    for (const kw of picks) {
+      const ck = `${geo}|${kw.toLowerCase()}`;
+      let entry = cache[ck];
+      if (!entry || Date.now() - Date.parse(entry.fetchedAt) > TTL) {
+        try {
+          const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timed out')), 12000));
+          const points = await Promise.race([fetchTrendsSeries(kw, geo), timeout]);
+          if (points.length) { entry = { fetchedAt: new Date().toISOString(), points }; cache[ck] = entry; dirty = true; }
+          await new Promise((r) => setTimeout(r, 600)); // politeness delay — unofficial endpoint
+        } catch (e) {
+          if (!entry) { keywords.push({ keyword: kw, error: e instanceof Error ? e.message : String(e) }); continue; }
+          // an older cached series beats no answer
+        }
+      }
+      const sum = entry ? summarizeTrend(entry.points) : null;
+      keywords.push(sum ? { keyword: kw, ...sum } : { keyword: kw, error: 'Not enough search data for this keyword.' });
+    }
+    if (dirty) { try { saveTrendsCache(cache, userId); } catch { /* cache is optional */ } }
+    return json({ ok: true, keywords, checkedAt: new Date().toISOString() });
   }
 
   if (action === 'review-themes') {

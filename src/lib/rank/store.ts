@@ -10,7 +10,7 @@
 // recoverable. See restoreConfigBackups()/listConfigBackups() below.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AsoCache, QualityMetrics, RankSnapshot, RatingHistory, ReviewThemesCache, TrackerConfig, WeeklyReviewScans } from './types';
+import type { AsoCache, ListingHistory, ListingVersion, QualityMetrics, RankSnapshot, RatingHistory, ReviewThemesCache, TrackerConfig, WeeklyReviewScans } from './types';
 
 /**
  * Data directory. With no `userId` (the internal single-tenant deployment)
@@ -31,6 +31,8 @@ const asoCacheFile = (userId?: string) => join(dataDir(userId), 'aso-cache.json'
 const ratingHistoryFile = (userId?: string) => join(dataDir(userId), 'rating-history.json');
 const weeklyReviewScansFile = (userId?: string) => join(dataDir(userId), 'weekly-review-scans.json');
 const qualityMetricsFile = (userId?: string) => join(dataDir(userId), 'quality-metrics.json');
+const listingHistoryFile = (userId?: string) => join(dataDir(userId), 'listing-history.json');
+const trendsCacheFile = (userId?: string) => join(dataDir(userId), 'trends-cache.json');
 const MAX_BACKUPS = 20;
 
 /**
@@ -258,4 +260,47 @@ export function loadNightlyMarker(userId?: string): { dateKey: string } | null {
 
 export function saveNightlyMarker(dateKey: string, userId?: string): void {
   writeFileSync(nightlyMarkerFile(userId), JSON.stringify({ dateKey }));
+}
+
+// --- listing history: one entry per DISTINCT version of an app's public store
+// listing (title, short/long description, screenshot count, icon). Derived,
+// additive data — nothing else reads or depends on it.
+
+export function loadListingHistory(userId?: string): ListingHistory {
+  const p = listingHistoryFile(userId);
+  if (!existsSync(p)) return {};
+  try { return JSON.parse(readFileSync(p, 'utf8')) as ListingHistory; } catch { return {}; }
+}
+
+const sameListing = (a: ListingVersion, b: ListingVersion) =>
+  a.title === b.title && a.summary === b.summary && a.description === b.description && a.screenshots === b.screenshots && a.icon === b.icon;
+
+/** Records `v` only if the visible listing differs from the last stored version.
+ * Returns true when a NEW version was added. A change in just version/updated
+ * (an app release with no listing edit) refreshes those two fields in place. */
+export function appendListingVersion(key: string, v: ListingVersion, userId?: string, keep = 40): boolean {
+  const history = loadListingHistory(userId);
+  const list = history[key] || [];
+  const last = list[list.length - 1];
+  if (last && sameListing(last, v)) {
+    if (last.version !== v.version || last.updated !== v.updated) {
+      last.version = v.version; last.updated = v.updated;
+      writeFileSync(listingHistoryFile(userId), JSON.stringify(history));
+    }
+    return false;
+  }
+  history[key] = [...list, v].slice(-keep);
+  writeFileSync(listingHistoryFile(userId), JSON.stringify(history));
+  return true;
+}
+
+// --- search-trend cache (Google Trends, unofficial): one entry per geo+keyword, refreshed after a few days.
+export interface TrendsCacheEntry { fetchedAt: string; points: { date: string; value: number }[] }
+export function loadTrendsCache(userId?: string): Record<string, TrendsCacheEntry> {
+  const p = trendsCacheFile(userId);
+  if (!existsSync(p)) return {};
+  try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return {}; }
+}
+export function saveTrendsCache(cache: Record<string, TrendsCacheEntry>, userId?: string): void {
+  writeFileSync(trendsCacheFile(userId), JSON.stringify(cache));
 }

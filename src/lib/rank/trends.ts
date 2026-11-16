@@ -39,8 +39,8 @@ async function fetchCookie(geo: string): Promise<string> {
 
 interface TimeseriesWidget { token: string; request: unknown }
 
-async function fetchExploreWidget(keyword: string, geo: string, cookie: string): Promise<TimeseriesWidget> {
-  const req = { comparisonItem: [{ keyword, geo, time: 'today 3-m' }], category: 0, property: '' };
+async function fetchExploreWidget(keyword: string, geo: string, cookie: string, time = 'today 3-m'): Promise<TimeseriesWidget> {
+  const req = { comparisonItem: [{ keyword, geo, time }], category: 0, property: '' };
   const url = `${EXPLORE_API}?hl=en-US&tz=-330&req=${encodeURIComponent(JSON.stringify(req))}`;
   const res = await fetch(url, { headers: { 'User-Agent': UA, Cookie: cookie } });
   if (!res.ok) throw new Error(`Trends explore HTTP ${res.status}`);
@@ -85,4 +85,52 @@ export async function fetchTrendsScores(keywords: string[], geo = 'US', delayMs 
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   return out;
+}
+
+
+/* ---------------- 12-month series + seasonality summary ---------------- */
+
+export interface TrendPoint { date: string; value: number }
+
+/** Weekly 0-100 interest for the last 12 months. Throws on failure — callers decide how to degrade. */
+export async function fetchTrendsSeries(keyword: string, geo = 'US'): Promise<TrendPoint[]> {
+  const cookie = await fetchCookie(geo);
+  const widget = await fetchExploreWidget(keyword, geo, cookie, 'today 12-m');
+  const url = `${WIDGET_API}?hl=en-US&tz=-330&req=${encodeURIComponent(JSON.stringify(widget.request))}&token=${encodeURIComponent(widget.token)}`;
+  const res = await fetch(url, { headers: { 'User-Agent': UA, Cookie: cookie } });
+  if (!res.ok) throw new Error(`Trends timeline HTTP ${res.status}`);
+  const data = JSON.parse(stripXssiPrefix(await res.text()));
+  return (data.default?.timelineData || [])
+    .map((p: { time?: string; value?: number[] }) => ({ date: new Date(Number(p.time) * 1000).toISOString().slice(0, 10), value: Number(p.value?.[0] ?? 0) }))
+    .filter((p: TrendPoint) => Number.isFinite(p.value) && p.date.length === 10);
+}
+
+export interface TrendSummary {
+  recentAvg: number; priorAvg: number;
+  /** % change of the last 4 weeks vs the 4 before; null when the earlier period had no searches. */
+  changePct: number | null;
+  /** 'high' = last 4 weeks are in the top fifth of the year, 'low' = bottom fifth. */
+  state: 'high' | 'low' | 'normal';
+  /** Calendar months holding the year's highest weeks, most frequent first (max 2). */
+  peakMonths: string[];
+}
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Pure — no network. Needs at least ~12 weekly points to say anything. */
+export function summarizeTrend(points: TrendPoint[]): TrendSummary | null {
+  if (points.length < 12) return null;
+  const avg = (a: TrendPoint[]) => a.reduce((x, p) => x + p.value, 0) / a.length;
+  const recent = points.slice(-4), prior = points.slice(-8, -4);
+  const recentAvg = avg(recent), priorAvg = avg(prior);
+  const below = points.filter((p) => p.value < recentAvg).length / points.length;
+  const state = below >= 0.8 ? 'high' : below <= 0.2 ? 'low' : 'normal';
+  const top = [...points].sort((a, b) => b.value - a.value).slice(0, 6);
+  const counts = new Map<number, number>();
+  for (const p of top) { const m = Number(p.date.slice(5, 7)) - 1; counts.set(m, (counts.get(m) || 0) + 1); }
+  const peakMonths = [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, 2).map(([m]) => MONTHS[m]);
+  return {
+    recentAvg: Math.round(recentAvg), priorAvg: Math.round(priorAvg),
+    changePct: priorAvg > 0 ? Math.round(((recentAvg - priorAvg) / priorAvg) * 100) : null,
+    state, peakMonths,
+  };
 }
