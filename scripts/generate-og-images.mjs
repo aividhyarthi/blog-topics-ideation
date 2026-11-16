@@ -582,6 +582,14 @@ const SPEC = {
   'app-preview-video-autoplay-conversion':
     { art: 'funnel', takeaway: 'Most of your audience never gets past second one',
       steps: ['video exists', 'autoplay or a tap', 'actually watched'] },
+  'managed-publishing-control-release-timing':
+    { art: 'diverge', takeaway: 'Approval and release become two separate moments',
+      a: 'review clears', b: 'you choose the moment' },
+  'year-version-number-in-title-keyword-matching':
+    { art: 'qa', takeaway: "Only a real match if your category searches that way" },
+  'removing-dead-keywords-frees-up-space':
+    { art: 'threshold', takeaway: 'A dead slot is still a slot something else could use',
+      band: 'producing nothing, taking up space' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
