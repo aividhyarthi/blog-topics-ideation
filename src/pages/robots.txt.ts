@@ -43,6 +43,7 @@ User-agent: MistralAI-User
 Allow: /
 
 Sitemap: ${SITE_URL}/sitemap.xml
+Sitemap: ${SITE_URL}/news-sitemap.xml
 `;
   return new Response(body, { headers: { 'Content-Type': 'text/plain' } });
 };

@@ -1,33 +1,18 @@
-// Minimal hand-rolled sitemap (no @astrojs/sitemap dependency) — the site is
-// small enough that listing the public marketing/blog pages plus the blog
-// collection by hand is simpler than wiring up the integration.
+// Sitemap index — points at the three sub-sitemaps instead of listing URLs
+// directly, so pages, the full blog archive, and the Google-News-specific
+// recent-articles feed are kept in separate files rather than one mixed
+// list. See sitemap-pages.xml.ts, sitemap-blog.xml.ts, news-sitemap.xml.ts.
 export const prerender = true;
 import type { APIRoute } from 'astro';
-import { getCollection } from 'astro:content';
-import { topicSlug } from '../lib/blog/topics';
 import { SITE_URL } from '../lib/saas/plans';
 
-const STATIC_PATHS = ['/', '/blog', '/about', '/login', '/signup', '/rank', '/aso'];
-
 export const GET: APIRoute = async () => {
-  const posts = await getCollection('blog');
-  const topics = [...new Set(posts.map((post) => post.data.theme))];
-  const urls = [
-    ...STATIC_PATHS.map((p) => ({ loc: `${SITE_URL}${p}`, lastmod: undefined as string | undefined })),
-    ...topics.map((theme) => ({
-      loc: `${SITE_URL}/blog/topic/${topicSlug(theme)}`,
-      lastmod: undefined as string | undefined,
-    })),
-    ...posts.map((post) => ({
-      loc: `${SITE_URL}/blog/${post.slug}`,
-      lastmod: post.data.publishDate.toISOString().slice(0, 10),
-    })),
-  ];
+  const sitemaps = ['sitemap-pages.xml', 'sitemap-blog.xml', 'news-sitemap.xml'];
 
   const body = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `  <url>\n    <loc>${u.loc}</loc>${u.lastmod ? `\n    <lastmod>${u.lastmod}</lastmod>` : ''}\n  </url>`).join('\n')}
-</urlset>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${sitemaps.map((s) => `  <sitemap>\n    <loc>${SITE_URL}/${s}</loc>\n  </sitemap>`).join('\n')}
+</sitemapindex>
 `;
 
   return new Response(body, { headers: { 'Content-Type': 'application/xml' } });
