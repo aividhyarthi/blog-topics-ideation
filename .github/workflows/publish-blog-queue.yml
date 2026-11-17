@@ -1,0 +1,53 @@
+name: Drain scheduled blog queue
+
+# This file has to live here (on the repo's default branch) purely because
+# GitHub only ever activates a `schedule`-triggered workflow if its YAML
+# exists on the default branch — it will not register one that only lives
+# on another branch, no matter what that branch actually deploys. The real
+# application code, the queue, and the drain script all live on aeo-checker
+# (the branch that actually deploys to the live site), which is why every
+# step below explicitly checks out `ref: aeo-checker` rather than whatever
+# this workflow file's own branch happens to be. This file does not touch,
+# read, or depend on anything else on this branch.
+#
+# Pushes every post in blog-queue/pending/ (on aeo-checker) to the live
+# site, each already carrying its own future publishDate — the site itself
+# decides when each one actually becomes visible (see listPublishedPosts()
+# in blogPosts.ts). This job's only responsibility is "make sure it exists
+# before its date", so running a few times a day is plenty; it does not
+# need to fire at the exact minute a post should go live.
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-blog-queue
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: aeo-checker
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Drain queue
+        id: drain
+        env:
+          BLOG_SITE_URL: ${{ secrets.BLOG_SITE_URL }}
+          BLOG_PUBLISH_TOKEN: ${{ secrets.BLOG_PUBLISH_TOKEN }}
+        run: node scripts/publish-queue.mjs
+      - name: Commit queue state
+        if: always()
+        run: |
+          git config user.name "publish-bot"
+          git config user.email "publish-bot@users.noreply.github.com"
+          git add blog-queue/
+          git diff --cached --quiet || git commit -m "Drain blog queue"
+          git diff --cached --quiet || git push origin HEAD:aeo-checker
