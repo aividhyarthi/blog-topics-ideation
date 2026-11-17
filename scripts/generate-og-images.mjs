@@ -590,6 +590,15 @@ const SPEC = {
   'removing-dead-keywords-frees-up-space':
     { art: 'threshold', takeaway: 'A dead slot is still a slot something else could use',
       band: 'producing nothing, taking up space' },
+  'secondary-category-reset-primary-ranking':
+    { art: 'diverge', takeaway: 'Extra reach, not a swap for what you already built',
+      a: 'primary: untouched', b: 'secondary: added on top' },
+  'literal-translation-vs-cultural-adaptation-keywords':
+    { art: 'diverge', takeaway: 'Correct in the dictionary is not the same as searched',
+      a: 'translated correctly', b: 'what locals actually type' },
+  'unreleased-status-carry-forward-after-launch':
+    { art: 'funnel', takeaway: 'The real ranking clock starts at the public launch',
+      steps: ['unreleased, link only', 'feedback and fixes', 'public, signal begins'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
