@@ -48,10 +48,14 @@ export function tenant(locals: APIContext['locals']) {
   if (locals.productMode && locals.user) {
     const plan = planOf(locals.user.plan);
     const ws = resolveWorkspace(locals.user, locals.wsMode);
+    // Admin-only app-slot bonus: +10 beyond the plan limit, and only on the
+    // admin's own workspace (never on a shared workspace they're viewing as
+    // a guest — that limit belongs to the workspace's actual owner/plan).
+    const maxApps = ws.mode === 'own' && isAdminEmail(locals.user.email) ? plan.maxApps + 10 : plan.maxApps;
     return {
       userId: ws.ownerId, appKeys: ws.appKeys, readOnly: ws.readOnly, sharedByEmail: ws.sharedByEmail,
       canSwitch: ws.canSwitch, mode: ws.mode, granteeEmail: ws.granteeEmail,
-      maxApps: plan.maxApps, maxCompetitors: plan.maxCompetitorsPerApp, maxKeywords: plan.maxKeywordsPerApp,
+      maxApps, maxCompetitors: plan.maxCompetitorsPerApp, maxKeywords: plan.maxKeywordsPerApp,
     };
   }
   return {

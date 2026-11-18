@@ -3,7 +3,7 @@
 // Serves two audiences from one page: the internal (Nykaa) toolset, and the
 // AppRankr product dashboard (product mode: branded header, trial banner,
 // plan-based limits).
-import { BRAND, planOf, checkAccess, INITIATIVE_NAME, SITE_URL, ADSENSE_SLOTS } from '../lib/saas/plans';
+import { BRAND, planOf, checkAccess, INITIATIVE_NAME, SITE_URL, ADSENSE_SLOTS, isAdminEmail } from '../lib/saas/plans';
 import GoogleAnalytics from '../components/GoogleAnalytics.astro';
 import AdSenseScript from '../components/AdSenseScript.astro';
 import AdSlot from '../components/AdSlot.astro';
@@ -14,8 +14,12 @@ const user = Astro.locals.user || null;
 const guest = product && user ? isGuest(user, Astro.locals.wsMode) : false;
 const plan = user ? planOf(user.plan) : null;
 const access = user ? checkAccess(user.status, user.trialEndsAt) : null;
+// Mirrors the admin-only +10 app-slot bonus in api/rank.ts's tenant() — this
+// is just the display text, so it has to match what's actually enforced
+// there or the number shown here would be wrong for the admin.
+const displayMaxApps = plan && !guest && isAdminEmail(user?.email) ? plan.maxApps + 10 : plan?.maxApps;
 const limitsText = product && plan
-  ? `Your ${plan.name} plan tracks up to ${plan.maxApps} of your own apps (${plan.maxCompetitorsPerApp} competitors each, which don't count towards the limit), ${plan.maxKeywordsPerApp} keywords each.`
+  ? `Your ${plan.name} plan tracks up to ${displayMaxApps} of your own apps (${plan.maxCompetitorsPerApp} competitors each, which don't count towards the limit), ${plan.maxKeywordsPerApp} keywords each.`
   : 'Up to 15 apps, 60 keywords each.';
 ---
 
