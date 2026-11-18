@@ -599,6 +599,13 @@ const SPEC = {
   'unreleased-status-carry-forward-after-launch':
     { art: 'funnel', takeaway: 'The real ranking clock starts at the public launch',
       steps: ['unreleased, link only', 'feedback and fixes', 'public, signal begins'] },
+  'verified-purchase-review-weight':
+    { art: 'qa', takeaway: 'Same math, more convincing to a human reader' },
+  'checking-your-own-listing-on-one-device-bias':
+    { art: 'qa', takeaway: 'Fine on your phone is not the same as fine everywhere' },
+  'showing-install-count-publicly-conversion':
+    { art: 'diverge', takeaway: 'A big number next to a weak score reads as a warning',
+      a: 'install count: popularity', b: 'rating: quality' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
