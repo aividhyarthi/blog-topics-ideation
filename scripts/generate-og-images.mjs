@@ -606,6 +606,13 @@ const SPEC = {
   'showing-install-count-publicly-conversion':
     { art: 'diverge', takeaway: 'A big number next to a weak score reads as a warning',
       a: 'install count: popularity', b: 'rating: quality' },
+  'refund-request-prevent-or-delay-bad-review':
+    { art: 'qa', takeaway: 'The money gets fixed, the frustration does not' },
+  'contains-ads-label-conversion':
+    { art: 'qa', takeaway: 'What it depends on: your category, not the label itself' },
+  'permission-prompts-first-launch-retention':
+    { art: 'funnel', takeaway: 'A wall upfront loses users before they see anything',
+      steps: ['app opens', 'permission wall', 'the actual product'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
