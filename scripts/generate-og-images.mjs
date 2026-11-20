@@ -613,6 +613,14 @@ const SPEC = {
   'permission-prompts-first-launch-retention':
     { art: 'funnel', takeaway: 'A wall upfront loses users before they see anything',
       steps: ['app opens', 'permission wall', 'the actual product'] },
+  'repeating-keyword-title-and-keyword-field':
+    { art: 'qa', takeaway: 'Already checked, not a dial you can turn up again' },
+  'deleting-a-review-does-anything-still-count':
+    { art: 'diverge', takeaway: 'One leaves the pool, the other just changes value',
+      a: 'deleted: gone from the average', b: 'lowered: still counted' },
+  'similar-apps-carousel-organic-or-different':
+    { art: 'diverge', takeaway: 'Two different paths, the same install screen',
+      a: 'keyword: a typed search', b: "carousel: the store's own call" },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
