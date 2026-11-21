@@ -621,6 +621,14 @@ const SPEC = {
   'similar-apps-carousel-organic-or-different':
     { art: 'diverge', takeaway: 'Two different paths, the same install screen',
       a: 'keyword: a typed search', b: "carousel: the store's own call" },
+  'supporting-both-orientations-tablet-conversion':
+    { art: 'qa', takeaway: 'A locked screen feels different on a tablet than a phone' },
+  'screenshots-per-device-size-or-one-set':
+    { art: 'threshold', takeaway: 'One set rarely carries over to a different shape',
+      band: 'built for a different device size' },
+  'last-updated-date-visible-trust-signal':
+    { art: 'diverge', takeaway: 'A human reads this date, an algorithm reads something else',
+      a: 'visible date: human judgment', b: 'ranking signal: the store’s own math' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
