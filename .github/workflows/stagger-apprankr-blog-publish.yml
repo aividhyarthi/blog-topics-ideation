@@ -36,5 +36,9 @@ jobs:
           git config user.name "apprankr-publish-bot"
           git config user.email "apprankr-publish-bot@users.noreply.github.com"
           git add publish-queue/pending.txt
-          git diff --cached --quiet || git commit -m "Drain AppRankr blog publish queue"
-          git diff --cached --quiet || git push origin HEAD:claude/app-ranking-tracker-sbjs7j-queue
+          if ! git diff --cached --quiet; then
+            git commit -m "Drain AppRankr blog publish queue"
+            git push origin HEAD:claude/app-ranking-tracker-sbjs7j-queue
+          else
+            echo "No queue-state change to commit."
+          fi
