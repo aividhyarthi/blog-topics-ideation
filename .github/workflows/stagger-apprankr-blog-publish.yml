@@ -1,0 +1,40 @@
+# Drains the AppRankr blog's staggered-publish queue. See
+# publish-queue/README.md on claude/app-ranking-tracker-sbjs7j-queue for the
+# full explanation. This workflow only reads that queue branch and pushes
+# already-committed commits to claude/app-ranking-tracker-sbjs7j (the live
+# AppRankr blog branch) once their scheduled time has passed. It does not
+# touch any other branch.
+name: Drain AppRankr blog publish queue
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apprankr-blog-publish-queue
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/app-ranking-tracker-sbjs7j-queue
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Drain due posts to the live branch
+        run: node scripts/drain-stagger-queue.mjs
+      - name: Commit updated queue state
+        if: always()
+        run: |
+          git config user.name "apprankr-publish-bot"
+          git config user.email "apprankr-publish-bot@users.noreply.github.com"
+          git add publish-queue/pending.txt
+          git diff --cached --quiet || git commit -m "Drain AppRankr blog publish queue"
+          git diff --cached --quiet || git push origin HEAD:claude/app-ranking-tracker-sbjs7j-queue
