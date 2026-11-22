@@ -629,6 +629,13 @@ const SPEC = {
   'last-updated-date-visible-trust-signal':
     { art: 'diverge', takeaway: 'A human reads this date, an algorithm reads something else',
       a: 'visible date: human judgment', b: 'ranking signal: the store’s own math' },
+  'review-length-affect-weight':
+    { art: 'qa', takeaway: 'Same stars, same weight, no matter the word count' },
+  'plural-vs-singular-keyword':
+    { art: 'qa', takeaway: 'One form can get credit the other form misses' },
+  'external-award-badge-conversion':
+    { art: 'diverge', takeaway: 'The same badge means nothing without recognition',
+      a: 'source they know', b: 'source they don’t' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
