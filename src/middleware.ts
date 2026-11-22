@@ -33,9 +33,12 @@ if (process.env.PRODUCT_MODE) {
 // directly. See src/pages/api/cron/rank-check.ts.
 // /blog is public content marketing — must be reachable (and crawlable by
 // search engines) without a login, same as /about.
-const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/blog', '/api/auth/', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
+// /api/mcp authenticates itself via a personal API key (Bearer token), not
+// the session cookie — see api/mcp.ts — so it's public here the same way
+// /api/cron/ is: open at the middleware layer, gated inside the route.
+const PUBLIC_PREFIXES = ['/login', '/signup', '/about', '/blog', '/api/auth/', '/api/cron/', '/api/mcp', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
 // Product routes; anything NOT in this list is an internal tool and 404s in product mode.
-const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/welcome', '/admin', '/api/admin', '/api/auth/', '/api/rank', '/api/aso', '/api/aso-variants', '/api/shares', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
+const PRODUCT_PREFIXES = ['/', '/landing', '/login', '/signup', '/about', '/blog', '/account', '/rank', '/aso', '/welcome', '/admin', '/api/admin', '/api/auth/', '/api/account', '/api/rank', '/api/aso', '/api/aso-variants', '/api/shares', '/api/mcp', '/api/cron/', '/_astro/', '/favicon', '/robots', '/sitemap', '/llms', '/ads'];
 // The two paid tools — gated on a live trial/subscription (checked below).
 // /welcome reads the same tracked-app data as /rank, so it needs the same
 // gate — no point showing a "quick snapshot" of data that's behind the

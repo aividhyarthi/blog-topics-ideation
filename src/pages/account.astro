@@ -183,6 +183,24 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
         )}
 
         {!guest && (
+          <div class="card">
+            <h2>MCP / API access</h2>
+            <p class="cardnote">Connect your own Claude or ChatGPT directly to your AppRankr data — ask it about rankings, keyword trends, ASO scores, or rating history without opening the dashboard. Generate a key below, then add it as a remote MCP server at <code>/api/mcp</code> using a <code>Bearer</code> token in your MCP client's config. The key is shown only once — store it somewhere safe.</p>
+            <div id="apikeys"><p class="noshares">Loading…</p></div>
+            <div id="keynewbox" style="display:none;border-top:1px solid var(--line);margin-top:12px;padding-top:14px;">
+              <p class="cardnote" style="margin-bottom:8px;">Your new key (copy it now — it won't be shown again):</p>
+              <code id="keynewval" style="display:block;word-break:break-all;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 11px;font-size:12.5px;margin-bottom:10px;"></code>
+              <button class="btn ghost" id="keycopy" type="button">Copy to clipboard</button>
+            </div>
+            <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:14px;">
+              <label class="flabel" for="key-label">Label (so you remember what it's for)</label>
+              <input type="text" id="key-label" placeholder="Claude Desktop" style="width:100%;max-width:380px;padding:9px 11px;border:1px solid var(--line);border-radius:7px;font-size:13.5px;font-family:inherit;" />
+              <div style="margin-top:12px;"><button class="btn primary" id="key-add" type="button">Generate new key</button></div>
+            </div>
+          </div>
+        )}
+
+        {!guest && (
         <div class="card">
           <h2>{user.status === 'active' ? 'Change plan' : 'Choose your plan'}</h2>
           <p class="kv" style="padding-top:0;color:var(--muted);font-size:13.5px;">Pay by UPI — scan the QR, tap to pay in any UPI app, or message us on WhatsApp. No card, no netbanking, no payment gateway. We activate your account manually once the payment comes through.</p>
@@ -299,6 +317,59 @@ const cancelWa = waLink(`Hi, I'd like to cancel my ${BRAND} ${plan.name} plan su
           .then((r) => r.json())
           .then((d) => { if (d.error) throw new Error(d.error); render(d); })
           .catch(() => { sharesBox.innerHTML = '<p class="noshares">Couldn’t load shared access.</p>'; });
+      }
+
+      /* ------------------------------- API keys ------------------------------- */
+      const keysBox = document.getElementById('apikeys');
+      if (keysBox) {
+        const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const labelInput = document.getElementById('key-label');
+        const addBtn = document.getElementById('key-add');
+        const newBox = document.getElementById('keynewbox');
+        const newVal = document.getElementById('keynewval');
+
+        function renderKeys(keys) {
+          keysBox.innerHTML = keys.length
+            ? keys.map((k) => `
+                <div class="sharerow">
+                  <div>
+                    <div class="who">${esc(k.label)}</div>
+                    <div class="what">Created ${new Date(k.createdAt).toLocaleDateString()}${k.lastUsedAt ? ` · last used ${new Date(k.lastUsedAt).toLocaleDateString()}` : ' · never used'}</div>
+                  </div>
+                  <button type="button" data-revoke-key="${esc(k.id)}">Revoke</button>
+                </div>`).join('')
+            : '<p class="noshares">No API keys yet.</p>';
+
+          keysBox.querySelectorAll('[data-revoke-key]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              if (!confirm('Revoke this key? Anything using it will stop working immediately.')) return;
+              btn.disabled = true;
+              try { renderKeys((await post('/api/account/api-keys', { action: 'revoke', id: btn.getAttribute('data-revoke-key') })).keys); }
+              catch { btn.disabled = false; }
+            });
+          });
+        }
+
+        addBtn.addEventListener('click', async () => {
+          addBtn.disabled = true;
+          try {
+            const data = await post('/api/account/api-keys', { action: 'create', label: labelInput.value.trim() });
+            labelInput.value = '';
+            newVal.textContent = data.key;
+            newBox.style.display = 'block';
+            renderKeys(data.keys);
+          } catch (e) { alert(e.message); }
+          addBtn.disabled = false;
+        });
+
+        document.getElementById('keycopy').addEventListener('click', () => {
+          navigator.clipboard?.writeText(newVal.textContent || '');
+        });
+
+        fetch('/api/account/api-keys')
+          .then((r) => r.json())
+          .then((d) => { if (d.error) throw new Error(d.error); renderKeys(d.keys); })
+          .catch(() => { keysBox.innerHTML = '<p class="noshares">Couldn’t load API keys.</p>'; });
       }
     </script>
   </body>

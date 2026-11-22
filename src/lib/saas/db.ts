@@ -76,6 +76,18 @@ export function getDb(): DatabaseSync {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (owner_id, grantee_email, month)
     );
+    -- Personal API keys, for the MCP server (see api/mcp.ts) and any other
+    -- non-browser client. Only the sha256 hash is stored — the plaintext key
+    -- is shown once, at creation, same as a GitHub personal access token.
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      key_hash TEXT NOT NULL UNIQUE,
+      label TEXT NOT NULL DEFAULT '',
+      last_used_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
   `);
   return db;
 }
@@ -226,4 +238,43 @@ export function incrementGuestAsoUsage(ownerId: string, granteeEmail: string, mo
      ON CONFLICT(owner_id, grantee_email, month) DO UPDATE SET count = count + 1, updated_at = excluded.updated_at`,
   ).run(ownerId, granteeEmail.toLowerCase(), month, new Date().toISOString());
   return getGuestAsoUsage(ownerId, granteeEmail, month);
+}
+
+/* --------------------------------- API keys -------------------------------- */
+
+export interface ApiKeyRow {
+  id: string;
+  userId: string;
+  label: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+const rowToApiKey = (r: Record<string, any>): ApiKeyRow => ({
+  id: String(r.id), userId: String(r.user_id), label: String(r.label || ''),
+  lastUsedAt: r.last_used_at ?? null, createdAt: String(r.created_at),
+});
+
+export function insertApiKey(id: string, userId: string, keyHash: string, label: string): void {
+  getDb().prepare('INSERT INTO api_keys (id, user_id, key_hash, label, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(id, userId, keyHash, label, new Date().toISOString());
+}
+
+export function findUserIdByApiKeyHash(keyHash: string): string | null {
+  const r = getDb().prepare('SELECT user_id FROM api_keys WHERE key_hash = ?').get(keyHash) as Record<string, any> | undefined;
+  return r ? String(r.user_id) : null;
+}
+
+export function touchApiKey(keyHash: string): void {
+  getDb().prepare('UPDATE api_keys SET last_used_at = ? WHERE key_hash = ?').run(new Date().toISOString(), keyHash);
+}
+
+export function listApiKeysForUser(userId: string): ApiKeyRow[] {
+  return (getDb().prepare('SELECT * FROM api_keys WHERE user_id = ? ORDER BY created_at DESC')
+    .all(userId) as Record<string, any>[]).map(rowToApiKey);
+}
+
+/** Scoped by user so nobody can revoke someone else's key by guessing an id. */
+export function deleteApiKey(userId: string, id: string): void {
+  getDb().prepare('DELETE FROM api_keys WHERE user_id = ? AND id = ?').run(userId, id);
 }
