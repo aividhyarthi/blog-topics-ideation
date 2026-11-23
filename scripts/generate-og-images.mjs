@@ -636,6 +636,14 @@ const SPEC = {
   'external-award-badge-conversion':
     { art: 'diverge', takeaway: 'The same badge means nothing without recognition',
       a: 'source they know', b: 'source they don’t' },
+  'in-app-update-api-flexible-vs-immediate':
+    { art: 'diverge', takeaway: 'Two modes, built for opposite kinds of urgency',
+      a: 'flexible: background, no block', b: 'immediate: full block, restart' },
+  'forced-account-creation-before-first-use':
+    { art: 'funnel', takeaway: 'A wall before any value loses people who would have stayed',
+      steps: ['app opens', 'sign-up wall', 'the actual product'] },
+  'screenshot-order-or-just-the-first-one':
+    { art: 'qa', takeaway: 'The first one is seen by everyone. The rest, only by the curious.' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
