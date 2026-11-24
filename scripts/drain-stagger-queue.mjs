@@ -36,6 +36,8 @@ function pushByCherryPick(sha, targetBranch) {
   try {
     execSync(`git fetch origin ${targetBranch}`, { cwd: root, stdio: 'inherit' });
     execSync(`git worktree add --detach "${wt}" origin/${targetBranch}`, { cwd: root, stdio: 'inherit' });
+    execSync('git config user.name "apprankr-publish-bot"', { cwd: wt, stdio: 'inherit' });
+    execSync('git config user.email "apprankr-publish-bot@users.noreply.github.com"', { cwd: wt, stdio: 'inherit' });
     execSync(`git cherry-pick ${sha}`, { cwd: wt, stdio: 'inherit' });
     execSync(`git push origin HEAD:${targetBranch}`, { cwd: wt, stdio: 'inherit' });
   } finally {
