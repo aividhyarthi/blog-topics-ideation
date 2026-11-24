@@ -4,11 +4,15 @@
 # already-committed commits to claude/app-ranking-tracker-sbjs7j (the live
 # AppRankr blog branch) once their scheduled time has passed. It does not
 # touch any other branch.
+#
+# Checks every 2 hours. Each run pushes every queued post that's come due since the last check (see
+# scripts/drain-stagger-queue.mjs), so a 2-hourly check loses nothing - a post just goes live within 2
+# hours of its scheduled time instead of within 20 minutes. Comfortable for the current 3-5 posts/day pace.
 name: Drain AppRankr blog publish queue
 
 on:
   schedule:
-    - cron: '*/20 * * * *'
+    - cron: '0 */2 * * *'
   workflow_dispatch:
 
 permissions:
