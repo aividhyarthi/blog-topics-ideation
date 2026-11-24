@@ -644,6 +644,14 @@ const SPEC = {
       steps: ['app opens', 'sign-up wall', 'the actual product'] },
   'screenshot-order-or-just-the-first-one':
     { art: 'qa', takeaway: 'The first one is seen by everyone. The rest, only by the curious.' },
+  'supported-device-list-affects-what-you-rank-for':
+    { art: 'funnel', takeaway: 'Not a lower rank. Not a candidate at all.',
+      steps: ['user searches', 'device check', 'your app, if eligible'] },
+  'free-and-paid-version-split-keyword-rankings':
+    { art: 'diverge', takeaway: 'One product, two listings, one shared pool of searches',
+      a: 'free listing: its own signal', b: 'paid listing: its own signal' },
+  'do-reviews-from-an-old-version-still-count':
+    { art: 'qa', takeaway: 'Fixed the bug. The review it caused is still full weight.' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
