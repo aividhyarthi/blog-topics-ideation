@@ -652,6 +652,14 @@ const SPEC = {
       a: 'free listing: its own signal', b: 'paid listing: its own signal' },
   'do-reviews-from-an-old-version-still-count':
     { art: 'qa', takeaway: 'Fixed the bug. The review it caused is still full weight.' },
+  'mentioning-competitor-name-in-description-risk':
+    { art: 'diverge', takeaway: 'Same name, two very different kinds of risk',
+      a: 'as a keyword: mostly ineffective', b: 'in your copy: a policy risk' },
+  'number-of-screenshots-affect-conversion':
+    { art: 'qa', takeaway: 'Four strong screenshots beat eight weak ones' },
+  'broken-privacy-policy-link-hurt-ranking':
+    { art: 'funnel', takeaway: 'Not a rank penalty. A listing pulled from search entirely.',
+      steps: ['link breaks quietly', 'compliance flag', 'listing out of search'] },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
