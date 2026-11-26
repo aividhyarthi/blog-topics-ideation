@@ -660,6 +660,15 @@ const SPEC = {
   'broken-privacy-policy-link-hurt-ranking':
     { art: 'funnel', takeaway: 'Not a rank penalty. A listing pulled from search entirely.',
       steps: ['link breaks quietly', 'compliance flag', 'listing out of search'] },
+  'app-store-connect-retention-messages-subscriptions':
+    { art: 'funnel', takeaway: 'A new moment to make your case, right before they leave',
+      steps: ['subscriber starts cancel', 'retention message', 'win-back offer, if they still leave'] },
+  'age-rating-content-descriptors-shared-location-dating':
+    { art: 'threshold', takeaway: 'A real deadline, not a soft suggestion',
+      band: 'must be declared by Jan 12, 2027' },
+  'editors-choice-badge-ranking-weight-or-visibility':
+    { art: 'diverge', takeaway: 'Two different channels, not one ranking signal',
+      a: 'keyword rank: matching and signals', b: 'curation: a human choice' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
