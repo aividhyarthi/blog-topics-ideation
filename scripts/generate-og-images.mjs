@@ -669,6 +669,15 @@ const SPEC = {
   'editors-choice-badge-ranking-weight-or-visibility':
     { art: 'diverge', takeaway: 'Two different channels, not one ranking signal',
       a: 'keyword rank: matching and signals', b: 'curation: a human choice' },
+  'emoji-in-title-keyword-matching':
+    { art: 'diverge', takeaway: 'No searchable text, no effect on matching either way',
+      a: 'visual: catches the eye', b: 'matching: carries no text' },
+  'order-of-iap-list-affect-conversion':
+    { art: 'funnel', takeaway: 'Attention drops off fast after the first item',
+      steps: ['item 1: seen by everyone', 'item 2-3: seen by most', 'item 5+: seen by few'] },
+  'target-audience-age-group-setting-visibility':
+    { art: 'diverge', takeaway: 'Two separate declarations, easy to let drift apart',
+      a: 'content rating: what’s inside', b: 'target audience: who it’s for' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
