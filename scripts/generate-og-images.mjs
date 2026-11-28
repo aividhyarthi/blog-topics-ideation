@@ -678,6 +678,14 @@ const SPEC = {
   'target-audience-age-group-setting-visibility':
     { art: 'diverge', takeaway: 'Two separate declarations, easy to let drift apart',
       a: 'content rating: what’s inside', b: 'target audience: who it’s for' },
+  'google-play-four-pillars-of-app-quality':
+    { art: 'chips', takeaway: 'Four named pillars, each with a Good and a Great bar',
+      chips: ['core value', 'user experience', 'technical quality', 'privacy and security'] },
+  'flagging-a-fake-review-removed-or-just-reviewed':
+    { art: 'funnel', takeaway: 'Still live, still counted, while the flag sits in review',
+      steps: ['review flagged', 'store reviews it', 'removed, only if it violates policy'] },
+  'day-of-week-submission-affect-review-speed':
+    { art: 'qa', takeaway: 'No store has ever put a number behind this one' },
 };
 
 /* ------------------------------- art pieces ------------------------------- */
